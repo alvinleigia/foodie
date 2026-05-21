@@ -180,7 +180,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
     <>
       <Card className="rounded-[2rem] border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardHeader className="px-6 pt-6">
-          <SectionHeader eyebrow="Place an order" title="Pick your next pour" className="mb-0" />
+          <SectionHeader eyebrow="Place an order" title="Pick Your Next Pour" className="mb-0" />
         </CardHeader>
 
         <CardContent className="px-6 pb-6">
