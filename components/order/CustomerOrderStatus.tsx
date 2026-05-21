@@ -147,7 +147,6 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
         <SectionHeader
           eyebrow="Order status"
           title="Your recent orders"
-          description="Orders are tracked on this device and completed history is cleaned up after a day."
           className="mb-0"
         />
       </CardHeader>
