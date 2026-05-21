@@ -4,7 +4,12 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { drinkCategories } from "@/data/drinks";
-import { CUSTOMER_ORDERS_STORAGE_KEY, LocalCustomerOrder } from "@/lib/constants";
+import { LocalCustomerOrder } from "@/lib/constants";
+import {
+  readStoredCustomerOrders,
+  syncCustomerOrdersResetMarker,
+  writeStoredCustomerOrders,
+} from "@/lib/customer-orders";
 import { FormField } from "@/components/shared/FormField";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -156,14 +161,9 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
       createdAt: payload.createdAt,
     };
 
-    const existingOrders = JSON.parse(
-      window.localStorage.getItem(CUSTOMER_ORDERS_STORAGE_KEY) ?? "[]",
-    ) as LocalCustomerOrder[];
-
-    window.localStorage.setItem(
-      CUSTOMER_ORDERS_STORAGE_KEY,
-      JSON.stringify([nextOrder, ...existingOrders]),
-    );
+    syncCustomerOrdersResetMarker(payload.ordersResetAt ?? null);
+    const existingOrders = readStoredCustomerOrders();
+    writeStoredCustomerOrders([nextOrder, ...existingOrders]);
 
     onOrderCreated(nextOrder);
     toast.success(`Order #${payload.orderNo} placed successfully.`);

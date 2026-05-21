@@ -3,6 +3,7 @@ import { generateCustomerToken } from "@/lib/order-token";
 import { getNextOrderNumber } from "@/lib/order-number";
 import { createOrderSchema } from "@/lib/validations/order";
 import { getDrinkSnapshot, getMixologistOrders, serializeOrder } from "@/lib/orders";
+import { getOrdersResetAt } from "@/lib/order-reset";
 import { getDb } from "@/db";
 import { orders } from "@/db/schema";
 import { requireMixologistSession } from "@/lib/auth";
@@ -61,7 +62,10 @@ export async function POST(request: NextRequest) {
       .returning()
       ;
 
-    return NextResponse.json(serializeOrder(createdOrder));
+    return NextResponse.json({
+      ...serializeOrder(createdOrder),
+      ordersResetAt: await getOrdersResetAt(),
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to create order." },

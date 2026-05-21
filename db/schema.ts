@@ -25,6 +25,12 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const appState = pgTable("app_state", {
+  key: text("key").primaryKey(),
+  ordersResetAt: timestamp("orders_reset_at"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
   orderNo: integer("order_no").notNull().unique(),

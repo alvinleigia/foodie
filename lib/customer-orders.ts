@@ -1,6 +1,7 @@
 import {
   CUSTOMER_HISTORY_RETENTION_MS,
   CUSTOMER_ORDERS_STORAGE_KEY,
+  CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY,
   LocalCustomerOrder,
 } from "@/lib/constants";
 
@@ -38,4 +39,41 @@ export function readStoredCustomerOrders() {
   }
 
   return pruned;
+}
+
+export function writeStoredCustomerOrders(orders: LocalCustomerOrder[]) {
+  window.localStorage.setItem(CUSTOMER_ORDERS_STORAGE_KEY, JSON.stringify(pruneCustomerOrders(orders)));
+}
+
+export function clearStoredCustomerOrders() {
+  window.localStorage.removeItem(CUSTOMER_ORDERS_STORAGE_KEY);
+}
+
+export function readStoredCustomerOrdersResetMarker() {
+  return window.localStorage.getItem(CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY);
+}
+
+export function writeStoredCustomerOrdersResetMarker(resetMarker: string | null) {
+  if (!resetMarker) {
+    window.localStorage.removeItem(CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY, resetMarker);
+}
+
+export function syncCustomerOrdersResetMarker(serverResetMarker: string | null) {
+  if (!serverResetMarker) {
+    return false;
+  }
+
+  const localResetMarker = readStoredCustomerOrdersResetMarker();
+
+  if (localResetMarker === serverResetMarker) {
+    return false;
+  }
+
+  clearStoredCustomerOrders();
+  writeStoredCustomerOrdersResetMarker(serverResetMarker);
+  return true;
 }

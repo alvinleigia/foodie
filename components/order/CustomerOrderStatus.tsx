@@ -3,8 +3,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { CUSTOMER_ORDERS_STORAGE_KEY, LocalCustomerOrder } from "@/lib/constants";
-import { readStoredCustomerOrders } from "@/lib/customer-orders";
+import { LocalCustomerOrder } from "@/lib/constants";
+import {
+  readStoredCustomerOrders,
+  syncCustomerOrdersResetMarker,
+  writeStoredCustomerOrders,
+} from "@/lib/customer-orders";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -81,6 +85,18 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
         return;
       }
 
+      const wasReset = syncCustomerOrdersResetMarker(payload.ordersResetAt ?? null);
+
+      if (wasReset) {
+        if (isMounted) {
+          setOrders([]);
+          setError(null);
+          setIsLoading(false);
+          toast.success("Order history was cleared from the bar system.");
+        }
+        return;
+      }
+
       const nextOrders = payload.orders.map((order: ApiOrder) => ({
         orderId: order.orderId,
         orderNo: order.orderNo,
@@ -94,10 +110,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
         createdAt: order.createdAt,
       }));
 
-      window.localStorage.setItem(
-        CUSTOMER_ORDERS_STORAGE_KEY,
-        JSON.stringify(nextOrders),
-      );
+      writeStoredCustomerOrders(nextOrders);
 
       if (isMounted) {
         setOrders(payload.orders);
@@ -135,7 +148,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
       item.orderId === order.orderId ? payload : item,
     );
     setOrders(nextOrders);
-    window.localStorage.setItem(CUSTOMER_ORDERS_STORAGE_KEY, JSON.stringify(nextOrders));
+    writeStoredCustomerOrders(nextOrders);
     toast.success("Order cancelled.");
     setPendingCancelId(null);
     setConfirmingCancelOrder(null);

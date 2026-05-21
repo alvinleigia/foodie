@@ -1,5 +1,5 @@
 export const CUSTOMER_ORDERS_STORAGE_KEY = "bar_customer_orders";
-export const MIXOLOGIST_KEY_STORAGE_KEY = "bar_mixologist_key";
+export const CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY = "bar_customer_orders_reset_marker";
 export const CUSTOMER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 export const orderStatuses = [

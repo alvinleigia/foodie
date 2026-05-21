@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -63,6 +64,8 @@ export function MixologistOrderBoard() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [confirmingCancelOrder, setConfirmingCancelOrder] = useState<MixologistOrder | null>(null);
+  const [isClearDialogOpen, setIsClearDialogOpen] = useState(false);
+  const [clearConfirmationText, setClearConfirmationText] = useState("");
 
   async function syncOrders() {
     setIsRefreshing(true);
@@ -141,6 +144,34 @@ export function MixologistOrderBoard() {
 
     await syncOrders();
     toast.success("Order updated.");
+    setPendingAction(null);
+  }
+
+  async function clearAllOrders() {
+    setPendingAction("clear-all");
+
+    const response = await fetch("/api/orders/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmationText: clearConfirmationText }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.error ?? "Failed to clear orders.");
+      toast.error(payload.error ?? "Failed to clear orders.");
+      setPendingAction(null);
+      return;
+    }
+
+    setOrders({ activeOrders: [], pastOrders: [] });
+    setError(null);
+    setClearConfirmationText("");
+    setIsClearDialogOpen(false);
+    setHasLoadedOnce(true);
+    setIsRefreshing(false);
+    toast.success(payload.message ?? "All order records cleared.");
     setPendingAction(null);
   }
 
@@ -223,6 +254,15 @@ export function MixologistOrderBoard() {
           }`}
         >
           Past Orders ({orders.pastOrders.length})
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          disabled={Boolean(pendingAction)}
+          className="rounded-full"
+          onClick={() => setIsClearDialogOpen(true)}
+        >
+          Clear All Orders
         </Button>
       </div>
 
@@ -310,6 +350,60 @@ export function MixologistOrderBoard() {
                 </span>
               ) : (
                 "Confirm Cancel"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={isClearDialogOpen}
+        onOpenChange={(open) => {
+          if (pendingAction === "clear-all") {
+            return;
+          }
+
+          setIsClearDialogOpen(open);
+
+          if (!open) {
+            setClearConfirmationText("");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all order records?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes every order from both the active and past tabs.
+              To confirm, type <span className="font-semibold text-stone-900">delete</span> below.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-stone-700">Type delete to continue</p>
+            <Input
+              value={clearConfirmationText}
+              onChange={(event) => setClearConfirmationText(event.target.value)}
+              placeholder="delete"
+              autoComplete="off"
+              disabled={pendingAction === "clear-all"}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pendingAction === "clear-all"}>Keep Records</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={pendingAction === "clear-all" || clearConfirmationText.trim().toLowerCase() !== "delete"}
+              onClick={(event) => {
+                event.preventDefault();
+                void clearAllOrders();
+              }}
+            >
+              {pendingAction === "clear-all" ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-rose-700" />
+                  Clearing...
+                </span>
+              ) : (
+                "Delete All Orders"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
