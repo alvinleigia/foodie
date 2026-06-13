@@ -155,7 +155,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
   }
 
   return (
-    <Card className="rounded-[2rem] border-stone-200/70 bg-white/80 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+    <Card className="rounded-xl border-stone-200/70 bg-white/80 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
       <CardHeader className="px-6 pt-6">
         <SectionHeader
           eyebrow="Order status"
@@ -172,7 +172,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
           {Array.from({ length: 2 }).map((_, index) => (
             <Card
               key={index}
-              className="rounded-[1.75rem] border-stone-200 bg-stone-50 shadow-none"
+              className="rounded-xl border-stone-200 bg-stone-50 shadow-none"
             >
               <CardContent className="space-y-4 px-5 py-4">
                 <div className="flex items-start justify-between gap-4">
@@ -181,10 +181,10 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
                     <Skeleton className="h-6 w-40" />
                     <Skeleton className="h-4 w-36" />
                   </div>
-                  <Skeleton className="h-7 w-20 rounded-full" />
+                  <Skeleton className="h-7 w-20 rounded-lg" />
                 </div>
                 <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-9 w-28 rounded-2xl" />
+                <Skeleton className="h-9 w-28 rounded-lg" />
               </CardContent>
             </Card>
           ))}
@@ -199,7 +199,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
           {orders.map((order) => (
             <Card
               key={order.orderId}
-              className="rounded-[1.75rem] border-stone-200 bg-stone-50 shadow-none"
+              className="rounded-xl border-stone-200 bg-stone-50 shadow-none"
             >
               <CardContent className="px-5 py-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -233,7 +233,7 @@ export function CustomerOrderStatus({ refreshKey }: CustomerOrderStatusProps) {
                   variant="outline"
                   disabled={pendingCancelId === order.orderId}
                   onClick={() => setConfirmingCancelOrder(order)}
-                  className="mt-4 rounded-2xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                  className="mt-4 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
                 >
                   {pendingCancelId === order.orderId ? (
                     <span className="inline-flex items-center gap-2">

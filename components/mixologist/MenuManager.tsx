@@ -9,6 +9,7 @@ import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import { MenuCategoryRecord, MenuItemRecord } from "@/types/menu";
 
@@ -307,7 +309,7 @@ export function MenuManager() {
 
   return (
     <>
-      <Card className="rounded-[2rem] border-white/60 bg-white/92 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+      <Card className="rounded-xl border-white/60 bg-white/92 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardHeader className="px-6 pt-6">
           <SectionHeader
             eyebrow="Menu Manager"
@@ -325,7 +327,7 @@ export function MenuManager() {
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
           <div className="flex flex-wrap gap-3">
-            <Button type="button" onClick={openCreateCategoryDialog} className="rounded-full bg-stone-950 text-white hover:bg-stone-800">
+            <Button type="button" onClick={openCreateCategoryDialog} className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
               <PlusIcon className="size-4" />
               Add Category
             </Button>
@@ -333,7 +335,7 @@ export function MenuManager() {
               type="button"
               variant="outline"
               onClick={() => openCreateItemDialog()}
-              className="rounded-full border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
               disabled={sortedCategories.length === 0}
             >
               <PlusIcon className="size-4" />
@@ -344,7 +346,7 @@ export function MenuManager() {
               variant="outline"
               onClick={() => void exportMenu()}
               disabled={pendingAction === "export"}
-              className="rounded-full border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
             >
               {pendingAction === "export" ? <Spinner className="text-stone-800" /> : <DownloadIcon className="size-4" />}
               Export CSV
@@ -354,7 +356,7 @@ export function MenuManager() {
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={pendingAction === "import"}
-              className="rounded-full border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
             >
               {pendingAction === "import" ? <Spinner className="text-stone-800" /> : <UploadIcon className="size-4" />}
               Import CSV
@@ -376,7 +378,7 @@ export function MenuManager() {
             />
           </div>
 
-          <div className="rounded-[1.5rem] border border-dashed border-stone-200 bg-stone-50 px-5 py-4">
+          <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 px-5 py-4">
             <p className="text-sm font-semibold text-stone-900">Bulk import / export</p>
             <p className="mt-2 text-sm text-stone-600">
               Export the current menu to CSV, edit it in Excel or Google Sheets, then import it back.
@@ -400,14 +402,14 @@ export function MenuManager() {
           ) : (
             <div className="space-y-5">
               {sortedCategories.map((category) => (
-                <Card key={category.id} className="rounded-[1.75rem] border-stone-200 bg-white shadow-none">
+                <Card key={category.id} className="rounded-xl border-stone-200 bg-white shadow-none">
                   <CardContent className="space-y-5 px-5 py-5">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-xl font-semibold text-stone-950">{category.name}</h3>
                           {!category.isActive ? (
-                            <span className="rounded-full bg-stone-200 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
+                            <span className="rounded-lg bg-stone-200 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-600">
                               Hidden
                             </span>
                           ) : null}
@@ -424,7 +426,7 @@ export function MenuManager() {
                           type="button"
                           variant="outline"
                           onClick={() => openEditCategoryDialog(category)}
-                          className="rounded-full border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                         >
                           <PencilLineIcon className="size-4" />
                           Edit Section
@@ -433,7 +435,7 @@ export function MenuManager() {
                           type="button"
                           variant="outline"
                           onClick={() => openCreateItemDialog(category.id)}
-                          className="rounded-full border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                         >
                           <PlusIcon className="size-4" />
                           Add Item
@@ -452,9 +454,9 @@ export function MenuManager() {
                         {category.items.map((item) => (
                           <div
                             key={item.id}
-                            className="grid gap-4 rounded-[1.25rem] border border-stone-200 bg-stone-50 p-4 md:grid-cols-[80px_1fr_auto_auto]"
+                            className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 md:grid-cols-[80px_1fr_auto_auto]"
                           >
-                            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg bg-white">
                               {item.imageUrl ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -470,7 +472,7 @@ export function MenuManager() {
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="text-lg font-semibold text-stone-950">{item.name}</p>
                                 {!item.isActive ? (
-                                  <span className="rounded-full bg-stone-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-600">
+                                  <span className="rounded-lg bg-stone-200 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-600">
                                     Hidden
                                   </span>
                                 ) : null}
@@ -487,7 +489,7 @@ export function MenuManager() {
                                 type="button"
                                 variant="outline"
                                 onClick={() => openEditItemDialog(item)}
-                                className="rounded-full border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                                className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                               >
                                 <PencilLineIcon className="size-4" />
                                 Edit
@@ -506,7 +508,7 @@ export function MenuManager() {
       </Card>
 
       <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-        <DialogContent className="max-w-xl rounded-[2rem] border border-white/70 bg-white p-0">
+        <DialogContent className="max-w-xl rounded-xl border border-white/70 bg-white p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-stone-950">
               {categoryDraft.id ? "Edit category" : "Add category"}
@@ -520,15 +522,14 @@ export function MenuManager() {
               <Input
                 value={categoryDraft.name}
                 onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))}
-                className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
             <FormField label="Description">
-              <textarea
+              <Textarea
                 value={categoryDraft.description}
                 onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))}
                 rows={4}
-                className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-900 outline-none transition focus:border-amber-500"
               />
             </FormField>
             <FormField label="Sort order">
@@ -537,27 +538,28 @@ export function MenuManager() {
                 min="0"
                 value={categoryDraft.sortOrder}
                 onChange={(event) => setCategoryDraft((current) => ({ ...current, sortOrder: event.target.value }))}
-                className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
-            <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
-              <input
-                type="checkbox"
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
                 checked={categoryDraft.isActive}
-                onChange={(event) => setCategoryDraft((current) => ({ ...current, isActive: event.target.checked }))}
+                onCheckedChange={(checked) =>
+                  setCategoryDraft((current) => ({ ...current, isActive: checked === true }))
+                }
               />
               Show this category to customers
             </label>
           </div>
-          <DialogFooter className="rounded-b-[2rem] border-t border-stone-200 bg-stone-50/80">
-            <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)} className="rounded-2xl">
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)} className="rounded-lg">
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => void submitCategory()}
               disabled={pendingAction === "category"}
-              className="rounded-2xl bg-stone-950 text-white hover:bg-stone-800"
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               {pendingAction === "category" ? (
                 <span className="inline-flex items-center gap-2">
@@ -575,7 +577,7 @@ export function MenuManager() {
       </Dialog>
 
       <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-2xl rounded-[2rem] border border-white/70 bg-white p-0">
+        <DialogContent className="max-w-4xl rounded-xl border border-white/70 bg-white p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-stone-950">
               {itemDraft.id ? "Edit product" : "Add product"}
@@ -584,7 +586,7 @@ export function MenuManager() {
               Match the Google menu flow: choose a section, then fill in name, price, description, and photo.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 px-6 pb-4">
+          <div className="grid max-h-[calc(100vh-15rem)] gap-4 overflow-x-hidden overflow-y-auto px-6 pb-4">
             <FormField label="Category">
               <NativeSelect
                 value={itemDraft.categoryId}
@@ -604,7 +606,7 @@ export function MenuManager() {
                 <Input
                   value={itemDraft.name}
                   onChange={(event) => setItemDraft((current) => ({ ...current, name: event.target.value }))}
-                  className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
               <FormField label="Price">
@@ -616,17 +618,16 @@ export function MenuManager() {
                   value={itemDraft.price}
                   onChange={(event) => setItemDraft((current) => ({ ...current, price: event.target.value }))}
                   placeholder="9.99"
-                  className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
             </div>
 
             <FormField label="Description">
-              <textarea
+              <Textarea
                 value={itemDraft.description}
                 onChange={(event) => setItemDraft((current) => ({ ...current, description: event.target.value }))}
                 rows={4}
-                className="rounded-2xl border border-stone-200 bg-white px-4 py-3 text-base text-stone-900 outline-none transition focus:border-amber-500"
               />
             </FormField>
 
@@ -636,23 +637,23 @@ export function MenuManager() {
                 value={itemDraft.imageUrl}
                 onChange={(event) => setItemDraft((current) => ({ ...current, imageUrl: event.target.value }))}
                 placeholder="https://..."
-                className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
               <FormField label="Sort order">
                 <Input
                   type="number"
                   min="0"
                   value={itemDraft.sortOrder}
                   onChange={(event) => setItemDraft((current) => ({ ...current, sortOrder: event.target.value }))}
-                  className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
-              <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 p-4">
+              <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 p-4">
                 <p className="text-sm font-medium text-stone-700">Image preview</p>
-                <div className="mt-3 flex h-28 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                <div className="mt-3 flex h-28 items-center justify-center overflow-hidden rounded-xl bg-white">
                   {itemDraft.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={itemDraft.imageUrl} alt={itemDraft.name || "Preview"} className="h-full w-full object-cover" />
@@ -666,24 +667,25 @@ export function MenuManager() {
               </div>
             </div>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
-              <input
-                type="checkbox"
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
                 checked={itemDraft.isActive}
-                onChange={(event) => setItemDraft((current) => ({ ...current, isActive: event.target.checked }))}
+                onCheckedChange={(checked) =>
+                  setItemDraft((current) => ({ ...current, isActive: checked === true }))
+                }
               />
               Show this product to customers
             </label>
           </div>
-          <DialogFooter className="rounded-b-[2rem] border-t border-stone-200 bg-stone-50/80">
-            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} className="rounded-2xl">
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} className="rounded-lg">
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => void submitItem()}
               disabled={pendingAction === "item"}
-              className="rounded-2xl bg-stone-950 text-white hover:bg-stone-800"
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               {pendingAction === "item" ? (
                 <span className="inline-flex items-center gap-2">

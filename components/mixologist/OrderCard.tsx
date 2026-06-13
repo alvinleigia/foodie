@@ -40,7 +40,7 @@ export function OrderCard({
   const isAnnouncing = pendingAction === `announce:${order.orderId}`;
 
   return (
-    <Card className="rounded-[2rem] border-stone-200 bg-white shadow-[0_14px_40px_rgba(40,26,20,0.08)]">
+    <Card className="rounded-xl border-stone-200 bg-white shadow-[0_14px_40px_rgba(40,26,20,0.08)]">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5 pb-0">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">
@@ -75,7 +75,7 @@ export function OrderCard({
               type="button"
               disabled={disabled}
               onClick={() => onAction(`/api/orders/${order.orderId}/start`)}
-              className="rounded-2xl bg-stone-950 text-white hover:bg-stone-800"
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               {isStarting ? (
                 <span className="inline-flex items-center gap-2">
@@ -91,7 +91,7 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onAction(`/api/orders/${order.orderId}/cancel`)}
-              className="rounded-2xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+              className="rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
             >
               {isCancelling ? (
                 <span className="inline-flex items-center gap-2">
@@ -110,7 +110,7 @@ export function OrderCard({
             type="button"
             disabled={disabled}
             onClick={() => onAction(`/api/orders/${order.orderId}/ready`)}
-            className="rounded-2xl bg-amber-500 text-stone-950 hover:bg-amber-400"
+            className="rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400"
           >
             {isReadying ? (
               <span className="inline-flex items-center gap-2">
@@ -130,7 +130,7 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onAnnounce(order)}
-              className="rounded-2xl border-stone-300 text-stone-900 hover:bg-stone-100"
+              className="rounded-lg border-stone-300 text-stone-900 hover:bg-stone-100"
             >
               {isAnnouncing ? (
                 <span className="inline-flex items-center gap-2">
@@ -145,7 +145,7 @@ export function OrderCard({
               type="button"
               disabled={disabled}
               onClick={() => onAction(`/api/orders/${order.orderId}/deliver`)}
-              className="rounded-2xl bg-emerald-600 text-white hover:bg-emerald-500"
+              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
             >
               {isDelivering ? (
                 <span className="inline-flex items-center gap-2">
@@ -161,7 +161,7 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onAction(`/api/orders/${order.orderId}/cancel`)}
-              className="rounded-2xl border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+              className="rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
             >
               {isCancelling ? (
                 <span className="inline-flex items-center gap-2">

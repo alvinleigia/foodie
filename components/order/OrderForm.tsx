@@ -212,7 +212,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
 
   return (
     <>
-      <Card className="rounded-[2rem] border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+      <Card className="rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardHeader className="px-6 pt-6">
           <SectionHeader eyebrow="Place an order" title="Pick Your Next Pour" className="mb-0" />
         </CardHeader>
@@ -226,7 +226,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
                 onChange={(event) => updateDraft("customerName", event.target.value)}
                 placeholder="Enter customer name"
                 disabled={isSubmitting}
-                className="h-12 rounded-2xl border-stone-200 bg-white px-4 text-base"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
 
@@ -276,7 +276,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
               type="submit"
               disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
               size="lg"
-              className="mt-1 h-12 rounded-2xl bg-stone-950 text-sm font-semibold text-white hover:bg-stone-800"
+              className="mt-1 h-12 rounded-lg bg-stone-950 text-sm font-semibold text-white hover:bg-stone-800"
             >
               {isSubmitting ? (
                 <span className="inline-flex items-center gap-2">
@@ -296,7 +296,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
       </Card>
 
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <DialogContent className="max-w-md rounded-[2rem] border border-white/70 bg-white p-0">
+        <DialogContent className="max-w-md rounded-xl border border-white/70 bg-white p-0">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-stone-950">Confirm order</DialogTitle>
             <DialogDescription className="text-sm text-stone-600">
@@ -305,7 +305,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
           </DialogHeader>
 
           <div className="px-6 pb-2">
-            <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
               <dl className="grid gap-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-stone-500">Customer</dt>
@@ -331,13 +331,13 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
             </div>
           </div>
 
-          <DialogFooter className="rounded-b-[2rem] border-t border-stone-200 bg-stone-50/80">
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsConfirmOpen(false)}
               disabled={isSubmitting}
-              className="rounded-2xl"
+              className="rounded-lg"
             >
               Back
             </Button>
@@ -345,7 +345,7 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
               type="button"
               onClick={confirmOrder}
               disabled={isSubmitting}
-              className="rounded-2xl bg-stone-950 text-white hover:bg-stone-800"
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               {isSubmitting ? (
                 <span className="inline-flex items-center gap-2">

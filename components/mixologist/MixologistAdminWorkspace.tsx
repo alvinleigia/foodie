@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { MenuManager } from "@/components/mixologist/MenuManager";
 import { MixologistOrderBoard } from "@/components/mixologist/MixologistOrderBoard";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type MixologistView = "orders" | "menu";
 
@@ -12,35 +12,28 @@ export function MixologistAdminWorkspace() {
   const [activeView, setActiveView] = useState<MixologistView>("orders");
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap gap-3">
-        <Button
-          type="button"
-          onClick={() => setActiveView("orders")}
-          variant={activeView === "orders" ? "default" : "outline"}
-          className={`rounded-full ${
-            activeView === "orders"
-              ? "bg-white text-stone-950 hover:bg-stone-100"
-              : "border-stone-600/60 bg-white/5 text-stone-100 hover:bg-white/10 hover:text-white"
-          }`}
+    <Tabs value={activeView} onValueChange={(value) => setActiveView(value as MixologistView)}>
+      <TabsList>
+        <TabsTrigger
+          value="orders"
+          className="border-stone-600/60 bg-white/5 text-stone-100 hover:bg-white/10 hover:text-white data-[state=active]:border-white data-[state=active]:bg-white data-[state=active]:text-stone-950"
         >
           Orders
-        </Button>
-        <Button
-          type="button"
-          onClick={() => setActiveView("menu")}
-          variant={activeView === "menu" ? "default" : "outline"}
-          className={`rounded-full ${
-            activeView === "menu"
-              ? "bg-white text-stone-950 hover:bg-stone-100"
-              : "border-stone-600/60 bg-white/5 text-stone-100 hover:bg-white/10 hover:text-white"
-          }`}
+        </TabsTrigger>
+        <TabsTrigger
+          value="menu"
+          className="border-stone-600/60 bg-white/5 text-stone-100 hover:bg-white/10 hover:text-white data-[state=active]:border-white data-[state=active]:bg-white data-[state=active]:text-stone-950"
         >
           Menu Manager
-        </Button>
-      </div>
+        </TabsTrigger>
+      </TabsList>
 
-      {activeView === "orders" ? <MixologistOrderBoard /> : <MenuManager />}
-    </div>
+      <TabsContent value="orders">
+        <MixologistOrderBoard />
+      </TabsContent>
+      <TabsContent value="menu">
+        <MenuManager />
+      </TabsContent>
+    </Tabs>
   );
 }

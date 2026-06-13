@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -199,7 +200,7 @@ export function MixologistOrderBoard() {
     activeTab === "active" ? orders.activeOrders : orders.pastOrders;
 
   return (
-    <Card className="rounded-[2rem] border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+    <Card className="rounded-xl border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
       <CardHeader className="px-6 pt-6">
         <SectionHeader
           eyebrow="Mixologist"
@@ -227,38 +228,22 @@ export function MixologistOrderBoard() {
       <CardContent className="px-6 pb-6">
       {error ? <p className="mb-4 text-sm text-rose-600">{error}</p> : null}
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Button
-          type="button"
-          onClick={() => setActiveTab("active")}
-          disabled={Boolean(pendingAction)}
-          variant={activeTab === "active" ? "default" : "outline"}
-          className={`rounded-full ${
-            activeTab === "active"
-              ? "bg-stone-950 text-white"
-              : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-          }`}
-        >
-          Active Orders ({orders.activeOrders.length})
-        </Button>
-        <Button
-          type="button"
-          onClick={() => setActiveTab("past")}
-          disabled={Boolean(pendingAction)}
-          variant={activeTab === "past" ? "default" : "outline"}
-          className={`rounded-full ${
-            activeTab === "past"
-              ? "bg-stone-950 text-white"
-              : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-          }`}
-        >
-          Past Orders ({orders.pastOrders.length})
-        </Button>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as MixologistTab)}>
+          <TabsList>
+            <TabsTrigger value="active" disabled={Boolean(pendingAction)}>
+              Active Orders ({orders.activeOrders.length})
+            </TabsTrigger>
+            <TabsTrigger value="past" disabled={Boolean(pendingAction)}>
+              Past Orders ({orders.pastOrders.length})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <Button
           type="button"
           variant="destructive"
           disabled={Boolean(pendingAction)}
-          className="rounded-full"
+          className="rounded-lg"
           onClick={() => setIsClearDialogOpen(true)}
         >
           Clear All Orders
@@ -268,7 +253,7 @@ export function MixologistOrderBoard() {
       {!hasLoadedOnce && isRefreshing ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, index) => (
-            <Card key={index} className="rounded-[2rem] border-stone-200 bg-white shadow-none">
+            <Card key={index} className="rounded-xl border-stone-200 bg-white shadow-none">
               <CardContent className="space-y-4 px-5 py-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-3">
@@ -276,12 +261,12 @@ export function MixologistOrderBoard() {
                     <Skeleton className="h-7 w-32" />
                     <Skeleton className="h-4 w-40" />
                   </div>
-                  <Skeleton className="h-7 w-20 rounded-full" />
+                  <Skeleton className="h-7 w-20 rounded-lg" />
                 </div>
                 <Skeleton className="h-4 w-28" />
                 <div className="flex gap-3">
-                  <Skeleton className="h-9 w-32 rounded-2xl" />
-                  <Skeleton className="h-9 w-24 rounded-2xl" />
+                  <Skeleton className="h-9 w-32 rounded-lg" />
+                  <Skeleton className="h-9 w-24 rounded-lg" />
                 </div>
               </CardContent>
             </Card>

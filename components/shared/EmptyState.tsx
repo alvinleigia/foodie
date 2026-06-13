@@ -10,7 +10,7 @@ export function EmptyState({ title, description, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        "rounded-[1.75rem] border border-dashed border-stone-200 bg-stone-50 px-5 py-6 text-center",
+        "rounded-xl border border-dashed border-stone-200 bg-stone-50 px-5 py-6 text-center",
         className,
       )}
     >

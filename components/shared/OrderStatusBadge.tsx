@@ -14,7 +14,7 @@ export function OrderStatusBadge({ status, className }: { status: OrderStatus; c
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-3 py-1 text-xs font-semibold tracking-[0.12em]",
+        "inline-flex rounded-lg px-3 py-1 text-xs font-semibold tracking-[0.12em]",
         statusClasses[status],
         className,
       )}
