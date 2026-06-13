@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { MixologistOrderBoard } from "@/components/mixologist/MixologistOrderBoard";
+import { MixologistAdminWorkspace } from "@/components/mixologist/MixologistAdminWorkspace";
 import { SignOutButton } from "@/components/mixologist/SignOutButton";
 import { AppShell } from "@/components/shared/AppShell";
 
@@ -25,7 +25,7 @@ export default async function MixologistPage() {
         </div>
         <SignOutButton />
       </div>
-      <MixologistOrderBoard />
+      <MixologistAdminWorkspace />
     </AppShell>
   );
 }

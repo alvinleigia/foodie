@@ -1,16 +1,8 @@
 import { desc, inArray } from "drizzle-orm";
 
-import { drinkCategories } from "@/data/drinks";
 import { getDb } from "@/db";
 import { orders } from "@/db/schema";
 import { OrderStatus } from "@/lib/constants";
-
-export function getDrinkSnapshot(categoryId: string, drinkId: string) {
-  const category = drinkCategories.find((item) => item.id === categoryId);
-  const drink = category?.drinks.find((item) => item.id === drinkId && item.isActive);
-
-  return { category, drink };
-}
 
 export function isActiveOrderStatus(status: OrderStatus) {
   return status === "PENDING" || status === "PREPARING" || status === "READY";

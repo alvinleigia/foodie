@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateCustomerToken } from "@/lib/order-token";
 import { getNextOrderNumber } from "@/lib/order-number";
 import { createOrderSchema } from "@/lib/validations/order";
-import { getDrinkSnapshot, getMixologistOrders, serializeOrder } from "@/lib/orders";
+import { getMixologistOrders, serializeOrder } from "@/lib/orders";
 import { getOrdersResetAt } from "@/lib/order-reset";
+import { getMenuSelectionSnapshot } from "@/lib/menu";
 import { getDb } from "@/db";
 import { orders } from "@/db/schema";
 import { requireMixologistSession } from "@/lib/auth";
@@ -38,9 +39,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { category, drink } = getDrinkSnapshot(parsed.data.categoryId, parsed.data.drinkId);
+    const { category, item } = await getMenuSelectionSnapshot(
+      parsed.data.categoryId,
+      parsed.data.drinkId,
+    );
 
-    if (!category || !drink) {
+    if (!category || !item) {
       return NextResponse.json({ error: "Invalid drink selection." }, { status: 400 });
     }
 
@@ -56,8 +60,8 @@ export async function POST(request: NextRequest) {
         customerToken,
         categoryId: category.id,
         categoryName: category.name,
-        drinkId: drink.id,
-        drinkName: drink.name,
+        drinkId: item.id,
+        drinkName: item.name,
       })
       .returning()
       ;

@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { drinkCategories } from "@/data/drinks";
 import { LocalCustomerOrder } from "@/lib/constants";
 import {
   readStoredCustomerOrders,
@@ -25,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MenuCategoryRecord } from "@/types/menu";
 
 type OrderFormProps = {
   onOrderCreated: (order: LocalCustomerOrder) => void;
@@ -73,21 +73,55 @@ function getApiErrorMessage(payload: unknown) {
 }
 
 export function OrderForm({ onOrderCreated }: OrderFormProps) {
+  const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: "",
     categoryId: "",
     drinkId: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [menuError, setMenuError] = useState<string | null>(null);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMenu() {
+      setIsLoadingMenu(true);
+      const response = await fetch("/api/menu");
+      const payload = await response.json();
+
+      if (!response.ok) {
+        if (isMounted) {
+          setMenuError(payload.error ?? "Failed to load the menu.");
+          setMenuCategories([]);
+          setIsLoadingMenu(false);
+        }
+        return;
+      }
+
+      if (isMounted) {
+        setMenuCategories(payload.categories ?? []);
+        setMenuError(null);
+        setIsLoadingMenu(false);
+      }
+    }
+
+    void loadMenu();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const selectedCategory = useMemo(
-    () => drinkCategories.find((category) => category.id === draft.categoryId),
-    [draft.categoryId],
+    () => menuCategories.find((category) => category.id === draft.categoryId),
+    [draft.categoryId, menuCategories],
   );
 
-  const drinks = selectedCategory?.drinks.filter((drink) => drink.isActive) ?? [];
+  const drinks = selectedCategory?.items ?? [];
   const selectedDrink = drinks.find((drink) => drink.id === draft.drinkId);
 
   function updateDraft<K extends keyof OrderDraft>(key: K, value: OrderDraft[K]) {
@@ -203,10 +237,10 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
                   updateDraft("categoryId", event.target.value);
                   updateDraft("drinkId", "");
                 }}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingMenu}
               >
-                <option value="">Choose a category</option>
-                {drinkCategories.map((category) => (
+                <option value="">{isLoadingMenu ? "Loading categories..." : "Choose a category"}</option>
+                {menuCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
@@ -218,24 +252,29 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
               <NativeSelect
                 value={draft.drinkId}
                 onChange={(event) => updateDraft("drinkId", event.target.value)}
-                disabled={isSubmitting || !draft.categoryId}
+                disabled={isSubmitting || isLoadingMenu || !draft.categoryId}
               >
                 <option value="">
-                  {draft.categoryId ? "Choose a drink" : "Select a category first"}
+                  {isLoadingMenu
+                    ? "Loading drinks..."
+                    : draft.categoryId
+                      ? "Choose a drink"
+                      : "Select a category first"}
                 </option>
                 {drinks.map((drink) => (
                   <option key={drink.id} value={drink.id}>
-                    {drink.name}
+                    {drink.price ? `${drink.name} - INR ${Number(drink.price).toFixed(2)}` : drink.name}
                   </option>
                 ))}
               </NativeSelect>
             </FormField>
 
+            {menuError ? <p className="text-sm text-rose-600">{menuError}</p> : null}
             {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
             <Button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
               size="lg"
               className="mt-1 h-12 rounded-2xl bg-stone-950 text-sm font-semibold text-white hover:bg-stone-800"
             >
@@ -281,6 +320,12 @@ export function OrderForm({ onOrderCreated }: OrderFormProps) {
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-stone-500">Drink</dt>
                   <dd className="font-semibold text-stone-900">{selectedDrink?.name ?? "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-stone-500">Price</dt>
+                  <dd className="font-semibold text-stone-900">
+                    {selectedDrink?.price ? `INR ${Number(selectedDrink.price).toFixed(2)}` : "-"}
+                  </dd>
                 </div>
               </dl>
             </div>

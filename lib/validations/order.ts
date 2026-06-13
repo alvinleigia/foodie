@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-import { drinkCategories } from "@/data/drinks";
-
 export const createOrderSchema = z
   .object({
     customerName: z
@@ -11,30 +9,6 @@ export const createOrderSchema = z
       .max(80, "Name is too long"),
     categoryId: z.string().min(1, "Category is required"),
     drinkId: z.string().min(1, "Drink is required"),
-  })
-  .superRefine((data, ctx) => {
-    const category = drinkCategories.find((item) => item.id === data.categoryId);
-
-    if (!category) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["categoryId"],
-        message: "Invalid category selected",
-      });
-      return;
-    }
-
-    const drink = category.drinks.find(
-      (item) => item.id === data.drinkId && item.isActive,
-    );
-
-    if (!drink) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["drinkId"],
-        message: "Invalid drink selected",
-      });
-    }
   });
 
 export const customerCancelOrderSchema = z.object({
