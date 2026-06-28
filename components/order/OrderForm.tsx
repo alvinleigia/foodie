@@ -37,6 +37,7 @@ import { MenuCategoryRecord, MenuItemRecord } from "@/types/menu";
 
 type OrderFormProps = {
   locationQrSlug?: string;
+  locationSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -94,16 +95,23 @@ function formatPrice(price: string | null) {
   return price ? `INR ${Number(price).toFixed(2)}` : "Price on request";
 }
 
-function withQr(path: string, locationQrSlug?: string) {
-  if (!locationQrSlug) {
+function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
+  const { locationQrSlug, locationSlug } = options;
+
+  if (locationQrSlug) {
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+  }
+
+  if (!locationSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
 }
 
-export function OrderForm({ locationQrSlug, onOrderCreated }: OrderFormProps) {
+export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [draft, setDraft] = useState<OrderDraft>({
@@ -126,7 +134,7 @@ export function OrderForm({ locationQrSlug, onOrderCreated }: OrderFormProps) {
 
     async function loadMenu() {
       setIsLoadingMenu(true);
-      const response = await fetch(withQr("/api/menu", locationQrSlug));
+      const response = await fetch(withPublicContext("/api/menu", { locationQrSlug, locationSlug }));
       const payload = await response.json();
 
       if (!response.ok) {
@@ -151,7 +159,7 @@ export function OrderForm({ locationQrSlug, onOrderCreated }: OrderFormProps) {
     return () => {
       isMounted = false;
     };
-  }, [locationQrSlug]);
+  }, [locationQrSlug, locationSlug]);
 
   useEffect(() => {
     if (menuCategories.length === 0) {
@@ -317,7 +325,7 @@ export function OrderForm({ locationQrSlug, onOrderCreated }: OrderFormProps) {
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch(withQr("/api/orders", locationQrSlug), {
+    const response = await fetch(withPublicContext("/api/orders", { locationQrSlug, locationSlug }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -364,7 +372,11 @@ export function OrderForm({ locationQrSlug, onOrderCreated }: OrderFormProps) {
     setIsCartOpen(false);
     setIsSubmitting(false);
     setScreen("menu");
-    router.push(withQr("/order/status", locationQrSlug));
+    router.push(
+      locationSlug
+        ? `/order/status/${encodeURIComponent(locationSlug)}`
+        : withPublicContext("/order/status", { locationQrSlug }),
+    );
   }
 
   return (

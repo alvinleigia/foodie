@@ -44,19 +44,31 @@ type ApiOrder = LocalCustomerOrder & {
 
 type CustomerOrderStatusProps = {
   locationQrSlug?: string;
+  locationSlug?: string;
   refreshKey: number;
 };
 
-function withQr(path: string, locationQrSlug?: string) {
-  if (!locationQrSlug) {
+function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
+  const { locationQrSlug, locationSlug } = options;
+
+  if (locationQrSlug) {
+    const separator = path.includes("?") ? "&" : "?";
+    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+  }
+
+  if (!locationSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
 }
 
-export function CustomerOrderStatus({ locationQrSlug, refreshKey }: CustomerOrderStatusProps) {
+export function CustomerOrderStatus({
+  locationQrSlug,
+  locationSlug,
+  refreshKey,
+}: CustomerOrderStatusProps) {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,7 +102,9 @@ export function CustomerOrderStatus({ locationQrSlug, refreshKey }: CustomerOrde
           return;
         }
 
-        const response = await fetch(withQr("/api/orders/status", locationQrSlug), {
+        const response = await fetch(
+          withPublicContext("/api/orders/status", { locationQrSlug, locationSlug }),
+          {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
@@ -100,7 +114,8 @@ export function CustomerOrderStatus({ locationQrSlug, refreshKey }: CustomerOrde
               customerToken: order.customerToken,
             })),
           }),
-        });
+          },
+        );
 
         if (!isMounted || controller.signal.aborted) {
           return;
@@ -163,15 +178,21 @@ export function CustomerOrderStatus({ locationQrSlug, refreshKey }: CustomerOrde
       statusRequestRef.current?.abort();
       window.clearInterval(interval);
     };
-  }, [locationQrSlug, refreshKey]);
+  }, [locationQrSlug, locationSlug, refreshKey]);
 
   async function cancelOrder(order: ApiOrder) {
     setPendingCancelId(order.orderId);
-    const response = await fetch(withQr(`/api/orders/${order.orderId}/cancel`, locationQrSlug), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ customerToken: order.customerToken }),
-    });
+    const response = await fetch(
+      withPublicContext(`/api/orders/${order.orderId}/cancel`, {
+        locationQrSlug,
+        locationSlug,
+      }),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerToken: order.customerToken }),
+      },
+    );
 
     const payload = await response.json();
 

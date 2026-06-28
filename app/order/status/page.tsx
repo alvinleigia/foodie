@@ -2,15 +2,27 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { CustomerOrderStatus } from "@/components/order/CustomerOrderStatus";
 
-function withQr(path: string, locationQrSlug?: string) {
-  if (!locationQrSlug) {
-    return path;
+function getCustomerHref(path: "/order" | "/order/status", options: {
+  locationQrSlug?: string;
+  locationSlug?: string;
+}) {
+  if (options.locationSlug) {
+    return `${path}/${encodeURIComponent(options.locationSlug)}`;
   }
 
-  return `${path}?qr=${encodeURIComponent(locationQrSlug)}`;
+  if (options.locationQrSlug) {
+    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
+  }
+
+  return path;
 }
 
-export default async function CustomerOrderStatusPage(props: PageProps<"/order/status">) {
+type CustomerOrderStatusPageProps = {
+  searchParams: PageProps<"/order/status">["searchParams"];
+  locationSlug?: string;
+};
+
+export default async function CustomerOrderStatusPage(props: CustomerOrderStatusPageProps) {
   const searchParams = await props.searchParams;
   const qrValue = searchParams.qr;
   const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
@@ -20,11 +32,21 @@ export default async function CustomerOrderStatusPage(props: PageProps<"/order/s
       <AppHeader
         activePath="/order/status"
         customerMenu={{
-          orderHref: withQr("/order", locationQrSlug),
-          ordersHref: withQr("/order/status", locationQrSlug),
+          orderHref: getCustomerHref("/order", {
+            locationQrSlug,
+            locationSlug: props.locationSlug,
+          }),
+          ordersHref: getCustomerHref("/order/status", {
+            locationQrSlug,
+            locationSlug: props.locationSlug,
+          }),
         }}
       />
-      <CustomerOrderStatus locationQrSlug={locationQrSlug} refreshKey={0} />
+      <CustomerOrderStatus
+        locationQrSlug={locationQrSlug}
+        locationSlug={props.locationSlug}
+        refreshKey={0}
+      />
     </AppShell>
   );
 }

@@ -139,7 +139,7 @@ export function AppHeader({
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72">
+          <DropdownMenuContent align="end" className="w-72" tone="dark">
             <DropdownMenuLabel>
               <span className="block text-stone-500">My Account</span>
               <span className="mt-1 block text-sm font-semibold text-stone-100">
@@ -191,7 +191,7 @@ export function AppHeader({
               <ChevronDownIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
+          <DropdownMenuContent align="end" className="w-64" tone="dark">
             <DropdownMenuLabel>
               <span className="block text-stone-500">Customer</span>
               <span className="mt-1 block text-sm font-semibold text-stone-100">

@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { locations, organizations } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import { getTenantContextFromRequestDomain } from "@/lib/tenant-domains";
 import {
   DEFAULT_LOCATION_ID,
   DEFAULT_RESTAURANT_ORGANIZATION_ID,
@@ -76,6 +77,20 @@ export async function getTenantContextFromQrSlug(qrSlug: string) {
 }
 
 export async function getPublicTenantContextFromRequest(request: Request) {
+  const url = new URL(request.url);
+  const qrSlug = url.searchParams.get("qr");
+
+  if (qrSlug) {
+    return getTenantContextFromQrSlug(qrSlug);
+  }
+
+  const locationSlug = url.searchParams.get("location");
+  const domainContext = await getTenantContextFromRequestDomain(request, locationSlug);
+
+  if (domainContext) {
+    return domainContext;
+  }
+
   const session = await auth();
 
   if (session?.user.organizationId && session.user.locationId) {
@@ -91,6 +106,5 @@ export async function getPublicTenantContextFromRequest(request: Request) {
     throw new Error("Signed-in user is missing tenant or location access.");
   }
 
-  const qrSlug = new URL(request.url).searchParams.get("qr");
-  return qrSlug ? getTenantContextFromQrSlug(qrSlug) : getDefaultTenantContext();
+  return getDefaultTenantContext();
 }

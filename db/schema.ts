@@ -65,6 +65,19 @@ export const subscriptionStatusEnum = pgEnum("subscription_status", [
   "CANCELLED",
 ]);
 
+export const tenantDomainScopeEnum = pgEnum("tenant_domain_scope", [
+  "PLATFORM",
+  "COMPANY",
+  "RESTAURANT",
+  "LOCATION",
+]);
+
+export const tenantDomainPurposeEnum = pgEnum("tenant_domain_purpose", [
+  "ADMIN",
+  "ORDERING",
+  "BOTH",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -167,6 +180,38 @@ export const locations = pgTable(
     index("locations_organization_idx").on(table.organizationId),
     uniqueIndex("locations_org_slug_unique").on(table.organizationId, table.slug),
     uniqueIndex("locations_qr_slug_unique").on(table.qrSlug),
+  ],
+);
+
+export const tenantDomains = pgTable(
+  "tenant_domains",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    domain: text("domain").notNull(),
+    scope: tenantDomainScopeEnum("scope").notNull(),
+    purpose: tenantDomainPurposeEnum("purpose").default("BOTH").notNull(),
+    companyOrganizationId: uuid("company_organization_id").references(
+      () => organizations.id,
+      { onDelete: "cascade" },
+    ),
+    restaurantOrganizationId: uuid("restaurant_organization_id").references(
+      () => organizations.id,
+      { onDelete: "cascade" },
+    ),
+    locationId: uuid("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("tenant_domains_domain_unique").on(table.domain),
+    index("tenant_domains_company_idx").on(table.companyOrganizationId),
+    index("tenant_domains_restaurant_idx").on(table.restaurantOrganizationId),
+    index("tenant_domains_location_idx").on(table.locationId),
+    index("tenant_domains_scope_idx").on(table.scope),
   ],
 );
 

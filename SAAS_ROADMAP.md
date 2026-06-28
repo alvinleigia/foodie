@@ -37,6 +37,35 @@ The future app must support:
 - Parent companies viewing summary reports across child restaurants.
 - Restaurant/location dashboards for local reporting.
 
+## Domain Strategy
+
+Canonical hosting approach:
+
+- Main SaaS/platform app runs on `foodie.leigia.com`.
+- Each parent company gets one company subdomain such as `{company}.foodie.leigia.com`.
+- Company subdomains carry the company workspace, child restaurants, locations, public ordering and customer order status.
+- Restaurants and locations should not require separate subdomains by default; they should be resolved inside the company subdomain using restaurant/location slugs or QR/menu slugs.
+- Custom client domains can be added later and should initially map to public ordering/status for a company or location before expanding into admin surfaces.
+- The app should keep `foodie.leigia.com` as the safest staff/admin login surface until custom-domain Auth.js cookie behavior is intentionally hardened.
+
+Target examples:
+
+- Platform admin: `https://foodie.leigia.com/platform`
+- Company dashboard: `https://alvin.foodie.leigia.com/company`
+- Restaurant admin: `https://alvin.foodie.leigia.com/restaurant/kfc-panaji`
+- Location ordering: `https://alvin.foodie.leigia.com/order/panaji-lobby`
+- Future custom ordering domain: `https://orders.clientdomain.com`
+
+Planned domain data model:
+
+- `tenant_domains.domain`
+- `tenant_domains.scope`: `PLATFORM`, `COMPANY`, `RESTAURANT` or `LOCATION`
+- `tenant_domains.purpose`: `ADMIN`, `ORDERING` or `BOTH`
+- `tenant_domains.company_id`
+- `tenant_domains.restaurant_id`
+- `tenant_domains.location_id`
+- `tenant_domains.is_primary`
+
 ## UI Standards
 
 - Primary cross-route navigation must live in the global `AppHeader` account dropdown.
@@ -332,6 +361,40 @@ Implementation notes:
 - Shared structured logging foundation lives in `lib/logger.ts`; `lib/audit-log.ts` uses it for audit persistence failures.
 - Staff order board polling and customer order status polling now abort stale requests before starting the next sync, preventing overlapping refresh calls and stale response wins.
 
+## Phase 8: Domain And Tenant Routing
+
+Status: Foundation in progress. Domain records, company subdomain creation and public order/status location-slug aliases are implemented; custom domain management UI and Vercel automation are still pending.
+
+Goal: Make the SaaS tenant context resolve cleanly from the host name so the platform can run on `foodie.leigia.com` while each company uses `{company}.foodie.leigia.com` for dashboards, restaurants, locations and ordering.
+
+Tasks:
+
+- [x] Add `tenant_domains` table for platform, company, restaurant and location domain records.
+- [x] Seed `foodie.leigia.com` as the platform domain in production setup.
+- [x] Auto-create a `{company}.foodie.leigia.com` domain record when a company tenant is created.
+- [x] Add server-side host/domain resolver that maps incoming host names to company, restaurant and location context.
+- [x] Update tenant context helpers to prefer trusted QR/location/domain resolution before falling back to signed-in session or default dev context.
+- [x] Keep public ordering on company subdomains using location slugs such as `/order/{locationSlug}` or a compatible route alias.
+- [ ] Keep staff/admin login safest on `foodie.leigia.com` until custom-domain Auth.js cookie behavior is explicitly hardened.
+- [ ] Add custom domain management UI after the core subdomain resolver is stable.
+- [ ] Add Vercel domain registration automation only after manual domain mapping is tested.
+- [ ] Add UAT cases for platform domain, company subdomain, location ordering and future custom ordering domain.
+
+Important:
+
+- Company subdomain is the primary tenant boundary for the MVP SaaS domain model.
+- Restaurants and locations should normally be route-level context inside the company domain, not separate domains.
+- Custom domains should initially target customer ordering/status because those flows do not require login.
+
+Implementation notes:
+
+- Preferred examples are `foodie.leigia.com/platform`, `alvin.foodie.leigia.com/company`, `alvin.foodie.leigia.com/restaurant/kfc-panaji` and `alvin.foodie.leigia.com/order/panaji-lobby`.
+- Future custom domains such as `orders.clientdomain.com` should point to a company or location ordering scope.
+- Migration `drizzle/0013_tenant_domains.sql` adds the tenant domain table and backfills company subdomain records for existing non-default company tenants.
+- Domain helper logic lives in `lib/tenant-domains.ts`.
+- New public route aliases are `/order/[locationSlug]` and `/order/status/[locationSlug]`; existing `/order?qr=...` and `/order/status?qr=...` continue to work.
+- Public APIs now accept `?location=...` in addition to `?qr=...` for company-domain order/menu/status/cancel requests.
+
 Production TODOs:
 
 - [ ] Consider Supabase Row Level Security as defense in depth before production launch.
@@ -343,13 +406,14 @@ Production TODOs:
 
 ## Recommended Immediate Next Step
 
-Move into Phase 8 or start UAT hardening, depending on whether the next priority is new product capability or stabilizing the current SaaS flow.
+Move into Phase 8 or start UAT hardening, depending on whether the next priority is domain readiness or stabilizing the current SaaS flow.
 
 Implementation order:
 
 1. Run UAT against the platform, company, restaurant, operations and public QR order flows.
-2. Add automated tests for tenant isolation and order transitions.
-3. Choose production providers for Redis-backed rate limiting, backups, email delivery and tenant-scoped storage.
+2. Implement the Phase 8 company subdomain resolver for `foodie.leigia.com` and `{company}.foodie.leigia.com`.
+3. Add automated tests for tenant isolation and order transitions.
+4. Choose production providers for Redis-backed rate limiting, backups, email delivery and tenant-scoped storage.
 
 ## Notes For Future Chat Sessions
 

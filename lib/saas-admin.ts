@@ -7,11 +7,13 @@ import {
   organizationSubscriptions,
   organizations,
   saasPlans,
+  tenantDomains,
   users,
 } from "@/db/schema";
 import { getStarterPlanId, getTrialEndDate } from "@/lib/billing";
 import { hashPassword } from "@/lib/passwords";
 import { slugify } from "@/lib/slugs";
+import { buildCompanySubdomain } from "@/lib/tenant-domains";
 import {
   createChildRestaurantSchema,
   createCompanyStaffUserSchema,
@@ -133,6 +135,14 @@ export async function getPlatformCompany(companyOrganizationId: string) {
   return company ?? null;
 }
 
+export async function getPlatformCompanyWithSubscription(
+  companyOrganizationId: string,
+) {
+  const companies = await listPlatformCompanies();
+
+  return companies.find((company) => company.id === companyOrganizationId) ?? null;
+}
+
 export async function createCompanyOrganization(input: unknown) {
   const parsed = createCompanyOrganizationSchema.parse(input);
   const db = getDb();
@@ -160,6 +170,16 @@ export async function createCompanyOrganization(input: unknown) {
       status: "TRIALING",
       trialEndsAt,
       currentPeriodEndsAt: trialEndsAt,
+      updatedAt: new Date(),
+    });
+
+    await tx.insert(tenantDomains).values({
+      domain: buildCompanySubdomain(company.slug),
+      scope: "COMPANY",
+      purpose: "BOTH",
+      companyOrganizationId: company.id,
+      isPrimary: true,
+      isActive: true,
       updatedAt: new Date(),
     });
 

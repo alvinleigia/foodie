@@ -6,6 +6,10 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
+type DropdownTone = "light" | "dark";
+
+const DropdownMenuToneContext = React.createContext<DropdownTone>("light");
+
 function DropdownMenu({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
@@ -27,19 +31,30 @@ function DropdownMenuTrigger({
 function DropdownMenuContent({
   className,
   sideOffset = 8,
+  tone = "light",
+  children,
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
+  tone?: DropdownTone;
+}) {
   return (
     <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
-        data-slot="dropdown-menu-content"
-        sideOffset={sideOffset}
-        className={cn(
-          "z-50 min-w-56 overflow-hidden rounded-lg border border-white/10 bg-stone-950 p-1.5 text-sm text-stone-100 shadow-xl shadow-black/30 data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1",
-          className,
-        )}
-        {...props}
-      />
+      <DropdownMenuToneContext.Provider value={tone}>
+        <DropdownMenuPrimitive.Content
+          data-slot="dropdown-menu-content"
+          sideOffset={sideOffset}
+          className={cn(
+            "z-50 min-w-56 overflow-hidden rounded-lg p-1.5 text-sm data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1",
+            tone === "dark"
+              ? "border border-white/10 bg-stone-950 text-stone-100 shadow-xl shadow-black/30"
+              : "border border-stone-200 bg-white text-stone-950 shadow-xl shadow-stone-950/12",
+            className,
+          )}
+          {...props}
+        >
+          {children}
+        </DropdownMenuPrimitive.Content>
+      </DropdownMenuToneContext.Provider>
     </DropdownMenuPrimitive.Portal>
   );
 }
@@ -59,14 +74,22 @@ function DropdownMenuItem({
   inset?: boolean;
   variant?: "default" | "destructive";
 }) {
+  const tone = React.useContext(DropdownMenuToneContext);
+
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors focus:bg-white/10 focus:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset=true]:pl-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-        variant === "destructive" && "text-rose-300 focus:bg-rose-500/15 focus:text-rose-100",
+        "relative flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset=true]:pl-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+        tone === "dark"
+          ? "focus:bg-white/10 focus:text-white"
+          : "focus:bg-stone-100 focus:text-stone-700",
+        variant === "destructive" &&
+          (tone === "dark"
+            ? "text-rose-300 focus:bg-rose-500/15 focus:text-rose-100"
+            : "text-rose-500 focus:bg-rose-50 focus:text-rose-600"),
         className,
       )}
       {...props}
@@ -80,11 +103,16 @@ function DropdownMenuCheckboxItem({
   checked,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  const tone = React.useContext(DropdownMenuToneContext);
+
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors focus:bg-white/10 focus:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        tone === "dark"
+          ? "focus:bg-white/10 focus:text-white"
+          : "focus:bg-stone-100 focus:text-stone-700",
         className,
       )}
       checked={checked}
@@ -113,11 +141,16 @@ function DropdownMenuRadioItem({
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  const tone = React.useContext(DropdownMenuToneContext);
+
   return (
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
       className={cn(
-        "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors focus:bg-white/10 focus:text-white data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+        tone === "dark"
+          ? "focus:bg-white/10 focus:text-white"
+          : "focus:bg-stone-100 focus:text-stone-700",
         className,
       )}
       {...props}
@@ -192,12 +225,17 @@ function DropdownMenuSubTrigger({
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
   inset?: boolean;
 }) {
+  const tone = React.useContext(DropdownMenuToneContext);
+
   return (
     <DropdownMenuPrimitive.SubTrigger
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors focus:bg-white/10 focus:text-white data-[inset=true]:pl-8",
+        "flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors data-[inset=true]:pl-8",
+        tone === "dark"
+          ? "focus:bg-white/10 focus:text-white"
+          : "focus:bg-stone-100 focus:text-stone-700",
         className,
       )}
       {...props}

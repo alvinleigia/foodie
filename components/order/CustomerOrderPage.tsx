@@ -6,21 +6,29 @@ import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
   locationQrSlug?: string;
+  locationSlug?: string;
   user?: {
     name?: string | null;
     role: MembershipRole;
   } | null;
 };
 
-function withQr(path: string, locationQrSlug?: string) {
-  if (!locationQrSlug) {
-    return path;
+function getCustomerHref(path: "/order" | "/order/status", options: {
+  locationQrSlug?: string;
+  locationSlug?: string;
+}) {
+  if (options.locationSlug) {
+    return `${path}/${encodeURIComponent(options.locationSlug)}`;
   }
 
-  return `${path}?qr=${encodeURIComponent(locationQrSlug)}`;
+  if (options.locationQrSlug) {
+    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
+  }
+
+  return path;
 }
 
-export function CustomerOrderPage({ locationQrSlug, user }: CustomerOrderPageProps) {
+export function CustomerOrderPage({ locationQrSlug, locationSlug, user }: CustomerOrderPageProps) {
   return (
     <>
       {user ? (
@@ -29,13 +37,13 @@ export function CustomerOrderPage({ locationQrSlug, user }: CustomerOrderPagePro
         <AppHeader
           activePath="/order"
           customerMenu={{
-            orderHref: withQr("/order", locationQrSlug),
-            ordersHref: withQr("/order/status", locationQrSlug),
+            orderHref: getCustomerHref("/order", { locationQrSlug, locationSlug }),
+            ordersHref: getCustomerHref("/order/status", { locationQrSlug, locationSlug }),
           }}
         />
       )}
 
-      <OrderForm locationQrSlug={locationQrSlug} />
+      <OrderForm locationQrSlug={locationQrSlug} locationSlug={locationSlug} />
     </>
   );
 }

@@ -1,0 +1,246 @@
+import { and, eq, or } from "drizzle-orm";
+
+import { getDb } from "@/db";
+import { locations, organizations, tenantDomains } from "@/db/schema";
+import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import type { TenantContext } from "@/lib/tenant-context";
+
+export const ROOT_DOMAIN =
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN ??
+  process.env.APP_ROOT_DOMAIN ??
+  "foodie.leigia.com";
+
+export function normalizeDomain(value: string | null | undefined) {
+  const rawHost = value?.split(",")[0]?.trim().toLowerCase();
+
+  if (!rawHost) {
+    return null;
+  }
+
+  const withoutProtocol = rawHost.replace(/^https?:\/\//, "");
+  const withoutPath = withoutProtocol.split("/")[0];
+  const withoutPort = withoutPath.split(":")[0];
+  const normalized = withoutPort.replace(/\.$/, "");
+
+  return normalized || null;
+}
+
+export function buildCompanySubdomain(companySlug: string) {
+  return `${companySlug}.${ROOT_DOMAIN}`.toLowerCase();
+}
+
+export function getRequestDomain(request: Request) {
+  return normalizeDomain(
+    request.headers.get("x-forwarded-host") ??
+      request.headers.get("host") ??
+      new URL(request.url).host,
+  );
+}
+
+async function resolveSingleActiveLocation(
+  restaurantOrganizationId: string,
+): Promise<TenantContext | null> {
+  const rows = await getDb()
+    .select({
+      organizationId: locations.organizationId,
+      locationId: locations.id,
+    })
+    .from(locations)
+    .where(
+      and(
+        eq(locations.organizationId, restaurantOrganizationId),
+        eq(locations.isActive, true),
+      ),
+    )
+    .limit(2);
+
+  if (rows.length !== 1) {
+    return null;
+  }
+
+  return {
+    organizationId: rows[0].organizationId,
+    locationId: rows[0].locationId,
+  };
+}
+
+async function resolveRestaurantLocation(
+  restaurantOrganizationId: string,
+  locationSlug?: string | null,
+): Promise<TenantContext | null> {
+  const normalizedLocationSlug = locationSlug?.trim().toLowerCase();
+
+  if (!normalizedLocationSlug) {
+    return resolveSingleActiveLocation(restaurantOrganizationId);
+  }
+
+  const [record] = await getDb()
+    .select({
+      organizationId: locations.organizationId,
+      locationId: locations.id,
+    })
+    .from(locations)
+    .where(
+      and(
+        eq(locations.organizationId, restaurantOrganizationId),
+        eq(locations.isActive, true),
+        or(
+          eq(locations.slug, normalizedLocationSlug),
+          eq(locations.qrSlug, normalizedLocationSlug),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return record
+    ? {
+        organizationId: record.organizationId,
+        locationId: record.locationId,
+      }
+    : null;
+}
+
+async function resolveCompanyLocation(
+  companyOrganizationId: string,
+  locationSlug?: string | null,
+): Promise<TenantContext | null> {
+  const normalizedLocationSlug = locationSlug?.trim().toLowerCase();
+  const db = getDb();
+
+  if (!normalizedLocationSlug) {
+    const rows = await db
+      .select({
+        organizationId: locations.organizationId,
+        locationId: locations.id,
+      })
+      .from(locations)
+      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+      .where(
+        and(
+          eq(organizations.parentOrganizationId, companyOrganizationId),
+          eq(organizations.type, "RESTAURANT"),
+          eq(organizations.isActive, true),
+          eq(locations.isActive, true),
+        ),
+      )
+      .limit(2);
+
+    if (rows.length !== 1) {
+      return null;
+    }
+
+    return {
+      organizationId: rows[0].organizationId,
+      locationId: rows[0].locationId,
+    };
+  }
+
+  const [record] = await db
+    .select({
+      organizationId: locations.organizationId,
+      locationId: locations.id,
+    })
+    .from(locations)
+    .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+    .where(
+      and(
+        eq(organizations.parentOrganizationId, companyOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+        eq(locations.isActive, true),
+        or(
+          eq(locations.slug, normalizedLocationSlug),
+          eq(locations.qrSlug, normalizedLocationSlug),
+        ),
+      ),
+    )
+    .limit(1);
+
+  return record
+    ? {
+        organizationId: record.organizationId,
+        locationId: record.locationId,
+      }
+    : null;
+}
+
+export async function getTenantContextFromDomain(
+  domain: string | null | undefined,
+  locationSlug?: string | null,
+): Promise<TenantContext | null> {
+  const normalizedDomain = normalizeDomain(domain);
+
+  if (!normalizedDomain || normalizedDomain === "localhost") {
+    return null;
+  }
+
+  const [domainRecord] = await getDb()
+    .select()
+    .from(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.domain, normalizedDomain),
+        eq(tenantDomains.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!domainRecord || domainRecord.scope === "PLATFORM") {
+    return null;
+  }
+
+  let context: TenantContext | null = null;
+
+  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
+    const [record] = await getDb()
+      .select({
+        organizationId: locations.organizationId,
+        locationId: locations.id,
+      })
+      .from(locations)
+      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+      .where(
+        and(
+          eq(locations.id, domainRecord.locationId),
+          eq(locations.isActive, true),
+          eq(organizations.isActive, true),
+        ),
+      )
+      .limit(1);
+
+    context = record
+      ? {
+          organizationId: record.organizationId,
+          locationId: record.locationId,
+        }
+      : null;
+  }
+
+  if (!context && domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
+    context = await resolveRestaurantLocation(
+      domainRecord.restaurantOrganizationId,
+      locationSlug,
+    );
+  }
+
+  if (!context && domainRecord.scope === "COMPANY" && domainRecord.companyOrganizationId) {
+    context = await resolveCompanyLocation(
+      domainRecord.companyOrganizationId,
+      locationSlug,
+    );
+  }
+
+  if (!context) {
+    return null;
+  }
+
+  await assertTenantSubscriptionAccess(context.organizationId);
+  return context;
+}
+
+export async function getTenantContextFromRequestDomain(
+  request: Request,
+  locationSlug?: string | null,
+) {
+  return getTenantContextFromDomain(getRequestDomain(request), locationSlug);
+}
