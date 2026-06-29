@@ -37,7 +37,7 @@ export default async function CompanyUsersPage() {
         description="All accepted and invited users with access inside this company."
         editHrefBase="/company/users"
         emptyMessage="No users have been invited to this company yet."
-        inviteHref={null}
+        inviteHref="/company/users/invite"
         title="Users and access"
         users={users}
       />
