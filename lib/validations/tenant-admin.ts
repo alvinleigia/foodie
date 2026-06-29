@@ -98,6 +98,7 @@ export const reassignExistingUserSchema = z.object({
   locationId: z
     .string()
     .uuid("Choose a target location")
+    .nullable()
     .optional()
     .or(z.literal(""))
     .transform((value) => value || null),
