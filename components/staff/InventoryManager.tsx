@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getApiErrorMessage } from "@/lib/api-client";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -58,40 +59,6 @@ const statusConfig: Record<
     label: "Not tracked",
   },
 };
-
-function getApiErrorMessage(payload: unknown) {
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return "Something went wrong.";
-  }
-
-  const maybeError = (payload as { error?: unknown }).error;
-
-  if (typeof maybeError === "string") {
-    return maybeError;
-  }
-
-  if (maybeError && typeof maybeError === "object") {
-    const fieldErrors = (maybeError as { fieldErrors?: Record<string, string[] | undefined> }).fieldErrors;
-    const formErrors = (maybeError as { formErrors?: string[] }).formErrors;
-    const firstFieldMessage = fieldErrors
-      ? Object.values(fieldErrors).flat().find((message) => typeof message === "string")
-      : undefined;
-
-    if (firstFieldMessage) {
-      return firstFieldMessage;
-    }
-
-    if (formErrors?.[0]) {
-      return formErrors[0];
-    }
-  }
-
-  return "Something went wrong.";
-}
 
 function toDraft(record: InventoryRecord): InventoryDraft {
   return {

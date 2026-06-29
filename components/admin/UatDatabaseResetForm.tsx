@@ -5,22 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
   const router = useRouter();
@@ -32,15 +21,14 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch("/api/platform/uat-reset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmationText }),
-    });
-    const payload = await response.json();
+    let payload: { message?: string };
 
-    if (!response.ok) {
-      const message = getApiError(payload);
+    try {
+      payload = await requestJson("/api/platform/uat-reset", {
+        body: { confirmationText },
+      });
+    } catch (caught) {
+      const message = getCaughtErrorMessage(caught);
       setError(message);
       toast.error(message);
       setIsSubmitting(false);

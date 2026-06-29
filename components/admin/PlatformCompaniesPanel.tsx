@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 
+import { getApiError } from "@/lib/api-client";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -40,18 +41,6 @@ type CompanyOrganization = {
     } | null;
   } | null;
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 function formatDate(value: string | null | undefined) {
   if (!value) {

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { getApiError } from "@/lib/api-client";
 import { Spinner } from "@/components/shared/Spinner";
 import {
   ReportBreakdown,
@@ -58,18 +59,6 @@ type CompanySummary = {
   activeOrders: number;
   completedOrders: number;
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 type CompanyRestaurantsPanelProps = {
   hasRealCompanyContext: boolean;

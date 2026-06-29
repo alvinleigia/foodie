@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 
+import { getApiError } from "@/lib/api-client";
 import { OperationalReports } from "@/components/admin/OperationalReports";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -64,18 +65,6 @@ type RestaurantSummary = {
   activeOrders: number;
   completedOrders: number;
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 function isMissingTenantAccess(error: string | null) {
   return error?.toLowerCase().includes("missing tenant or location access") ?? false;

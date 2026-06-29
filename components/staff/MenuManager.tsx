@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { getApiErrorMessage } from "@/lib/api-client";
+import { formatPrice } from "@/lib/formatters";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -83,44 +85,6 @@ const emptyItemDraft: ItemDraft = {
   isActive: true,
   isSoldOut: false,
 };
-
-function getApiErrorMessage(payload: unknown) {
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return "Something went wrong.";
-  }
-
-  const maybeError = (payload as { error?: unknown }).error;
-
-  if (typeof maybeError === "string") {
-    return maybeError;
-  }
-
-  if (maybeError && typeof maybeError === "object") {
-    const fieldErrors = (maybeError as { fieldErrors?: Record<string, string[] | undefined> }).fieldErrors;
-    const formErrors = (maybeError as { formErrors?: string[] }).formErrors;
-    const firstFieldMessage = fieldErrors
-      ? Object.values(fieldErrors).flat().find((message) => typeof message === "string")
-      : undefined;
-
-    if (firstFieldMessage) {
-      return firstFieldMessage;
-    }
-
-    if (formErrors?.[0]) {
-      return formErrors[0];
-    }
-  }
-
-  return "Something went wrong.";
-}
-
-function formatPrice(price: string | null) {
-  return price ? `INR ${Number(price).toFixed(2)}` : "No price";
-}
 
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
@@ -620,7 +584,9 @@ export function MenuManager() {
                               </p>
                             </div>
                             <div className="text-left md:text-right">
-                              <p className="text-sm font-semibold text-stone-900">{formatPrice(item.price)}</p>
+                              <p className="text-sm font-semibold text-stone-900">
+                                {formatPrice(item.price, { emptyLabel: "No price" })}
+                              </p>
                             </div>
                             <div className="flex flex-wrap justify-start gap-2 md:justify-end">
                               <Button

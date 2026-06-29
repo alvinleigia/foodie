@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -41,18 +42,6 @@ const staffRoles: Array<{ label: string; value: StaffRole }> = [
   { label: "Order Operator", value: "ORDER_OPERATOR" },
 ];
 
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
-
 export function StaffUserAccessForm({
   apiPath,
   backHref,
@@ -70,15 +59,14 @@ export function StaffUserAccessForm({
 
   async function save() {
     setIsSaving(true);
-    const response = await fetch(apiPath, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    });
-    const payload = await response.json();
 
-    if (!response.ok) {
-      const message = getApiError(payload);
+    try {
+      await requestJson(apiPath, {
+        body: draft,
+        method: "PATCH",
+      });
+    } catch (caught) {
+      const message = getCaughtErrorMessage(caught);
       setError(message);
       setIsSaving(false);
       toast.error(message);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { getApiError } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { StaffInviteForm } from "@/components/admin/StaffInviteForm";
@@ -45,18 +46,6 @@ type StaffAccess = {
   role: MembershipRole;
   isActive: boolean;
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 async function submitJson(path: string, method: "POST" | "PATCH", body: unknown) {
   const response = await fetch(path, {

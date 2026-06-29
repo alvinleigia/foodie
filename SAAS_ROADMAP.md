@@ -77,6 +77,49 @@ Notes:
 - [ ] Review server logs and monitoring approach for production.
 - [ ] Review Vercel environment variables and deployment settings before live UAT.
 
+## Code Health And Maintainability TODOs
+
+These items come from a project-wide maintainability scan. The app is functional, but several modules have grown large enough that future work will become slower and riskier unless we extract shared patterns.
+
+### High Priority
+
+- [ ] Split `lib/saas-admin.ts` into focused services: platform companies, company restaurants/locations, company users/memberships, domains and reassignment.
+- [ ] Split `lib/saas-reports.ts` into report query modules by concern: summaries, status/product reports, timing/cancellation/revenue reports and CSV export.
+- [ ] Migrate remaining safe `fetch -> json -> error` call sites to the shared JSON request helper, then consider shared loading/toast wrappers.
+- [ ] Extend shared money/price formatting into reports and any remaining price displays.
+- [ ] Add automated tests for tenant isolation before refactoring route handlers or data services.
+- [ ] Add automated tests for order workflow transitions before changing order board or customer status behavior.
+
+### Medium Priority
+
+- [ ] Split `components/order/OrderForm.tsx` into smaller components/hooks: menu loading, category navigation, cart drawer, review screen and cart item state.
+- [ ] Split `components/staff/MenuManager.tsx` into smaller components/hooks: category actions, product form, import/export, seed/clear actions and product cards.
+- [ ] Split `components/staff/InventoryManager.tsx` into shared inventory form/card components after tests cover inventory save behavior.
+- [ ] Consolidate create/edit form patterns for company, restaurant, location, subscription, staff and access forms.
+- [ ] Create reusable route/action helpers so submit/cancel/back behavior consistently returns to the nearest workflow context.
+- [ ] Create shared status badge components for tenant status, subscription status, user account status, membership access status, order status and item status.
+- [ ] Review route handlers for repeated auth, validation, audit logging and JSON error-response code; extract safe wrappers only after tests are in place.
+- [ ] Replace remaining route-specific page copy/paste with small server page helpers where it improves clarity without hiding permissions.
+
+### Lower Priority
+
+- [ ] Review whether `components/admin/TenantAdminForms.tsx` should be split into one file per form.
+- [ ] Review whether shadcn wrappers under `components/ui` need local documentation for allowed variants and styling rules.
+- [ ] Add lightweight architecture notes for the current tenant hierarchy, membership scopes and domain resolution.
+- [ ] Add a docs page explaining when to use company-level, restaurant-level and location-level access.
+- [ ] Consider moving report CSV export formatting into a separate `lib/reports/export.ts` module.
+- [ ] Consider moving menu CSV import/export into separate `lib/menu/import-export.ts` once menu tests exist.
+
+### Observed Hotspots
+
+- `lib/saas-admin.ts` is about 1,149 lines and mixes platform, company, restaurant, location, user, domain and reassignment logic.
+- `lib/saas-reports.ts` is about 1,031 lines and mixes query construction, aggregation and CSV export.
+- `components/staff/MenuManager.tsx` is about 860 lines and owns too many UI states and actions.
+- `components/order/OrderForm.tsx` is about 768 lines and mixes menu loading, cart state, sticky category behavior, review flow and order submission.
+- `components/admin/TenantAdminForms.tsx` is about 483 lines and contains several independent forms.
+- The app has many repeated `fetch -> json -> get error -> toast -> pending state` patterns.
+- The app has many repeated role/context checks in API routes; these are correct but verbose and should be wrapped carefully after tests.
+
 ## UAT Checklist To Create Or Update
 
 - [ ] SaaS owner creates a company.
@@ -102,7 +145,8 @@ Notes:
 4. Add email delivery for invitations.
 5. Add Redis/Upstash rate limiting.
 6. Add automated tenant isolation and order workflow tests.
-7. Decide whether PDF export or guided onboarding is more important for first real users.
+7. Continue refactoring shared JSON request/form utilities before adding another large admin surface.
+8. Decide whether PDF export or guided onboarding is more important for first real users.
 
 ## Notes For Future Chat Sessions
 

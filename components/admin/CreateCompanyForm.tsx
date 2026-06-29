@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
@@ -21,18 +22,6 @@ type CreateCompanyFormProps = {
   backHref: string;
 };
 
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
-
 export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(emptyCompanyDraft);
@@ -41,15 +30,11 @@ export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
 
   async function submitCompany() {
     setIsSubmitting(true);
-    const response = await fetch("/api/platform/companies", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(draft),
-    });
-    const payload = await response.json();
 
-    if (!response.ok) {
-      const message = getApiError(payload);
+    try {
+      await requestJson("/api/platform/companies", { body: draft });
+    } catch (caught) {
+      const message = getCaughtErrorMessage(caught);
       setError(message);
       toast.error(message);
       setIsSubmitting(false);

@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { drinkCategories } from "@/data/drinks";
 import { getDb } from "@/db";
 import { inventoryItems, menuCategories, menuItems } from "@/db/schema";
+import { formatPrice } from "@/lib/formatters";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { MenuCategoryRecord } from "@/types/menu";
 import type { MenuItemRecord } from "@/types/menu";
@@ -602,7 +603,7 @@ export function formatMenuPrice(price: string | null) {
     return null;
   }
 
-  return `INR ${Number(price).toFixed(2)}`;
+  return formatPrice(price);
 }
 
 type MenuExportRow = {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { getApiError } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -65,18 +66,6 @@ const roles: Array<{ label: string; value: ReassignRole }> = [
   { label: "Restaurant Manager", value: "RESTAURANT_MANAGER" },
   { label: "Order Operator", value: "ORDER_OPERATOR" },
 ];
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 function isCompanyRole(role: ReassignRole) {
   return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ExternalLinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { getApiError } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -36,18 +37,6 @@ type CompanyDomainsPanelProps = {
   companyName: string;
   domains: CompanyDomain[];
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 function normalizeDomainInput(value: string) {
   return value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0].split(":")[0];

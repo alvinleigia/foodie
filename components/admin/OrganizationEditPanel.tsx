@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
@@ -36,18 +37,6 @@ type OrganizationEditPanelProps = {
   showPrimaryLocation?: boolean;
 };
 
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
-
 export function OrganizationEditPanel({
   apiPath,
   backHref,
@@ -76,15 +65,14 @@ export function OrganizationEditPanel({
 
   async function submitUpdate(nextDraft = draft) {
     setIsSaving(true);
-    const response = await fetch(apiPath, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nextDraft),
-    });
-    const payload = await response.json();
 
-    if (!response.ok) {
-      const message = getApiError(payload);
+    try {
+      await requestJson(apiPath, {
+        body: nextDraft,
+        method: "PATCH",
+      });
+    } catch (caught) {
+      const message = getCaughtErrorMessage(caught);
       setError(message);
       toast.error(message);
       setIsSaving(false);

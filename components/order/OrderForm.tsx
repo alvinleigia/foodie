@@ -18,6 +18,8 @@ import {
   syncCustomerOrdersResetMarker,
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { formatPrice } from "@/lib/formatters";
 import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -54,46 +56,6 @@ type CartItem = {
 type OrderDraft = {
   customerName: string;
 };
-
-function getApiErrorMessage(payload: unknown) {
-  if (typeof payload === "string") {
-    return payload;
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return "Failed to place order.";
-  }
-
-  const maybeError = (payload as { error?: unknown }).error;
-
-  if (typeof maybeError === "string") {
-    return maybeError;
-  }
-
-  if (maybeError && typeof maybeError === "object") {
-    const fieldErrors = (maybeError as { fieldErrors?: Record<string, string[] | undefined> })
-      .fieldErrors;
-    const formErrors = (maybeError as { formErrors?: string[] }).formErrors;
-
-    const firstFieldMessage = fieldErrors
-      ? Object.values(fieldErrors).flat().find((message) => typeof message === "string")
-      : undefined;
-
-    if (firstFieldMessage) {
-      return firstFieldMessage;
-    }
-
-    if (formErrors?.[0]) {
-      return formErrors[0];
-    }
-  }
-
-  return "Failed to place order.";
-}
-
-function formatPrice(price: string | null) {
-  return price ? `INR ${Number(price).toFixed(2)}` : "Price on request";
-}
 
 function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
   const { locationQrSlug, locationSlug } = options;
@@ -342,7 +304,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     const payload = await response.json();
 
     if (!response.ok) {
-      setError(getApiErrorMessage(payload));
+      setError(getApiErrorMessage(payload, "Failed to place order."));
       setIsSubmitting(false);
       return;
     }

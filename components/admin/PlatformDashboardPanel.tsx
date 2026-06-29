@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { getApiError } from "@/lib/api-client";
 import {
   ReportBreakdown,
   type ReportBreakdownRow,
@@ -32,18 +33,6 @@ type PlatformSummary = {
 type PlatformReport = ReportBreakdownRow & {
   childRestaurants: number;
 };
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
-}
 
 export function PlatformDashboardPanel({
   uatResetEnabled = false,

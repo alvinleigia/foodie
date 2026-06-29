@@ -5,6 +5,7 @@ import { useState } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 
+import { getApiError } from "@/lib/api-client";
 import { FormField } from "@/components/shared/FormField";
 import { TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
@@ -59,18 +60,6 @@ function toDraft(location: RestaurantLocation): LocationDraft {
     timezone: location.timezone,
     isActive: location.isActive,
   };
-}
-
-function getApiError(payload: unknown) {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const error = (payload as { error?: unknown }).error;
-
-    if (typeof error === "string") {
-      return error;
-    }
-  }
-
-  return "Action failed.";
 }
 
 export function RestaurantLocationsPanel({
