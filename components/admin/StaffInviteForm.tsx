@@ -24,6 +24,7 @@ type InviteRole = {
 
 type StaffInviteFormProps = {
   apiPath: string;
+  assignExistingHref?: string;
   backHref: string;
   backLabel?: string;
   defaultRole: string;
@@ -42,6 +43,7 @@ const emptyInviteDraft = {
 
 export function StaffInviteForm({
   apiPath,
+  assignExistingHref,
   backHref,
   backLabel = "Cancel",
   defaultRole,
@@ -78,6 +80,14 @@ export function StaffInviteForm({
     toast.success("Invite link created.");
   }
 
+  const canAssignExisting =
+    Boolean(assignExistingHref) &&
+    error?.toLowerCase().includes("user already exists");
+  const assignIdentifier = draft.email.trim() || draft.username.trim();
+  const assignHref = assignExistingHref
+    ? `${assignExistingHref}${assignExistingHref.includes("?") ? "&" : "?"}identifier=${encodeURIComponent(assignIdentifier)}`
+    : "";
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <Card className="rounded-xl border-stone-200 bg-white">
@@ -93,7 +103,21 @@ export function StaffInviteForm({
               void submitInvite();
             }}
           >
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+            {error ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
+                <p className="text-sm text-rose-700">{error}</p>
+                {canAssignExisting ? (
+                  <Button
+                    asChild
+                    type="button"
+                    variant="outline"
+                    className="mt-3 rounded-lg border-rose-200 bg-white text-stone-950 hover:bg-rose-100"
+                  >
+                    <Link href={assignHref}>Assign Existing User</Link>
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="grid gap-4 md:grid-cols-3">
               <FormField label="Username">
                 <Input

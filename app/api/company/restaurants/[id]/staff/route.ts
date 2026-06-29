@@ -3,7 +3,10 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { createChildRestaurantStaffInvitation } from "@/lib/invitations";
+import {
+  createChildRestaurantStaffInvitation,
+  InvitationConflictError,
+} from "@/lib/invitations";
 import { companyAdminRoles } from "@/lib/role-access";
 import { listCompanyRestaurants } from "@/lib/saas-admin";
 
@@ -56,6 +59,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    if (error instanceof InvitationConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
 
     return NextResponse.json(

@@ -39,6 +39,7 @@ export function LocationStaffPanel({
 
       <StaffInviteForm
         apiPath={`/api/company/restaurants/${restaurantId}/locations/${locationId}/staff`}
+        assignExistingHref={assignHref}
         backHref={backHref}
         backLabel="Back to locations"
         defaultRole="RESTAURANT_MANAGER"

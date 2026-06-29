@@ -66,6 +66,7 @@ export default async function CompanyUserReassignPage(
   ]);
   const searchParams = await props.searchParams;
   const backHref = getSafeReturnTo(searchParams.returnTo);
+  const initialIdentifier = getSearchParam(searchParams.identifier);
   const initialRestaurantId = getSearchParam(searchParams.restaurantId);
   const initialLocationId = getSearchParam(searchParams.locationId);
   const initialRole = getInitialRole(searchParams.role);
@@ -86,6 +87,7 @@ export default async function CompanyUserReassignPage(
         apiPath="/api/company/users/reassign"
         backHref={backHref}
         initialCompanyId={session.user.organizationId}
+        initialIdentifier={initialIdentifier}
         initialLocationId={initialLocationId}
         initialRestaurantId={initialRestaurantId}
         initialRole={initialRole ?? "ORDER_OPERATOR"}

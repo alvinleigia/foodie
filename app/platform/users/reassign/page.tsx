@@ -62,6 +62,7 @@ export default async function ReassignPlatformUserPage(
   const searchParams = await props.searchParams;
   const backHref = getSafeReturnTo(searchParams.returnTo);
   const initialCompanyId = getSearchParam(searchParams.companyId);
+  const initialIdentifier = getSearchParam(searchParams.identifier);
   const initialRole = getInitialRole(searchParams.role);
 
   return (
@@ -79,6 +80,7 @@ export default async function ReassignPlatformUserPage(
       <ReassignExistingUserForm
         backHref={backHref}
         initialCompanyId={initialCompanyId}
+        initialIdentifier={initialIdentifier}
         initialRole={initialRole}
         targets={targets}
         users={users}

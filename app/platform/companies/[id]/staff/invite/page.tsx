@@ -36,6 +36,7 @@ export default async function PlatformCompanyStaffInvitePage(
     >
       <StaffInviteForm
         apiPath={`/api/platform/companies/${company.id}/staff`}
+        assignExistingHref={`/platform/users/reassign?companyId=${company.id}&role=COMPANY_MANAGER&returnTo=${encodeURIComponent(`/platform/companies/${company.id}/users`)}`}
         backHref={`/platform/companies/${company.id}/users`}
         defaultRole="COMPANY_OWNER"
         description="Company users can manage child restaurants and reporting based on their role."

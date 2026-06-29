@@ -6,7 +6,13 @@ import {
   listRestaurantReassignmentTargets,
 } from "@/lib/saas-admin";
 
-export default async function RestaurantStaffReassignPage() {
+function getSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function RestaurantStaffReassignPage(
+  props: PageProps<"/restaurant/staff/reassign">,
+) {
   const { session, snapshot } = await requireRestaurantAdminPage();
 
   if (!snapshot.organization || !snapshot.location) {
@@ -21,6 +27,8 @@ export default async function RestaurantStaffReassignPage() {
     listRestaurantReassignmentTargets(context),
     listRestaurantReassignableUsers(context),
   ]);
+  const searchParams = await props.searchParams;
+  const initialIdentifier = getSearchParam(searchParams.identifier);
 
   return (
     <SaasAdminShell
@@ -38,6 +46,7 @@ export default async function RestaurantStaffReassignPage() {
         apiPath="/api/tenant/admin/staff/reassign"
         backHref="/restaurant"
         initialCompanyId={targets[0]?.id}
+        initialIdentifier={initialIdentifier}
         initialLocationId={snapshot.location.id}
         initialRestaurantId={snapshot.organization.id}
         initialRole="ORDER_OPERATOR"

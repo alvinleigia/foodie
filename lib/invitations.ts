@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -20,6 +20,8 @@ import {
 } from "@/lib/validations/tenant-admin";
 
 const inviteExpiryMs = 1000 * 60 * 60 * 24 * 7;
+
+export class InvitationConflictError extends Error {}
 
 function hashInvitationToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -47,15 +49,44 @@ async function createScopedStaffInvitation({
   allowedRoles: readonly MembershipRole[];
 }) {
   const parsed = createStaffInvitationSchema.parse(input);
+  const normalizedEmail = parsed.email.toLowerCase();
 
   if (!allowedRoles.includes(parsed.role)) {
     throw new Error("Role is not allowed for this invitation.");
   }
 
+  const db = getDb();
+  const [existingUser] = await db
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+      status: users.status,
+    })
+    .from(users)
+    .where(or(eq(users.email, normalizedEmail), eq(users.username, parsed.username)))
+    .limit(1);
+
+  if (existingUser?.status === "ACTIVE" && existingUser.passwordHash) {
+    throw new InvitationConflictError(
+      "This user already exists. Assign the existing user instead.",
+    );
+  }
+
+  if (existingUser?.status === "INVITED" || existingUser?.passwordHash === null) {
+    throw new InvitationConflictError(
+      "A pending invite already exists for this email or username. Use the existing invite or assign the user after they accept it.",
+    );
+  }
+
+  if (existingUser) {
+    throw new InvitationConflictError(
+      "This user account already exists but is not active.",
+    );
+  }
+
   const token = createInviteToken();
   const tokenHash = hashInvitationToken(token);
   const expiresAt = new Date(Date.now() + inviteExpiryMs);
-  const db = getDb();
 
   const result = await db.transaction(async (tx) => {
     const [user] = await tx
@@ -63,7 +94,7 @@ async function createScopedStaffInvitation({
       .values({
         username: parsed.username,
         name: parsed.name,
-        email: parsed.email.toLowerCase(),
+        email: normalizedEmail,
         passwordHash: null,
         role: roleToUserRole(parsed.role),
         status: "INVITED",

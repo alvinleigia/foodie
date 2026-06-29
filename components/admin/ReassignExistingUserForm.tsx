@@ -53,6 +53,7 @@ type ReassignExistingUserFormProps = {
   apiPath?: string;
   backHref: string;
   initialCompanyId?: string;
+  initialIdentifier?: string;
   initialLocationId?: string;
   initialRestaurantId?: string;
   initialRole?: ReassignRole;
@@ -81,6 +82,7 @@ export function ReassignExistingUserForm({
   apiPath = "/api/platform/users/reassign",
   backHref,
   initialCompanyId,
+  initialIdentifier,
   initialLocationId,
   initialRestaurantId,
   initialRole,
@@ -97,7 +99,7 @@ export function ReassignExistingUserForm({
     defaultRestaurant?.locations.find((location) => location.id === initialLocationId) ??
     defaultRestaurant?.locations[0];
 
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(initialIdentifier ?? "");
   const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
   const [role, setRole] = useState<ReassignRole>(
     initialRole ?? roleOptions[0]?.value ?? "ORDER_OPERATOR",
