@@ -244,3 +244,98 @@ export async function getTenantContextFromRequestDomain(
 ) {
   return getTenantContextFromDomain(getRequestDomain(request), locationSlug);
 }
+
+export type TenantDomainAccessScope =
+  | { type: "PLATFORM" }
+  | {
+      type: "COMPANY";
+      companyOrganizationId: string;
+    }
+  | {
+      type: "RESTAURANT";
+      companyOrganizationId: string | null;
+      restaurantOrganizationId: string;
+    }
+  | {
+      type: "LOCATION";
+      companyOrganizationId: string | null;
+      restaurantOrganizationId: string;
+      locationId: string;
+    };
+
+export async function getTenantDomainAccessScopeFromDomain(
+  domainValue: string | null | undefined,
+): Promise<TenantDomainAccessScope> {
+  const domain = normalizeDomain(domainValue);
+
+  if (!domain || domain === "localhost" || domain === normalizeDomain(ROOT_DOMAIN)) {
+    return { type: "PLATFORM" };
+  }
+
+  const [domainRecord] = await getDb()
+    .select({
+      scope: tenantDomains.scope,
+      companyOrganizationId: tenantDomains.companyOrganizationId,
+      restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
+      locationId: tenantDomains.locationId,
+    })
+    .from(tenantDomains)
+    .where(and(eq(tenantDomains.domain, domain), eq(tenantDomains.isActive, true)))
+    .limit(1);
+
+  if (!domainRecord || domainRecord.scope === "PLATFORM") {
+    return { type: "PLATFORM" };
+  }
+
+  if (domainRecord.scope === "COMPANY" && domainRecord.companyOrganizationId) {
+    return {
+      type: "COMPANY",
+      companyOrganizationId: domainRecord.companyOrganizationId,
+    };
+  }
+
+  if (domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
+    const [restaurant] = await getDb()
+      .select({
+        companyOrganizationId: organizations.parentOrganizationId,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, domainRecord.restaurantOrganizationId))
+      .limit(1);
+
+    return {
+      type: "RESTAURANT",
+      companyOrganizationId: restaurant?.companyOrganizationId ?? null,
+      restaurantOrganizationId: domainRecord.restaurantOrganizationId,
+    };
+  }
+
+  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
+    const [location] = await getDb()
+      .select({
+        restaurantOrganizationId: locations.organizationId,
+        companyOrganizationId: organizations.parentOrganizationId,
+      })
+      .from(locations)
+      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+      .where(eq(locations.id, domainRecord.locationId))
+      .limit(1);
+
+    if (location) {
+      return {
+        type: "LOCATION",
+        companyOrganizationId: location.companyOrganizationId,
+        restaurantOrganizationId: location.restaurantOrganizationId,
+        locationId: domainRecord.locationId,
+      };
+    }
+  }
+
+  return { type: "PLATFORM" };
+}
+
+export async function getTenantDomainAccessScopeFromRequest(
+  request: Request,
+): Promise<TenantDomainAccessScope> {
+  return getTenantDomainAccessScopeFromDomain(getRequestDomain(request));
+}

@@ -3,6 +3,7 @@ import { and, eq, isNotNull, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { locations, memberships, organizations } from "@/db/schema";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { TenantDomainAccessScope } from "@/lib/tenant-domains";
 
 export type LocationAccessOption = {
   membershipId: string;
@@ -25,7 +26,53 @@ export type MembershipAccessOption = {
   locationLabel: string | null;
 };
 
-export async function getMembershipAccessOptions(userId: string) {
+type MembershipAccessRow = MembershipAccessOption & {
+  parentOrganizationId: string | null;
+};
+
+function isMembershipAllowedInScope(
+  option: MembershipAccessRow,
+  scope?: TenantDomainAccessScope,
+) {
+  if (!scope || scope.type === "PLATFORM") {
+    return true;
+  }
+
+  if (option.organizationType === "COMPANY") {
+    return option.organizationId === scope.companyOrganizationId;
+  }
+
+  if (scope.type === "COMPANY") {
+    return option.parentOrganizationId === scope.companyOrganizationId;
+  }
+
+  if (scope.type === "RESTAURANT") {
+    return option.organizationId === scope.restaurantOrganizationId;
+  }
+
+  return (
+    option.organizationId === scope.restaurantOrganizationId &&
+    option.locationId === scope.locationId
+  );
+}
+
+function stripScopeMetadata(option: MembershipAccessRow): MembershipAccessOption {
+  return {
+    membershipId: option.membershipId,
+    role: option.role,
+    organizationId: option.organizationId,
+    organizationName: option.organizationName,
+    organizationType: option.organizationType,
+    locationId: option.locationId,
+    locationName: option.locationName,
+    locationLabel: option.locationLabel,
+  };
+}
+
+export async function getMembershipAccessOptions(
+  userId: string,
+  scope?: TenantDomainAccessScope,
+) {
   const rows = await getDb()
     .select({
       membershipId: memberships.id,
@@ -33,6 +80,7 @@ export async function getMembershipAccessOptions(userId: string) {
       organizationId: organizations.id,
       organizationName: organizations.name,
       organizationType: organizations.type,
+      parentOrganizationId: organizations.parentOrganizationId,
       locationId: locations.id,
       locationName: locations.name,
       locationLabel: locations.label,
@@ -49,10 +97,14 @@ export async function getMembershipAccessOptions(userId: string) {
       ),
     );
 
-  return rows satisfies MembershipAccessOption[];
+  return rows.filter((row) => isMembershipAllowedInScope(row, scope)).map(stripScopeMetadata);
 }
 
-export async function resolveMembershipAccess(userId: string, membershipId: string) {
+export async function resolveMembershipAccess(
+  userId: string,
+  membershipId: string,
+  scope?: TenantDomainAccessScope,
+) {
   const [option] = await getDb()
     .select({
       membershipId: memberships.id,
@@ -60,6 +112,7 @@ export async function resolveMembershipAccess(userId: string, membershipId: stri
       organizationId: organizations.id,
       organizationName: organizations.name,
       organizationType: organizations.type,
+      parentOrganizationId: organizations.parentOrganizationId,
       locationId: locations.id,
       locationName: locations.name,
       locationLabel: locations.label,
@@ -78,7 +131,11 @@ export async function resolveMembershipAccess(userId: string, membershipId: stri
     )
     .limit(1);
 
-  return option ?? null;
+  if (!option || !isMembershipAllowedInScope(option, scope)) {
+    return null;
+  }
+
+  return stripScopeMetadata(option);
 }
 
 export async function getLocationAccessOptions(userId: string) {
