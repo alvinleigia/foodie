@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { RestaurantAdminPanel } from "@/components/admin/RestaurantAdminPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
@@ -26,9 +25,6 @@ export default async function RestaurantPage() {
       }}
     >
       <RestaurantAdminPanel />
-      <div className="mt-6">
-        <AuditLogPanel />
-      </div>
     </SaasAdminShell>
   );
 }

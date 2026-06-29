@@ -5,11 +5,6 @@ import { useEffect, useState } from "react";
 import { MoreHorizontalIcon } from "lucide-react";
 
 import { Spinner } from "@/components/shared/Spinner";
-import {
-  ReportBreakdown,
-  type ReportBreakdownRow,
-} from "@/components/admin/ReportBreakdown";
-import { SummaryCards } from "@/components/admin/SummaryCards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -17,9 +12,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatAppDate } from "@/lib/date-format";
 
 type CompanyOrganization = {
   id: string;
@@ -46,27 +41,6 @@ type CompanyOrganization = {
   } | null;
 };
 
-type PlatformSummary = {
-  companyTenants: number;
-  restaurantTenants: number;
-  activeLocations: number;
-  activeStaffMemberships: number;
-  activeOrders: number;
-  completedOrders: number;
-  commercial: {
-    activePlans: number;
-    trialingCompanies: number;
-    activeCompanies: number;
-    suspendedCompanies: number;
-    cancelledCompanies: number;
-    monthlyOrders: number;
-  };
-};
-
-type PlatformReport = ReportBreakdownRow & {
-  childRestaurants: number;
-};
-
 function getApiError(payload: unknown) {
   if (payload && typeof payload === "object" && "error" in payload) {
     const error = (payload as { error?: unknown }).error;
@@ -84,9 +58,7 @@ function formatDate(value: string | null | undefined) {
     return "Not set";
   }
 
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(value),
-  );
+  return formatAppDate(value);
 }
 
 function formatStatus(status: string | null | undefined) {
@@ -95,22 +67,8 @@ function formatStatus(status: string | null | undefined) {
 
 export function PlatformCompaniesPanel() {
   const [companies, setCompanies] = useState<CompanyOrganization[]>([]);
-  const [summary, setSummary] = useState<PlatformSummary | null>(null);
-  const [breakdown, setBreakdown] = useState<PlatformReport[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  async function refreshPlatformSummary() {
-    const summaryResponse = await fetch("/api/platform/summary");
-
-    if (!summaryResponse.ok) {
-      return;
-    }
-
-    const summaryPayload = await summaryResponse.json();
-    setSummary(summaryPayload.summary ?? null);
-    setBreakdown(summaryPayload.breakdown ?? []);
-  }
 
   useEffect(() => {
     async function loadCompanies() {
@@ -124,7 +82,6 @@ export function PlatformCompaniesPanel() {
       }
 
       setCompanies(payload.companies ?? []);
-      await refreshPlatformSummary();
 
       setError(null);
       setIsLoading(false);
@@ -137,90 +94,27 @@ export function PlatformCompaniesPanel() {
     <div className="grid gap-6">
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-      {summary ? (
-        <SummaryCards
-          cards={[
-            {
-              label: "Companies",
-              value: summary.companyTenants,
-              helper: "Parent company tenants.",
-            },
-            {
-              label: "Restaurants",
-              value: summary.restaurantTenants,
-              helper: "Child restaurant tenants across the platform.",
-            },
-            {
-              label: "Active orders",
-              value: summary.activeOrders,
-              helper: "Pending, preparing or ready orders.",
-            },
-            {
-              label: "Locations",
-              value: summary.activeLocations,
-              helper: "Active restaurant locations.",
-            },
-            {
-              label: "Staff memberships",
-              value: summary.activeStaffMemberships,
-              helper: "Active user assignments.",
-            },
-            {
-              label: "Non-cancelled orders",
-              value: summary.completedOrders,
-              helper: "All-time orders excluding cancellations.",
-            },
-            {
-              label: "Trial companies",
-              value: summary.commercial.trialingCompanies,
-              helper: "Company tenants currently on trial.",
-            },
-            {
-              label: "Active subscriptions",
-              value: summary.commercial.activeCompanies,
-              helper: "Company tenants marked active.",
-            },
-            {
-              label: "Suspended tenants",
-              value: summary.commercial.suspendedCompanies,
-              helper: "Commercially suspended company tenants.",
-            },
-            {
-              label: "Monthly orders",
-              value: summary.commercial.monthlyOrders,
-              helper: "Orders created since the first day of this month.",
-            },
-            {
-              label: "Active plans",
-              value: summary.commercial.activePlans,
-              helper: "Configured SaaS plans available for tenants.",
-            },
-          ]}
-        />
-      ) : null}
-
-      <ReportBreakdown
-        title="Company activity"
-        description="Compare parent companies by restaurants, locations, staff and order activity."
-        emptyMessage="No company activity to report yet."
-        rows={breakdown}
-        showChildRestaurants
-      />
-
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="text-xl font-semibold text-stone-950">Parent companies</h3>
             <p className="text-sm text-stone-500">
               Manage company tenants from cards. Creation, editing and risky actions live on focused pages.
             </p>
           </div>
-          <Button
-            asChild
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
-          >
-            <Link href="/platform/companies/new">Add Company</Link>
-          </Button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+            <Button
+              asChild
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+            >
+              <Link href="/platform/companies/new">Add Company</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-lg">
+              <Link href="/platform/users/reassign?returnTo=/platform/companies">
+                Reassign User
+              </Link>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
           {isLoading ? (
@@ -283,6 +177,11 @@ export function PlatformCompaniesPanel() {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
+                        <Link href={`/platform/companies/${company.id}/users`}>
+                          Manage users
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
                         <Link href={`/platform/companies/${company.id}/domains`}>
                           Domains
                         </Link>
@@ -295,12 +194,6 @@ export function PlatformCompaniesPanel() {
                       <DropdownMenuItem asChild>
                         <Link href={`/platform/companies/${company.id}/subscription`}>
                           Subscription settings
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator className="bg-stone-200" />
-                      <DropdownMenuItem asChild variant="destructive">
-                        <Link href={`/platform/companies/${company.id}/delete`}>
-                          Delete company
                         </Link>
                       </DropdownMenuItem>
                     </DropdownMenuContent>

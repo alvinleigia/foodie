@@ -1,13 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { DeleteCompanyForm } from "@/components/admin/DeleteCompanyForm";
+import { PlatformCompanyUsersPanel } from "@/components/admin/PlatformCompanyUsersPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
-import { getPlatformCompany } from "@/lib/saas-admin";
+import { getPlatformCompany, listCompanyStaffMemberships } from "@/lib/saas-admin";
 
-export default async function DeletePlatformCompanyPage(
-  props: PageProps<"/platform/companies/[id]/delete">,
+export default async function PlatformCompanyUsersPage(
+  props: PageProps<"/platform/companies/[id]/users">,
 ) {
   const session = await auth();
 
@@ -22,19 +22,21 @@ export default async function DeletePlatformCompanyPage(
     notFound();
   }
 
+  const users = await listCompanyStaffMemberships(company.id);
+
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
-      title="Delete company"
-      description="Use this route for destructive tenant deletion with typed confirmation."
+      title={`${company.name} users`}
+      description="Manage company owner and manager memberships."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
         role: session.user.role,
       }}
     >
-      <DeleteCompanyForm companyId={company.id} companyName={company.name} />
+      <PlatformCompanyUsersPanel companyId={company.id} users={users} />
     </SaasAdminShell>
   );
 }

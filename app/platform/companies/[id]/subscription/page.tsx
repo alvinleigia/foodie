@@ -24,7 +24,7 @@ export default async function PlatformCompanySubscriptionPage(
 
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
       title="Subscription settings"
       description={`Manage commercial access for ${company.name}.`}
@@ -36,6 +36,7 @@ export default async function PlatformCompanySubscriptionPage(
     >
       <CompanySubscriptionForm
         apiPath={`/api/platform/companies/${company.id}/subscription`}
+        backHref="/platform/companies"
         companyName={company.name}
         currentStatus={company.subscription.status}
       />

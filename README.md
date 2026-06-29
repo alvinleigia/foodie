@@ -11,7 +11,7 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 - Restaurant admin route for restaurant settings, location settings and staff access.
 - Dedicated SaaS admin route shells at `/platform`, `/company` and `/restaurant`.
 - Platform admin can create/manage parent company tenants.
-- Company admin can create/manage child restaurant tenants with default locations.
+- Company admin can create/manage child restaurant tenants and locations.
 - Platform admin can directly create company owner/manager users.
 - Company admin can create restaurant manager/order operator invite links.
 - Users with multiple active location memberships can switch location context from the admin/operations header.
@@ -19,7 +19,7 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 - Company and restaurant dashboards show range-filtered operational reports for revenue, status counts, prep/collection timing, cancelled items, category mix, staff activity, location activity, top products and stock alerts, with CSV export.
 - Platform commercial foundation includes seeded SaaS plans, company trial subscriptions, subscription status controls and platform commercial metrics.
 - Suspended or cancelled tenants are blocked from login, tenant APIs, operations pages and public QR ordering.
-- Platform admin can export company tenant data and delete company tenants with typed confirmation.
+- Platform admin can export company tenant data and disable company tenants.
 - Phase 7 audit foundation records tenant-management, staff, menu, inventory and order-transition actions in `audit_logs`, with scoped dashboard viewing and CSV export.
 - Phase 7 MVP rate limiting protects public order, order status, cancellation, invitation acceptance and credential-attempt flows.
 - Phase 7 reliability hardening adds structured server logging and abortable customer/staff polling to avoid overlapping refresh calls.
@@ -48,9 +48,12 @@ AUTH_SECRET="replace-with-a-long-random-secret"
 PLATFORM_OWNER_USERNAME="owner"
 PLATFORM_OWNER_EMAIL="owner@example.com"
 PLATFORM_OWNER_PASSWORD="change-me"
+ENABLE_UAT_DATABASE_RESET="false"
 ```
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
+
+Set `ENABLE_UAT_DATABASE_RESET="true"` only on a UAT/dev database if you need the platform reset screen at `/platform/uat-reset`. Do not enable it for production.
 
 ## Setup
 
@@ -115,19 +118,19 @@ npm run build
 
 ## SaaS Notes
 
-- The current MVP data belongs to a hidden default company, restaurant and location.
+- There is no hidden default company, restaurant or location. The SaaS owner creates real companies, then company users create restaurants and locations.
 - Protected staff routes resolve tenant/location from the signed-in user membership.
 - Restaurant-level tenant admin APIs are protected by role checks and scoped to the signed-in membership.
 - `/platform`, `/company` and `/restaurant` are role-protected SaaS admin route shells.
 - Platform/company admin users can authenticate without a location-level membership.
 - Direct staff creation is implemented; restaurant staff invitation links are implemented; email delivery is still planned.
-- Location switching validates active memberships before updating the session.
+- Membership switching validates active memberships before updating the session.
 - Invitation tokens are stored as hashes and expire after 7 days.
 - Dashboard summaries are scoped by platform/company access before returning counts.
 - Audit logs are scoped by the signed-in user's role and tenant context before they are shown or exported.
 - MVP rate limiting is currently in-memory per server instance; use Redis/Upstash or another shared store before serious production traffic.
 - Public customer routes can resolve tenant/location from the location QR slug using `?qr=...`.
-- Customer orders created from plain `/order` without a QR slug use the hidden default MVP tenant.
+- Customer orders created from plain `/order` require a QR slug, location route/domain context, or signed-in location context.
 - Inventory records are scoped by restaurant/location and linked to menu products.
 - Inventory quantities are deducted when a staff user marks an order item delivered. Products with stock tracking disabled are ignored.
 - Order creation validates tracked stock on the server before accepting the order.

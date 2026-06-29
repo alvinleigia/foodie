@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
+import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -134,23 +135,23 @@ export function OrganizationEditPanel({
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField label="Timezone">
-                <Input
+                <TimezoneSelect
                   value={draft.timezone}
-                  onChange={(event) =>
+                  onValueChange={(timezone) =>
                     setDraft((current) => ({
                       ...current,
-                      timezone: event.target.value,
+                      timezone,
                     }))
                   }
                 />
               </FormField>
               <FormField label="Currency">
-                <Input
+                <CurrencySelect
                   value={draft.currency}
-                  onChange={(event) =>
+                  onValueChange={(currency) =>
                     setDraft((current) => ({
                       ...current,
-                      currency: event.target.value,
+                      currency,
                     }))
                   }
                 />
@@ -213,13 +214,13 @@ export function OrganizationEditPanel({
                     />
                   </FormField>
                   <FormField label="Location timezone">
-                    <Input
+                    <TimezoneSelect
                       value={draft.location.timezone}
-                      onChange={(event) =>
+                      onValueChange={(timezone) =>
                         setDraft((current) => ({
                           ...current,
                           location: current.location
-                            ? { ...current.location, timezone: event.target.value }
+                            ? { ...current.location, timezone }
                             : current.location,
                         }))
                       }

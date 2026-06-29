@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -15,7 +15,6 @@ import {
   staffInvitations,
   users,
 } from "@/db/schema";
-import { DEFAULT_COMPANY_ORGANIZATION_ID } from "@/lib/tenant-defaults";
 
 async function getRestaurantIds(companyOrganizationId: string) {
   const restaurants = await getDb()
@@ -40,7 +39,6 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
       and(
         eq(organizations.id, companyOrganizationId),
         eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
       ),
     )
     .limit(1);
@@ -146,19 +144,4 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     orders: orderRows,
     orderItems: orderItemRows,
   };
-}
-
-export async function deleteCompanyTenant(companyOrganizationId: string) {
-  const [deleted] = await getDb()
-    .delete(organizations)
-    .where(
-      and(
-        eq(organizations.id, companyOrganizationId),
-        eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-      ),
-    )
-    .returning({ id: organizations.id, name: organizations.name });
-
-  return deleted ?? null;
 }

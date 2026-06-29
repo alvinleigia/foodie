@@ -27,7 +27,7 @@ export default async function RestaurantStaffAccessPage(
         role: session.user.role,
       }}
     >
-      <TenantStaffAccessForm staff={staff} />
+      <TenantStaffAccessForm backHref="/restaurant" staff={staff} />
     </SaasAdminShell>
   );
 }

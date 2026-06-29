@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 import postgres from "postgres";
 
 const scryptAsync = promisify(scrypt);
-const defaultCompanyOrganizationId = "00000000-0000-0000-0000-000000000001";
+const platformOrganizationId = "00000000-0000-0000-0000-000000000000";
 
 function readEnv() {
   const env = {};
@@ -107,6 +107,58 @@ try {
   `;
 
   await sql`
+    insert into organizations (
+      id,
+      parent_organization_id,
+      type,
+      slug,
+      name,
+      timezone,
+      currency,
+      is_active,
+      updated_at
+    )
+    values (
+      ${platformOrganizationId},
+      null,
+      'PLATFORM',
+      'foodie-platform',
+      'Foodie Platform',
+      'Asia/Calcutta',
+      'INR',
+      true,
+      now()
+    )
+    on conflict (id)
+    do update set
+      type = 'PLATFORM',
+      slug = 'foodie-platform',
+      name = 'Foodie Platform',
+      is_active = true,
+      updated_at = now()
+  `;
+
+  const [existingMembership] = await sql`
+    select id
+    from memberships
+    where user_id = ${userId}
+      and organization_id = ${platformOrganizationId}
+      and location_id is null
+    order by updated_at desc
+    limit 1
+  `;
+
+  if (existingMembership) {
+    await sql`
+      update memberships
+      set
+        role = 'PLATFORM_ADMIN',
+        is_active = true,
+        updated_at = now()
+      where id = ${existingMembership.id}
+    `;
+  } else {
+    await sql`
     insert into memberships (
       user_id,
       organization_id,
@@ -117,18 +169,14 @@ try {
     )
     values (
       ${userId},
-      ${defaultCompanyOrganizationId},
+      ${platformOrganizationId},
       null,
       'PLATFORM_ADMIN',
       true,
       now()
     )
-    on conflict (user_id, organization_id, location_id)
-    do update set
-      role = 'PLATFORM_ADMIN',
-      is_active = true,
-      updated_at = now()
   `;
+  }
 
   console.log(`Platform owner verified: ${username}`);
 } finally {

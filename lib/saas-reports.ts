@@ -12,12 +12,6 @@ import {
   organizations,
   users,
 } from "@/db/schema";
-import {
-  DEFAULT_COMPANY_ORGANIZATION_ID,
-  DEFAULT_LOCATION_ID,
-  DEFAULT_RESTAURANT_ORGANIZATION_ID,
-  isDefaultCompanyOrganizationId,
-} from "@/lib/tenant-defaults";
 
 const activeOrderStatuses = ["PENDING", "PREPARING", "READY"] as const;
 const allOrderStatuses = [
@@ -590,53 +584,27 @@ export async function getPlatformSummary() {
       db
         .select({ value: count() })
         .from(organizations)
-        .where(
-          and(
-            eq(organizations.type, "COMPANY"),
-            ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-          ),
-        ),
+        .where(eq(organizations.type, "COMPANY")),
       db
         .select({ value: count() })
         .from(organizations)
-        .where(
-          and(
-            eq(organizations.type, "RESTAURANT"),
-            ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
-          ),
-        ),
+        .where(eq(organizations.type, "RESTAURANT")),
       db
         .select({ value: count() })
         .from(locations)
-        .where(and(eq(locations.isActive, true), ne(locations.id, DEFAULT_LOCATION_ID))),
+        .where(eq(locations.isActive, true)),
       db
         .select({ value: count() })
         .from(memberships)
-        .where(
-          and(
-            eq(memberships.isActive, true),
-            ne(memberships.organizationId, DEFAULT_COMPANY_ORGANIZATION_ID),
-            ne(memberships.organizationId, DEFAULT_RESTAURANT_ORGANIZATION_ID),
-          ),
-        ),
+        .where(eq(memberships.isActive, true)),
       db
         .select({ value: count() })
         .from(orders)
-        .where(
-          and(
-            inArray(orders.status, activeOrderStatuses),
-            ne(orders.organizationId, DEFAULT_RESTAURANT_ORGANIZATION_ID),
-          ),
-        ),
+        .where(inArray(orders.status, activeOrderStatuses)),
       db
         .select({ value: count() })
         .from(orders)
-        .where(
-          and(
-            ne(orders.status, "CANCELLED"),
-            ne(orders.organizationId, DEFAULT_RESTAURANT_ORGANIZATION_ID),
-          ),
-        ),
+        .where(ne(orders.status, "CANCELLED")),
     ]);
 
   return {
@@ -662,7 +630,6 @@ export async function getPlatformCompanyBreakdown() {
           and(
             eq(organizations.parentOrganizationId, company.id),
             eq(organizations.type, "RESTAURANT"),
-            ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
           ),
         );
       const childRestaurantIds = childRestaurants.map((restaurant) => restaurant.id);
@@ -762,18 +729,6 @@ export async function getPlatformCompanyBreakdown() {
 }
 
 export async function getCompanySummary(companyOrganizationId: string) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return {
-      childRestaurants: 0,
-      activeLocations: 0,
-      activeStaffMemberships: 0,
-      activeMenuCategories: 0,
-      activeMenuItems: 0,
-      activeOrders: 0,
-      completedOrders: 0,
-    };
-  }
-
   const db = getDb();
   const childRestaurants = await db
     .select({ id: organizations.id })
@@ -782,7 +737,6 @@ export async function getCompanySummary(companyOrganizationId: string) {
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     );
   const childRestaurantIds = childRestaurants.map((restaurant) => restaurant.id);
@@ -878,10 +832,6 @@ export async function getCompanyOperationalReport(
   companyOrganizationId: string,
   range: ReportRange = "30d",
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return getOperationalReportForOrganizations([], range);
-  }
-
   const childRestaurants = await getDb()
     .select({ id: organizations.id })
     .from(organizations)
@@ -889,7 +839,6 @@ export async function getCompanyOperationalReport(
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     );
 
@@ -900,10 +849,6 @@ export async function getCompanyOperationalReport(
 }
 
 export async function getCompanyRestaurantBreakdown(companyOrganizationId: string) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return [];
-  }
-
   const db = getDb();
   const restaurants = await db
     .select()
@@ -912,7 +857,6 @@ export async function getCompanyRestaurantBreakdown(companyOrganizationId: strin
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     );
 
@@ -1075,10 +1019,6 @@ export async function getRestaurantOperationalReport(
   restaurantOrganizationId: string,
   range: ReportRange = "30d",
 ) {
-  if (restaurantOrganizationId === DEFAULT_RESTAURANT_ORGANIZATION_ID) {
-    return getOperationalReportForOrganizations([], range);
-  }
-
   return getOperationalReportForOrganizations([restaurantOrganizationId], range);
 }
 
@@ -1183,10 +1123,5 @@ async function listReportCompanies() {
   return getDb()
     .select()
     .from(organizations)
-    .where(
-      and(
-        eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-      ),
-    );
+    .where(eq(organizations.type, "COMPANY"));
 }

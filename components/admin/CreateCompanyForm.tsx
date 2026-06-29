@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
+import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,10 @@ const emptyCompanyDraft = {
   name: "",
   timezone: "Asia/Calcutta",
   currency: "INR",
+};
+
+type CreateCompanyFormProps = {
+  backHref: string;
 };
 
 function getApiError(payload: unknown) {
@@ -28,7 +33,7 @@ function getApiError(payload: unknown) {
   return "Action failed.";
 }
 
-export function CreateCompanyForm() {
+export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(emptyCompanyDraft);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +57,7 @@ export function CreateCompanyForm() {
     }
 
     toast.success("Company created.");
-    router.push("/platform");
+    router.push(backHref);
     router.refresh();
   }
 
@@ -83,23 +88,23 @@ export function CreateCompanyForm() {
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Timezone">
-              <Input
+              <TimezoneSelect
                 value={draft.timezone}
-                onChange={(event) =>
+                onValueChange={(timezone) =>
                   setDraft((current) => ({
                     ...current,
-                    timezone: event.target.value,
+                    timezone,
                   }))
                 }
               />
             </FormField>
             <FormField label="Currency">
-              <Input
+              <CurrencySelect
                 value={draft.currency}
-                onChange={(event) =>
+                onValueChange={(currency) =>
                   setDraft((current) => ({
                     ...current,
-                    currency: event.target.value,
+                    currency,
                   }))
                 }
               />
@@ -114,7 +119,7 @@ export function CreateCompanyForm() {
               {isSubmitting ? "Creating..." : "Create company"}
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href="/platform">Cancel</Link>
+              <Link href={backHref}>Cancel</Link>
             </Button>
           </div>
         </form>

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
+import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,10 @@ const emptyRestaurantDraft = {
   currency: "INR",
   locationName: "",
   locationLabel: "",
+};
+
+type CreateRestaurantFormProps = {
+  backHref: string;
 };
 
 function getApiError(payload: unknown) {
@@ -30,7 +35,7 @@ function getApiError(payload: unknown) {
   return "Action failed.";
 }
 
-export function CreateRestaurantForm() {
+export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(emptyRestaurantDraft);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +59,7 @@ export function CreateRestaurantForm() {
     }
 
     toast.success("Restaurant created.");
-    router.push("/company");
+    router.push(backHref);
     router.refresh();
   }
 
@@ -109,18 +114,18 @@ export function CreateRestaurantForm() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Timezone">
-              <Input
+              <TimezoneSelect
                 value={draft.timezone}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, timezone: event.target.value }))
+                onValueChange={(timezone) =>
+                  setDraft((current) => ({ ...current, timezone }))
                 }
               />
             </FormField>
             <FormField label="Currency">
-              <Input
+              <CurrencySelect
                 value={draft.currency}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, currency: event.target.value }))
+                onValueChange={(currency) =>
+                  setDraft((current) => ({ ...current, currency }))
                 }
               />
             </FormField>
@@ -134,7 +139,7 @@ export function CreateRestaurantForm() {
               {isSubmitting ? "Creating..." : "Create restaurant"}
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href="/company">Cancel</Link>
+              <Link href={backHref}>Cancel</Link>
             </Button>
           </div>
         </form>

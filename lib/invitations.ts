@@ -13,10 +13,6 @@ import { hashPassword } from "@/lib/passwords";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { TenantContext } from "@/lib/tenant-context";
 import {
-  DEFAULT_RESTAURANT_ORGANIZATION_ID,
-  isDefaultCompanyOrganizationId,
-} from "@/lib/tenant-defaults";
-import {
   acceptStaffInvitationSchema,
   createCompanyStaffInvitationSchema,
   createRestaurantStaffInvitationSchema,
@@ -124,10 +120,6 @@ export async function createCompanyStaffInvitation(
   input: unknown,
   origin: string,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    throw new Error("Default system company cannot receive staff invitations.");
-  }
-
   const parsed = createCompanyStaffInvitationSchema.parse(input);
   const db = getDb();
   const [company] = await db
@@ -161,13 +153,6 @@ export async function createChildRestaurantStaffInvitation(
   input: unknown,
   origin: string,
 ) {
-  if (
-    isDefaultCompanyOrganizationId(companyOrganizationId) ||
-    restaurantOrganizationId === DEFAULT_RESTAURANT_ORGANIZATION_ID
-  ) {
-    throw new Error("Default system restaurant cannot receive staff invitations.");
-  }
-
   const parsed = createRestaurantStaffInvitationSchema.parse(input);
   const db = getDb();
   const [restaurant] = await db

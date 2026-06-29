@@ -90,5 +90,4 @@ FROM "organizations" company
 CROSS JOIN "saas_plans" plan
 WHERE company."type" = 'COMPANY'
   AND plan."slug" = 'starter'
-  AND company."id" <> '00000000-0000-0000-0000-000000000001'
 ON CONFLICT ("organization_id") DO NOTHING;

@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { CreateRestaurantForm } from "@/components/admin/CreateRestaurantForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, companyAdminRoles } from "@/lib/role-access";
-import { isDefaultCompanyOrganizationId } from "@/lib/tenant-defaults";
 
 export default async function NewCompanyRestaurantPage() {
   const session = await auth();
@@ -12,8 +11,7 @@ export default async function NewCompanyRestaurantPage() {
   if (
     !session?.user?.role ||
     !session.user.organizationId ||
-    !canAccessRole(session.user.role, companyAdminRoles) ||
-    isDefaultCompanyOrganizationId(session.user.organizationId)
+    !canAccessRole(session.user.role, companyAdminRoles)
   ) {
     redirect("/staff/login");
   }
@@ -30,7 +28,7 @@ export default async function NewCompanyRestaurantPage() {
         role: session.user.role,
       }}
     >
-      <CreateRestaurantForm />
+      <CreateRestaurantForm backHref="/company" />
     </SaasAdminShell>
   );
 }

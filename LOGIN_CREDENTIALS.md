@@ -30,9 +30,9 @@ Restaurant managers, company users and order operators should be created from th
 
 | Role | Purpose | Main access |
 | --- | --- | --- |
-| `PLATFORM_ADMIN` | Parent SaaS/company admin | Platform, company, restaurant, and operations areas |
-| `COMPANY_OWNER` | Company owner for multiple restaurants | Company, restaurant, and operations areas |
-| `COMPANY_MANAGER` | Company manager for multiple restaurants | Company, restaurant, and operations areas |
+| `PLATFORM_ADMIN` | SaaS owner | Platform area only |
+| `COMPANY_OWNER` | Company owner for multiple restaurants | Company area |
+| `COMPANY_MANAGER` | Company manager for multiple restaurants | Company area |
 | `RESTAURANT_MANAGER` | Restaurant/location admin | Restaurant admin and operations areas |
 | `ORDER_OPERATOR` | Staff/order operator | Operations area only |
 
@@ -44,9 +44,10 @@ Restaurant managers, company users and order operators should be created from th
 | `/staff/login` | Staff login page | Public login page |
 | `/operations/orders` | Live order operations | `RESTAURANT_MANAGER`, `ORDER_OPERATOR` |
 | `/operations/menu` | Menu manager | `RESTAURANT_MANAGER` |
-| `/restaurant` | Restaurant tenant admin area | `PLATFORM_ADMIN`, `COMPANY_OWNER`, `COMPANY_MANAGER`, `RESTAURANT_MANAGER` |
-| `/company` | Company admin area for multiple restaurants | `PLATFORM_ADMIN`, `COMPANY_OWNER`, `COMPANY_MANAGER` |
+| `/restaurant` | Restaurant tenant admin area | `RESTAURANT_MANAGER` |
+| `/company` | Company admin area for multiple restaurants | `COMPANY_OWNER`, `COMPANY_MANAGER` |
 | `/platform` | Parent SaaS/platform admin area | `PLATFORM_ADMIN` |
+| `/platform/uat-reset` | UAT-only reset screen | `PLATFORM_ADMIN`, only when `ENABLE_UAT_DATABASE_RESET=true` |
 | `/invite?token=...` | Staff invitation acceptance page | Public invite link |
 
 ## Login Notes

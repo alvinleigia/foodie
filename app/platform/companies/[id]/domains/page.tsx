@@ -27,7 +27,7 @@ export default async function PlatformCompanyDomainsPage(
 
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
       title="Company domains"
       description={`Link custom domains and company subdomains for ${company.name}.`}
@@ -39,6 +39,7 @@ export default async function PlatformCompanyDomainsPage(
     >
       <CompanyDomainsPanel
         apiPath={`/api/platform/companies/${company.id}/domains`}
+        backHref="/platform/companies"
         companyName={company.name}
         domains={domains.map((domain) => ({
           id: domain.id,

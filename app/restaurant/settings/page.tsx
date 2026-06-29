@@ -23,7 +23,10 @@ export default async function RestaurantSettingsPage() {
         role: session.user.role,
       }}
     >
-      <TenantRestaurantSettingsForm organization={snapshot.organization} />
+      <TenantRestaurantSettingsForm
+        backHref="/restaurant"
+        organization={snapshot.organization}
+      />
     </SaasAdminShell>
   );
 }

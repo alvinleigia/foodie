@@ -1,4 +1,4 @@
-import { and, count, eq, gte, ne } from "drizzle-orm";
+import { count, eq, gte } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -7,7 +7,6 @@ import {
   orders,
   saasPlans,
 } from "@/db/schema";
-import { DEFAULT_COMPANY_ORGANIZATION_ID } from "@/lib/tenant-defaults";
 
 export function getTrialEndDate() {
   const trialEndsAt = new Date();
@@ -48,42 +47,22 @@ export async function getCommercialMetrics() {
       .select({ value: count() })
       .from(organizationSubscriptions)
       .innerJoin(organizations, eq(organizations.id, organizationSubscriptions.organizationId))
-      .where(
-        and(
-          eq(organizationSubscriptions.status, "TRIALING"),
-          ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-        ),
-      ),
+      .where(eq(organizationSubscriptions.status, "TRIALING")),
     db
       .select({ value: count() })
       .from(organizationSubscriptions)
       .innerJoin(organizations, eq(organizations.id, organizationSubscriptions.organizationId))
-      .where(
-        and(
-          eq(organizationSubscriptions.status, "ACTIVE"),
-          ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-        ),
-      ),
+      .where(eq(organizationSubscriptions.status, "ACTIVE")),
     db
       .select({ value: count() })
       .from(organizationSubscriptions)
       .innerJoin(organizations, eq(organizations.id, organizationSubscriptions.organizationId))
-      .where(
-        and(
-          eq(organizationSubscriptions.status, "SUSPENDED"),
-          ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-        ),
-      ),
+      .where(eq(organizationSubscriptions.status, "SUSPENDED")),
     db
       .select({ value: count() })
       .from(organizationSubscriptions)
       .innerJoin(organizations, eq(organizations.id, organizationSubscriptions.organizationId))
-      .where(
-        and(
-          eq(organizationSubscriptions.status, "CANCELLED"),
-          ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-        ),
-      ),
+      .where(eq(organizationSubscriptions.status, "CANCELLED")),
     db
       .select({ value: count() })
       .from(orders)
@@ -120,10 +99,7 @@ export async function listCompanyCommercialStatus() {
     .innerJoin(organizations, eq(organizations.id, organizationSubscriptions.organizationId))
     .innerJoin(saasPlans, eq(saasPlans.id, organizationSubscriptions.planId))
     .where(
-      and(
-        eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-      ),
+      eq(organizations.type, "COMPANY"),
     );
 }
 
@@ -158,7 +134,7 @@ export async function getCommercialOwnerOrganizationId(organizationId: string) {
     return null;
   }
 
-  if (organization.id === DEFAULT_COMPANY_ORGANIZATION_ID) {
+  if (organization.type === "PLATFORM") {
     return null;
   }
 

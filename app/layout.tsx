@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
+import { RouteTransitionOverlay } from "@/components/shared/RouteTransitionOverlay";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -31,6 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <Suspense fallback={null}>
+          <RouteTransitionOverlay />
+        </Suspense>
         <Toaster position="top-right" richColors />
       </body>
     </html>

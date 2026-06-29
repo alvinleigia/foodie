@@ -86,7 +86,5 @@ SELECT
   true,
   now()
 FROM "organizations"
-WHERE
-  "type" = 'COMPANY'
-  AND "id" <> '00000000-0000-0000-0000-000000000001'
+WHERE "type" = 'COMPANY'
 ON CONFLICT ("domain") DO NOTHING;

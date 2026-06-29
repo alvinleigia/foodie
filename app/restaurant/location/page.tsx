@@ -23,7 +23,7 @@ export default async function RestaurantLocationPage() {
         role: session.user.role,
       }}
     >
-      <TenantLocationSettingsForm location={snapshot.location} />
+      <TenantLocationSettingsForm backHref="/restaurant" location={snapshot.location} />
     </SaasAdminShell>
   );
 }

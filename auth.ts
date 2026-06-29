@@ -2,7 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { authenticateStaff } from "@/lib/staff-auth";
-import { resolveLocationAccess } from "@/lib/location-access";
+import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
@@ -44,14 +44,27 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       if (trigger === "update" && token.sub) {
         const nextUser = session?.user as
           | {
+              membershipId?: unknown;
               organizationId?: unknown;
               locationId?: unknown;
             }
           | undefined;
+        const membershipId =
+          typeof nextUser?.membershipId === "string" ? nextUser.membershipId : "";
         const organizationId =
           typeof nextUser?.organizationId === "string" ? nextUser.organizationId : "";
         const locationId =
           typeof nextUser?.locationId === "string" ? nextUser.locationId : "";
+
+        if (membershipId) {
+          const access = await resolveMembershipAccess(token.sub, membershipId);
+
+          if (access) {
+            token.role = access.role;
+            token.organizationId = access.organizationId;
+            token.locationId = access.locationId ?? "";
+          }
+        }
 
         if (organizationId && locationId) {
           const access = await resolveLocationAccess(token.sub, organizationId, locationId);

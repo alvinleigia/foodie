@@ -17,7 +17,7 @@ export default async function RestaurantStaffInvitePage() {
         role: session.user.role,
       }}
     >
-      <TenantStaffInviteForm />
+      <TenantStaffInviteForm backHref="/restaurant" />
     </SaasAdminShell>
   );
 }

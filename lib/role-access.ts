@@ -3,15 +3,11 @@ import type { MembershipRole } from "@/lib/staff-auth";
 export const platformAdminRoles = ["PLATFORM_ADMIN"] satisfies MembershipRole[];
 
 export const companyAdminRoles = [
-  "PLATFORM_ADMIN",
   "COMPANY_OWNER",
   "COMPANY_MANAGER",
 ] satisfies MembershipRole[];
 
 export const restaurantAdminRoles = [
-  "PLATFORM_ADMIN",
-  "COMPANY_OWNER",
-  "COMPANY_MANAGER",
   "RESTAURANT_MANAGER",
 ] satisfies MembershipRole[];
 
@@ -48,7 +44,13 @@ export function getHomePathForRole(role: MembershipRole) {
 }
 
 export function canAccessNavigationPath(role: MembershipRole, href: string) {
-  if (href === "/platform") {
+  if (
+    href === "/platform" ||
+    href === "/platform/companies" ||
+    href === "/platform/users/reassign" ||
+    href === "/platform/users/memberships" ||
+    href === "/platform/uat-reset"
+  ) {
     return canAccessRole(role, platformAdminRoles);
   }
 
@@ -70,6 +72,14 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
 
   if (href === "/operations/inventory") {
     return role === "RESTAURANT_MANAGER";
+  }
+
+  if (href === "/audit-logs") {
+    return canAccessRole(role, [
+      ...platformAdminRoles,
+      ...companyAdminRoles,
+      ...restaurantAdminRoles,
+    ]);
   }
 
   return true;

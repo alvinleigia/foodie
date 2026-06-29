@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import { ZodError } from "zod";
 
 import { getDb } from "@/db";
@@ -8,6 +8,7 @@ import {
   organizationSubscriptions,
   organizations,
   saasPlans,
+  staffInvitations,
   tenantDomains,
   users,
 } from "@/db/schema";
@@ -22,15 +23,12 @@ import {
   companyDomainSchema,
   createRestaurantLocationSchema,
   createRestaurantStaffUserSchema,
+  reassignExistingUserSchema,
   updateChildRestaurantAdminSchema,
+  updateCompanyStaffMembershipSchema,
   updateCompanyDomainSchema,
   updateOrganizationAdminSchema,
 } from "@/lib/validations/tenant-admin";
-import {
-  DEFAULT_COMPANY_ORGANIZATION_ID,
-  DEFAULT_RESTAURANT_ORGANIZATION_ID,
-  isDefaultCompanyOrganizationId,
-} from "@/lib/tenant-defaults";
 
 async function ensureUniqueOrganizationSlug(baseName: string) {
   const db = getDb();
@@ -89,12 +87,7 @@ export async function listPlatformCompanies() {
       eq(organizationSubscriptions.organizationId, organizations.id),
     )
     .leftJoin(saasPlans, eq(saasPlans.id, organizationSubscriptions.planId))
-    .where(
-      and(
-        eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
-      ),
-    );
+    .where(eq(organizations.type, "COMPANY"));
 
   return rows.map((row) => ({
     ...row.company,
@@ -130,7 +123,6 @@ export async function getPlatformCompany(companyOrganizationId: string) {
       and(
         eq(organizations.id, companyOrganizationId),
         eq(organizations.type, "COMPANY"),
-        ne(organizations.id, DEFAULT_COMPANY_ORGANIZATION_ID),
       ),
     )
     .limit(1);
@@ -345,10 +337,6 @@ export async function updateChildRestaurantAdmin(
   restaurantOrganizationId: string,
   input: unknown,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return null;
-  }
-
   const parsed = updateChildRestaurantAdminSchema.parse(input);
   const db = getDb();
 
@@ -367,7 +355,6 @@ export async function updateChildRestaurantAdmin(
           eq(organizations.id, restaurantOrganizationId),
           eq(organizations.type, "RESTAURANT"),
           eq(organizations.parentOrganizationId, companyOrganizationId),
-          ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
         ),
       )
       .returning();
@@ -412,10 +399,6 @@ export async function updateChildRestaurantAdmin(
 }
 
 export async function listCompanyRestaurants(companyOrganizationId: string) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return [];
-  }
-
   const rows = await getDb()
     .select({
       organization: organizations,
@@ -427,7 +410,6 @@ export async function listCompanyRestaurants(companyOrganizationId: string) {
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     );
 
@@ -467,10 +449,6 @@ export async function getCompanyRestaurant(
   companyOrganizationId: string,
   restaurantOrganizationId: string,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return null;
-  }
-
   const [row] = await getDb()
     .select({
       organization: organizations,
@@ -483,7 +461,6 @@ export async function getCompanyRestaurant(
         eq(organizations.id, restaurantOrganizationId),
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     )
     .limit(1);
@@ -506,10 +483,6 @@ export async function listRestaurantLocations(
   companyOrganizationId: string,
   restaurantOrganizationId: string,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return [];
-  }
-
   const [restaurant] = await getDb()
     .select({ id: organizations.id })
     .from(organizations)
@@ -518,7 +491,6 @@ export async function listRestaurantLocations(
         eq(organizations.id, restaurantOrganizationId),
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
-        ne(organizations.id, DEFAULT_RESTAURANT_ORGANIZATION_ID),
       ),
     )
     .limit(1);
@@ -538,10 +510,6 @@ export async function createRestaurantLocation(
   restaurantOrganizationId: string,
   input: unknown,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    throw new Error("Create a real parent company before creating locations.");
-  }
-
   const parsed = createRestaurantLocationSchema.parse(input);
   const db = getDb();
   const [restaurant] = await db
@@ -596,10 +564,6 @@ export async function updateRestaurantLocation(
   locationId: string,
   input: unknown,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    return null;
-  }
-
   const parsed = createRestaurantLocationSchema.parse(input);
   const db = getDb();
 
@@ -656,10 +620,6 @@ export async function createChildRestaurant(
   companyOrganizationId: string,
   input: unknown,
 ) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    throw new Error("Create a real parent company before creating restaurants.");
-  }
-
   const parsed = createChildRestaurantSchema.parse(input);
   const db = getDb();
   const organizationSlug = await ensureUniqueOrganizationSlug(parsed.name);
@@ -697,10 +657,6 @@ export async function createChildRestaurant(
 }
 
 export async function createCompanyStaffUser(companyOrganizationId: string, input: unknown) {
-  if (isDefaultCompanyOrganizationId(companyOrganizationId)) {
-    throw new Error("Default system company cannot receive staff users.");
-  }
-
   const parsed = createCompanyStaffUserSchema.parse(input);
   const db = getDb();
   const [company] = await db
@@ -749,18 +705,389 @@ export async function createCompanyStaffUser(companyOrganizationId: string, inpu
   });
 }
 
+const companyMembershipRoles = ["COMPANY_OWNER", "COMPANY_MANAGER"] as const;
+
+export async function listCompanyStaffMemberships(companyOrganizationId: string) {
+  const rows = await getDb()
+    .select({
+      membership: memberships,
+      user: users,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .where(
+      and(
+        eq(memberships.organizationId, companyOrganizationId),
+        isNull(memberships.locationId),
+        inArray(memberships.role, [...companyMembershipRoles]),
+      ),
+    );
+
+  return rows.map((row) => ({
+    membershipId: row.membership.id,
+    userId: row.user.id,
+    username: row.user.username,
+    name: row.user.name,
+    email: row.user.email,
+    userStatus: row.user.status,
+    role: row.membership.role,
+    isActive: row.membership.isActive,
+    createdAt: row.membership.createdAt.toISOString(),
+    updatedAt: row.membership.updatedAt.toISOString(),
+  }));
+}
+
+export async function getCompanyStaffMembership(
+  companyOrganizationId: string,
+  membershipId: string,
+) {
+  const companyUsers = await listCompanyStaffMemberships(companyOrganizationId);
+
+  return companyUsers.find((user) => user.membershipId === membershipId) ?? null;
+}
+
+export async function updateCompanyStaffMembership(
+  companyOrganizationId: string,
+  membershipId: string,
+  input: unknown,
+) {
+  const parsed = updateCompanyStaffMembershipSchema.parse(input);
+  const db = getDb();
+  const [membership] = await db
+    .update(memberships)
+    .set({
+      role: parsed.role,
+      isActive: parsed.isActive,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(memberships.id, membershipId),
+        eq(memberships.organizationId, companyOrganizationId),
+        isNull(memberships.locationId),
+        inArray(memberships.role, [...companyMembershipRoles]),
+      ),
+    )
+    .returning();
+
+  if (!membership) {
+    return null;
+  }
+
+  if (!parsed.isActive) {
+    await db
+      .update(staffInvitations)
+      .set({
+        expiresAt: new Date(0),
+        updatedAt: new Date(),
+      })
+      .where(eq(staffInvitations.membershipId, membership.id));
+  }
+
+  return membership;
+}
+
+export async function listPlatformReassignmentTargets() {
+  const db = getDb();
+  const [organizationRows, locationRows] = await Promise.all([
+    db
+      .select({
+        id: organizations.id,
+        parentOrganizationId: organizations.parentOrganizationId,
+        type: organizations.type,
+        name: organizations.name,
+        slug: organizations.slug,
+        isActive: organizations.isActive,
+      })
+      .from(organizations)
+      .where(or(eq(organizations.type, "COMPANY"), eq(organizations.type, "RESTAURANT"))),
+    db
+      .select({
+        id: locations.id,
+        organizationId: locations.organizationId,
+        name: locations.name,
+        label: locations.label,
+        slug: locations.slug,
+        isActive: locations.isActive,
+      })
+      .from(locations),
+  ]);
+
+  const locationsByRestaurant = new Map<string, typeof locationRows>();
+
+  for (const location of locationRows) {
+    const existing = locationsByRestaurant.get(location.organizationId) ?? [];
+    existing.push(location);
+    locationsByRestaurant.set(location.organizationId, existing);
+  }
+
+  const restaurantsByCompany = new Map<string, typeof organizationRows>();
+
+  for (const organization of organizationRows) {
+    if (organization.type !== "RESTAURANT" || !organization.parentOrganizationId) {
+      continue;
+    }
+
+    const existing = restaurantsByCompany.get(organization.parentOrganizationId) ?? [];
+    existing.push(organization);
+    restaurantsByCompany.set(organization.parentOrganizationId, existing);
+  }
+
+  return organizationRows
+    .filter((organization) => organization.type === "COMPANY")
+    .map((company) => ({
+      ...company,
+      restaurants: (restaurantsByCompany.get(company.id) ?? []).map((restaurant) => ({
+        ...restaurant,
+        locations: locationsByRestaurant.get(restaurant.id) ?? [],
+      })),
+    }));
+}
+
+export async function listPlatformReassignableUsers() {
+  const rows = await getDb()
+    .select({
+      id: users.id,
+      username: users.username,
+      name: users.name,
+      email: users.email,
+    })
+    .from(users)
+    .where(and(eq(users.status, "ACTIVE"), isNotNull(users.passwordHash)));
+
+  return rows.sort((first, second) => first.name.localeCompare(second.name));
+}
+
+export async function reassignExistingUser(input: unknown) {
+  const parsed = reassignExistingUserSchema.parse(input);
+  const identifier = parsed.identifier.toLowerCase();
+  const isCompanyRole =
+    parsed.role === "COMPANY_OWNER" || parsed.role === "COMPANY_MANAGER";
+  const isLocationRole =
+    parsed.role === "RESTAURANT_MANAGER" || parsed.role === "ORDER_OPERATOR";
+  const db = getDb();
+
+  const [targetOrganization] = await db
+    .select({
+      id: organizations.id,
+      parentOrganizationId: organizations.parentOrganizationId,
+      type: organizations.type,
+      name: organizations.name,
+      isActive: organizations.isActive,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, parsed.organizationId))
+    .limit(1);
+
+  if (!targetOrganization || !targetOrganization.isActive) {
+    throw new Error("Target organization is not available.");
+  }
+
+  if (isCompanyRole && targetOrganization.type !== "COMPANY") {
+    throw new Error("Company roles must be assigned to a company.");
+  }
+
+  if (isLocationRole && targetOrganization.type !== "RESTAURANT") {
+    throw new Error("Operational roles must be assigned to a restaurant location.");
+  }
+
+  if (isCompanyRole && parsed.locationId) {
+    throw new Error("Company owner/manager access cannot be assigned to a location.");
+  }
+
+  if (isLocationRole && !parsed.locationId) {
+    throw new Error("Choose a location for restaurant manager or order operator access.");
+  }
+
+  if (parsed.locationId) {
+    const [targetLocation] = await db
+      .select({
+        id: locations.id,
+        organizationId: locations.organizationId,
+        isActive: locations.isActive,
+      })
+      .from(locations)
+      .where(eq(locations.id, parsed.locationId))
+      .limit(1);
+
+    if (
+      !targetLocation ||
+      !targetLocation.isActive ||
+      targetLocation.organizationId !== parsed.organizationId
+    ) {
+      throw new Error("Target location is not available for this restaurant.");
+    }
+  }
+
+  const [user] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      name: users.name,
+      status: users.status,
+      passwordHash: users.passwordHash,
+    })
+    .from(users)
+    .where(or(eq(users.username, identifier), eq(users.email, identifier)))
+    .limit(1);
+
+  if (!user) {
+    throw new Error("No existing user found for that email or username.");
+  }
+
+  if (user.status !== "ACTIVE" || !user.passwordHash) {
+    throw new Error("Only accepted active users can be reassigned. Use an invite for new users.");
+  }
+
+  const locationCondition = parsed.locationId
+    ? eq(memberships.locationId, parsed.locationId)
+    : isNull(memberships.locationId);
+
+  return db.transaction(async (tx) => {
+    const deactivatedMemberships = parsed.deactivateExisting
+      ? await tx
+          .update(memberships)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(and(eq(memberships.userId, user.id), eq(memberships.isActive, true)))
+          .returning()
+      : [];
+
+    const [existingMembership] = await tx
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.userId, user.id),
+          eq(memberships.organizationId, parsed.organizationId),
+          locationCondition,
+        ),
+      )
+      .limit(1);
+
+    const [membership] = existingMembership
+      ? await tx
+          .update(memberships)
+          .set({
+            role: parsed.role,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(memberships.id, existingMembership.id))
+          .returning()
+      : await tx
+          .insert(memberships)
+          .values({
+            userId: user.id,
+            organizationId: parsed.organizationId,
+            locationId: parsed.locationId,
+            role: parsed.role,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .returning();
+
+    return {
+      user,
+      membership,
+      deactivatedMembershipCount: deactivatedMemberships.length,
+      targetOrganization,
+    };
+  });
+}
+
+export async function listPlatformUserMemberships() {
+  const rows = await getDb()
+    .select({
+      userId: users.id,
+      username: users.username,
+      name: users.name,
+      email: users.email,
+      userStatus: users.status,
+      membershipId: memberships.id,
+      membershipRole: memberships.role,
+      membershipActive: memberships.isActive,
+      membershipCreatedAt: memberships.createdAt,
+      membershipUpdatedAt: memberships.updatedAt,
+      organizationId: organizations.id,
+      organizationName: organizations.name,
+      organizationType: organizations.type,
+      organizationActive: organizations.isActive,
+      locationId: locations.id,
+      locationName: locations.name,
+      locationLabel: locations.label,
+      locationActive: locations.isActive,
+    })
+    .from(users)
+    .innerJoin(memberships, eq(memberships.userId, users.id))
+    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
+    .leftJoin(locations, eq(locations.id, memberships.locationId));
+
+  const usersById = new Map<
+    string,
+    {
+      userId: string;
+      username: string;
+      name: string;
+      email: string;
+      userStatus: string;
+      memberships: {
+        membershipId: string;
+        role: (typeof rows)[number]["membershipRole"];
+        isActive: boolean;
+        organizationId: string;
+        organizationName: string;
+        organizationType: (typeof rows)[number]["organizationType"];
+        organizationActive: boolean;
+        locationId: string | null;
+        locationName: string | null;
+        locationLabel: string | null;
+        locationActive: boolean | null;
+        createdAt: string;
+        updatedAt: string;
+      }[];
+    }
+  >();
+
+  for (const row of rows) {
+    const user = usersById.get(row.userId) ?? {
+      userId: row.userId,
+      username: row.username,
+      name: row.name,
+      email: row.email,
+      userStatus: row.userStatus,
+      memberships: [],
+    };
+
+    user.memberships.push({
+      membershipId: row.membershipId,
+      role: row.membershipRole,
+      isActive: row.membershipActive,
+      organizationId: row.organizationId,
+      organizationName: row.organizationName,
+      organizationType: row.organizationType,
+      organizationActive: row.organizationActive,
+      locationId: row.locationId,
+      locationName: row.locationName,
+      locationLabel: row.locationLabel,
+      locationActive: row.locationActive,
+      createdAt: row.membershipCreatedAt.toISOString(),
+      updatedAt: row.membershipUpdatedAt.toISOString(),
+    });
+
+    usersById.set(row.userId, user);
+  }
+
+  return Array.from(usersById.values()).sort((first, second) =>
+    first.name.localeCompare(second.name),
+  );
+}
+
 export async function createRestaurantStaffUser(
   companyOrganizationId: string,
   restaurantOrganizationId: string,
   input: unknown,
 ) {
-  if (
-    isDefaultCompanyOrganizationId(companyOrganizationId) ||
-    restaurantOrganizationId === DEFAULT_RESTAURANT_ORGANIZATION_ID
-  ) {
-    throw new Error("Default system restaurant cannot receive staff users.");
-  }
-
   const parsed = createRestaurantStaffUserSchema.parse(input);
   const db = getDb();
   const [restaurant] = await db

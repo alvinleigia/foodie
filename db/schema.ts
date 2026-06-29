@@ -1,4 +1,7 @@
 import {
+  sql,
+} from "drizzle-orm";
+import {
   boolean,
   AnyPgColumn,
   date,
@@ -17,6 +20,7 @@ import {
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "STAFF"]);
 
 export const organizationTypeEnum = pgEnum("organization_type", [
+  "PLATFORM",
   "COMPANY",
   "RESTAURANT",
 ]);
@@ -269,7 +273,7 @@ export const memberships = pgTable(
     uniqueIndex("memberships_user_org_location_unique").on(
       table.userId,
       table.organizationId,
-      table.locationId,
+      sql`coalesce(${table.locationId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
     ),
   ],
 );

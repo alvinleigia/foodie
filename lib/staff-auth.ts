@@ -59,6 +59,7 @@ export async function authenticateStaff(
       status: users.status,
       membershipRole: memberships.role,
       organizationId: memberships.organizationId,
+      organizationType: organizations.type,
       locationId: memberships.locationId,
       membershipActive: memberships.isActive,
       organizationActive: organizations.isActive,
@@ -89,10 +90,12 @@ export async function authenticateStaff(
     return null;
   }
 
-  const commercialAccess = await getTenantSubscriptionAccess(record.organizationId);
+  if (record.organizationType !== "PLATFORM") {
+    const commercialAccess = await getTenantSubscriptionAccess(record.organizationId);
 
-  if (!commercialAccess.allowed) {
-    return null;
+    if (!commercialAccess.allowed) {
+      return null;
+    }
   }
 
   return {

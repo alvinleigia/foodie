@@ -25,6 +25,7 @@ type SubscriptionStatus =
 
 type CompanySubscriptionFormProps = {
   apiPath: string;
+  backHref: string;
   companyName: string;
   currentStatus: SubscriptionStatus;
 };
@@ -43,6 +44,7 @@ function getApiError(payload: unknown) {
 
 export function CompanySubscriptionForm({
   apiPath,
+  backHref,
   companyName,
   currentStatus,
 }: CompanySubscriptionFormProps) {
@@ -69,7 +71,7 @@ export function CompanySubscriptionForm({
     }
 
     toast.success("Subscription updated.");
-    router.push("/platform");
+    router.push(backHref);
     router.refresh();
   }
 
@@ -120,7 +122,7 @@ export function CompanySubscriptionForm({
               {isSubmitting ? "Saving..." : "Save subscription"}
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href="/platform">Cancel</Link>
+              <Link href={backHref}>Cancel</Link>
             </Button>
           </div>
         </form>

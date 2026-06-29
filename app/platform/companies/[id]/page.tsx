@@ -24,7 +24,7 @@ export default async function PlatformCompanyEditPage(
 
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
       title="Company settings"
       description="Edit company tenant details and lifecycle status."
@@ -36,7 +36,7 @@ export default async function PlatformCompanyEditPage(
     >
       <OrganizationEditPanel
         apiPath={`/api/platform/companies/${company.id}`}
-        backHref="/platform"
+        backHref="/platform/companies"
         entityLabel="Company"
         organization={company}
       />

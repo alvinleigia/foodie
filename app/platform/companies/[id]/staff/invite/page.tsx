@@ -24,7 +24,7 @@ export default async function PlatformCompanyStaffInvitePage(
 
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
       title="Invite company user"
       description={`Create a one-time invite link for ${company.name}.`}
@@ -36,7 +36,7 @@ export default async function PlatformCompanyStaffInvitePage(
     >
       <StaffInviteForm
         apiPath={`/api/platform/companies/${company.id}/staff`}
-        backHref="/platform"
+        backHref={`/platform/companies/${company.id}/users`}
         defaultRole="COMPANY_OWNER"
         description="Company users can manage child restaurants and reporting based on their role."
         roles={[

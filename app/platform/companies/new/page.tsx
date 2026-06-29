@@ -14,7 +14,7 @@ export default async function NewPlatformCompanyPage() {
 
   return (
     <SaasAdminShell
-      activePath="/platform"
+      activePath="/platform/companies"
       eyebrow="Platform"
       title="Add company"
       description="Create a parent company tenant before inviting company users or adding restaurants."
@@ -24,7 +24,7 @@ export default async function NewPlatformCompanyPage() {
         role: session.user.role,
       }}
     >
-      <CreateCompanyForm />
+      <CreateCompanyForm backHref="/platform/companies" />
     </SaasAdminShell>
   );
 }

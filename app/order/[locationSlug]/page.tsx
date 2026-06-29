@@ -1,33 +1,23 @@
-import { auth } from "@/auth";
 import { CustomerOrderPage } from "@/components/order/CustomerOrderPage";
+import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
 import { AppShell } from "@/components/shared/AppShell";
-
-async function getOptionalUser() {
-  try {
-    const session = await auth();
-
-    if (!session?.user?.role) {
-      return null;
-    }
-
-    return {
-      name: session.user.name,
-      role: session.user.role,
-    };
-  } catch {
-    return null;
-  }
-}
+import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 export default async function LocationOrderPage(
   props: PageProps<"/order/[locationSlug]">,
 ) {
   const params = await props.params;
-  const user = await getOptionalUser();
+  const { hasTenantContext, user } = await getPublicOrderRouteContext({
+    locationSlug: params.locationSlug,
+  });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      <CustomerOrderPage locationSlug={params.locationSlug} user={user} />
+      {hasTenantContext ? (
+        <CustomerOrderPage locationSlug={params.locationSlug} user={user} />
+      ) : (
+        <CustomerOrderUnavailable user={user} />
+      )}
     </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { formatAppDateTime } from "@/lib/date-format";
 
 export type ReportBreakdownRow = {
   id: string;
@@ -27,10 +28,7 @@ function formatLastOrder(value: string | null) {
     return "No orders yet";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatAppDateTime(value);
 }
 
 export function ReportBreakdown({

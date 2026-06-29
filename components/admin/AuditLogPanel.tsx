@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { formatAppDateTime } from "@/lib/date-format";
 
 type AuditLogRow = {
   id: string;
@@ -20,10 +21,7 @@ type AuditLogRow = {
 };
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatAppDateTime(value);
 }
 
 function formatAction(value: string) {

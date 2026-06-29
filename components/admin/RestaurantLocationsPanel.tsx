@@ -6,6 +6,7 @@ import { MoreHorizontalIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
+import { TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -214,10 +215,10 @@ export function RestaurantLocationsPanel({
                   />
                 </FormField>
                 <FormField label="Timezone">
-                  <Input
+                  <TimezoneSelect
                     value={draft.timezone}
-                    onChange={(event) =>
-                      updateEditDraft(location.id, { timezone: event.target.value })
+                    onValueChange={(timezone) =>
+                      updateEditDraft(location.id, { timezone })
                     }
                   />
                 </FormField>

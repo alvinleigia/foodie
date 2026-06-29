@@ -5,10 +5,6 @@ import { getDb } from "@/db";
 import { locations, organizations } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
 import { getTenantContextFromRequestDomain } from "@/lib/tenant-domains";
-import {
-  DEFAULT_LOCATION_ID,
-  DEFAULT_RESTAURANT_ORGANIZATION_ID,
-} from "@/lib/tenant-defaults";
 
 export type TenantContext = {
   organizationId: string;
@@ -16,10 +12,7 @@ export type TenantContext = {
 };
 
 export function getDefaultTenantContext(): TenantContext {
-  return {
-    organizationId: DEFAULT_RESTAURANT_ORGANIZATION_ID,
-    locationId: DEFAULT_LOCATION_ID,
-  };
+  throw new Error("Tenant context is required. Use a QR slug, location link or signed-in location access.");
 }
 
 export async function getCurrentTenantContext() {
@@ -45,7 +38,7 @@ export async function getTenantContextFromQrSlug(qrSlug: string) {
   const normalizedQrSlug = qrSlug.trim().toLowerCase();
 
   if (!normalizedQrSlug) {
-    return getDefaultTenantContext();
+    throw new Error("Invalid order QR link.");
   }
 
   const db = getDb();

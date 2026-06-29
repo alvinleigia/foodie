@@ -1,16 +1,18 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { CompanyRestaurantsPanel } from "@/components/admin/CompanyRestaurantsPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, companyAdminRoles } from "@/lib/role-access";
-import { isDefaultCompanyOrganizationId } from "@/lib/tenant-defaults";
 
 export default async function CompanyPage() {
   const session = await auth();
 
-  if (!session?.user?.role || !canAccessRole(session.user.role, companyAdminRoles)) {
+  if (
+    !session?.user?.role ||
+    !session.user.organizationId ||
+    !canAccessRole(session.user.role, companyAdminRoles)
+  ) {
     redirect("/staff/login");
   }
 
@@ -26,14 +28,7 @@ export default async function CompanyPage() {
         role: session.user.role,
       }}
     >
-      <CompanyRestaurantsPanel
-        hasRealCompanyContext={!isDefaultCompanyOrganizationId(session.user.organizationId)}
-      />
-      {!isDefaultCompanyOrganizationId(session.user.organizationId) ? (
-        <div className="mt-6">
-          <AuditLogPanel />
-        </div>
-      ) : null}
+      <CompanyRestaurantsPanel hasRealCompanyContext />
     </SaasAdminShell>
   );
 }

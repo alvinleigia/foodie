@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/shared/FormField";
+import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { StaffInviteForm } from "@/components/admin/StaffInviteForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -123,8 +124,10 @@ function FormActions({
 }
 
 export function TenantRestaurantSettingsForm({
+  backHref,
   organization,
 }: {
+  backHref: string;
   organization: RestaurantSettings;
 }) {
   const router = useRouter();
@@ -142,7 +145,7 @@ export function TenantRestaurantSettingsForm({
     try {
       await submitJson("/api/tenant/admin/organization", "PATCH", draft);
       toast.success("Restaurant settings updated.");
-      router.push("/restaurant");
+      router.push(backHref);
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Action failed.";
@@ -187,23 +190,27 @@ export function TenantRestaurantSettingsForm({
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Timezone">
-              <Input
+              <TimezoneSelect
                 value={draft.timezone}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, timezone: event.target.value }))
+                onValueChange={(timezone) =>
+                  setDraft((current) => ({ ...current, timezone }))
                 }
               />
             </FormField>
             <FormField label="Currency">
-              <Input
+              <CurrencySelect
                 value={draft.currency}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, currency: event.target.value }))
+                onValueChange={(currency) =>
+                  setDraft((current) => ({ ...current, currency }))
                 }
               />
             </FormField>
           </div>
-          <FormActions isSaving={isSaving} submitLabel="Save changes" />
+          <FormActions
+            backHref={backHref}
+            isSaving={isSaving}
+            submitLabel="Save changes"
+          />
         </form>
       </CardContent>
     </Card>
@@ -211,8 +218,10 @@ export function TenantRestaurantSettingsForm({
 }
 
 export function TenantLocationSettingsForm({
+  backHref,
   location,
 }: {
+  backHref: string;
   location: LocationSettings;
 }) {
   const router = useRouter();
@@ -296,7 +305,7 @@ export function TenantLocationSettingsForm({
     try {
       await submitJson("/api/tenant/admin/location", "PATCH", draft);
       toast.success("Location settings updated.");
-      router.push("/restaurant");
+      router.push(backHref);
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Action failed.";
@@ -382,10 +391,10 @@ export function TenantLocationSettingsForm({
             </FormField>
           </div>
           <FormField label="Timezone">
-            <Input
+            <TimezoneSelect
               value={draft.timezone}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, timezone: event.target.value }))
+              onValueChange={(timezone) =>
+                setDraft((current) => ({ ...current, timezone }))
               }
             />
           </FormField>
@@ -404,6 +413,7 @@ export function TenantLocationSettingsForm({
             Location is active
           </label>
           <FormActions
+            backHref={backHref}
             isDisabled={qrSlugStatus.isChecking || qrSlugStatus.available === false}
             isSaving={isSaving}
             submitLabel={qrSlugStatus.isChecking ? "Checking..." : "Save changes"}
@@ -414,11 +424,11 @@ export function TenantLocationSettingsForm({
   );
 }
 
-export function TenantStaffInviteForm() {
+export function TenantStaffInviteForm({ backHref }: { backHref: string }) {
   return (
     <StaffInviteForm
       apiPath="/api/tenant/admin/staff/invite"
-      backHref="/restaurant"
+      backHref={backHref}
       defaultRole="ORDER_OPERATOR"
       description="Create a one-time invite link for this restaurant location."
       roles={[
@@ -430,7 +440,13 @@ export function TenantStaffInviteForm() {
   );
 }
 
-export function TenantStaffAccessForm({ staff }: { staff: StaffAccess }) {
+export function TenantStaffAccessForm({
+  backHref,
+  staff,
+}: {
+  backHref: string;
+  staff: StaffAccess;
+}) {
   const router = useRouter();
   const initialRole =
     staff.role === "ORDER_OPERATOR" ? "ORDER_OPERATOR" : "RESTAURANT_MANAGER";
@@ -446,7 +462,7 @@ export function TenantStaffAccessForm({ staff }: { staff: StaffAccess }) {
     try {
       await submitJson(`/api/tenant/admin/staff/${staff.membershipId}`, "PATCH", draft);
       toast.success("Staff access updated.");
-      router.push("/restaurant");
+      router.push(backHref);
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Action failed.";
@@ -491,7 +507,11 @@ export function TenantStaffAccessForm({ staff }: { staff: StaffAccess }) {
             />
             Staff access is active
           </label>
-          <FormActions isSaving={isSaving} submitLabel="Save changes" />
+          <FormActions
+            backHref={backHref}
+            isSaving={isSaving}
+            submitLabel="Save changes"
+          />
         </form>
       </CardContent>
     </Card>

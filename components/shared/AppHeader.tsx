@@ -46,6 +46,21 @@ const defaultNavigationItems: NavigationItem[] = [
     description: "SaaS owner console",
   },
   {
+    href: "/platform/companies",
+    label: "Companies",
+    description: "Parent company tenants",
+  },
+  {
+    href: "/platform/users/reassign",
+    label: "Reassign User",
+    description: "Move existing user access",
+  },
+  {
+    href: "/platform/users/memberships",
+    label: "User Memberships",
+    description: "Review cross-tenant access",
+  },
+  {
     href: "/company",
     label: "Company",
     description: "Restaurants and reporting",
@@ -69,6 +84,11 @@ const defaultNavigationItems: NavigationItem[] = [
     href: "/operations/inventory",
     label: "Inventory",
     description: "Stock control",
+  },
+  {
+    href: "/audit-logs",
+    label: "Audit logs",
+    description: "Security and change history",
   },
   {
     href: "/order",

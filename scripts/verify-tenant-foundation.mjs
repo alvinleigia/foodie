@@ -1,9 +1,7 @@
 import fs from "node:fs";
 import postgres from "postgres";
 
-const DEFAULT_RESTAURANT_ORGANIZATION_ID =
-  "00000000-0000-0000-0000-000000000002";
-const DEFAULT_LOCATION_ID = "00000000-0000-0000-0000-000000000003";
+const PLATFORM_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000000";
 
 function readDatabaseUrl() {
   const envLine = fs
@@ -24,28 +22,18 @@ function readDatabaseUrl() {
 const sql = postgres(readDatabaseUrl(), { prepare: false });
 
 try {
-  const [organization] = await sql`
-    select id, name
+  const [platform] = await sql`
+    select id, name, type
     from organizations
-    where id = ${DEFAULT_RESTAURANT_ORGANIZATION_ID}
-  `;
-  const [location] = await sql`
-    select id, name
-    from locations
-    where id = ${DEFAULT_LOCATION_ID}
-      and organization_id = ${DEFAULT_RESTAURANT_ORGANIZATION_ID}
+    where id = ${PLATFORM_ORGANIZATION_ID}
+      and type = 'PLATFORM'
   `;
 
-  if (!organization || !location) {
-    throw new Error("Default restaurant organization or location is missing.");
+  if (!platform) {
+    throw new Error("Platform organization is missing. Run migrations first.");
   }
 
-  const tables = [
-    "menu_categories",
-    "menu_items",
-    "orders",
-    "order_items",
-  ];
+  const tables = ["menu_categories", "menu_items", "orders", "order_items"];
 
   for (const table of tables) {
     const [result] = await sql.unsafe(`
@@ -61,8 +49,7 @@ try {
   }
 
   console.log("Tenant foundation verified.");
-  console.log(`Default organization: ${organization.name}`);
-  console.log(`Default location: ${location.name}`);
+  console.log(`Platform organization: ${platform.name}`);
 } finally {
   await sql.end();
 }

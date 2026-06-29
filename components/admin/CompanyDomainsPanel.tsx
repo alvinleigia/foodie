@@ -32,6 +32,7 @@ type CompanyDomain = {
 
 type CompanyDomainsPanelProps = {
   apiPath: string;
+  backHref: string;
   companyName: string;
   domains: CompanyDomain[];
 };
@@ -54,6 +55,7 @@ function normalizeDomainInput(value: string) {
 
 export function CompanyDomainsPanel({
   apiPath,
+  backHref,
   companyName,
   domains: initialDomains,
 }: CompanyDomainsPanelProps) {
@@ -204,7 +206,7 @@ export function CompanyDomainsPanel({
                 )}
               </Button>
               <Button asChild type="button" variant="outline" className="rounded-lg">
-                <Link href="/platform">Back</Link>
+                <Link href={backHref}>Back</Link>
               </Button>
             </div>
           </form>

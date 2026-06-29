@@ -72,6 +72,8 @@ Planned domain data model:
 - Avoid duplicate page-level route switchers for shared modules such as Operations Orders and Menu Manager.
 - Page-level buttons should be action-specific only, such as add, edit, invite, save, cancel or clear.
 - Reuse shadcn/Tailwind components from `components/ui` and shared app wrappers before adding one-off UI.
+- Timezone and currency fields should use shared dropdowns backed by `data/timezones.json` and `data/currencies.json`, not manual text inputs.
+- Focused create/edit/action routes must receive a route-owned `backHref` or safe `returnTo`; submit, cancel and back actions should return to the nearest parent workflow instead of a generic dashboard.
 
 ## Phase 1: Core SaaS Data Model
 
@@ -101,12 +103,13 @@ Key decision:
 
 Implementation notes:
 
-- Default company ID: `00000000-0000-0000-0000-000000000001`.
-- Default restaurant organization ID: `00000000-0000-0000-0000-000000000002`.
-- Default location ID: `00000000-0000-0000-0000-000000000003`.
+- Platform organization ID: `00000000-0000-0000-0000-000000000000`.
+- No default company, restaurant or location should be seeded. SaaS owners create real companies, company users create restaurants, and restaurant/company users create locations.
 - Schema additions are in `db/schema.ts`.
 - Backfill migration is in `drizzle/0003_saas_core_tenant_foundation.sql`.
-- Temporary Phase 1 tenant resolver is in `lib/tenant-context.ts`; it returns the default restaurant/location until Phase 2 auth memberships are implemented.
+- Tenant resolver is in `lib/tenant-context.ts`; public ordering requires a QR slug, location route/domain context, or signed-in location access.
+- `PLATFORM_ADMIN` access belongs to the platform organization, not to a hidden company tenant.
+- Migration `drizzle/0014_platform_membership_cleanup.sql` deduplicates memberships where `location_id` is null, moves platform admins to the platform organization, and removes old seeded default tenant rows.
 - Supabase migration `0003_saas_core_tenant_foundation.sql` has been applied.
 - Tenant foundation verification passed with `npm run db:verify:tenant`.
 - Inventory is now designed as a Phase 4 module and scoped by `organizationId` and `locationId`.
@@ -114,7 +117,7 @@ Implementation notes:
 
 ## Phase 2: Auth, Roles And Access Control
 
-Status: Core auth/access and membership-based location switching are implemented. User invitation flow is deferred to Phase 3 tenant admin UI.
+Status: Core auth/access and membership-based context switching are implemented. User invitation flow is deferred to Phase 3 tenant admin UI.
 
 Goal: Replace environment-based staff access with real user accounts, roles and tenant permissions.
 
@@ -125,7 +128,7 @@ Tasks:
 - [x] Add password hashing and credential validation with Node `scrypt`.
 - [x] Add roles such as `PLATFORM_ADMIN`, `COMPANY_OWNER`, `COMPANY_MANAGER`, `RESTAURANT_MANAGER`, `ORDER_OPERATOR`.
 - [x] Resolve active organization/location from the signed-in session and membership.
-- [x] Add a location switcher for users who can access multiple locations.
+- [x] Add a membership context switcher for users who can access multiple companies, restaurants or locations.
 - [x] Ensure server routes never trust tenant/location IDs from the browser without membership checks.
 - [ ] Add invitation flow for adding staff/users. Deferred to Phase 3 tenant admin UI.
 - [x] Add user states: invited, active, disabled.
@@ -140,24 +143,26 @@ Implementation notes:
 - Staff authentication now validates against the `users` table and active `memberships`.
 - Password hashes use the format `scrypt:<salt>:<hash>`.
 - Auth.js JWT/session now carries `role`, `organizationId`, `locationId`, and `username`.
-- Auth.js session updates validate active location memberships before switching `organizationId` and `locationId`.
+- Auth.js session updates validate active memberships before switching role, organization and optional location context.
 - `getCurrentTenantContext()` resolves tenant/location from the signed-in user session; public unauthenticated routes still use the default MVP tenant context.
 - Migration is in `drizzle/0004_database_staff_auth.sql`.
 
 ## Phase 3: Tenant Admin UI
 
-Status: SaaS admin route shells, restaurant-level foundation, platform/company tenant CRUD, invitation-based staff onboarding, membership-based location switching, summary cards, first drill-down reporting, logo/QR settings, and staff invitation onboarding are implemented. Email delivery, audit logs and tests are still pending.
+Status: SaaS admin route shells, restaurant-level foundation, platform/company tenant CRUD, invitation-based staff onboarding, membership-based location switching, summary cards, first drill-down reporting, logo/QR settings, audit logs, and staff invitation onboarding are implemented. Email delivery and tests are still pending.
 
 Goal: Build the management surfaces for platform admins, parent companies and restaurants.
 
 Tasks:
 
 - [x] Add dedicated SaaS admin route shells for `/platform`, `/company` and `/restaurant`.
-- [x] Platform dashboard to create/manage parent companies.
+- [x] Platform dashboard for SaaS owner health and reporting.
+- [x] Dedicated `/platform/companies` route for parent company CRUD and actions.
 - [x] Parent company dashboard to create/manage child restaurants.
 - [x] Restaurant dashboard foundation inside `/restaurant`.
 - [x] User management UI to create staff, assign roles and deactivate memberships.
 - [x] Cross-tenant staff onboarding for platform-created company users and company-created restaurant users now uses invitation links.
+- [x] Platform-level reassignment flow for moving an existing accepted user to another company or restaurant location.
 - [x] Restaurant staff invitation links where invited users set their own password.
 - [ ] Email delivery for invitation links. Current Phase 3 UI generates copyable links because SMTP is not configured yet.
 - [x] Platform/company invitation links.
@@ -174,6 +179,8 @@ Tasks:
 Suggested routes:
 
 - `/platform`
+- `/platform/companies`
+- `/platform/users/reassign`
 - `/company`
 - `/restaurant`
 - `/restaurant/settings`
@@ -186,16 +193,20 @@ Implementation notes:
 - Staff/operations naming is now standardized: `/staff` and `/staff/login` are canonical, and `ORDER_OPERATOR` is the operational role.
 - Dedicated admin route shells now exist at `/platform`, `/company` and `/restaurant`.
 - `/restaurant` uses the restaurant-level admin panel for settings, location and staff access.
-- `/platform` can list, create, enable and disable company tenants.
+- `/platform` is the SaaS owner dashboard for summary cards and company activity reporting.
+- `/platform/companies` can list, create, enable and disable company tenants.
+- `/platform/users/reassign` can create a new active membership for an existing accepted user and optionally disable their previous active memberships.
 - `/company` can list, create, enable and disable child restaurant tenants with a default location.
 - `/platform` can create invite links for `COMPANY_OWNER` and `COMPANY_MANAGER` users for a company tenant.
 - `/company` can create invite links for `RESTAURANT_MANAGER` and `ORDER_OPERATOR` users for a child restaurant tenant.
-- Users with multiple active location memberships can switch location context from the admin/operations header.
+- Users with multiple active memberships can switch company, restaurant or location context from the admin/operations header.
+- Reassignment changes future access only; historical orders and audit logs remain in their original tenant/location context.
 - Shared admin shell/navigation lives in `components/admin/SaasAdminShell.tsx`.
 - Shared access role lists live in `lib/role-access.ts`.
 - SaaS tenant CRUD services live in `lib/saas-admin.ts`.
-- Location membership lookup lives in `lib/location-access.ts`.
-- Session location switching is handled by `app/api/session/locations/route.ts` and Auth.js `unstable_update`.
+- Membership and location access lookup lives in `lib/location-access.ts`.
+- Session membership context switching is handled by `app/api/session/memberships/route.ts` and Auth.js `unstable_update`.
+- Legacy session location switching remains in `app/api/session/locations/route.ts` while the UI uses the membership-aware switcher.
 - Platform/company dashboard summaries are served by `app/api/platform/summary` and `app/api/company/summary`.
 - Reporting summary helpers live in `lib/saas-reports.ts`.
 - Platform reports now include company-level breakdowns for restaurants, locations, staff, active orders, non-cancelled orders, cancelled orders and last order time.
@@ -210,7 +221,9 @@ Implementation notes:
 - Restaurant staff invitations use `staff_invitations`, `app/api/tenant/admin/staff/invite`, `app/api/invitations/accept`, and `/invite`.
 - Invitation tokens are stored as hashes and expire after 7 days.
 - Migration `drizzle/0006_staff_invitations.sql` adds the invitation token table.
-- The next Phase 3 increment should add audit logs for tenant and staff management actions.
+- Tenant and staff management audit logs now live on the dedicated `/audit-logs` route.
+- Platform admins can review all user memberships across companies, restaurants and locations at `/platform/users/memberships`.
+- The global admin shell uses a membership context switcher so multi-membership users can move between company, restaurant and location access without signing out.
 
 ## Phase 4: Operational Modules
 
@@ -330,7 +343,8 @@ Implementation notes:
 - SaaS owner can mark subscriptions active, suspended or cancelled from the platform company actions menu.
 - Suspended/cancelled tenants are blocked at login, shared role guards, tenant context resolution, public QR ordering/status, admin shells and operations pages.
 - SaaS owner can export company tenant data as JSON from the platform company actions menu.
-- SaaS owner can delete a company tenant only after typing `DELETE`; deletion cascades child restaurants, locations, staff assignments, menus, inventory and orders.
+- Company tenant deletion is intentionally not exposed in the UI; SaaS owners should disable tenants and export data instead of hard-deleting historical users, orders or logs.
+- UAT-only database reset lives at `/platform/uat-reset` and `app/api/platform/uat-reset`; it is available only when `ENABLE_UAT_DATABASE_RESET=true` and preserves the current SaaS owner account.
 - Payment provider checkout, invoices and hosted billing portal are deferred until real subscription collection is needed.
 
 ## Phase 7: Scale, Security And Reliability
@@ -351,10 +365,11 @@ Implementation notes:
 
 - Migration `drizzle/0012_audit_logs.sql` adds `audit_logs` with actor, tenant, location, action, entity and JSON metadata fields.
 - Shared audit writer lives in `lib/audit-log.ts`; it writes structured audit rows and logs JSON server errors if audit persistence fails.
-- Current audit coverage includes platform company create/update/export/delete, subscription status changes, platform-created company staff invitations, company-created restaurant/location changes and company-created staff invitations.
+- Current audit coverage includes platform company create/update/export, subscription status changes, platform-created company staff invitations, company-created restaurant/location changes and company-created staff invitations.
 - Restaurant operational audit coverage includes organization/location settings, direct staff create/update, restaurant staff invitations, menu category/item changes, item sold-out toggles, inventory saves, full-order transitions, item-level transitions, announcements and cancellations.
 - Scoped audit APIs are available at `/api/audit-logs` and `/api/audit-logs/export`.
-- `components/admin/AuditLogPanel.tsx` renders recent scoped audit logs and CSV export links on Platform, Company and Restaurant dashboards.
+- `components/admin/AuditLogPanel.tsx` renders recent scoped audit logs and CSV export links on the dedicated `/audit-logs` route.
+- Platform, company and restaurant dashboards no longer embed audit logs; admins access logs from the global header dropdown.
 - Shared MVP rate limiter lives in `lib/rate-limit.ts`.
 - Current rate limiting covers public order creation, customer order status polling, customer cancellation, invitation acceptance and credential attempts.
 - The current limiter is in-memory per server instance; before serious production traffic, replace the backing store with Redis/Upstash or another shared rate limit store.
