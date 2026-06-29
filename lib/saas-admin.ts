@@ -28,6 +28,7 @@ import {
   updateCompanyStaffMembershipSchema,
   updateCompanyDomainSchema,
   updateOrganizationAdminSchema,
+  updateStaffMembershipSchema,
 } from "@/lib/validations/tenant-admin";
 
 async function ensureUniqueOrganizationSlug(baseName: string) {
@@ -706,6 +707,7 @@ export async function createCompanyStaffUser(companyOrganizationId: string, inpu
 }
 
 const companyMembershipRoles = ["COMPANY_OWNER", "COMPANY_MANAGER"] as const;
+const restaurantMembershipRoles = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"] as const;
 
 export async function listCompanyStaffMemberships(companyOrganizationId: string) {
   const rows = await getDb()
@@ -768,6 +770,152 @@ export async function updateCompanyStaffMembership(
         inArray(memberships.role, [...companyMembershipRoles]),
       ),
     )
+    .returning();
+
+  if (!membership) {
+    return null;
+  }
+
+  if (!parsed.isActive) {
+    await db
+      .update(staffInvitations)
+      .set({
+        expiresAt: new Date(0),
+        updatedAt: new Date(),
+      })
+      .where(eq(staffInvitations.membershipId, membership.id));
+  }
+
+  return membership;
+}
+
+export async function listCompanyUserMemberships(companyOrganizationId: string) {
+  const rows = await getDb()
+    .select({
+      membership: memberships,
+      user: users,
+      organization: organizations,
+      location: locations,
+    })
+    .from(memberships)
+    .innerJoin(users, eq(users.id, memberships.userId))
+    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
+    .leftJoin(locations, eq(locations.id, memberships.locationId))
+    .where(
+      or(
+        and(
+          eq(organizations.id, companyOrganizationId),
+          eq(organizations.type, "COMPANY"),
+          isNull(memberships.locationId),
+          inArray(memberships.role, [...companyMembershipRoles]),
+        ),
+        and(
+          eq(organizations.parentOrganizationId, companyOrganizationId),
+          eq(organizations.type, "RESTAURANT"),
+          inArray(memberships.role, [...restaurantMembershipRoles]),
+        ),
+      ),
+    );
+
+  return rows.map((row) => {
+    const isCompanyAccess = row.organization.type === "COMPANY";
+    const locationLabel = row.location?.label
+      ? `${row.location.name} - ${row.location.label}`
+      : row.location?.name;
+
+    return {
+      membershipId: row.membership.id,
+      userId: row.user.id,
+      username: row.user.username,
+      name: row.user.name,
+      email: row.user.email,
+      userStatus: row.user.status,
+      role: row.membership.role,
+      isActive: row.membership.isActive,
+      organizationId: row.organization.id,
+      organizationName: row.organization.name,
+      organizationType: row.organization.type,
+      locationId: row.location?.id ?? null,
+      locationName: row.location?.name ?? null,
+      locationLabel: row.location?.label ?? null,
+      accessScope: isCompanyAccess ? "COMPANY" : "LOCATION",
+      accessLabel: isCompanyAccess
+        ? "Company access"
+        : `${row.organization.name}${locationLabel ? ` - ${locationLabel}` : ""}`,
+      createdAt: row.membership.createdAt.toISOString(),
+      updatedAt: row.membership.updatedAt.toISOString(),
+    };
+  });
+}
+
+export async function getCompanyUserMembership(
+  companyOrganizationId: string,
+  membershipId: string,
+) {
+  const companyUsers = await listCompanyUserMemberships(companyOrganizationId);
+
+  return companyUsers.find((user) => user.membershipId === membershipId) ?? null;
+}
+
+export async function updateCompanyUserMembership(
+  companyOrganizationId: string,
+  membershipId: string,
+  input: unknown,
+) {
+  const db = getDb();
+  const [current] = await db
+    .select({
+      membership: memberships,
+      organization: organizations,
+    })
+    .from(memberships)
+    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
+    .where(eq(memberships.id, membershipId))
+    .limit(1);
+
+  if (!current) {
+    return null;
+  }
+
+  const isCompanyMembership =
+    current.organization.id === companyOrganizationId &&
+    current.organization.type === "COMPANY" &&
+    !current.membership.locationId &&
+    companyMembershipRoles.includes(
+      current.membership.role as (typeof companyMembershipRoles)[number],
+    );
+  const isRestaurantMembership =
+    current.organization.parentOrganizationId === companyOrganizationId &&
+    current.organization.type === "RESTAURANT" &&
+    restaurantMembershipRoles.includes(
+      current.membership.role as (typeof restaurantMembershipRoles)[number],
+    );
+
+  if (!isCompanyMembership && !isRestaurantMembership) {
+    return null;
+  }
+
+  const parsed = isCompanyMembership
+    ? updateCompanyStaffMembershipSchema.parse(input)
+    : updateStaffMembershipSchema.parse(input);
+
+  if (
+    isRestaurantMembership &&
+    !restaurantMembershipRoles.includes(
+      parsed.role as (typeof restaurantMembershipRoles)[number],
+    )
+  ) {
+    throw new Error("Choose a restaurant staff role for this access.");
+  }
+
+  const [membership] = await db
+    .update(memberships)
+    .set({
+      role: parsed.role,
+      isActive: parsed.isActive,
+      updatedAt: new Date(),
+    })
+    .where(eq(memberships.id, membershipId))
     .returning();
 
   if (!membership) {

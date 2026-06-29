@@ -265,9 +265,14 @@ export function CompanyRestaurantsPanel({
               Create a restaurant only when you are ready to add its first location.
             </p>
           </div>
-          <Button asChild className="rounded-lg">
-            <Link href="/company/restaurants/new">Add restaurant</Link>
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button asChild variant="outline" className="rounded-lg">
+              <Link href="/company/users">Manage users</Link>
+            </Button>
+            <Button asChild className="rounded-lg">
+              <Link href="/company/restaurants/new">Add restaurant</Link>
+            </Button>
+          </div>
         </CardHeader>
       </Card>
 

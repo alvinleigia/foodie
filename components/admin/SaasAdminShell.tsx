@@ -55,6 +55,11 @@ const adminRoutes: AdminRoute[] = [
     description: "Manage restaurants and summaries.",
   },
   {
+    href: "/company/users",
+    label: "Company Users",
+    description: "Manage user access.",
+  },
+  {
     href: "/restaurant",
     label: "Restaurant",
     description: "Manage settings, locations and staff.",

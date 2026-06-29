@@ -66,6 +66,11 @@ const defaultNavigationItems: NavigationItem[] = [
     description: "Restaurants and reporting",
   },
   {
+    href: "/company/users",
+    label: "Company Users",
+    description: "Manage user access",
+  },
+  {
     href: "/restaurant",
     label: "Restaurant",
     description: "Restaurant setup",

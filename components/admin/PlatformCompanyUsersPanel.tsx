@@ -21,11 +21,19 @@ type CompanyUser = {
   userStatus: string;
   role: MembershipRole;
   isActive: boolean;
+  accessLabel?: string;
+  accessScope?: string;
   updatedAt: string;
 };
 
 type PlatformCompanyUsersPanelProps = {
   companyId: string;
+  description?: string;
+  editHrefBase?: string;
+  emptyMessage?: string;
+  inviteHref?: string | null;
+  inviteLabel?: string;
+  title?: string;
   users: CompanyUser[];
 };
 
@@ -39,30 +47,34 @@ function formatDate(value: string) {
 
 export function PlatformCompanyUsersPanel({
   companyId,
+  description = "Manage company owner and manager memberships for this tenant.",
+  editHrefBase = `/platform/companies/${companyId}/users`,
+  emptyMessage = "No company users yet.",
+  inviteHref = `/platform/companies/${companyId}/staff/invite`,
+  inviteLabel = "Invite Company User",
+  title = "Company users",
   users,
 }: PlatformCompanyUsersPanelProps) {
   return (
     <Card className="rounded-xl border-stone-200 bg-white">
       <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-xl font-semibold text-stone-950">Company users</h3>
-          <p className="text-sm text-stone-500">
-            Manage company owner and manager memberships for this tenant.
-          </p>
+          <h3 className="text-xl font-semibold text-stone-950">{title}</h3>
+          <p className="text-sm text-stone-500">{description}</p>
         </div>
-        <Button
-          asChild
-          className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
-        >
-          <Link href={`/platform/companies/${companyId}/staff/invite`}>
-            Invite Company User
-          </Link>
-        </Button>
+        {inviteHref ? (
+          <Button
+            asChild
+            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+          >
+            <Link href={inviteHref}>{inviteLabel}</Link>
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5">
         {users.length === 0 ? (
           <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
-            No company users yet.
+            {emptyMessage}
           </p>
         ) : null}
 
@@ -85,7 +97,9 @@ export function PlatformCompanyUsersPanel({
                 {user.username} - {user.email}
               </p>
               <p className="mt-1 text-xs text-stone-400">
-                {formatRole(user.role)} - updated {formatDate(user.updatedAt)}
+                {formatRole(user.role)}
+                {user.accessLabel ? ` - ${user.accessLabel}` : ""} - updated{" "}
+                {formatDate(user.updatedAt)}
               </p>
             </div>
             <DropdownMenu>
@@ -103,11 +117,7 @@ export function PlatformCompanyUsersPanel({
               <DropdownMenuContent align="end" className="bg-white text-stone-950">
                 <DropdownMenuLabel>User actions</DropdownMenuLabel>
                 <DropdownMenuItem asChild>
-                  <Link
-                    href={`/platform/companies/${companyId}/users/${user.membershipId}`}
-                  >
-                    Edit access
-                  </Link>
+                  <Link href={`${editHrefBase}/${user.membershipId}`}>Edit access</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

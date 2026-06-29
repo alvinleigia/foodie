@@ -54,7 +54,7 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
     return canAccessRole(role, platformAdminRoles);
   }
 
-  if (href === "/company") {
+  if (href === "/company" || href === "/company/users") {
     return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";
   }
 
