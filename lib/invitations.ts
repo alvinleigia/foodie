@@ -35,6 +35,22 @@ function roleToUserRole(role: MembershipRole) {
   return role === "ORDER_OPERATOR" ? "STAFF" : "ADMIN";
 }
 
+async function findOpenInvitationForMembership(membershipId: string) {
+  const [invitation] = await getDb()
+    .select({ id: staffInvitations.id })
+    .from(staffInvitations)
+    .where(
+      and(
+        eq(staffInvitations.membershipId, membershipId),
+        isNull(staffInvitations.acceptedAt),
+        gt(staffInvitations.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+
+  return invitation;
+}
+
 async function createScopedStaffInvitation({
   input,
   origin,
@@ -58,19 +74,16 @@ async function createScopedStaffInvitation({
   const db = getDb();
   const [existingUser] = await db
     .select({
+      email: users.email,
       id: users.id,
+      name: users.name,
       passwordHash: users.passwordHash,
       status: users.status,
+      username: users.username,
     })
     .from(users)
     .where(or(eq(users.email, normalizedEmail), eq(users.username, parsed.username)))
     .limit(1);
-
-  if (existingUser?.status === "ACTIVE" && existingUser.passwordHash) {
-    throw new InvitationConflictError(
-      "This user already exists. Assign the existing user instead.",
-    );
-  }
 
   if (existingUser?.status === "INVITED" || existingUser?.passwordHash === null) {
     throw new InvitationConflictError(
@@ -89,29 +102,70 @@ async function createScopedStaffInvitation({
   const expiresAt = new Date(Date.now() + inviteExpiryMs);
 
   const result = await db.transaction(async (tx) => {
-    const [user] = await tx
-      .insert(users)
-      .values({
-        username: parsed.username,
-        name: parsed.name,
-        email: normalizedEmail,
-        passwordHash: null,
-        role: roleToUserRole(parsed.role),
-        status: "INVITED",
-        updatedAt: new Date(),
-      })
-      .returning();
-    const [membership] = await tx
-      .insert(memberships)
-      .values({
-        userId: user.id,
-        organizationId,
-        locationId,
-        role: parsed.role,
-        isActive: false,
-        updatedAt: new Date(),
-      })
-      .returning();
+    const [user] = existingUser
+      ? [existingUser]
+      : await tx
+          .insert(users)
+          .values({
+            username: parsed.username,
+            name: parsed.name,
+            email: normalizedEmail,
+            passwordHash: null,
+            role: roleToUserRole(parsed.role),
+            status: "INVITED",
+            updatedAt: new Date(),
+          })
+          .returning();
+
+    const locationCondition = locationId
+      ? eq(memberships.locationId, locationId)
+      : isNull(memberships.locationId);
+    const [existingMembership] = await tx
+      .select()
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.userId, user.id),
+          eq(memberships.organizationId, organizationId),
+          locationCondition,
+        ),
+      )
+      .limit(1);
+
+    if (existingMembership?.isActive) {
+      throw new InvitationConflictError("This user already has active access here.");
+    }
+
+    if (existingMembership) {
+      const openInvitation = await findOpenInvitationForMembership(existingMembership.id);
+
+      if (openInvitation) {
+        throw new InvitationConflictError(
+          "A pending invite already exists for this user's access here.",
+        );
+      }
+    }
+
+    const [membership] = existingMembership
+      ? await tx
+          .update(memberships)
+          .set({
+            role: parsed.role,
+            updatedAt: new Date(),
+          })
+          .where(eq(memberships.id, existingMembership.id))
+          .returning()
+      : await tx
+          .insert(memberships)
+          .values({
+            userId: user.id,
+            organizationId,
+            locationId,
+            role: parsed.role,
+            isActive: false,
+            updatedAt: new Date(),
+          })
+          .returning();
     const [invitation] = await tx
       .insert(staffInvitations)
       .values({
@@ -241,15 +295,38 @@ export async function acceptStaffInvitation(input: unknown) {
     throw new Error("Invitation link is invalid or expired.");
   }
 
+  const [user] = await db
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+      status: users.status,
+    })
+    .from(users)
+    .where(eq(users.id, invitation.userId))
+    .limit(1);
+
+  if (!user) {
+    throw new Error("Invitation user no longer exists.");
+  }
+
+  const requiresPassword = user.status !== "ACTIVE" || !user.passwordHash;
+
+  if (requiresPassword && (!parsed.password || parsed.password.length < 8)) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
   await db.transaction(async (tx) => {
-    await tx
-      .update(users)
-      .set({
-        passwordHash: await hashPassword(parsed.password),
-        status: "ACTIVE",
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, invitation.userId));
+    if (requiresPassword) {
+      await tx
+        .update(users)
+        .set({
+          passwordHash: await hashPassword(parsed.password ?? ""),
+          status: "ACTIVE",
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, invitation.userId));
+    }
+
     await tx
       .update(memberships)
       .set({
@@ -265,4 +342,36 @@ export async function acceptStaffInvitation(input: unknown) {
       })
       .where(eq(staffInvitations.id, invitation.id));
   });
+}
+
+export async function getStaffInvitationDetails(token: string) {
+  const tokenHash = hashInvitationToken(token);
+  const [invitation] = await getDb()
+    .select({
+      email: users.email,
+      expiresAt: staffInvitations.expiresAt,
+      name: users.name,
+      passwordHash: users.passwordHash,
+      status: users.status,
+    })
+    .from(staffInvitations)
+    .innerJoin(users, eq(users.id, staffInvitations.userId))
+    .where(
+      and(
+        eq(staffInvitations.tokenHash, tokenHash),
+        isNull(staffInvitations.acceptedAt),
+        gt(staffInvitations.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+
+  if (!invitation) {
+    return null;
+  }
+
+  return {
+    email: invitation.email,
+    name: invitation.name,
+    requiresPassword: invitation.status !== "ACTIVE" || !invitation.passwordHash,
+  };
 }

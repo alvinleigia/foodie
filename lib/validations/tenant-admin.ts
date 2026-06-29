@@ -106,7 +106,7 @@ export const reassignExistingUserSchema = z.object({
 
 export const acceptStaffInvitationSchema = z.object({
   token: z.string().trim().min(20),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().optional(),
 });
 
 export const createCompanyOrganizationSchema = z.object({

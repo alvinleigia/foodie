@@ -11,23 +11,28 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 type InviteAcceptFormProps = {
+  invitation: {
+    email: string;
+    name: string;
+    requiresPassword: boolean;
+  } | null;
   token: string;
 };
 
-export function InviteAcceptForm({ token }: InviteAcceptFormProps) {
+export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!token) {
+  if (!token || !invitation) {
     return (
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-6 pt-6">
           <h1 className="text-3xl font-semibold text-stone-950">Invalid invitation</h1>
         </CardHeader>
         <CardContent className="px-6 pb-6 text-sm text-stone-600">
-          This invitation link is missing a token.
+          This invitation link is missing, invalid or expired.
         </CardContent>
       </Card>
     );
@@ -41,7 +46,7 @@ export function InviteAcceptForm({ token }: InviteAcceptFormProps) {
         </CardHeader>
         <CardContent className="grid gap-4 px-6 pb-6">
           <p className="text-sm text-stone-600">
-            Your password has been set. You can now sign in to Staff Operations.
+            Your access is ready. You can now sign in to Staff Operations.
           </p>
           <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
             <Link href="/staff/login">Go to login</Link>
@@ -57,7 +62,12 @@ export function InviteAcceptForm({ token }: InviteAcceptFormProps) {
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-amber-700">
           Staff Invitation
         </p>
-        <h1 className="mt-2 text-3xl font-semibold text-stone-950">Set your password</h1>
+        <h1 className="mt-2 text-3xl font-semibold text-stone-950">
+          {invitation.requiresPassword ? "Set your password" : "Accept access"}
+        </h1>
+        <p className="mt-2 text-sm text-stone-500">
+          {invitation.name} - {invitation.email}
+        </p>
       </CardHeader>
       <CardContent className="px-6 pb-6">
         <form
@@ -68,7 +78,10 @@ export function InviteAcceptForm({ token }: InviteAcceptFormProps) {
 
             try {
               await requestJson("/api/invitations/accept", {
-                body: { token, password },
+                body: {
+                  token,
+                  ...(invitation.requiresPassword ? { password } : {}),
+                },
                 fallbackError: "Could not accept invitation.",
               });
             } catch (caught) {
@@ -85,20 +98,31 @@ export function InviteAcceptForm({ token }: InviteAcceptFormProps) {
           }}
         >
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Password">
-            <Input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Minimum 8 characters"
-            />
-          </FormField>
+          {invitation.requiresPassword ? (
+            <FormField label="Password">
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Minimum 8 characters"
+              />
+            </FormField>
+          ) : (
+            <p className="rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
+              This email already has a Foodie account. Accepting this invite will
+              add the new access to your existing login.
+            </p>
+          )}
           <Button
             type="submit"
             disabled={isSubmitting}
             className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
-            {isSubmitting ? "Setting password..." : "Accept Invitation"}
+            {isSubmitting
+              ? invitation.requiresPassword
+                ? "Setting password..."
+                : "Accepting..."
+              : "Accept Invitation"}
           </Button>
         </form>
       </CardContent>
