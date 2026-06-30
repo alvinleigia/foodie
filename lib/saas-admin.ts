@@ -1280,6 +1280,7 @@ export async function reassignExistingUser(
     : isNull(memberships.locationId);
 
   return db.transaction(async (tx) => {
+    const deactivateLocationOnly = parsed.deactivateExisting && isLocationRole;
     const deactivatedMemberships = parsed.deactivateExisting
       ? await tx
           .update(memberships)
@@ -1291,6 +1292,7 @@ export async function reassignExistingUser(
               options.deactivateOrganizationIds?.length
                 ? inArray(memberships.organizationId, options.deactivateOrganizationIds)
                 : undefined,
+              deactivateLocationOnly ? isNotNull(memberships.locationId) : undefined,
             ),
           )
           .returning()

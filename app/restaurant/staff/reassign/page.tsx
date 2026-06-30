@@ -45,6 +45,7 @@ export default async function RestaurantStaffReassignPage(
       <ReassignExistingUserForm
         apiPath="/api/tenant/admin/staff/reassign"
         backHref="/restaurant"
+        defaultDeactivateExisting={false}
         initialCompanyId={targets[0]?.id}
         initialIdentifier={initialIdentifier}
         initialLocationId={snapshot.location.id}

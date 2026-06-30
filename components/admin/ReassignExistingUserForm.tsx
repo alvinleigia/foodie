@@ -3,12 +3,23 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { UserCheckIcon, XIcon } from "lucide-react";
+import { ShieldAlertIcon, UserCheckIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,6 +66,7 @@ type ReassignableUser = {
 type ReassignExistingUserFormProps = {
   apiPath?: string;
   backHref: string;
+  defaultDeactivateExisting?: boolean;
   initialCompanyId?: string;
   initialIdentifier?: string;
   initialLocationId?: string;
@@ -81,9 +93,14 @@ function isCompanyRole(role: ReassignRole) {
   return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";
 }
 
+function getRoleLabel(role: ReassignRole, roleOptions: Array<{ label: string; value: ReassignRole }>) {
+  return roleOptions.find((roleOption) => roleOption.value === role)?.label ?? role;
+}
+
 export function ReassignExistingUserForm({
   apiPath = "/api/platform/users/reassign",
   backHref,
+  defaultDeactivateExisting = true,
   initialCompanyId,
   initialIdentifier,
   initialLocationId,
@@ -111,8 +128,9 @@ export function ReassignExistingUserForm({
   const [companyId, setCompanyId] = useState(defaultCompany?.id ?? "");
   const [restaurantId, setRestaurantId] = useState(defaultRestaurant?.id ?? "");
   const [locationId, setLocationId] = useState(defaultLocation?.id ?? "");
-  const [deactivateExisting, setDeactivateExisting] = useState(true);
+  const [deactivateExisting, setDeactivateExisting] = useState(defaultDeactivateExisting);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedCompany = useMemo(
@@ -200,10 +218,21 @@ export function ReassignExistingUserForm({
     setError(null);
     setIsSubmitting(false);
     toast.success("User reassigned.");
+    setIsConfirmOpen(false);
     router.replace(backHref);
   }
 
   const companyRole = isCompanyRole(role);
+  const targetLabel = companyRole
+    ? selectedCompany?.name
+    : `${selectedRestaurant?.name ?? "Selected restaurant"} - ${
+        selectedLocation?.label || selectedLocation?.name || "selected location"
+      }`;
+  const deactivationLabel = deactivateExisting
+    ? companyRole
+      ? "Current active memberships in scope will be disabled before this access is enabled."
+      : "Other active location-level memberships in scope will be disabled. Company owner/manager access will stay active."
+    : "Existing memberships will stay active and this access will be added alongside them.";
   const canSubmit =
     identifier.trim().length >= 3 &&
     (companyRole
@@ -225,7 +254,9 @@ export function ReassignExistingUserForm({
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            void submitReassignment();
+            if (canSubmit) {
+              setIsConfirmOpen(true);
+            }
           }}
         >
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
@@ -383,6 +414,31 @@ export function ReassignExistingUserForm({
             </Button>
           </div>
         </form>
+        <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogMedia>
+                <ShieldAlertIcon className="size-5" />
+              </AlertDialogMedia>
+              <AlertDialogTitle>Confirm access change</AlertDialogTitle>
+              <AlertDialogDescription>
+                You are about to assign {identifier || "this user"} as{" "}
+                {getRoleLabel(role, roleOptions)} for {targetLabel}. {deactivationLabel}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isSubmitting}>Go Back</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isSubmitting}
+                onClick={() => void submitReassignment()}
+              >
+                <ButtonLabel icon={UserCheckIcon}>
+                  {isSubmitting ? "Reassigning..." : "Confirm Reassignment"}
+                </ButtonLabel>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

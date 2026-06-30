@@ -70,6 +70,7 @@ export default async function CompanyUserReassignPage(
   const initialRestaurantId = getSearchParam(searchParams.restaurantId);
   const initialLocationId = getSearchParam(searchParams.locationId);
   const initialRole = getInitialRole(searchParams.role);
+  const defaultDeactivateExisting = !initialLocationId;
 
   return (
     <SaasAdminShell
@@ -86,6 +87,7 @@ export default async function CompanyUserReassignPage(
       <ReassignExistingUserForm
         apiPath="/api/company/users/reassign"
         backHref={backHref}
+        defaultDeactivateExisting={defaultDeactivateExisting}
         initialCompanyId={session.user.organizationId}
         initialIdentifier={initialIdentifier}
         initialLocationId={initialLocationId}
