@@ -13,6 +13,7 @@ import {
   users,
 } from "@/db/schema";
 import { getStarterPlanId, getTrialEndDate } from "@/lib/billing";
+import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { slugify } from "@/lib/slugs";
 import { buildCompanySubdomain } from "@/lib/tenant-domains";
@@ -40,28 +41,6 @@ type ReassignExistingUserOptions = {
   deactivateOrganizationIds?: string[];
   userScopeOrganizationIds?: string[];
 };
-
-async function ensureUniqueOrganizationSlug(baseName: string) {
-  const db = getDb();
-  const baseSlug = slugify(baseName) || "tenant";
-  let candidate = baseSlug;
-  let suffix = 2;
-
-  while (true) {
-    const [existing] = await db
-      .select({ id: organizations.id })
-      .from(organizations)
-      .where(eq(organizations.slug, candidate))
-      .limit(1);
-
-    if (!existing) {
-      return candidate;
-    }
-
-    candidate = `${baseSlug}-${suffix}`;
-    suffix += 1;
-  }
-}
 
 async function ensureUniqueLocationSlug(organizationId: string, baseName: string) {
   const db = getDb();
@@ -350,11 +329,13 @@ export async function updateChildRestaurantAdmin(
 ) {
   const parsed = updateChildRestaurantAdminSchema.parse(input);
   const db = getDb();
+  const slug = await ensureUniqueOrganizationSlug(parsed.name, restaurantOrganizationId);
 
   return db.transaction(async (tx) => {
     const [organization] = await tx
       .update(organizations)
       .set({
+        slug,
         name: parsed.name,
         timezone: parsed.timezone,
         currency: parsed.currency.toUpperCase(),

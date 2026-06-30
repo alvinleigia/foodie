@@ -2,6 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { locations, memberships, organizations, users } from "@/db/schema";
+import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { TenantContext } from "@/lib/tenant-context";
 import {
@@ -61,9 +62,11 @@ export async function updateOrganizationSettings(
 ) {
   const parsed = organizationSettingsSchema.parse(input);
   const db = getDb();
+  const slug = await ensureUniqueOrganizationSlug(parsed.name, context.organizationId);
   const [organization] = await db
     .update(organizations)
     .set({
+      slug,
       name: parsed.name,
       logoUrl: parsed.logoUrl,
       timezone: parsed.timezone,
