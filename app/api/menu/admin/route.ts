@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireMenuManagerSession } from "@/lib/auth";
-import { getAdminMenu } from "@/lib/menu";
+import { getAdminMenu, getTenantMenuCurrency } from "@/lib/menu";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export async function GET() {
@@ -13,8 +13,11 @@ export async function GET() {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const categories = await getAdminMenu(tenantContext);
-    return NextResponse.json({ categories });
+    const [categories, currency] = await Promise.all([
+      getAdminMenu(tenantContext),
+      getTenantMenuCurrency(tenantContext),
+    ]);
+    return NextResponse.json({ categories, currency });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch admin menu." },

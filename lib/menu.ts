@@ -2,7 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { drinkCategories } from "@/data/drinks";
 import { getDb } from "@/db";
-import { inventoryItems, menuCategories, menuItems } from "@/db/schema";
+import { inventoryItems, menuCategories, menuItems, organizations } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { MenuCategoryRecord } from "@/types/menu";
@@ -341,6 +341,18 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
 
   return groupMenuData(categories, items, true);
+}
+
+export async function getTenantMenuCurrency(
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const [organization] = await getDb()
+    .select({ currency: organizations.currency })
+    .from(organizations)
+    .where(eq(organizations.id, context.organizationId))
+    .limit(1);
+
+  return organization?.currency ?? "INR";
 }
 
 export async function getMenuSelectionSnapshot(

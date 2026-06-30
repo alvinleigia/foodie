@@ -91,6 +91,7 @@ const emptyItemDraft: ItemDraft = {
 
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
+  const [currency, setCurrency] = useState("INR");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -127,6 +128,7 @@ export function MenuManager() {
       }
 
       setCategories(payload.categories ?? []);
+      setCurrency(payload.currency ?? "INR");
       setError(null);
       setIsLoading(false);
     }
@@ -588,7 +590,7 @@ export function MenuManager() {
                             </div>
                             <div className="text-left md:text-right">
                               <p className="text-sm font-semibold text-stone-900">
-                                {formatPrice(item.price, { emptyLabel: "No price" })}
+                                {formatPrice(item.price, { currency, emptyLabel: "No price" })}
                               </p>
                             </div>
                             <div className="flex flex-wrap justify-start gap-2 md:justify-end">

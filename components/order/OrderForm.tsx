@@ -79,6 +79,7 @@ function withPublicContext(path: string, options: { locationQrSlug?: string; loc
 export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
+  const [currency, setCurrency] = useState("INR");
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: "",
   });
@@ -113,6 +114,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
 
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
+        setCurrency(payload.currency ?? "INR");
         setMenuError(null);
         setIsLoadingMenu(false);
         setActiveCategoryId(payload.categories?.[0]?.id);
@@ -372,7 +374,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                         <p className="text-base font-semibold text-stone-950">{item.drinkName}</p>
                         <p className="text-sm text-stone-500">{item.categoryName}</p>
                         <p className="mt-1 text-sm font-semibold text-stone-900">
-                          {formatPrice(item.unitPrice)}
+                          {formatPrice(item.unitPrice, { currency })}
                         </p>
                       </div>
                       <Button
@@ -447,7 +449,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               <div>
                 <p className="text-sm text-stone-500">{totalQuantity} item(s)</p>
                 <p className="text-base font-semibold text-stone-950">
-                  {totalAmount ? `INR ${totalAmount}` : "Price on request"}
+                  {formatPrice(totalAmount, { currency })}
                 </p>
               </div>
               <Button
@@ -526,7 +528,9 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                       ) : null}
                     </div>
                     <p className="font-medium text-stone-900">
-                      {item.unitPrice ? `INR ${(Number(item.unitPrice) * item.quantity).toFixed(2)}` : "-"}
+                      {item.unitPrice
+                        ? formatPrice(Number(item.unitPrice) * item.quantity, { currency })
+                        : "-"}
                     </p>
                   </div>
                 ))}
@@ -545,7 +549,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                 </div>
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
                   <span>To Pay</span>
-                  <span>{totalAmount ? `INR ${totalAmount}` : "Price on request"}</span>
+                  <span>{formatPrice(totalAmount, { currency })}</span>
                 </div>
               </div>
             </div>
@@ -734,7 +738,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                     {drink.description || "Freshly prepared at the bar."}
                                   </p>
                                   <p className="mt-3 text-sm font-semibold text-stone-950">
-                                    {formatPrice(drink.price ?? null)}
+                                    {formatPrice(drink.price ?? null, { currency })}
                                   </p>
                                   <Button
                                     type="button"
@@ -797,7 +801,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                 {cartItems[0].drinkName}
                 {cartItems.length > 1 ? ` + ${cartItems.length - 1} more` : ""}
                 {" • "}
-                {totalAmount ? `INR ${totalAmount}` : "Price on request"}
+                {formatPrice(totalAmount, { currency })}
               </p>
             </div>
             <Button
