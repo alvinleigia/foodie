@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MapPinIcon, MoreHorizontalIcon, PencilIcon } from "lucide-react";
+import {
+  BuildingIcon,
+  MapPinIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  PlusIcon,
+  UsersIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { fetchJson, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { Spinner } from "@/components/shared/Spinner";
 import {
@@ -99,7 +107,9 @@ function CompanySetupRequired() {
           </p>
           <div className="mt-5">
             <Button asChild>
-              <Link href="/platform">Go to Platform</Link>
+              <Link href="/platform">
+                <ButtonLabel icon={BuildingIcon}>Go to Platform</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </div>
@@ -272,10 +282,14 @@ export function CompanyRestaurantsPanel({
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button asChild variant="outline" className="rounded-lg">
-              <Link href="/company/users">Manage users</Link>
+              <Link href="/company/users">
+                <ButtonLabel icon={UsersIcon}>Manage users</ButtonLabel>
+              </Link>
             </Button>
             <Button asChild className="rounded-lg">
-              <Link href="/company/restaurants/new">Add restaurant</Link>
+              <Link href="/company/restaurants/new">
+                <ButtonLabel icon={PlusIcon}>Add restaurant</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </CardHeader>

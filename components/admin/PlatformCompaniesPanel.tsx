@@ -2,9 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MoreHorizontalIcon, PencilIcon, UserPlusIcon } from "lucide-react";
+import {
+  MoreHorizontalIcon,
+  PencilIcon,
+  PlusIcon,
+  UserCheckIcon,
+  UserPlusIcon,
+} from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -99,11 +106,13 @@ export function PlatformCompaniesPanel() {
               asChild
               className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
-              <Link href="/platform/companies/new">Add Company</Link>
+              <Link href="/platform/companies/new">
+                <ButtonLabel icon={PlusIcon}>Add Company</ButtonLabel>
+              </Link>
             </Button>
             <Button asChild variant="outline" className="rounded-lg">
               <Link href="/platform/users/reassign?returnTo=/platform/companies">
-                Reassign User
+                <ButtonLabel icon={UserCheckIcon}>Reassign User</ButtonLabel>
               </Link>
             </Button>
           </div>

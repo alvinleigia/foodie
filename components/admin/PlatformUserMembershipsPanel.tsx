@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { UserCheckIcon } from "lucide-react";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatAppDate } from "@/lib/date-format";
@@ -88,7 +90,7 @@ export function PlatformUserMembershipsPanel({
           className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
         >
           <Link href="/platform/users/reassign?returnTo=/platform/users/memberships">
-            Reassign Existing User
+            <ButtonLabel icon={UserCheckIcon}>Reassign Existing User</ButtonLabel>
           </Link>
         </Button>
       </CardHeader>

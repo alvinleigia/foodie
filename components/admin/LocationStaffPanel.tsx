@@ -1,6 +1,13 @@
 import Link from "next/link";
-import { MoreHorizontalIcon, PencilIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  UserCheckIcon,
+  UserPlusIcon,
+} from "lucide-react";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -58,10 +65,14 @@ export function LocationStaffPanel({
           </div>
           <div className="flex flex-wrap justify-end gap-3">
             <Button asChild variant="outline" className="rounded-lg">
-              <Link href={assignHref}>Assign Existing Staff</Link>
+              <Link href={assignHref}>
+                <ButtonLabel icon={UserCheckIcon}>Assign Existing Staff</ButtonLabel>
+              </Link>
             </Button>
             <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
-              <Link href={inviteHref}>Invite Staff</Link>
+              <Link href={inviteHref}>
+                <ButtonLabel icon={UserPlusIcon}>Invite Staff</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </CardHeader>
@@ -132,7 +143,9 @@ export function LocationStaffPanel({
       </Card>
 
       <Button asChild variant="outline" className="w-fit rounded-lg">
-        <Link href={backHref}>Back to locations</Link>
+        <Link href={backHref}>
+          <ButtonLabel icon={ArrowLeftIcon}>Back to locations</ButtonLabel>
+        </Link>
       </Button>
     </div>
   );

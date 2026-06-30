@@ -1,8 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
+import { LogInIcon } from "lucide-react";
 
 import { authenticate, type LoginState } from "@/app/staff/login/actions";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import {
@@ -59,7 +61,7 @@ export function StaffLoginForm() {
             size="lg"
             className="mt-1 h-12 rounded-lg bg-stone-950 text-sm font-semibold text-white hover:bg-stone-800"
           >
-            {isPending ? "Signing in..." : "Sign In"}
+            <ButtonLabel icon={LogInIcon}>{isPending ? "Signing in..." : "Sign In"}</ButtonLabel>
           </Button>
         </form>
       </CardContent>

@@ -2,10 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MoreHorizontalIcon, PencilIcon } from "lucide-react";
+import {
+  BuildingIcon,
+  MapPinIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  SettingsIcon,
+  UserCheckIcon,
+  UserPlusIcon,
+} from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { OperationalReports } from "@/components/admin/OperationalReports";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -91,7 +100,9 @@ function RestaurantAccessEmptyState() {
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Button asChild>
-          <Link href="/company">Go to Company</Link>
+          <Link href="/company">
+            <ButtonLabel icon={BuildingIcon}>Go to Company</ButtonLabel>
+          </Link>
         </Button>
       </div>
     </div>
@@ -219,7 +230,9 @@ export function RestaurantAdminPanel() {
                   className="mb-0"
                 />
                 <Button asChild variant="outline" className="rounded-lg">
-                  <Link href="/restaurant/settings">Edit</Link>
+                  <Link href="/restaurant/settings">
+                    <ButtonLabel icon={SettingsIcon}>Edit</ButtonLabel>
+                  </Link>
                 </Button>
               </CardHeader>
               <CardContent className="px-5 pb-5 text-sm text-stone-600">
@@ -238,7 +251,9 @@ export function RestaurantAdminPanel() {
                   className="mb-0"
                 />
                 <Button asChild variant="outline" className="rounded-lg">
-                  <Link href="/restaurant/location">Edit</Link>
+                  <Link href="/restaurant/location">
+                    <ButtonLabel icon={MapPinIcon}>Edit</ButtonLabel>
+                  </Link>
                 </Button>
               </CardHeader>
               <CardContent className="px-5 pb-5 text-sm text-stone-600">
@@ -259,10 +274,14 @@ export function RestaurantAdminPanel() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button asChild variant="outline" className="rounded-lg">
-                  <Link href="/restaurant/staff/reassign">Assign existing staff</Link>
+                  <Link href="/restaurant/staff/reassign">
+                    <ButtonLabel icon={UserCheckIcon}>Assign existing staff</ButtonLabel>
+                  </Link>
                 </Button>
                 <Button asChild className="rounded-lg">
-                  <Link href="/restaurant/staff/invite">Invite staff</Link>
+                  <Link href="/restaurant/staff/invite">
+                    <ButtonLabel icon={UserPlusIcon}>Invite staff</ButtonLabel>
+                  </Link>
                 </Button>
               </div>
             </CardHeader>

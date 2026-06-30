@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Building2Icon, RotateCcwIcon } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import {
   ReportBreakdown,
   type ReportBreakdownRow,
 } from "@/components/admin/ReportBreakdown";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -166,7 +168,9 @@ export function PlatformDashboardPanel({
             asChild
             className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
-            <Link href="/platform/companies">View Companies</Link>
+            <Link href="/platform/companies">
+              <ButtonLabel icon={Building2Icon}>View Companies</ButtonLabel>
+            </Link>
           </Button>
         </CardHeader>
       </Card>
@@ -184,7 +188,9 @@ export function PlatformDashboardPanel({
               asChild
               className="rounded-lg bg-rose-600 text-white hover:bg-rose-700"
             >
-              <Link href="/platform/uat-reset">Open Reset</Link>
+              <Link href="/platform/uat-reset">
+                <ButtonLabel icon={RotateCcwIcon}>Open Reset</ButtonLabel>
+              </Link>
             </Button>
           </CardHeader>
         </Card>

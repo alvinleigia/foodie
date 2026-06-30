@@ -1,6 +1,12 @@
 import Link from "next/link";
-import { MoreHorizontalIcon, PencilIcon } from "lucide-react";
+import {
+  MoreHorizontalIcon,
+  PencilIcon,
+  UserCheckIcon,
+  UserPlusIcon,
+} from "lucide-react";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -68,7 +74,9 @@ export function PlatformCompanyUsersPanel({
         <div className="flex flex-wrap justify-end gap-3">
           {assignHref ? (
             <Button asChild variant="outline" className="rounded-lg">
-              <Link href={assignHref}>Assign Existing User</Link>
+              <Link href={assignHref}>
+                <ButtonLabel icon={UserCheckIcon}>Assign Existing User</ButtonLabel>
+              </Link>
             </Button>
           ) : null}
           {inviteHref ? (
@@ -76,7 +84,9 @@ export function PlatformCompanyUsersPanel({
               asChild
               className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
-              <Link href={inviteHref}>{inviteLabel}</Link>
+              <Link href={inviteHref}>
+                <ButtonLabel icon={UserPlusIcon}>{inviteLabel}</ButtonLabel>
+              </Link>
             </Button>
           ) : null}
         </div>

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ArrowLeftIcon, PowerIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
@@ -239,10 +241,14 @@ export function OrganizationEditPanel({
                 disabled={isSaving}
                 className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
-                {isSaving ? "Saving..." : "Save changes"}
+                <ButtonLabel icon={SaveIcon}>
+                  {isSaving ? "Saving..." : "Save changes"}
+                </ButtonLabel>
               </Button>
               <Button asChild type="button" variant="outline" className="rounded-lg">
-                <Link href={backHref}>Back</Link>
+                <Link href={backHref}>
+                  <ButtonLabel icon={ArrowLeftIcon}>Back</ButtonLabel>
+                </Link>
               </Button>
             </div>
           </form>
@@ -268,7 +274,9 @@ export function OrganizationEditPanel({
               void submitUpdate(nextDraft);
             }}
           >
-            {draft.isActive ? `Disable ${entityLabel}` : `Enable ${entityLabel}`}
+            <ButtonLabel icon={PowerIcon}>
+              {draft.isActive ? `Disable ${entityLabel}` : `Enable ${entityLabel}`}
+            </ButtonLabel>
           </Button>
         </CardContent>
       </Card>

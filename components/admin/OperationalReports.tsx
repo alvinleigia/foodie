@@ -1,5 +1,8 @@
 "use client";
 
+import { DownloadIcon } from "lucide-react";
+
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
@@ -93,7 +96,9 @@ export function OperationalReports({
             </div>
             {exportHref ? (
               <Button asChild variant="outline" className="rounded-lg px-4 py-2">
-                <a href={exportHref}>Export CSV</a>
+                <a href={exportHref}>
+                  <ButtonLabel icon={DownloadIcon}>Export CSV</ButtonLabel>
+                </a>
               </Button>
             ) : null}
           </div>

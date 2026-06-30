@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { MoreHorizontalIcon, PencilIcon, UsersIcon } from "lucide-react";
+import {
+  MapPinIcon,
+  MoreHorizontalIcon,
+  PencilIcon,
+  SaveIcon,
+  UsersIcon,
+  XIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { FormField } from "@/components/shared/FormField";
 import { TimezoneSelect } from "@/components/shared/LocaleSelects";
@@ -145,7 +153,7 @@ export function RestaurantLocationsPanel({
           </div>
           <Button asChild className="rounded-lg">
             <Link href={`/company/restaurants/${restaurantId}/locations/new`}>
-              Add location
+              <ButtonLabel icon={MapPinIcon}>Add location</ButtonLabel>
             </Link>
           </Button>
         </CardHeader>
@@ -235,7 +243,9 @@ export function RestaurantLocationsPanel({
                   disabled={Boolean(pendingAction)}
                   className="mt-auto rounded-lg"
                 >
-                  {pendingAction === `update:${location.id}` ? "Saving..." : "Save"}
+                  <ButtonLabel icon={SaveIcon}>
+                    {pendingAction === `update:${location.id}` ? "Saving..." : "Save"}
+                  </ButtonLabel>
                 </Button>
                 <Button
                   asChild
@@ -246,7 +256,7 @@ export function RestaurantLocationsPanel({
                   <Link
                     href={`/company/restaurants/${restaurantId}/locations/${location.id}/staff`}
                   >
-                    Staff
+                    <ButtonLabel icon={UsersIcon}>Staff</ButtonLabel>
                   </Link>
                 </Button>
                 <Button
@@ -255,7 +265,7 @@ export function RestaurantLocationsPanel({
                   className="mt-auto rounded-lg"
                   onClick={() => setEditingLocationId(null)}
                 >
-                  Cancel
+                  <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
                 </Button>
               </form>
             ) : (

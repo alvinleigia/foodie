@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { LogInIcon, UserCheckIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -49,7 +51,9 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
             Your access is ready. You can now sign in to Staff Operations.
           </p>
           <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
-            <Link href="/staff/login">Go to login</Link>
+            <Link href="/staff/login">
+              <ButtonLabel icon={LogInIcon}>Go to login</ButtonLabel>
+            </Link>
           </Button>
         </CardContent>
       </Card>
@@ -118,11 +122,13 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
             disabled={isSubmitting}
             className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
-            {isSubmitting
-              ? invitation.requiresPassword
-                ? "Setting password..."
-                : "Accepting..."
-              : "Accept Invitation"}
+            <ButtonLabel icon={UserCheckIcon}>
+              {isSubmitting
+                ? invitation.requiresPassword
+                  ? "Setting password..."
+                  : "Accepting..."
+                : "Accept Invitation"}
+            </ButtonLabel>
           </Button>
         </form>
       </CardContent>

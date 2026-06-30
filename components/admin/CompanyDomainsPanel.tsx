@@ -2,10 +2,17 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ExternalLinkIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ExternalLinkIcon,
+  GlobeIcon,
+  PowerIcon,
+  StarIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -194,11 +201,13 @@ export function CompanyDomainsPanel({
                     Adding...
                   </span>
                 ) : (
-                  "Add Domain"
+                  <ButtonLabel icon={GlobeIcon}>Add Domain</ButtonLabel>
                 )}
               </Button>
               <Button asChild type="button" variant="outline" className="rounded-lg">
-                <Link href={backHref}>Back</Link>
+                <Link href={backHref}>
+                  <ButtonLabel icon={ArrowLeftIcon}>Back</ButtonLabel>
+                </Link>
               </Button>
             </div>
           </form>
@@ -281,7 +290,7 @@ export function CompanyDomainsPanel({
                   onClick={() => updateDomain(domainRecord, { isPrimary: true })}
                   className="rounded-lg"
                 >
-                  Make Primary
+                  <ButtonLabel icon={StarIcon}>Make Primary</ButtonLabel>
                 </Button>
                 <Button
                   type="button"
@@ -301,11 +310,11 @@ export function CompanyDomainsPanel({
                       <Spinner />
                       Saving...
                     </span>
-                  ) : domainRecord.isActive ? (
-                    "Disable"
-                  ) : (
-                    "Enable"
-                  )}
+                ) : (
+                  <ButtonLabel icon={PowerIcon}>
+                    {domainRecord.isActive ? "Disable" : "Enable"}
+                  </ButtonLabel>
+                )}
                 </Button>
               </div>
             </div>

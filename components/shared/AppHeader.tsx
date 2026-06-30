@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { ChevronDownIcon, ClipboardListIcon, LogOutIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ClipboardListIcon,
+  LogInIcon,
+  LogOutIcon,
+  MenuIcon,
+} from "lucide-react";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -212,6 +219,7 @@ export function AppHeader({
               variant="outline"
               className="rounded-lg border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
             >
+              <MenuIcon className="size-4" />
               Menu
               <ChevronDownIcon className="size-4" />
             </Button>
@@ -237,7 +245,9 @@ export function AppHeader({
         </DropdownMenu>
       ) : (
         <Button asChild className="rounded-lg">
-          <Link href="/staff/login">Login</Link>
+          <Link href="/staff/login">
+            <ButtonLabel icon={LogInIcon}>Login</ButtonLabel>
+          </Link>
         </Button>
       )}
     </header>

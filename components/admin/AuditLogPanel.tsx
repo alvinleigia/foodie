@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DownloadIcon } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -82,7 +84,9 @@ export function AuditLogPanel() {
           </p>
         </div>
         <Button asChild variant="outline" className="rounded-lg">
-          <a href="/api/audit-logs/export?limit=250">Export CSV</a>
+          <a href="/api/audit-logs/export?limit=250">
+            <ButtonLabel icon={DownloadIcon}>Export CSV</ButtonLabel>
+          </a>
         </Button>
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5">

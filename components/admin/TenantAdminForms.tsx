@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SaveIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiError, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { StaffInviteForm } from "@/components/admin/StaffInviteForm";
@@ -95,10 +97,12 @@ function FormActions({
         disabled={isSaving || isDisabled}
         className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
       >
-        {isSaving ? "Saving..." : submitLabel}
+        <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : submitLabel}</ButtonLabel>
       </Button>
       <Button asChild type="button" variant="outline" className="rounded-lg">
-        <Link href={backHref}>Cancel</Link>
+        <Link href={backHref}>
+          <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+        </Link>
       </Button>
     </div>
   );

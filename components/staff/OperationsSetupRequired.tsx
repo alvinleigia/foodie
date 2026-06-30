@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { BuildingIcon, FactoryIcon } from "lucide-react";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,10 +26,14 @@ export function OperationsSetupRequired() {
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button asChild>
-              <Link href="/platform">Go to Platform</Link>
+              <Link href="/platform">
+                <ButtonLabel icon={FactoryIcon}>Go to Platform</ButtonLabel>
+              </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/company">Go to Company</Link>
+              <Link href="/company">
+                <ButtonLabel icon={BuildingIcon}>Go to Company</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </div>

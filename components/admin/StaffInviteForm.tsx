@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { CopyIcon, UserCheckIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -113,7 +115,9 @@ export function StaffInviteForm({
                     variant="outline"
                     className="mt-3 rounded-lg border-rose-200 bg-white text-stone-950 hover:bg-rose-100"
                   >
-                    <Link href={assignHref}>Assign Existing User</Link>
+                    <Link href={assignHref}>
+                      <ButtonLabel icon={UserCheckIcon}>Assign Existing User</ButtonLabel>
+                    </Link>
                   </Button>
                 ) : null}
               </div>
@@ -173,10 +177,14 @@ export function StaffInviteForm({
                 disabled={isSubmitting}
                 className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
-                {isSubmitting ? "Creating..." : "Create invite"}
+                <ButtonLabel icon={UserPlusIcon}>
+                  {isSubmitting ? "Creating..." : "Create invite"}
+                </ButtonLabel>
               </Button>
               <Button asChild type="button" variant="outline" className="rounded-lg">
-                <Link href={backHref}>{backLabel}</Link>
+                <Link href={backHref}>
+                  <ButtonLabel icon={XIcon}>{backLabel}</ButtonLabel>
+                </Link>
               </Button>
             </div>
           </form>
@@ -200,7 +208,7 @@ export function StaffInviteForm({
                   toast.success("Invite link copied.");
                 }}
               >
-                Copy Link
+                <ButtonLabel icon={CopyIcon}>Copy Link</ButtonLabel>
               </Button>
             </div>
           ) : (

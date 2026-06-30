@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { SaveIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -107,10 +109,14 @@ export function CompanySubscriptionForm({
               disabled={isSubmitting}
               className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
-              {isSubmitting ? "Saving..." : "Save subscription"}
+              <ButtonLabel icon={SaveIcon}>
+                {isSubmitting ? "Saving..." : "Save subscription"}
+              </ButtonLabel>
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href={backHref}>Cancel</Link>
+              <Link href={backHref}>
+                <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </form>

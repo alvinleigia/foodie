@@ -8,14 +8,17 @@ import {
   PackageXIcon,
   PencilLineIcon,
   PlusIcon,
+  SaveIcon,
   SparklesIcon,
   Trash2Icon,
   UploadIcon,
+  XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { getApiErrorMessage } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -677,7 +680,7 @@ export function MenuManager() {
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
             <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)} className="rounded-lg">
-              Cancel
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
             <Button
               type="button"
@@ -691,9 +694,9 @@ export function MenuManager() {
                   Saving...
                 </span>
               ) : categoryDraft.id ? (
-                "Save Category"
+                <ButtonLabel icon={SaveIcon}>Save Category</ButtonLabel>
               ) : (
-                "Add Category"
+                <ButtonLabel icon={PlusIcon}>Add Category</ButtonLabel>
               )}
             </Button>
           </DialogFooter>
@@ -873,7 +876,7 @@ export function MenuManager() {
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
             <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} className="rounded-lg">
-              Cancel
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
             <Button
               type="button"
@@ -887,9 +890,9 @@ export function MenuManager() {
                   Saving...
                 </span>
               ) : itemDraft.id ? (
-                "Save Product"
+                <ButtonLabel icon={SaveIcon}>Save Product</ButtonLabel>
               ) : (
-                "Add Product"
+                <ButtonLabel icon={PlusIcon}>Add Product</ButtonLabel>
               )}
             </Button>
           </DialogFooter>

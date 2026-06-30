@@ -1,6 +1,15 @@
 "use client";
 
+import {
+  CheckCircleIcon,
+  CirclePlayIcon,
+  CookingPotIcon,
+  MegaphoneIcon,
+  XIcon,
+} from "lucide-react";
+
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -102,9 +111,9 @@ export function OrderCard({
                 {item.status === "PENDING" ? "Starting..." : "Marking Ready..."}
               </span>
             ) : item.status === "PENDING" ? (
-              "Start Preparing"
+              <ButtonLabel icon={CookingPotIcon}>Start Preparing</ButtonLabel>
             ) : (
-              "Mark Ready"
+              <ButtonLabel icon={CirclePlayIcon}>Mark Ready</ButtonLabel>
             )}
           </Button>
         ) : null}
@@ -131,7 +140,7 @@ export function OrderCard({
                   Playing...
                 </span>
               ) : (
-                "Play Message"
+                <ButtonLabel icon={MegaphoneIcon}>Play Message</ButtonLabel>
               )}
             </Button>
             <Button
@@ -146,7 +155,7 @@ export function OrderCard({
                   Delivering...
                 </span>
               ) : (
-                "Mark Delivered"
+                <ButtonLabel icon={CheckCircleIcon}>Mark Delivered</ButtonLabel>
               )}
             </Button>
           </>
@@ -165,7 +174,7 @@ export function OrderCard({
               Cancelling...
             </span>
           ) : (
-            "Cancel"
+            <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
           )}
         </Button>
       </>

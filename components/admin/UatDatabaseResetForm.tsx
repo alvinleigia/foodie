@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { RotateCcwIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -82,11 +84,13 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
                   Resetting...
                 </>
               ) : (
-                "Reset UAT Database"
+                <ButtonLabel icon={RotateCcwIcon}>Reset UAT Database</ButtonLabel>
               )}
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href={backHref}>Cancel</Link>
+              <Link href={backHref}>
+                <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </form>

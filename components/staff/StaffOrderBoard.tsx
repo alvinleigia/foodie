@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderCard } from "@/components/staff/OrderCard";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -292,7 +294,7 @@ export function StaffOrderBoard() {
           className="rounded-lg"
           onClick={() => setIsClearDialogOpen(true)}
         >
-          Clear All Orders
+          <ButtonLabel icon={Trash2Icon}>Clear All Orders</ButtonLabel>
         </Button>
       </div>
 
@@ -390,7 +392,7 @@ export function StaffOrderBoard() {
                   Clearing...
                 </span>
               ) : (
-                "Delete All Orders"
+                <ButtonLabel icon={Trash2Icon}>Delete All Orders</ButtonLabel>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowLeftIcon,
   CheckIcon,
   ImageIcon,
   MinusIcon,
   PlusIcon,
+  SendIcon,
   ShoppingCartIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -21,6 +23,7 @@ import {
 import { getApiErrorMessage } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { FormField } from "@/components/shared/FormField";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -558,7 +561,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                 disabled={isSubmitting}
                 className="min-h-12 rounded-lg py-3"
               >
-                Back to Menu
+                <ButtonLabel icon={ArrowLeftIcon}>Back to Menu</ButtonLabel>
               </Button>
               <Button
                 type="button"
@@ -572,7 +575,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                     Placing Order...
                   </span>
                 ) : (
-                  "Confirm Order"
+                  <ButtonLabel icon={SendIcon}>Confirm Order</ButtonLabel>
                 )}
               </Button>
             </div>

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { Button } from "@/components/ui/button";
@@ -101,10 +103,14 @@ export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
               disabled={isSubmitting}
               className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
-              {isSubmitting ? "Creating..." : "Create company"}
+              <ButtonLabel icon={PlusIcon}>
+                {isSubmitting ? "Creating..." : "Create company"}
+              </ButtonLabel>
             </Button>
             <Button asChild type="button" variant="outline" className="rounded-lg">
-              <Link href={backHref}>Cancel</Link>
+              <Link href={backHref}>
+                <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+              </Link>
             </Button>
           </div>
         </form>

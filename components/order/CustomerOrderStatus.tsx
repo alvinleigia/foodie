@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
@@ -10,6 +11,7 @@ import {
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
 import { formatOrderDisplay } from "@/lib/order-display";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
@@ -318,7 +320,7 @@ export function CustomerOrderStatus({
                       Cancelling...
                     </span>
                   ) : (
-                    "Cancel order"
+                    <ButtonLabel icon={XIcon}>Cancel order</ButtonLabel>
                   )}
                 </Button>
               ) : null}
@@ -363,7 +365,7 @@ export function CustomerOrderStatus({
                   Cancelling...
                 </span>
               ) : (
-                "Confirm Cancel"
+                <ButtonLabel icon={XIcon}>Confirm Cancel</ButtonLabel>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
