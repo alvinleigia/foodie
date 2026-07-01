@@ -14,6 +14,7 @@ export type MenuItemRecord = {
   inventoryStatus?: "not_tracked" | "out" | "low" | "ok";
   inventoryQuantity?: string | null;
   isUnavailableDueToStock?: boolean;
+  tags?: MenuTagRecord[];
 };
 
 export type MenuCategoryRecord = {
@@ -26,4 +27,14 @@ export type MenuCategoryRecord = {
   sortOrder: number;
   isActive: boolean;
   items: MenuItemRecord[];
+};
+
+export type MenuTagRecord = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  color: string;
+  sortOrder: number;
+  isActive: boolean;
 };

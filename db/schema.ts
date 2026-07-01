@@ -370,6 +370,44 @@ export const menuItems = pgTable("menu_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const menuTags = pgTable(
+  "menu_tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    color: text("color").default("stone").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("menu_tags_slug_unique").on(table.slug),
+    index("menu_tags_active_idx").on(table.isActive),
+  ],
+);
+
+export const menuItemTags = pgTable(
+  "menu_item_tags",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    menuItemId: uuid("menu_item_id")
+      .references(() => menuItems.id, { onDelete: "cascade" })
+      .notNull(),
+    tagId: uuid("tag_id")
+      .references(() => menuTags.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("menu_item_tags_item_tag_unique").on(table.menuItemId, table.tagId),
+    index("menu_item_tags_item_idx").on(table.menuItemId),
+    index("menu_item_tags_tag_idx").on(table.tagId),
+  ],
+);
+
 export const inventoryItems = pgTable(
   "inventory_items",
   {

@@ -10,6 +10,7 @@ import {
   PlusIcon,
   SendIcon,
   ShoppingCartIcon,
+  TagsIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -91,9 +92,45 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [screen, setScreen] = useState<"menu" | "review">("menu");
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>(undefined);
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const availableTags = useMemo(() => {
+    const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
+
+    for (const category of menuCategories) {
+      for (const item of category.items) {
+        for (const tag of item.tags ?? []) {
+          tagsById.set(tag.id, tag);
+        }
+      }
+    }
+
+    return Array.from(tagsById.values()).sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+  }, [menuCategories]);
+
+  const visibleMenuCategories = useMemo(() => {
+    if (!selectedTagId) {
+      return menuCategories;
+    }
+
+    return menuCategories
+      .map((category) => ({
+        ...category,
+        items: category.items.filter((item) =>
+          item.tags?.some((tag) => tag.id === selectedTagId),
+        ),
+      }))
+      .filter((category) => category.items.length > 0);
+  }, [menuCategories, selectedTagId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -129,7 +166,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   }, [locationQrSlug, locationSlug]);
 
   useEffect(() => {
-    if (menuCategories.length === 0) {
+    if (visibleMenuCategories.length === 0) {
       return;
     }
 
@@ -150,7 +187,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
       },
     );
 
-    for (const category of menuCategories) {
+    for (const category of visibleMenuCategories) {
       const element = categoryRefs.current[category.id];
 
       if (element) {
@@ -161,7 +198,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     return () => {
       observer.disconnect();
     };
-  }, [menuCategories]);
+  }, [visibleMenuCategories]);
 
   useEffect(() => {
     const sentinel = categoryBarSentinelRef.current;
@@ -186,7 +223,20 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     };
   }, [menuCategories.length]);
 
+  useEffect(() => {
+    if (visibleMenuCategories.some((category) => category.id === activeCategoryId)) {
+      return;
+    }
+
+    setActiveCategoryId(visibleMenuCategories[0]?.id);
+  }, [activeCategoryId, visibleMenuCategories]);
+
   const totalProducts = useMemo(
+    () => visibleMenuCategories.reduce((count, category) => count + category.items.length, 0),
+    [visibleMenuCategories],
+  );
+
+  const totalMenuProducts = useMemo(
     () => menuCategories.reduce((count, category) => count + category.items.length, 0),
     [menuCategories],
   );
@@ -615,6 +665,44 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                 </p>
               </div>
 
+              {!isLoadingMenu && availableTags.length > 0 ? (
+                <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
+                  <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                    <TagsIcon className="size-3.5" />
+                    Filter by tag
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    <Button
+                      type="button"
+                      variant={selectedTagId ? "outline" : "default"}
+                      onClick={() => setSelectedTagId(null)}
+                      className={
+                        selectedTagId
+                          ? "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
+                          : "h-9 shrink-0 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
+                      }
+                    >
+                      All
+                    </Button>
+                    {availableTags.map((tag) => (
+                      <Button
+                        key={tag.id}
+                        type="button"
+                        variant={selectedTagId === tag.id ? "default" : "outline"}
+                        onClick={() => setSelectedTagId(tag.id)}
+                        className={
+                          selectedTagId === tag.id
+                            ? "h-9 shrink-0 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
+                            : "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
+                        }
+                      >
+                        {tag.name}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
               {isLoadingMenu ? (
                 <div className="grid gap-4">
                   {Array.from({ length: 2 }).map((_, index) => (
@@ -641,7 +729,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                 </div>
               ) : (
                 <div className="grid gap-6">
-                  {menuCategories.length > 0 ? (
+                  {visibleMenuCategories.length > 0 ? (
                     <>
                     <div ref={categoryBarSentinelRef} className="h-px" />
                     <div
@@ -652,7 +740,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                       }`}
                     >
                       <div className="flex min-w-max gap-2">
-                        {menuCategories.map((category) => (
+                        {visibleMenuCategories.map((category) => (
                           <Button
                             key={category.id}
                             type="button"
@@ -672,7 +760,16 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                     </>
                   ) : null}
 
-                  {menuCategories.map((category) => (
+                  {visibleMenuCategories.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-stone-200 bg-white px-4 py-8 text-center">
+                      <p className="text-sm font-semibold text-stone-950">No matching menu items</p>
+                      <p className="mt-2 text-sm text-stone-500">
+                        Choose another tag or clear the filter to see the full menu.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {visibleMenuCategories.map((category) => (
                     <section
                       key={category.id}
                       id={`menu-category-${category.id}`}
@@ -737,6 +834,18 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                   <p className="mt-1 line-clamp-2 text-sm text-stone-500">
                                     {drink.description || "Freshly prepared at the bar."}
                                   </p>
+                                  {drink.tags && drink.tags.length > 0 ? (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {drink.tags.map((tag) => (
+                                        <span
+                                          key={tag.id}
+                                          className="rounded-md border border-stone-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-600"
+                                        >
+                                          {tag.name}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                   <p className="mt-3 text-sm font-semibold text-stone-950">
                                     {formatPrice(drink.price ?? null, { currency })}
                                   </p>

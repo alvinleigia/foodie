@@ -49,4 +49,5 @@ export const menuItemSchema = z.object({
     ),
   sortOrder: z.coerce.number().int().min(0).default(0),
   isActive: z.boolean().default(true),
+  tagIds: z.array(z.string().uuid("Choose a valid tag")).default([]),
 });

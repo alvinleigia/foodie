@@ -10,6 +10,7 @@ import {
   PlusIcon,
   SaveIcon,
   SparklesIcon,
+  TagsIcon,
   Trash2Icon,
   UploadIcon,
   XIcon,
@@ -47,7 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
-import { MenuCategoryRecord, MenuItemRecord } from "@/types/menu";
+import { MenuCategoryRecord, MenuItemRecord, MenuTagRecord } from "@/types/menu";
 
 type CategoryDraft = {
   id: string | null;
@@ -67,6 +68,7 @@ type ItemDraft = {
   sortOrder: string;
   isActive: boolean;
   isSoldOut: boolean;
+  tagIds: string[];
 };
 
 const emptyCategoryDraft: CategoryDraft = {
@@ -87,10 +89,12 @@ const emptyItemDraft: ItemDraft = {
   sortOrder: "0",
   isActive: true,
   isSoldOut: false,
+  tagIds: [],
 };
 
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
+  const [tags, setTags] = useState<MenuTagRecord[]>([]);
   const [currency, setCurrency] = useState("INR");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +132,7 @@ export function MenuManager() {
       }
 
       setCategories(payload.categories ?? []);
+      setTags(payload.tags ?? []);
       setCurrency(payload.currency ?? "INR");
       setError(null);
       setIsLoading(false);
@@ -171,8 +176,18 @@ export function MenuManager() {
       sortOrder: String(item.sortOrder),
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
+      tagIds: item.tags?.map((tag) => tag.id) ?? [],
     });
     setIsItemDialogOpen(true);
+  }
+
+  function toggleItemDraftTag(tagId: string, isSelected: boolean) {
+    setItemDraft((current) => ({
+      ...current,
+      tagIds: isSelected
+        ? Array.from(new Set([...current.tagIds, tagId]))
+        : current.tagIds.filter((currentTagId) => currentTagId !== tagId),
+    }));
   }
 
   async function submitCategory() {
@@ -228,6 +243,7 @@ export function MenuManager() {
         sortOrder: itemDraft.sortOrder,
         isActive: itemDraft.isActive,
         isSoldOut: itemDraft.isSoldOut,
+        tagIds: itemDraft.tagIds,
       }),
     });
 
@@ -587,6 +603,18 @@ export function MenuManager() {
                               <p className="mt-1 text-sm text-stone-600">
                                 {item.description || "No description yet."}
                               </p>
+                              {item.tags && item.tags.length > 0 ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.tags.map((tag) => (
+                                    <span
+                                      key={tag.id}
+                                      className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-600"
+                                    >
+                                      {tag.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             <div className="text-left md:text-right">
                               <p className="text-sm font-semibold text-stone-900">
@@ -819,6 +847,41 @@ export function MenuManager() {
                 onChange={(event) => setItemDraft((current) => ({ ...current, description: event.target.value }))}
                 rows={4}
               />
+            </FormField>
+
+            <FormField label="Tags">
+              {tags.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
+                  No menu tags are available yet. Run the latest database migration to seed default tags.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {tags.map((tag) => (
+                    <label
+                      key={tag.id}
+                      className="flex items-start gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-700"
+                    >
+                      <Checkbox
+                        checked={itemDraft.tagIds.includes(tag.id)}
+                        onCheckedChange={(checked) =>
+                          toggleItemDraftTag(tag.id, checked === true)
+                        }
+                      />
+                      <span>
+                        <span className="flex items-center gap-2 font-medium text-stone-900">
+                          <TagsIcon className="size-3.5 text-stone-400" />
+                          {tag.name}
+                        </span>
+                        {tag.description ? (
+                          <span className="mt-1 block text-xs leading-5 text-stone-500">
+                            {tag.description}
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </FormField>
 
             <FormField label="Image URL">
