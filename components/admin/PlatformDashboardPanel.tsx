@@ -1,19 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2Icon, RotateCcwIcon } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import {
   ReportBreakdown,
   type ReportBreakdownRow,
 } from "@/components/admin/ReportBreakdown";
-import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { Spinner } from "@/components/shared/Spinner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 type PlatformSummary = {
   companyTenants: number;
@@ -41,11 +37,7 @@ type PlatformSummaryResponse = {
   summary?: PlatformSummary;
 };
 
-export function PlatformDashboardPanel({
-  uatResetEnabled = false,
-}: {
-  uatResetEnabled?: boolean;
-}) {
+export function PlatformDashboardPanel() {
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [breakdown, setBreakdown] = useState<PlatformReport[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -152,49 +144,6 @@ export function PlatformDashboardPanel({
         rows={breakdown}
         showChildRestaurants
       />
-
-      <Card className="rounded-xl border-stone-200 bg-white">
-        <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-xl font-semibold text-stone-950">
-              Company management
-            </h3>
-            <p className="text-sm text-stone-500">
-              Open the dedicated companies view for tenant CRUD, domains,
-              subscriptions and exports.
-            </p>
-          </div>
-          <Button
-            asChild
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
-          >
-            <Link href="/platform/companies">
-              <ButtonLabel icon={Building2Icon}>View Companies</ButtonLabel>
-            </Link>
-          </Button>
-        </CardHeader>
-      </Card>
-
-      {uatResetEnabled ? (
-        <Card className="rounded-xl border-rose-200 bg-rose-50/70">
-          <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-xl font-semibold text-stone-950">UAT reset</h3>
-              <p className="text-sm text-stone-600">
-                Clear testing data and keep only the current SaaS owner account.
-              </p>
-            </div>
-            <Button
-              asChild
-              className="rounded-lg bg-rose-600 text-white hover:bg-rose-700"
-            >
-              <Link href="/platform/uat-reset">
-                <ButtonLabel icon={RotateCcwIcon}>Open Reset</ButtonLabel>
-              </Link>
-            </Button>
-          </CardHeader>
-        </Card>
-      ) : null}
     </div>
   );
 }

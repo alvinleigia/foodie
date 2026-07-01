@@ -4,7 +4,6 @@ import { auth } from "@/auth";
 import { PlatformDashboardPanel } from "@/components/admin/PlatformDashboardPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
-import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 
 export default async function PlatformPage() {
   const session = await auth();
@@ -25,7 +24,7 @@ export default async function PlatformPage() {
         role: session.user.role,
       }}
     >
-      <PlatformDashboardPanel uatResetEnabled={isUatDatabaseResetEnabled()} />
+      <PlatformDashboardPanel />
     </SaasAdminShell>
   );
 }

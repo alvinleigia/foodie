@@ -4,13 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   BuildingIcon,
-  MapPinIcon,
   MoreHorizontalIcon,
   PencilIcon,
-  SettingsIcon,
   UserCheckIcon,
   UserPlusIcon,
-  UsersIcon,
 } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
@@ -225,38 +222,6 @@ export function RestaurantAdminPanel({
               report={report}
               onRangeChange={(nextRange) => void refreshReport(nextRange)}
             />
-          ) : null}
-
-          {view === "dashboard" ? (
-            <Card className="rounded-xl border-stone-200 bg-white">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
-                <div>
-                  <h3 className="text-xl font-semibold text-stone-950">
-                    Management shortcuts
-                  </h3>
-                  <p className="text-sm text-stone-500">
-                    Use focused screens for setup, staff, orders, menu and inventory.
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <Button asChild variant="outline" className="rounded-lg">
-                    <Link href="/restaurant/settings">
-                      <ButtonLabel icon={SettingsIcon}>Restaurant settings</ButtonLabel>
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="rounded-lg">
-                    <Link href="/restaurant/location">
-                      <ButtonLabel icon={MapPinIcon}>Locations</ButtonLabel>
-                    </Link>
-                  </Button>
-                  <Button asChild className="rounded-lg">
-                    <Link href="/restaurant/staff">
-                      <ButtonLabel icon={UsersIcon}>Manage staff</ButtonLabel>
-                    </Link>
-                  </Button>
-                </div>
-              </CardHeader>
-            </Card>
           ) : null}
 
           {view === "staff" ? (
