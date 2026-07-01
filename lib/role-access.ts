@@ -71,6 +71,7 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
   if (
     href === "/restaurant" ||
     href === "/restaurant/location" ||
+    href === "/restaurant/location/edit" ||
     href === "/restaurant/staff"
   ) {
     return role === "RESTAURANT_MANAGER";

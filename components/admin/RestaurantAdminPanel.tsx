@@ -246,7 +246,7 @@ export function RestaurantAdminPanel({
                   </Button>
                   <Button asChild variant="outline" className="rounded-lg">
                     <Link href="/restaurant/location">
-                      <ButtonLabel icon={MapPinIcon}>Location settings</ButtonLabel>
+                      <ButtonLabel icon={MapPinIcon}>Locations</ButtonLabel>
                     </Link>
                   </Button>
                   <Button asChild className="rounded-lg">
