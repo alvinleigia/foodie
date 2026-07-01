@@ -5,7 +5,7 @@ import { RestaurantAdminPanel } from "@/components/admin/RestaurantAdminPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
 
-export default async function RestaurantPage() {
+export default async function RestaurantStaffPage() {
   const session = await auth();
 
   if (!session?.user?.role || !canAccessRole(session.user.role, restaurantAdminRoles)) {
@@ -14,10 +14,10 @@ export default async function RestaurantPage() {
 
   return (
     <SaasAdminShell
-      activePath="/restaurant"
+      activePath="/restaurant/staff"
       eyebrow="Restaurant"
-      title="Restaurant dashboard"
-      description="Review restaurant operations, reports and setup health from one overview."
+      title="Restaurant staff"
+      description="Review and manage staff access for the active restaurant location."
       user={{
         locationId: session.user.locationId,
         name: session.user.name,
@@ -25,7 +25,7 @@ export default async function RestaurantPage() {
         role: session.user.role,
       }}
     >
-      <RestaurantAdminPanel />
+      <RestaurantAdminPanel view="staff" />
     </SaasAdminShell>
   );
 }

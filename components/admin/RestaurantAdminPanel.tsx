@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   UserCheckIcon,
   UserPlusIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
@@ -17,7 +18,6 @@ import { OperationalReports } from "@/components/admin/OperationalReports";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { SummaryCards } from "@/components/admin/SummaryCards";
-import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -109,7 +109,11 @@ function RestaurantAccessEmptyState() {
   );
 }
 
-export function RestaurantAdminPanel() {
+export function RestaurantAdminPanel({
+  view = "dashboard",
+}: {
+  view?: "dashboard" | "staff";
+}) {
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
   const [summary, setSummary] = useState<RestaurantSummary | null>(null);
   const [report, setReport] = useState<OperationalReport | null>(null);
@@ -140,10 +144,6 @@ export function RestaurantAdminPanel() {
 
     void loadTenantAdmin();
   }, []);
-
-  const qrPath = snapshot?.location?.qrSlug
-    ? `/order?qr=${snapshot.location.qrSlug}`
-    : null;
 
   async function refreshReport(nextRange: ReportRange) {
     setReportRange(nextRange);
@@ -220,50 +220,39 @@ export function RestaurantAdminPanel() {
             />
           ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          {view === "dashboard" ? (
             <Card className="rounded-xl border-stone-200 bg-white">
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
-                <SectionHeader
-                  eyebrow="Restaurant"
-                  title={snapshot.organization?.name ?? "Restaurant"}
-                  meta="Restaurant-level settings."
-                  className="mb-0"
-                />
-                <Button asChild variant="outline" className="rounded-lg">
-                  <Link href="/restaurant/settings">
-                    <ButtonLabel icon={SettingsIcon}>Edit</ButtonLabel>
-                  </Link>
-                </Button>
+                <div>
+                  <h3 className="text-xl font-semibold text-stone-950">
+                    Management shortcuts
+                  </h3>
+                  <p className="text-sm text-stone-500">
+                    Use focused screens for setup, staff, orders, menu and inventory.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button asChild variant="outline" className="rounded-lg">
+                    <Link href="/restaurant/settings">
+                      <ButtonLabel icon={SettingsIcon}>Restaurant settings</ButtonLabel>
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="rounded-lg">
+                    <Link href="/restaurant/location">
+                      <ButtonLabel icon={MapPinIcon}>Location settings</ButtonLabel>
+                    </Link>
+                  </Button>
+                  <Button asChild className="rounded-lg">
+                    <Link href="/restaurant/staff">
+                      <ButtonLabel icon={UsersIcon}>Manage staff</ButtonLabel>
+                    </Link>
+                  </Button>
+                </div>
               </CardHeader>
-              <CardContent className="px-5 pb-5 text-sm text-stone-600">
-                <p>Slug: {snapshot.organization?.slug ?? "-"}</p>
-                <p>Timezone: {snapshot.organization?.timezone ?? "-"}</p>
-                <p>Currency: {snapshot.organization?.currency ?? "-"}</p>
-              </CardContent>
             </Card>
+          ) : null}
 
-            <Card className="rounded-xl border-stone-200 bg-white">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
-                <SectionHeader
-                  eyebrow="Location"
-                  title={snapshot.location?.name ?? "Location"}
-                  meta={snapshot.location?.label ?? "Current operating location."}
-                  className="mb-0"
-                />
-                <Button asChild variant="outline" className="rounded-lg">
-                  <Link href="/restaurant/location">
-                    <ButtonLabel icon={MapPinIcon}>Edit</ButtonLabel>
-                  </Link>
-                </Button>
-              </CardHeader>
-              <CardContent className="px-5 pb-5 text-sm text-stone-600">
-                <p>Timezone: {snapshot.location?.timezone ?? "-"}</p>
-                <p>QR slug: {snapshot.location?.qrSlug ?? "Not set"}</p>
-                <p>Customer link: {qrPath ?? "Add QR slug to generate link"}</p>
-              </CardContent>
-            </Card>
-          </div>
-
+          {view === "staff" ? (
           <Card className="rounded-xl border-stone-200 bg-white">
             <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
               <div>
@@ -350,6 +339,7 @@ export function RestaurantAdminPanel() {
               ))}
             </CardContent>
           </Card>
+          ) : null}
         </>
       ) : !isMissingTenantAccess(error) ? (
         <div className="flex items-center gap-2 text-sm text-stone-500">

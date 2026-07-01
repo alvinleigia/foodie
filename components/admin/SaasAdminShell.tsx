@@ -52,7 +52,12 @@ const adminRoutes: AdminRoute[] = [
   {
     href: "/company",
     label: "Company",
-    description: "Manage restaurants and summaries.",
+    description: "Company dashboard.",
+  },
+  {
+    href: "/company/restaurants",
+    label: "Restaurants",
+    description: "Manage restaurant setup.",
   },
   {
     href: "/company/users",
@@ -62,7 +67,12 @@ const adminRoutes: AdminRoute[] = [
   {
     href: "/restaurant",
     label: "Restaurant",
-    description: "Manage settings, locations and staff.",
+    description: "Restaurant dashboard.",
+  },
+  {
+    href: "/restaurant/staff",
+    label: "Restaurant Staff",
+    description: "Manage location staff.",
   },
   {
     href: "/operations/orders",

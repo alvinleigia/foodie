@@ -85,6 +85,7 @@ type CompanySummaryResponse = {
 
 type CompanyRestaurantsPanelProps = {
   hasRealCompanyContext: boolean;
+  view?: "dashboard" | "management";
 };
 
 function CompanySetupRequired() {
@@ -120,6 +121,7 @@ function CompanySetupRequired() {
 
 export function CompanyRestaurantsPanel({
   hasRealCompanyContext,
+  view = "dashboard",
 }: CompanyRestaurantsPanelProps) {
   const [restaurants, setRestaurants] = useState<CompanyRestaurant[]>([]);
   const [summary, setSummary] = useState<CompanySummary | null>(null);
@@ -252,26 +254,57 @@ export function CompanyRestaurantsPanel({
         />
       ) : null}
 
-      <ReportBreakdown
-        title="Restaurant activity"
-        description="Compare child restaurants by locations, staff and order activity."
-        emptyMessage="No restaurant activity to report yet."
-        rows={breakdown}
-      />
+      {view === "dashboard" ? (
+        <>
+          <ReportBreakdown
+            title="Restaurant activity"
+            description="Compare child restaurants by locations, staff and order activity."
+            emptyMessage="No restaurant activity to report yet."
+            rows={breakdown}
+          />
 
-      {report ? (
-        <OperationalReports
-          exportHref={`/api/company/reports/export?range=${reportRange}`}
-          isLoading={isLoading}
-          range={reportRange}
-          report={report}
-          onRangeChange={(nextRange) => {
-            setReportRange(nextRange);
-            void refreshCompanySummary(nextRange);
-          }}
-        />
+          {report ? (
+            <OperationalReports
+              exportHref={`/api/company/reports/export?range=${reportRange}`}
+              isLoading={isLoading}
+              range={reportRange}
+              report={report}
+              onRangeChange={(nextRange) => {
+                setReportRange(nextRange);
+                void refreshCompanySummary(nextRange);
+              }}
+            />
+          ) : null}
+
+          <Card className="rounded-xl border-stone-200 bg-white">
+            <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
+              <div>
+                <h3 className="text-xl font-semibold text-stone-950">
+                  Management shortcuts
+                </h3>
+                <p className="text-sm text-stone-500">
+                  Use focused management screens for restaurants, locations and users.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button asChild variant="outline" className="rounded-lg">
+                  <Link href="/company/users">
+                    <ButtonLabel icon={UsersIcon}>Manage users</ButtonLabel>
+                  </Link>
+                </Button>
+                <Button asChild className="rounded-lg">
+                  <Link href="/company/restaurants">
+                    <ButtonLabel icon={BuildingIcon}>Manage restaurants</ButtonLabel>
+                  </Link>
+                </Button>
+              </div>
+            </CardHeader>
+          </Card>
+        </>
       ) : null}
 
+      {view === "management" ? (
+        <>
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
           <div>
@@ -394,6 +427,8 @@ export function CompanyRestaurantsPanel({
           })}
         </CardContent>
       </Card>
+        </>
+      ) : null}
         </>
       ) : null}
     </div>
