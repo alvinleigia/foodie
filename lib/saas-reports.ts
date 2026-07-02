@@ -1059,7 +1059,7 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     csvRow(["Range", report.range]),
     "",
     csvRow(["Revenue"]),
-    csvRow(["Gross revenue", "Priced lines", "Unpriced lines", "Average priced line"]),
+    csvRow(["Gross revenue", "Priced entries", "Unpriced entries", "Average priced entry"]),
     csvRow([
       report.revenue.grossRevenue.toFixed(2),
       report.revenue.pricedLines,
@@ -1087,13 +1087,13 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     ),
     "",
     csvRow(["Top products"]),
-    csvRow(["Product", "Category", "Quantity", "Order lines"]),
+    csvRow(["Product", "Category", "Quantity", "Order entries"]),
     ...report.topProducts.map((row) =>
       csvRow([row.drinkName, row.categoryName, row.quantity, row.orderLines]),
     ),
     "",
     csvRow(["Category mix"]),
-    csvRow(["Category", "Quantity", "Order lines"]),
+    csvRow(["Category", "Quantity", "Order entries"]),
     ...report.categoryBreakdown.map((row) =>
       csvRow([row.categoryName, row.quantity, row.orderLines]),
     ),
@@ -1120,7 +1120,7 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     ),
     "",
     csvRow(["Cancelled items"]),
-    csvRow(["Product", "Category", "Quantity", "Cancelled lines"]),
+    csvRow(["Product", "Category", "Quantity", "Cancelled entries"]),
     ...report.cancelledItems.map((row) =>
       csvRow([row.drinkName, row.categoryName, row.quantity, row.cancelledLines]),
     ),

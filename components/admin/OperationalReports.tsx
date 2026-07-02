@@ -110,16 +110,16 @@ export function OperationalReports({
         <CardHeader className="px-5 pt-5">
           <h3 className="text-xl font-semibold text-stone-950">Revenue report</h3>
           <p className="text-sm text-stone-500">
-            Uses priced, non-cancelled item rows only. Price-on-request rows stay separate.
+            Uses priced, non-cancelled order entries only. Price-on-request entries stay separate.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
-          <Metric label={`${report.revenue.pricedLines} priced lines`} valueLabel={formatMoney(report.revenue.grossRevenue)} />
+          <Metric label={`${report.revenue.pricedLines} priced entries`} valueLabel={formatMoney(report.revenue.grossRevenue)} />
           <Metric
-            label="Average priced line"
+            label="Average priced entry"
             valueLabel={formatMoney(report.revenue.averagePricedLineValue)}
           />
-          <Metric label="Unpriced lines" value={report.revenue.unpricedLines} />
+          <Metric label="Unpriced entries" value={report.revenue.unpricedLines} />
           <Metric label="Revenue range" valueLabel={range} />
         </CardContent>
       </Card>
@@ -147,7 +147,7 @@ export function OperationalReports({
         <CardHeader className="px-5 pt-5">
           <h3 className="text-xl font-semibold text-stone-950">Cancelled items</h3>
           <p className="text-sm text-stone-500">
-            Cancelled product rows in the selected period.
+            Cancelled product entries in the selected period.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
@@ -167,7 +167,7 @@ export function OperationalReports({
               <div className="text-right">
                 <p className="text-xl font-semibold text-rose-700">{item.quantity}</p>
                 <p className="text-xs uppercase tracking-[0.14em] text-stone-400">
-                  {item.cancelledLines} lines
+                  {item.cancelledLines} order entries
                 </p>
               </div>
             </div>
@@ -223,7 +223,7 @@ export function OperationalReports({
             >
               <div>
                 <p className="font-semibold text-stone-950">{category.categoryName}</p>
-                <p className="text-sm text-stone-500">{category.orderLines} order lines</p>
+                <p className="text-sm text-stone-500">{category.orderLines} order entries</p>
               </div>
               <p className="text-xl font-semibold text-stone-950">{category.quantity}</p>
             </div>
@@ -285,7 +285,7 @@ export function OperationalReports({
               <div className="text-right">
                 <p className="text-xl font-semibold text-stone-950">{product.quantity}</p>
                 <p className="text-xs uppercase tracking-[0.14em] text-stone-400">
-                  {product.orderLines} lines
+                  {product.orderLines} order entries
                 </p>
               </div>
             </div>

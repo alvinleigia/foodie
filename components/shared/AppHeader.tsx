@@ -8,6 +8,7 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  UtensilsIcon,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -233,7 +234,10 @@ export function AppHeader({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href={customerMenu.orderHref ?? "/order"}>Order menu</Link>
+              <Link href={customerMenu.orderHref ?? "/order"}>
+                <UtensilsIcon />
+                Order menu
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href={customerMenu.ordersHref ?? "/order/status"}>
