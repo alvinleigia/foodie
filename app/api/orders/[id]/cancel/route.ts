@@ -10,6 +10,7 @@ import {
   getRequestRateLimitKey,
   rateLimitResponse,
 } from "@/lib/rate-limit";
+import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { customerCancelOrderSchema, staffCancelOrderSchema } from "@/lib/validations/order";
 import { serializeOrder } from "@/lib/orders";
 import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
@@ -76,12 +77,30 @@ export async function POST(
 
       const updatedOrder = await db.transaction(async (tx) => {
         const now = new Date();
+        const items = await tx
+          .select()
+          .from(orderItems)
+          .where(
+            and(
+              eq(orderItems.orderId, id),
+              eq(orderItems.organizationId, tenantContext.organizationId),
+              eq(orderItems.locationId, tenantContext.locationId),
+            ),
+          );
+
+        for (const item of items.filter(
+          (currentItem) =>
+            currentItem.inventoryReservedAt && currentItem.status !== "DELIVERED",
+        )) {
+          await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+        }
 
         await tx
           .update(orderItems)
           .set({
             status: "CANCELLED",
             cancelledAt: now,
+            inventoryReservedAt: null,
             updatedAt: now,
           })
           .where(
@@ -150,12 +169,30 @@ export async function POST(
 
     const updatedOrder = await db.transaction(async (tx) => {
       const now = new Date();
+      const items = await tx
+        .select()
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, id),
+            eq(orderItems.organizationId, tenantContext.organizationId),
+            eq(orderItems.locationId, tenantContext.locationId),
+          ),
+        );
+
+      for (const item of items.filter(
+        (currentItem) =>
+          currentItem.inventoryReservedAt && currentItem.status !== "DELIVERED",
+      )) {
+        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      }
 
       await tx
         .update(orderItems)
         .set({
           status: "CANCELLED",
           cancelledAt: now,
+          inventoryReservedAt: null,
           updatedAt: now,
         })
         .where(

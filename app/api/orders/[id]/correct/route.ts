@@ -1,11 +1,14 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
 import { orderStatuses, type OrderStatus } from "@/lib/constants";
-import { restoreInventoryForCorrectedDeliveredItem } from "@/lib/inventory";
+import {
+  InventoryReservationError,
+  reserveInventoryForOrderItem,
+} from "@/lib/inventory";
 import { canCorrectOrderStatus } from "@/lib/order-corrections";
 import { serializeOrder } from "@/lib/orders";
 import { restaurantAdminRoles } from "@/lib/role-access";
@@ -149,9 +152,15 @@ export async function POST(
           ),
         );
 
-      if (order.status === "DELIVERED" && nextStatus === "READY") {
-        for (const item of currentItems.filter((currentItem) => currentItem.status === "DELIVERED")) {
-          await restoreInventoryForCorrectedDeliveredItem(tx, tenantContext, item);
+      const reservedItemIds: string[] = [];
+
+      if (order.status === "CANCELLED" && nextStatus === "PENDING") {
+        for (const item of currentItems) {
+          const wasReserved = await reserveInventoryForOrderItem(tx, tenantContext, item);
+
+          if (wasReserved) {
+            reservedItemIds.push(item.id);
+          }
         }
       }
 
@@ -178,6 +187,22 @@ export async function POST(
         )
         .returning();
 
+      if (reservedItemIds.length > 0) {
+        await tx
+          .update(orderItems)
+          .set({
+            inventoryReservedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              inArray(orderItems.id, reservedItemIds),
+              eq(orderItems.organizationId, tenantContext.organizationId),
+              eq(orderItems.locationId, tenantContext.locationId),
+            ),
+          );
+      }
+
       return nextOrder;
     });
 
@@ -198,6 +223,10 @@ export async function POST(
 
     return NextResponse.json(serializeOrder(updatedOrder));
   } catch (error) {
+    if (error instanceof InventoryReservationError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to correct order status." },
       { status: 500 },

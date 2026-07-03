@@ -5,7 +5,10 @@ import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireRole } from "@/lib/auth";
 import { orderItemStatuses, type OrderItemStatus, type OrderStatus } from "@/lib/constants";
-import { restoreInventoryForCorrectedDeliveredItem } from "@/lib/inventory";
+import {
+  InventoryReservationError,
+  reserveInventoryForOrderItem,
+} from "@/lib/inventory";
 import { canCorrectOrderItemStatus } from "@/lib/order-corrections";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -203,14 +206,19 @@ export async function POST(
 
     const result = await db.transaction(async (tx) => {
       const now = new Date();
+      const itemPatch = getItemTimestampPatch(nextStatus, now);
 
-      if (item.status === "DELIVERED" && nextStatus === "READY") {
-        await restoreInventoryForCorrectedDeliveredItem(tx, tenantContext, item);
+      if (item.status === "CANCELLED" && nextStatus === "PENDING") {
+        const wasReserved = await reserveInventoryForOrderItem(tx, tenantContext, item);
+
+        if (wasReserved) {
+          Object.assign(itemPatch, { inventoryReservedAt: now });
+        }
       }
 
       const [updatedItem] = await tx
         .update(orderItems)
-        .set(getItemTimestampPatch(nextStatus, now))
+        .set(itemPatch)
         .where(
           and(
             eq(orderItems.id, itemId),
@@ -274,6 +282,10 @@ export async function POST(
       itemStatus: result.updatedItem.status,
     });
   } catch (error) {
+    if (error instanceof InventoryReservationError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to correct order item." },
       { status: 500 },

@@ -504,6 +504,7 @@ export const orderItems = pgTable("order_items", {
   readyAt: timestamp("ready_at"),
   deliveredAt: timestamp("delivered_at"),
   cancelledAt: timestamp("cancelled_at"),
+  inventoryReservedAt: timestamp("inventory_reserved_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

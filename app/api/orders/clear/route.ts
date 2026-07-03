@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { and, eq } from "drizzle-orm";
 
-import { orders } from "@/db/schema";
+import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
+import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { markOrdersReset } from "@/lib/order-reset";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -28,15 +29,34 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const tenantContext = await getCurrentTenantContext();
-    const deletedOrders = await db
-      .delete(orders)
-      .where(
-        and(
-          eq(orders.organizationId, tenantContext.organizationId),
-          eq(orders.locationId, tenantContext.locationId),
-        ),
-      )
-      .returning({ id: orders.id });
+    const deletedOrders = await db.transaction(async (tx) => {
+      const reservedItems = await tx
+        .select()
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.organizationId, tenantContext.organizationId),
+            eq(orderItems.locationId, tenantContext.locationId),
+          ),
+        );
+
+      for (const item of reservedItems.filter(
+        (reservedItem) =>
+          reservedItem.inventoryReservedAt && reservedItem.status !== "DELIVERED",
+      )) {
+        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      }
+
+      return tx
+        .delete(orders)
+        .where(
+          and(
+            eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.locationId, tenantContext.locationId),
+          ),
+        )
+        .returning({ id: orders.id });
+    });
     const ordersResetAt = await markOrdersReset();
 
     return NextResponse.json({

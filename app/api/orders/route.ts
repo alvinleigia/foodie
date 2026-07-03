@@ -10,6 +10,10 @@ import {
 } from "@/lib/orders";
 import { getOrdersResetAt } from "@/lib/order-reset";
 import { getMenuSelectionSnapshot, getTenantMenuCurrency } from "@/lib/menu";
+import {
+  InventoryReservationError,
+  reserveInventoryForOrderItem,
+} from "@/lib/inventory";
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
@@ -73,6 +77,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    const requestedQuantityByDrinkId = new Map<string, number>();
+
+    for (const requestedItem of parsed.data.items) {
+      requestedQuantityByDrinkId.set(
+        requestedItem.drinkId,
+        (requestedQuantityByDrinkId.get(requestedItem.drinkId) ?? 0) + requestedItem.quantity,
+      );
+    }
+
     const cartItems: Array<{
       categoryId: string;
       organizationId: string;
@@ -84,6 +97,7 @@ export async function POST(request: NextRequest) {
       notes: string | null;
       unitPrice: string | null;
       status: "PENDING";
+      shouldReserveInventory: boolean;
       startedAt: null;
       readyAt: null;
       deliveredAt: null;
@@ -101,9 +115,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Invalid drink selection." }, { status: 400 });
       }
 
-      if (inventory?.isTracked && Number(inventory.currentQuantity) < requestedItem.quantity) {
+      const totalRequestedQuantity = requestedQuantityByDrinkId.get(item.id) ?? requestedItem.quantity;
+
+      if (inventory?.isTracked && Number(inventory.currentQuantity) < totalRequestedQuantity) {
         return NextResponse.json(
-          { error: `${item.name} is currently out of stock.` },
+          { error: `Only ${inventory.currentQuantity} available for ${item.name}.` },
           { status: 409 },
         );
       }
@@ -119,6 +135,7 @@ export async function POST(request: NextRequest) {
         notes: requestedItem.notes?.trim() || null,
         unitPrice: item.price ?? null,
         status: "PENDING",
+        shouldReserveInventory: Boolean(inventory?.isTracked),
         startedAt: null,
         readyAt: null,
         deliveredAt: null,
@@ -153,8 +170,17 @@ export async function POST(request: NextRequest) {
         })
         .returning();
 
-      await tx.insert(orderItems).values(
-        cartItems.map((item) => ({
+      const now = new Date();
+      const itemsToCreate = [];
+
+      for (const item of cartItems) {
+        const inventoryReservedAt = item.shouldReserveInventory
+          ? await reserveInventoryForOrderItem(tx, tenantContext, item).then((wasReserved) =>
+              wasReserved ? now : null,
+            )
+          : null;
+
+        itemsToCreate.push({
           organizationId: tenantContext.organizationId,
           locationId: tenantContext.locationId,
           orderId: newOrder.id,
@@ -165,9 +191,12 @@ export async function POST(request: NextRequest) {
           quantity: item.quantity,
           notes: item.notes,
           unitPrice: item.unitPrice,
-          updatedAt: new Date(),
-        })),
-      );
+          inventoryReservedAt,
+          updatedAt: now,
+        });
+      }
+
+      await tx.insert(orderItems).values(itemsToCreate);
 
       return newOrder;
     });
@@ -178,6 +207,10 @@ export async function POST(request: NextRequest) {
       ordersResetAt: await getOrdersResetAt(),
     });
   } catch (error) {
+    if (error instanceof InventoryReservationError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to create order." },
       { status: 500 },

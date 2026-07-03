@@ -162,31 +162,70 @@ export async function upsertInventoryItem(context: TenantContext, input: unknown
   return getInventoryRecords(context);
 }
 
-export async function deductInventoryForDeliveredItem(
+export class InventoryReservationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InventoryReservationError";
+  }
+}
+
+export async function reserveInventoryForOrderItem(
   db: InventoryWriteClient,
   context: TenantContext,
   item: {
     drinkId: string;
+    drinkName: string;
     quantity: number;
   },
 ) {
-  await db
-    .update(inventoryItems)
-    .set({
-      currentQuantity: sql`greatest(${inventoryItems.currentQuantity} - ${item.quantity}, 0::numeric)`,
-      updatedAt: new Date(),
+  const [inventory] = await db
+    .select({
+      id: inventoryItems.id,
+      currentQuantity: inventoryItems.currentQuantity,
+      isTracked: inventoryItems.isTracked,
     })
+    .from(inventoryItems)
     .where(
       and(
         eq(inventoryItems.organizationId, context.organizationId),
         eq(inventoryItems.locationId, context.locationId),
         eq(inventoryItems.menuItemId, item.drinkId),
-        eq(inventoryItems.isTracked, true),
       ),
+    )
+    .limit(1);
+
+  if (!inventory?.isTracked) {
+    return false;
+  }
+
+  const [updatedInventory] = await db
+    .update(inventoryItems)
+    .set({
+      currentQuantity: sql`${inventoryItems.currentQuantity} - ${item.quantity}`,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(inventoryItems.id, inventory.id),
+        eq(inventoryItems.organizationId, context.organizationId),
+        eq(inventoryItems.locationId, context.locationId),
+        eq(inventoryItems.menuItemId, item.drinkId),
+        eq(inventoryItems.isTracked, true),
+        sql`${inventoryItems.currentQuantity} >= ${item.quantity}`,
+      ),
+    )
+    .returning({ id: inventoryItems.id });
+
+  if (!updatedInventory) {
+    throw new InventoryReservationError(
+      `Only ${inventory.currentQuantity} available for ${item.drinkName}.`,
     );
+  }
+
+  return true;
 }
 
-export async function restoreInventoryForCorrectedDeliveredItem(
+export async function restoreReservedInventoryForOrderItem(
   db: InventoryWriteClient,
   context: TenantContext,
   item: {
@@ -205,7 +244,6 @@ export async function restoreInventoryForCorrectedDeliveredItem(
         eq(inventoryItems.organizationId, context.organizationId),
         eq(inventoryItems.locationId, context.locationId),
         eq(inventoryItems.menuItemId, item.drinkId),
-        eq(inventoryItems.isTracked, true),
       ),
     );
 }

@@ -5,7 +5,6 @@ import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { deductInventoryForDeliveredItem } from "@/lib/inventory";
 import { serializeOrder } from "@/lib/orders";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -78,9 +77,6 @@ export async function POST(
             ),
           );
 
-        for (const item of deliverableItems) {
-          await deductInventoryForDeliveredItem(tx, tenantContext, item);
-        }
       }
 
       const [nextOrder] = await tx

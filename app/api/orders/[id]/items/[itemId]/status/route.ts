@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { deductInventoryForDeliveredItem } from "@/lib/inventory";
+import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 type ItemAction = "start" | "ready" | "announce" | "deliver" | "cancel";
@@ -179,8 +179,14 @@ export async function POST(
               : {
                   status: "CANCELLED" as const,
                   cancelledAt: now,
+                  inventoryReservedAt: null,
                   updatedAt: now,
                 };
+
+      if (body.action === "cancel" && item.inventoryReservedAt) {
+        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      }
+
       const [updatedItem] = await tx
         .update(orderItems)
         .set(itemUpdate)
@@ -193,10 +199,6 @@ export async function POST(
           ),
         )
         .returning();
-
-      if (body.action === "deliver") {
-        await deductInventoryForDeliveredItem(tx, tenantContext, item);
-      }
 
       const currentItems = await tx
         .select()

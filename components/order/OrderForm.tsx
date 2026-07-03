@@ -55,6 +55,7 @@ type CartItem = {
   quantity: number;
   notes: string;
   unitPrice: string | null;
+  stockLimit: number | null;
 };
 
 type OrderDraft = {
@@ -75,6 +76,26 @@ function withPublicContext(path: string, options: { locationQrSlug?: string; loc
 
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
+}
+
+function getStockLimit(drink: MenuItemRecord) {
+  if (drink.inventoryStatus === "not_tracked" || !drink.inventoryQuantity) {
+    return null;
+  }
+
+  const quantity = Number(drink.inventoryQuantity);
+
+  if (!Number.isFinite(quantity)) {
+    return null;
+  }
+
+  return Math.max(0, Math.floor(quantity));
+}
+
+function getStockLimitError(drinkName: string, stockLimit: number) {
+  return stockLimit <= 0
+    ? `${drinkName} is currently unavailable.`
+    : `Only ${stockLimit} ${stockLimit === 1 ? "item is" : "items are"} available for ${drinkName}.`;
 }
 
 export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
@@ -276,12 +297,28 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
       return;
     }
 
+    const stockLimit = getStockLimit(drink);
+    const existingItem = cartItems.find((item) => item.drinkId === drink.id);
+
+    if (stockLimit !== null && (existingItem?.quantity ?? 0) >= stockLimit) {
+      setError(getStockLimitError(drink.name, stockLimit));
+      return;
+    }
+
     setCartItems((currentItems) => {
       const existingIndex = currentItems.findIndex((item) => item.drinkId === drink.id);
 
       if (existingIndex >= 0) {
         return currentItems.map((item, index) =>
-          index === existingIndex ? { ...item, quantity: item.quantity + 1 } : item,
+          index === existingIndex
+            ? {
+                ...item,
+                quantity:
+                  item.stockLimit === null
+                    ? Math.min(item.quantity + 1, 20)
+                    : Math.min(item.quantity + 1, item.stockLimit),
+              }
+            : item,
         );
       }
 
@@ -295,6 +332,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           quantity: 1,
           notes: "",
           unitPrice: drink.price ?? null,
+          stockLimit,
         },
       ];
     });
@@ -463,9 +501,13 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                           onClick={() =>
                             updateCartItem(item.drinkId, (current) => ({
                               ...current,
-                              quantity: Math.min(current.quantity + 1, 20),
+                              quantity:
+                                current.stockLimit === null
+                                  ? Math.min(current.quantity + 1, 20)
+                                  : Math.min(current.quantity + 1, current.stockLimit),
                             }))
                           }
+                          disabled={item.stockLimit !== null && item.quantity >= item.stockLimit}
                           className="rounded-none"
                         >
                           <PlusIcon className="size-4" />
@@ -794,6 +836,9 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                         <div className="grid gap-4">
                           {category.items.map((drink) => {
                             const cartItem = cartItems.find((item) => item.drinkId === drink.id);
+                            const stockLimit = getStockLimit(drink);
+                            const hasReachedStockLimit =
+                              stockLimit !== null && (cartItem?.quantity ?? 0) >= stockLimit;
                             const isUnavailable =
                               drink.isSoldOut || drink.isUnavailableDueToStock;
                             const unavailableLabel = drink.isSoldOut
@@ -876,10 +921,16 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                         onClick={() =>
                                           updateCartItem(drink.id, (current) => ({
                                             ...current,
-                                            quantity: Math.min(current.quantity + 1, 20),
+                                            quantity:
+                                              current.stockLimit === null
+                                                ? Math.min(current.quantity + 1, 20)
+                                                : Math.min(
+                                                    current.quantity + 1,
+                                                    current.stockLimit,
+                                                  ),
                                           }))
                                         }
-                                        disabled={isSubmitting || isUnavailable}
+                                        disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                         aria-label={`Increase ${drink.name} quantity`}
                                         className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
                                       >
@@ -891,15 +942,21 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                       type="button"
                                       variant="outline"
                                       onClick={() => addToCart(category, drink)}
-                                      disabled={isSubmitting || isUnavailable}
+                                      disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                       className={
-                                        isUnavailable
+                                        isUnavailable || hasReachedStockLimit
                                           ? "mt-3 h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
                                           : "mt-3 h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                       }
                                     >
-                                      {!isUnavailable ? <PlusIcon className="size-4" /> : null}
-                                      {isUnavailable ? unavailableLabel : "Add"}
+                                      {!isUnavailable && !hasReachedStockLimit ? (
+                                        <PlusIcon className="size-4" />
+                                      ) : null}
+                                      {isUnavailable
+                                        ? unavailableLabel
+                                        : hasReachedStockLimit
+                                          ? "Limit reached"
+                                          : "Add"}
                                     </Button>
                                   )}
                                 </div>
