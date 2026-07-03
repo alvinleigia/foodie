@@ -48,7 +48,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
-import { MenuCategoryRecord, MenuItemRecord, MenuTagRecord } from "@/types/menu";
+import {
+  MenuCategoryRecord,
+  MenuItemRecord,
+  MenuModifierGroupRecord,
+  MenuTagRecord,
+} from "@/types/menu";
 
 type CategoryDraft = {
   id: string | null;
@@ -69,6 +74,27 @@ type ItemDraft = {
   isActive: boolean;
   isSoldOut: boolean;
   tagIds: string[];
+  modifierGroupIds: string[];
+};
+
+type ModifierGroupDraft = {
+  name: string;
+  description: string;
+  selectionType: "SINGLE" | "MULTIPLE";
+  isRequired: boolean;
+  minSelections: string;
+  maxSelections: string;
+  sortOrder: string;
+  isActive: boolean;
+};
+
+type ModifierOptionDraft = {
+  groupId: string;
+  name: string;
+  priceDelta: string;
+  sortOrder: string;
+  isActive: boolean;
+  isSoldOut: boolean;
 };
 
 const emptyCategoryDraft: CategoryDraft = {
@@ -90,10 +116,32 @@ const emptyItemDraft: ItemDraft = {
   isActive: true,
   isSoldOut: false,
   tagIds: [],
+  modifierGroupIds: [],
+};
+
+const emptyModifierGroupDraft: ModifierGroupDraft = {
+  name: "",
+  description: "",
+  selectionType: "MULTIPLE",
+  isRequired: false,
+  minSelections: "0",
+  maxSelections: "",
+  sortOrder: "0",
+  isActive: true,
+};
+
+const emptyModifierOptionDraft: ModifierOptionDraft = {
+  groupId: "",
+  name: "",
+  priceDelta: "0",
+  sortOrder: "0",
+  isActive: true,
+  isSoldOut: false,
 };
 
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
+  const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
   const [currency, setCurrency] = useState("INR");
   const [isLoading, setIsLoading] = useState(true);
@@ -101,10 +149,14 @@ export function MenuManager() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
+  const [isModifierGroupDialogOpen, setIsModifierGroupDialogOpen] = useState(false);
+  const [isModifierOptionDialogOpen, setIsModifierOptionDialogOpen] = useState(false);
   const [isClearMenuDialogOpen, setIsClearMenuDialogOpen] = useState(false);
   const [clearMenuConfirmationText, setClearMenuConfirmationText] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategoryDraft);
   const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft);
+  const [modifierGroupDraft, setModifierGroupDraft] = useState<ModifierGroupDraft>(emptyModifierGroupDraft);
+  const [modifierOptionDraft, setModifierOptionDraft] = useState<ModifierOptionDraft>(emptyModifierOptionDraft);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sortedCategories = useMemo(
@@ -127,11 +179,13 @@ export function MenuManager() {
       if (!response.ok) {
         setError(payload.error ?? "Failed to load menu.");
         setCategories([]);
+        setModifierGroups([]);
         setIsLoading(false);
         return;
       }
 
       setCategories(payload.categories ?? []);
+      setModifierGroups(payload.modifierGroups ?? []);
       setTags(payload.tags ?? []);
       setCurrency(payload.currency ?? "INR");
       setError(null);
@@ -177,6 +231,7 @@ export function MenuManager() {
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
       tagIds: item.tags?.map((tag) => tag.id) ?? [],
+      modifierGroupIds: item.modifierGroups?.map((group) => group.id) ?? [],
     });
     setIsItemDialogOpen(true);
   }
@@ -188,6 +243,28 @@ export function MenuManager() {
         ? Array.from(new Set([...current.tagIds, tagId]))
         : current.tagIds.filter((currentTagId) => currentTagId !== tagId),
     }));
+  }
+
+  function toggleItemDraftModifierGroup(groupId: string, isSelected: boolean) {
+    setItemDraft((current) => ({
+      ...current,
+      modifierGroupIds: isSelected
+        ? Array.from(new Set([...current.modifierGroupIds, groupId]))
+        : current.modifierGroupIds.filter((currentGroupId) => currentGroupId !== groupId),
+    }));
+  }
+
+  function openCreateModifierGroupDialog() {
+    setModifierGroupDraft(emptyModifierGroupDraft);
+    setIsModifierGroupDialogOpen(true);
+  }
+
+  function openCreateModifierOptionDialog(groupId?: string) {
+    setModifierOptionDraft({
+      ...emptyModifierOptionDraft,
+      groupId: groupId ?? modifierGroups[0]?.id ?? "",
+    });
+    setIsModifierOptionDialogOpen(true);
   }
 
   async function submitCategory() {
@@ -244,6 +321,7 @@ export function MenuManager() {
         isActive: itemDraft.isActive,
         isSoldOut: itemDraft.isSoldOut,
         tagIds: itemDraft.tagIds,
+        modifierGroupIds: itemDraft.modifierGroupIds,
       }),
     });
 
@@ -263,6 +341,76 @@ export function MenuManager() {
     setItemDraft(emptyItemDraft);
     setPendingAction(null);
     toast.success(itemDraft.id ? "Item updated." : "Item added.");
+  }
+
+  async function submitModifierGroup() {
+    setPendingAction("modifier-group");
+
+    const response = await fetch("/api/menu/modifier-groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: modifierGroupDraft.name,
+        description: modifierGroupDraft.description,
+        selectionType: modifierGroupDraft.selectionType,
+        isRequired: modifierGroupDraft.isRequired,
+        minSelections: modifierGroupDraft.minSelections,
+        maxSelections: modifierGroupDraft.maxSelections,
+        sortOrder: modifierGroupDraft.sortOrder,
+        isActive: modifierGroupDraft.isActive,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      const message = getApiErrorMessage(payload);
+      setError(message);
+      toast.error(message);
+      setPendingAction(null);
+      return;
+    }
+
+    setCategories(payload.categories ?? []);
+    setModifierGroups(payload.modifierGroups ?? []);
+    setError(null);
+    setIsModifierGroupDialogOpen(false);
+    setModifierGroupDraft(emptyModifierGroupDraft);
+    setPendingAction(null);
+    toast.success("Add-on group added.");
+  }
+
+  async function submitModifierOption() {
+    setPendingAction("modifier-option");
+
+    const response = await fetch("/api/menu/modifiers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        groupId: modifierOptionDraft.groupId,
+        name: modifierOptionDraft.name,
+        priceDelta: modifierOptionDraft.priceDelta,
+        sortOrder: modifierOptionDraft.sortOrder,
+        isActive: modifierOptionDraft.isActive,
+        isSoldOut: modifierOptionDraft.isSoldOut,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      const message = getApiErrorMessage(payload);
+      setError(message);
+      toast.error(message);
+      setPendingAction(null);
+      return;
+    }
+
+    setCategories(payload.categories ?? []);
+    setModifierGroups(payload.modifierGroups ?? []);
+    setError(null);
+    setIsModifierOptionDialogOpen(false);
+    setModifierOptionDraft(emptyModifierOptionDraft);
+    setPendingAction(null);
+    toast.success("Add-on option added.");
   }
 
   async function toggleItemSoldOut(item: MenuItemRecord) {
@@ -458,6 +606,25 @@ export function MenuManager() {
             <Button
               type="button"
               variant="outline"
+              onClick={openCreateModifierGroupDialog}
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+            >
+              <TagsIcon className="size-4" />
+              Add Add-on Group
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openCreateModifierOptionDialog()}
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              disabled={modifierGroups.length === 0}
+            >
+              <PlusIcon className="size-4" />
+              Add Add-on Option
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => void exportMenu()}
               disabled={pendingAction === "export"}
               className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
@@ -506,6 +673,96 @@ export function MenuManager() {
               Required columns: category_name, item_name
             </p>
           </div>
+
+          <Card className="rounded-xl border-stone-200 bg-white shadow-none">
+            <CardContent className="space-y-4 px-5 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Add-ons
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-stone-950">
+                    Modifier groups
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Create reusable extras like extra patty, toppings, mixers or sauces, then attach them to products.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={openCreateModifierGroupDialog}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <TagsIcon className="size-4" />
+                    Add Group
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openCreateModifierOptionDialog()}
+                    disabled={modifierGroups.length === 0}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <PlusIcon className="size-4" />
+                    Add Option
+                  </Button>
+                </div>
+              </div>
+
+              {modifierGroups.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+                  No add-on groups yet. Add a group, then add options and attach it to products.
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {modifierGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-stone-950">{group.name}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
+                            {group.selectionType === "SINGLE" ? "Single choice" : "Multiple choice"}
+                            {group.isRequired ? " - Required" : ""}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openCreateModifierOptionDialog(group.id)}
+                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                        >
+                          <PlusIcon className="size-4" />
+                          Option
+                        </Button>
+                      </div>
+                      {group.options.length === 0 ? (
+                        <p className="mt-3 text-sm text-stone-500">No options yet.</p>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {group.options.map((option) => (
+                            <span
+                              key={option.id}
+                              className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700"
+                            >
+                              {option.name}
+                              {Number(option.priceDelta) > 0
+                                ? ` + ${formatPrice(option.priceDelta, { currency })}`
+                                : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {isLoading ? (
             <div className="flex items-center gap-2 text-sm text-stone-500">
@@ -611,6 +868,18 @@ export function MenuManager() {
                                       className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-stone-600"
                                     >
                                       {tag.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {item.modifierGroups && item.modifierGroups.length > 0 ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.modifierGroups.map((group) => (
+                                    <span
+                                      key={group.id}
+                                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700"
+                                    >
+                                      {group.name}
                                     </span>
                                   ))}
                                 </div>
@@ -874,6 +1143,31 @@ export function MenuManager() {
               )}
             </FormField>
 
+            <FormField label="Add-ons">
+              {modifierGroups.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
+                  No add-on groups are available yet. Create add-on groups in Menu Manager first.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {modifierGroups.map((group) => (
+                    <label
+                      key={group.id}
+                      className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-900"
+                    >
+                      <Checkbox
+                        checked={itemDraft.modifierGroupIds.includes(group.id)}
+                        onCheckedChange={(checked) =>
+                          toggleItemDraftModifierGroup(group.id, checked === true)
+                        }
+                      />
+                      <span>{group.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </FormField>
+
             <FormField label="Image URL">
               <Input
                 type="url"
@@ -948,6 +1242,265 @@ export function MenuManager() {
                 <ButtonLabel icon={SaveIcon}>Save Product</ButtonLabel>
               ) : (
                 <ButtonLabel icon={PlusIcon}>Add Product</ButtonLabel>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isModifierGroupDialogOpen} onOpenChange={setIsModifierGroupDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-xl border border-white/70 bg-white p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-2xl text-stone-950">Add add-on group</DialogTitle>
+            <DialogDescription>
+              Create a reusable group like toppings, extras, sauces or mixers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 pb-4">
+            <FormField label="Group name">
+              <Input
+                value={modifierGroupDraft.name}
+                onChange={(event) =>
+                  setModifierGroupDraft((current) => ({ ...current, name: event.target.value }))
+                }
+                placeholder="Extra toppings"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+              />
+            </FormField>
+            <FormField label="Description">
+              <Textarea
+                value={modifierGroupDraft.description}
+                onChange={(event) =>
+                  setModifierGroupDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                rows={3}
+              />
+            </FormField>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Selection type">
+                <NativeSelect
+                  value={modifierGroupDraft.selectionType}
+                  onChange={(event) =>
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      selectionType: event.target.value as "SINGLE" | "MULTIPLE",
+                    }))
+                  }
+                >
+                  <option value="MULTIPLE">Multiple choice</option>
+                  <option value="SINGLE">Single choice</option>
+                </NativeSelect>
+              </FormField>
+              <FormField label="Sort order">
+                <Input
+                  type="number"
+                  min="0"
+                  value={modifierGroupDraft.sortOrder}
+                  onChange={(event) =>
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      sortOrder: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Minimum selections">
+                <Input
+                  type="number"
+                  min="0"
+                  value={modifierGroupDraft.minSelections}
+                  onChange={(event) =>
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      minSelections: event.target.value,
+                    }))
+                  }
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+              <FormField label="Maximum selections">
+                <Input
+                  type="number"
+                  min="1"
+                  value={modifierGroupDraft.maxSelections}
+                  onChange={(event) =>
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      maxSelections: event.target.value,
+                    }))
+                  }
+                  placeholder="No limit"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierGroupDraft.isRequired}
+                onCheckedChange={(checked) =>
+                  setModifierGroupDraft((current) => ({
+                    ...current,
+                    isRequired: checked === true,
+                  }))
+                }
+              />
+              Require customers to choose from this group
+            </label>
+          </div>
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModifierGroupDialogOpen(false)}
+              className="rounded-lg"
+            >
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitModifierGroup()}
+              disabled={pendingAction === "modifier-group"}
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+            >
+              {pendingAction === "modifier-group" ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                <ButtonLabel icon={PlusIcon}>Add Group</ButtonLabel>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isModifierOptionDialogOpen} onOpenChange={setIsModifierOptionDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-xl border border-white/70 bg-white p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-2xl text-stone-950">Add add-on option</DialogTitle>
+            <DialogDescription>
+              Add a selectable option inside an add-on group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 pb-4">
+            <FormField label="Add-on group">
+              <NativeSelect
+                value={modifierOptionDraft.groupId}
+                onChange={(event) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    groupId: event.target.value,
+                  }))
+                }
+              >
+                <option value="">Choose a group</option>
+                {modifierGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField label="Option name">
+                <Input
+                  value={modifierOptionDraft.name}
+                  onChange={(event) =>
+                    setModifierOptionDraft((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }))
+                  }
+                  placeholder="Extra patty"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+              <FormField label="Extra price">
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={modifierOptionDraft.priceDelta}
+                  onChange={(event) =>
+                    setModifierOptionDraft((current) => ({
+                      ...current,
+                      priceDelta: event.target.value,
+                    }))
+                  }
+                  placeholder="0.00"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            <FormField label="Sort order">
+              <Input
+                type="number"
+                min="0"
+                value={modifierOptionDraft.sortOrder}
+                onChange={(event) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    sortOrder: event.target.value,
+                  }))
+                }
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+              />
+            </FormField>
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierOptionDraft.isActive}
+                onCheckedChange={(checked) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    isActive: checked === true,
+                  }))
+                }
+              />
+              Show this add-on to customers
+            </label>
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierOptionDraft.isSoldOut}
+                onCheckedChange={(checked) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    isSoldOut: checked === true,
+                  }))
+                }
+              />
+              Mark this add-on as sold out
+            </label>
+          </div>
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModifierOptionDialogOpen(false)}
+              className="rounded-lg"
+            >
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitModifierOption()}
+              disabled={pendingAction === "modifier-option"}
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+            >
+              {pendingAction === "modifier-option" ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                <ButtonLabel icon={PlusIcon}>Add Option</ButtonLabel>
               )}
             </Button>
           </DialogFooter>

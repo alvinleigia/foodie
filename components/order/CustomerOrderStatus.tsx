@@ -296,6 +296,7 @@ export function CustomerOrderStatus({
                       status={item.status}
                       currency={currency}
                       unitPrice={item.unitPrice}
+                      modifiers={item.modifiers}
                     />
                   ))}
                 </div>

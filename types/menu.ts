@@ -15,6 +15,7 @@ export type MenuItemRecord = {
   inventoryQuantity?: string | null;
   isUnavailableDueToStock?: boolean;
   tags?: MenuTagRecord[];
+  modifierGroups?: MenuModifierGroupRecord[];
 };
 
 export type MenuCategoryRecord = {
@@ -37,4 +38,31 @@ export type MenuTagRecord = {
   color: string;
   sortOrder: number;
   isActive: boolean;
+};
+
+export type MenuModifierOptionRecord = {
+  id: string;
+  groupId: string;
+  slug: string;
+  name: string;
+  priceDelta: string;
+  sortOrder: number;
+  isActive: boolean;
+  isSoldOut: boolean;
+};
+
+export type MenuModifierGroupRecord = {
+  id: string;
+  organizationId: string;
+  locationId: string | null;
+  slug: string;
+  name: string;
+  description: string | null;
+  selectionType: "SINGLE" | "MULTIPLE";
+  isRequired: boolean;
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder: number;
+  isActive: boolean;
+  options: MenuModifierOptionRecord[];
 };

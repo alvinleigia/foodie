@@ -58,6 +58,15 @@ type StaffOrder = {
     readyAt: string | null;
     deliveredAt: string | null;
     cancelledAt: string | null;
+    modifiers?: Array<{
+      id?: string;
+      modifierGroupId: string;
+      modifierGroupName: string;
+      modifierId: string;
+      modifierName: string;
+      quantity: number;
+      priceDelta: string;
+    }>;
   }>;
   status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
   createdAt: string;

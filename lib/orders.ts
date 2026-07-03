@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
-import { OrderLineItem, OrderStatus } from "@/lib/constants";
+import { orderItemModifiers, orderItems, orders } from "@/db/schema";
+import { OrderLineItem, OrderLineItemModifier, OrderStatus } from "@/lib/constants";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 
 export function isActiveOrderStatus(status: OrderStatus) {
@@ -13,7 +13,10 @@ export function isPastOrderStatus(status: OrderStatus) {
   return status === "DELIVERED" || status === "CANCELLED";
 }
 
-function groupItemsByOrder(items: typeof orderItems.$inferSelect[]) {
+function groupItemsByOrder(
+  items: typeof orderItems.$inferSelect[],
+  modifiersByItemId = new Map<string, OrderLineItemModifier[]>(),
+) {
   const map = new Map<string, OrderLineItem[]>();
 
   for (const item of items) {
@@ -34,11 +37,50 @@ function groupItemsByOrder(items: typeof orderItems.$inferSelect[]) {
       readyAt: item.readyAt?.toISOString() ?? null,
       deliveredAt: item.deliveredAt?.toISOString() ?? null,
       cancelledAt: item.cancelledAt?.toISOString() ?? null,
+      modifiers: modifiersByItemId.get(item.id) ?? [],
     });
     map.set(item.orderId, list);
   }
 
   return map;
+}
+
+async function getModifiersByOrderItemId(
+  itemIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, OrderLineItemModifier[]>();
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(orderItemModifiers)
+    .where(
+      and(
+        inArray(orderItemModifiers.orderItemId, itemIds),
+        eq(orderItemModifiers.organizationId, context.organizationId),
+        eq(orderItemModifiers.locationId, context.locationId),
+      ),
+    );
+  const modifiersByItemId = new Map<string, OrderLineItemModifier[]>();
+
+  for (const row of rows) {
+    const modifiers = modifiersByItemId.get(row.orderItemId) ?? [];
+    modifiers.push({
+      id: row.id,
+      modifierGroupId: row.modifierGroupId,
+      modifierGroupName: row.modifierGroupName,
+      modifierId: row.modifierId,
+      modifierName: row.modifierName,
+      quantity: row.quantity,
+      priceDelta: row.priceDelta,
+    });
+    modifiersByItemId.set(row.orderItemId, modifiers);
+  }
+
+  return modifiersByItemId;
 }
 
 export function buildOrderSummary(items: Array<{ drinkName: string; quantity: number }>) {
@@ -214,7 +256,12 @@ export async function getOrderItemsForOrders(
       ),
     );
 
-  return groupItemsByOrder(items);
+  const modifiersByItemId = await getModifiersByOrderItemId(
+    items.map((item) => item.id),
+    context,
+  );
+
+  return groupItemsByOrder(items, modifiersByItemId);
 }
 
 export async function getOrderItems(
@@ -233,5 +280,10 @@ export async function getOrderItems(
       ),
     );
 
-  return groupItemsByOrder(items).get(orderId) ?? [];
+  const modifiersByItemId = await getModifiersByOrderItemId(
+    items.map((item) => item.id),
+    context,
+  );
+
+  return groupItemsByOrder(items, modifiersByItemId).get(orderId) ?? [];
 }

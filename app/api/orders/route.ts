@@ -9,13 +9,17 @@ import {
   serializeOrder,
 } from "@/lib/orders";
 import { getOrdersResetAt } from "@/lib/order-reset";
-import { getMenuSelectionSnapshot, getTenantMenuCurrency } from "@/lib/menu";
+import {
+  getMenuModifierSelectionSnapshots,
+  getMenuSelectionSnapshot,
+  getTenantMenuCurrency,
+} from "@/lib/menu";
 import {
   InventoryReservationError,
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderItemModifiers, orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
 import {
@@ -98,6 +102,14 @@ export async function POST(request: NextRequest) {
       unitPrice: string | null;
       status: "PENDING";
       shouldReserveInventory: boolean;
+      modifiers: Array<{
+        modifierGroupId: string;
+        modifierGroupName: string;
+        modifierId: string;
+        modifierName: string;
+        quantity: number;
+        priceDelta: string;
+      }>;
       startedAt: null;
       readyAt: null;
       deliveredAt: null;
@@ -124,6 +136,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const modifiers = await getMenuModifierSelectionSnapshots(
+        item.id,
+        requestedItem.modifiers,
+        tenantContext,
+      );
+
       cartItems.push({
         categoryId: category.id,
         organizationId: tenantContext.organizationId,
@@ -136,6 +154,7 @@ export async function POST(request: NextRequest) {
         unitPrice: item.price ?? null,
         status: "PENDING",
         shouldReserveInventory: Boolean(inventory?.isTracked),
+        modifiers,
         startedAt: null,
         readyAt: null,
         deliveredAt: null,
@@ -171,8 +190,6 @@ export async function POST(request: NextRequest) {
         .returning();
 
       const now = new Date();
-      const itemsToCreate = [];
-
       for (const item of cartItems) {
         const inventoryReservedAt = item.shouldReserveInventory
           ? await reserveInventoryForOrderItem(tx, tenantContext, item).then((wasReserved) =>
@@ -180,23 +197,40 @@ export async function POST(request: NextRequest) {
             )
           : null;
 
-        itemsToCreate.push({
-          organizationId: tenantContext.organizationId,
-          locationId: tenantContext.locationId,
-          orderId: newOrder.id,
-          categoryId: item.categoryId,
-          categoryName: item.categoryName,
-          drinkId: item.drinkId,
-          drinkName: item.drinkName,
-          quantity: item.quantity,
-          notes: item.notes,
-          unitPrice: item.unitPrice,
-          inventoryReservedAt,
-          updatedAt: now,
-        });
-      }
+        const [newOrderItem] = await tx
+          .insert(orderItems)
+          .values({
+            organizationId: tenantContext.organizationId,
+            locationId: tenantContext.locationId,
+            orderId: newOrder.id,
+            categoryId: item.categoryId,
+            categoryName: item.categoryName,
+            drinkId: item.drinkId,
+            drinkName: item.drinkName,
+            quantity: item.quantity,
+            notes: item.notes,
+            unitPrice: item.unitPrice,
+            inventoryReservedAt,
+            updatedAt: now,
+          })
+          .returning({ id: orderItems.id });
 
-      await tx.insert(orderItems).values(itemsToCreate);
+        if (item.modifiers.length > 0 && newOrderItem) {
+          await tx.insert(orderItemModifiers).values(
+            item.modifiers.map((modifier) => ({
+              organizationId: tenantContext.organizationId,
+              locationId: tenantContext.locationId,
+              orderItemId: newOrderItem.id,
+              modifierGroupId: modifier.modifierGroupId,
+              modifierGroupName: modifier.modifierGroupName,
+              modifierId: modifier.modifierId,
+              modifierName: modifier.modifierName,
+              quantity: modifier.quantity,
+              priceDelta: modifier.priceDelta,
+            })),
+          );
+        }
+      }
 
       return newOrder;
     });

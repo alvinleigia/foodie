@@ -4,13 +4,17 @@ import postgres from "postgres";
 const PLATFORM_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000000";
 
 function readDatabaseUrl() {
+  if (process.env.DATABASE_URL) {
+    return process.env.DATABASE_URL;
+  }
+
   const envLine = fs
     .readFileSync(".env.local", "utf8")
     .split(/\r?\n/)
     .find((line) => line.startsWith("DATABASE_URL="));
 
   if (!envLine) {
-    throw new Error("DATABASE_URL is missing from .env.local.");
+    throw new Error("DATABASE_URL is missing from .env.local or the current shell.");
   }
 
   return envLine

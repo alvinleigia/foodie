@@ -29,6 +29,7 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -39,7 +40,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { MenuCategoryRecord, MenuItemRecord } from "@/types/menu";
+import {
+  MenuCategoryRecord,
+  MenuItemRecord,
+  MenuModifierGroupRecord,
+  MenuModifierOptionRecord,
+} from "@/types/menu";
 
 type OrderFormProps = {
   locationQrSlug?: string;
@@ -56,6 +62,17 @@ type CartItem = {
   notes: string;
   unitPrice: string | null;
   stockLimit: number | null;
+  modifierGroups: MenuModifierGroupRecord[];
+  modifierSelections: CartModifierSelection[];
+};
+
+type CartModifierSelection = {
+  groupId: string;
+  groupName: string;
+  modifierId: string;
+  modifierName: string;
+  quantity: number;
+  priceDelta: string;
 };
 
 type OrderDraft = {
@@ -96,6 +113,40 @@ function getStockLimitError(drinkName: string, stockLimit: number) {
   return stockLimit <= 0
     ? `${drinkName} is currently unavailable.`
     : `Only ${stockLimit} ${stockLimit === 1 ? "item is" : "items are"} available for ${drinkName}.`;
+}
+
+function getCartItemUnitTotal(item: CartItem) {
+  const basePrice = item.unitPrice ? Number(item.unitPrice) : 0;
+  const modifierPrice = item.modifierSelections.reduce(
+    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
+    0,
+  );
+
+  if (!item.unitPrice && modifierPrice === 0) {
+    return null;
+  }
+
+  return basePrice + modifierPrice;
+}
+
+function getCartItemLineTotal(item: CartItem) {
+  const unitTotal = getCartItemUnitTotal(item);
+  return unitTotal === null ? null : unitTotal * item.quantity;
+}
+
+function formatCartItemLineTotal(item: CartItem, currency: string) {
+  const lineTotal = getCartItemLineTotal(item);
+  return lineTotal === null ? "-" : formatPrice(lineTotal, { currency });
+}
+
+function getModifierSelection(
+  item: CartItem,
+  group: MenuModifierGroupRecord,
+  option: MenuModifierOptionRecord,
+) {
+  return item.modifierSelections.find(
+    (selection) => selection.groupId === group.id && selection.modifierId === option.id,
+  );
 }
 
 export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
@@ -244,23 +295,16 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     };
   }, [menuCategories.length]);
 
-  useEffect(() => {
-    if (visibleMenuCategories.some((category) => category.id === activeCategoryId)) {
-      return;
-    }
-
-    setActiveCategoryId(visibleMenuCategories[0]?.id);
-  }, [activeCategoryId, visibleMenuCategories]);
-
   const totalProducts = useMemo(
     () => visibleMenuCategories.reduce((count, category) => count + category.items.length, 0),
     [visibleMenuCategories],
   );
 
-  const totalMenuProducts = useMemo(
-    () => menuCategories.reduce((count, category) => count + category.items.length, 0),
-    [menuCategories],
-  );
+  const currentActiveCategoryId = visibleMenuCategories.some(
+    (category) => category.id === activeCategoryId,
+  )
+    ? activeCategoryId
+    : visibleMenuCategories[0]?.id;
 
   const totalQuantity = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -269,14 +313,16 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
 
   const totalAmount = useMemo(() => {
     const pricedTotal = cartItems.reduce((sum, item) => {
-      if (!item.unitPrice) {
+      const lineTotal = getCartItemLineTotal(item);
+
+      if (lineTotal === null) {
         return sum;
       }
 
-      return sum + Number(item.unitPrice) * item.quantity;
+      return sum + lineTotal;
     }, 0);
 
-    const hasAnyPrice = cartItems.some((item) => item.unitPrice);
+    const hasAnyPrice = cartItems.some((item) => getCartItemLineTotal(item) !== null);
     return hasAnyPrice ? pricedTotal.toFixed(2) : null;
   }, [cartItems]);
 
@@ -333,6 +379,8 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           notes: "",
           unitPrice: drink.price ?? null,
           stockLimit,
+          modifierGroups: drink.modifierGroups ?? [],
+          modifierSelections: [],
         },
       ];
     });
@@ -352,6 +400,97 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     );
   }
 
+  function toggleCartItemModifier(
+    drinkId: string,
+    group: MenuModifierGroupRecord,
+    option: MenuModifierOptionRecord,
+  ) {
+    const cartItem = cartItems.find((item) => item.drinkId === drinkId);
+    const existingSelection = cartItem ? getModifierSelection(cartItem, group, option) : null;
+
+    if (
+      cartItem &&
+      !existingSelection &&
+      group.selectionType === "MULTIPLE" &&
+      group.maxSelections !== null
+    ) {
+      const currentGroupSelections = cartItem.modifierSelections.filter(
+        (selection) => selection.groupId === group.id,
+      );
+
+      if (currentGroupSelections.length >= group.maxSelections) {
+        setError(`Choose up to ${group.maxSelections} option(s) for ${group.name}.`);
+        return;
+      }
+    }
+
+    updateCartItem(drinkId, (current) => {
+      const currentSelection = getModifierSelection(current, group, option);
+
+      if (currentSelection) {
+        if (group.selectionType === "SINGLE" && group.isRequired) {
+          return current;
+        }
+
+        return {
+          ...current,
+          modifierSelections: current.modifierSelections.filter(
+            (selection) =>
+              !(selection.groupId === group.id && selection.modifierId === option.id),
+          ),
+        };
+      }
+
+      const nextSelection: CartModifierSelection = {
+        groupId: group.id,
+        groupName: group.name,
+        modifierId: option.id,
+        modifierName: option.name,
+        quantity: 1,
+        priceDelta: option.priceDelta,
+      };
+
+      if (group.selectionType === "SINGLE") {
+        return {
+          ...current,
+          modifierSelections: [
+            ...current.modifierSelections.filter((selection) => selection.groupId !== group.id),
+            nextSelection,
+          ],
+        };
+      }
+
+      return {
+        ...current,
+        modifierSelections: [...current.modifierSelections, nextSelection],
+      };
+    });
+  }
+
+  function getModifierValidationError() {
+    for (const item of cartItems) {
+      for (const group of item.modifierGroups) {
+        const selectedCount = item.modifierSelections.filter(
+          (selection) => selection.groupId === group.id,
+        ).length;
+
+        if (group.isRequired && selectedCount === 0) {
+          return `Choose an option for ${group.name} on ${item.drinkName}.`;
+        }
+
+        if (selectedCount < group.minSelections) {
+          return `Choose at least ${group.minSelections} option(s) for ${group.name} on ${item.drinkName}.`;
+        }
+
+        if (group.maxSelections !== null && selectedCount > group.maxSelections) {
+          return `Choose up to ${group.maxSelections} option(s) for ${group.name} on ${item.drinkName}.`;
+        }
+      }
+    }
+
+    return null;
+  }
+
   function scrollToCategory(categoryId: string) {
     setActiveCategoryId(categoryId);
     categoryRefs.current[categoryId]?.scrollIntoView({
@@ -366,6 +505,14 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
       return;
     }
 
+    const modifierError = getModifierValidationError();
+
+    if (modifierError) {
+      setError(modifierError);
+      setIsCartOpen(true);
+      return;
+    }
+
     setError(null);
     setIsCartOpen(false);
     setScreen("review");
@@ -374,6 +521,15 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   async function confirmOrder() {
     if (draft.customerName.trim().length < 2) {
       setError("Please enter the customer's name.");
+      return;
+    }
+
+    const modifierError = getModifierValidationError();
+
+    if (modifierError) {
+      setError(modifierError);
+      setScreen("menu");
+      setIsCartOpen(true);
       return;
     }
 
@@ -390,6 +546,11 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           drinkId: item.drinkId,
           quantity: item.quantity,
           notes: item.notes.trim(),
+          modifiers: item.modifierSelections.map((modifier) => ({
+            groupId: modifier.groupId,
+            modifierId: modifier.modifierId,
+            quantity: modifier.quantity,
+          })),
         })),
       }),
     });
@@ -462,7 +623,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                         <p className="text-base font-semibold text-stone-950">{item.drinkName}</p>
                         <p className="text-sm text-stone-500">{item.categoryName}</p>
                         <p className="mt-1 text-sm font-semibold text-stone-900">
-                          {formatPrice(item.unitPrice, { currency })}
+                          {formatPrice(getCartItemUnitTotal(item)?.toFixed(2) ?? null, { currency })}
                         </p>
                       </div>
                       <Button
@@ -514,6 +675,65 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                         </Button>
                       </div>
                     </div>
+
+                    {item.modifierGroups.length > 0 ? (
+                      <div className="mt-4 grid gap-3">
+                        {item.modifierGroups.map((group) => (
+                          <div key={group.id} className="rounded-lg border border-stone-200 p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-stone-950">
+                                  {group.name}
+                                </p>
+                                <p className="mt-0.5 text-xs text-stone-500">
+                                  {group.selectionType === "SINGLE"
+                                    ? "Choose one"
+                                    : "Choose any"}
+                                  {group.isRequired ? " - Required" : ""}
+                                </p>
+                              </div>
+                              {group.maxSelections !== null ? (
+                                <span className="rounded-md bg-stone-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+                                  Max {group.maxSelections}
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <div className="mt-3 grid gap-2">
+                              {group.options.map((option) => {
+                                const selection = getModifierSelection(item, group, option);
+
+                                return (
+                                  <label
+                                    key={option.id}
+                                    className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+                                  >
+                                    <span className="inline-flex items-center gap-3">
+                                      <Checkbox
+                                        checked={Boolean(selection)}
+                                        disabled={option.isSoldOut}
+                                        onCheckedChange={() =>
+                                          toggleCartItemModifier(item.drinkId, group, option)
+                                        }
+                                      />
+                                      <span className="font-medium text-stone-900">
+                                        {option.name}
+                                        {option.isSoldOut ? " (sold out)" : ""}
+                                      </span>
+                                    </span>
+                                    <span className="text-xs font-semibold text-stone-600">
+                                      {Number(option.priceDelta) > 0
+                                        ? `+ ${formatPrice(option.priceDelta, { currency })}`
+                                        : "Included"}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <div className="mt-4">
                       <FormField label="Notes for this item">
@@ -615,14 +835,27 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                         {item.drinkName} x{item.quantity}
                       </p>
                       <p className="text-stone-500">{item.categoryName}</p>
+                      {item.modifierSelections.length > 0 ? (
+                        <div className="mt-1 grid gap-1">
+                          {item.modifierSelections.map((modifier) => (
+                            <p
+                              key={`${modifier.groupId}-${modifier.modifierId}`}
+                              className="text-xs text-stone-500"
+                            >
+                              {modifier.groupName}: {modifier.modifierName}
+                              {Number(modifier.priceDelta) > 0
+                                ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
+                                : ""}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                       {item.notes.trim() ? (
                         <p className="mt-1 text-xs text-stone-500">Note: {item.notes.trim()}</p>
                       ) : null}
                     </div>
                     <p className="font-medium text-stone-900">
-                      {item.unitPrice
-                        ? formatPrice(Number(item.unitPrice) * item.quantity, { currency })
-                        : "-"}
+                      {formatCartItemLineTotal(item, currency)}
                     </p>
                   </div>
                 ))}
@@ -703,7 +936,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                   </p>
                 </div>
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-400">
-                  {isLoadingMenu ? "Loading menu..." : `${menuCategories.length} categories • ${totalProducts} products`}
+                  {isLoadingMenu ? "Loading menu..." : `${menuCategories.length} categories - ${totalProducts} products`}
                 </p>
               </div>
 
@@ -786,10 +1019,10 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                           <Button
                             key={category.id}
                             type="button"
-                            variant={activeCategoryId === category.id ? "default" : "outline"}
+                            variant={currentActiveCategoryId === category.id ? "default" : "outline"}
                             onClick={() => scrollToCategory(category.id)}
                             className={
-                              activeCategoryId === category.id
+                              currentActiveCategoryId === category.id
                                 ? "h-9 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
                                 : "h-9 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
                             }
@@ -889,6 +1122,13 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                           {tag.name}
                                         </span>
                                       ))}
+                                    </div>
+                                  ) : null}
+                                  {drink.modifierGroups && drink.modifierGroups.length > 0 ? (
+                                    <div className="mt-2">
+                                      <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                                        Customizable
+                                      </span>
                                     </div>
                                   ) : null}
                                   <p className="mt-3 text-sm font-semibold text-stone-950">
@@ -1003,7 +1243,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               <p className="truncate text-xs text-stone-500">
                 {cartItems[0].drinkName}
                 {cartItems.length > 1 ? ` + ${cartItems.length - 1} more` : ""}
-                {" • "}
+                {" - "}
                 {formatPrice(totalAmount, { currency })}
               </p>
             </div>
