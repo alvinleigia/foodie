@@ -23,6 +23,7 @@ type InviteAcceptFormProps = {
 
 export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +79,12 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
           className="grid gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
+
+            if (invitation.requiresPassword && password !== confirmPassword) {
+              setError("Passwords do not match.");
+              return;
+            }
+
             setIsSubmitting(true);
 
             try {
@@ -103,14 +110,24 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
         >
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
           {invitation.requiresPassword ? (
-            <FormField label="Password">
-              <Input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Minimum 8 characters"
-              />
-            </FormField>
+            <>
+              <FormField label="Password">
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Minimum 8 characters"
+                />
+              </FormField>
+              <FormField label="Confirm password">
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Re-enter password"
+                />
+              </FormField>
+            </>
           ) : (
             <p className="rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
               This email already has a Foodie account. Accepting this invite will
