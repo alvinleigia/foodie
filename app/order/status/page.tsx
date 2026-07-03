@@ -31,7 +31,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
   const locationSlug =
     props.locationSlug ?? (typeof locationValue === "string" ? locationValue : undefined);
-  const { hasTenantContext, user } = await getPublicOrderRouteContext({
+  const { hasTenantContext, unavailableReason, user } = await getPublicOrderRouteContext({
     locationQrSlug,
     locationSlug,
   });
@@ -64,7 +64,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
           />
         </>
       ) : (
-        <CustomerOrderUnavailable user={user} />
+        <CustomerOrderUnavailable reason={unavailableReason} user={user} />
       )}
     </AppShell>
   );

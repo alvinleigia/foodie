@@ -1,13 +1,18 @@
 import { headers } from "next/headers";
 
 import { auth } from "@/auth";
-import { getTenantContextFromDomain } from "@/lib/tenant-domains";
+import {
+  getInactiveTenantDomain,
+  getTenantContextFromDomain,
+} from "@/lib/tenant-domains";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type PublicOrderRouteOptions = {
   locationQrSlug?: string;
   locationSlug?: string;
 };
+
+export type PublicOrderUnavailableReason = "MISSING_CONTEXT" | "DOMAIN_DISABLED";
 
 export async function getPublicOrderRouteContext({
   locationQrSlug,
@@ -38,6 +43,7 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      unavailableReason: "MISSING_CONTEXT" as const,
       user,
     };
   }
@@ -49,6 +55,11 @@ export async function getPublicOrderRouteContext({
 
   return {
     hasTenantContext: Boolean(domainContext),
+    unavailableReason: domainContext
+      ? undefined
+      : (await getInactiveTenantDomain(requestDomain).catch(() => null))
+        ? ("DOMAIN_DISABLED" as const)
+        : ("MISSING_CONTEXT" as const),
     user,
   };
 }

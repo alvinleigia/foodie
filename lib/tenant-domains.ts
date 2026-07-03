@@ -244,6 +244,35 @@ export async function getTenantContextFromDomain(
   return context;
 }
 
+export async function getInactiveTenantDomain(domain: string | null | undefined) {
+  const normalizedDomain = normalizeDomain(domain);
+
+  if (!normalizedDomain || normalizedDomain === "localhost" || isRootPlatformDomain(normalizedDomain)) {
+    return null;
+  }
+
+  const [domainRecord] = await getDb()
+    .select({
+      domain: tenantDomains.domain,
+      scope: tenantDomains.scope,
+      purpose: tenantDomains.purpose,
+    })
+    .from(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.domain, normalizedDomain),
+        eq(tenantDomains.isActive, false),
+      ),
+    )
+    .limit(1);
+
+  if (!domainRecord || domainRecord.scope === "PLATFORM") {
+    return null;
+  }
+
+  return domainRecord;
+}
+
 export async function getTenantContextFromRequestDomain(
   request: Request,
   locationSlug?: string | null,

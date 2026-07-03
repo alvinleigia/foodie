@@ -236,7 +236,7 @@ export function CompanyDomainsPanel({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-stone-950">{domainRecord.domain}</p>
-                  {domainRecord.isPrimary ? (
+                  {domainRecord.isActive && domainRecord.isPrimary ? (
                     <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
                       Primary
                     </span>
@@ -254,15 +254,21 @@ export function CompanyDomainsPanel({
                     {domainRecord.purpose.toLowerCase()}
                   </span>
                 </div>
-                <a
-                  href={`https://${domainRecord.domain}/order`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-stone-600 hover:text-stone-950"
-                >
-                  Open ordering domain
-                  <ExternalLinkIcon className="size-3.5" />
-                </a>
+                {domainRecord.isActive ? (
+                  <a
+                    href={`https://${domainRecord.domain}/order`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-stone-600 hover:text-stone-950"
+                  >
+                    Open ordering domain
+                    <ExternalLinkIcon className="size-3.5" />
+                  </a>
+                ) : (
+                  <p className="mt-2 text-sm text-stone-500">
+                    Disabled in Foodie. DNS may still resolve, but tenant access is blocked.
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -286,7 +292,11 @@ export function CompanyDomainsPanel({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={pendingDomainId === domainRecord.id || domainRecord.isPrimary}
+                  disabled={
+                    pendingDomainId === domainRecord.id ||
+                    domainRecord.isPrimary ||
+                    !domainRecord.isActive
+                  }
                   onClick={() => updateDomain(domainRecord, { isPrimary: true })}
                   className="rounded-lg"
                 >

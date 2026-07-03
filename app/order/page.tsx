@@ -9,7 +9,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const locationValue = searchParams.location;
   const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
   const locationSlug = typeof locationValue === "string" ? locationValue : undefined;
-  const { hasTenantContext, user } = await getPublicOrderRouteContext({
+  const { hasTenantContext, unavailableReason, user } = await getPublicOrderRouteContext({
     locationQrSlug,
     locationSlug,
   });
@@ -23,7 +23,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
           user={user}
         />
       ) : (
-        <CustomerOrderUnavailable user={user} />
+        <CustomerOrderUnavailable reason={unavailableReason} user={user} />
       )}
     </AppShell>
   );
