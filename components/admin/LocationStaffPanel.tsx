@@ -4,6 +4,7 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
+  UserPenIcon,
   UserPlusIcon,
 } from "lucide-react";
 
@@ -132,6 +133,13 @@ export function LocationStaffPanel({
                         href={`/company/users/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
                       >
                         Edit access
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={`/users/${user.membershipId}/account?returnTo=${encodeURIComponent(currentHref)}`}
+                      >
+                        <ButtonLabel icon={UserPenIcon}>Edit account details</ButtonLabel>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

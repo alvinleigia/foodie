@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { KeyRoundIcon, UserCheckIcon } from "lucide-react";
+import { KeyRoundIcon, UserCheckIcon, UserPenIcon } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
@@ -155,6 +155,13 @@ export function PlatformUserMembershipsPanel({
                         {membership.isActive ? "Access active" : "Access disabled"}
                       </StatusPill>
                       <StatusPill>{formatRole(membership.role)}</StatusPill>
+                      <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
+                        <Link
+                          href={`/users/${membership.membershipId}/account?returnTo=${encodeURIComponent("/platform/users/memberships")}`}
+                        >
+                          <ButtonLabel icon={UserPenIcon}>Account</ButtonLabel>
+                        </Link>
+                      </Button>
                       <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
                         <Link
                           href={`/users/${membership.membershipId}/reset-password?returnTo=${encodeURIComponent("/platform/users/memberships")}`}

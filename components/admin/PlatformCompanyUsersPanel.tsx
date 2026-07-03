@@ -3,6 +3,7 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
+  UserPenIcon,
   UserPlusIcon,
 } from "lucide-react";
 
@@ -55,6 +56,10 @@ function formatDate(value: string) {
 
 function getResetHref(membershipId: string, returnTo: string) {
   return `/users/${membershipId}/reset-password?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
+function getAccountHref(membershipId: string, returnTo: string) {
+  return `/users/${membershipId}/account?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
 export function PlatformCompanyUsersPanel({
@@ -148,6 +153,11 @@ export function PlatformCompanyUsersPanel({
                   <DropdownMenuLabel>User actions</DropdownMenuLabel>
                   <DropdownMenuItem asChild>
                     <Link href={`${editHrefBase}/${user.membershipId}`}>Edit access</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={getAccountHref(user.membershipId, editHrefBase)}>
+                      <ButtonLabel icon={UserPenIcon}>Edit account details</ButtonLabel>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={getResetHref(user.membershipId, editHrefBase)}>

@@ -7,6 +7,7 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
+  UserPenIcon,
   UserPlusIcon,
 } from "lucide-react";
 
@@ -295,6 +296,15 @@ export function RestaurantAdminPanel({
                           <DropdownMenuItem asChild>
                             <Link href={`/restaurant/staff/${staff.membershipId}`}>
                               Edit access
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/users/${staff.membershipId}/account?returnTo=/restaurant`}
+                            >
+                              <ButtonLabel icon={UserPenIcon}>
+                                Edit account details
+                              </ButtonLabel>
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>

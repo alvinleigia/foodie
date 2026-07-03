@@ -115,6 +115,12 @@ export const resetPasswordSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+export const updateUserAccountSchema = z.object({
+  username: z.string().trim().min(3, "Username is required").max(60),
+  name: z.string().trim().min(2, "Name is required").max(120),
+  email: z.string().trim().email("Enter a valid email"),
+});
+
 export const createCompanyOrganizationSchema = z.object({
   name: z.string().trim().min(2, "Company name is required").max(120),
   timezone: timezoneSchema.default("Asia/Calcutta"),
