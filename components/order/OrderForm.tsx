@@ -682,7 +682,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
         <CardHeader className="px-6 pt-6">
           <SectionHeader
             eyebrow="Place an order"
-            title="Pick Your Next Pour"
+            title="What Are You Having Today?"
             meta={
               <p className="text-sm text-stone-600">
                 Build the order from the menu, then review everything in the cart drawer.
@@ -877,7 +877,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                     ) : null}
                                   </div>
                                   <p className="mt-1 line-clamp-2 text-sm text-stone-500">
-                                    {drink.description || "Freshly prepared at the bar."}
+                                    {drink.description || ""}
                                   </p>
                                   {drink.tags && drink.tags.length > 0 ? (
                                     <div className="mt-2 flex flex-wrap gap-1.5">
