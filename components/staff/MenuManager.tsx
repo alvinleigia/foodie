@@ -344,6 +344,23 @@ export function MenuManager() {
   }
 
   async function submitModifierGroup() {
+    const minSelections = Number(modifierGroupDraft.minSelections);
+    const maxSelections = modifierGroupDraft.maxSelections.trim()
+      ? Number(modifierGroupDraft.maxSelections)
+      : null;
+
+    if (
+      maxSelections !== null
+      && Number.isFinite(minSelections)
+      && Number.isFinite(maxSelections)
+      && maxSelections < minSelections
+    ) {
+      const message = "Maximum selections cannot be lower than minimum selections.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
     setPendingAction("modifier-group");
 
     const response = await fetch("/api/menu/modifier-groups", {
@@ -674,96 +691,6 @@ export function MenuManager() {
             </p>
           </div>
 
-          <Card className="rounded-xl border-stone-200 bg-white shadow-none">
-            <CardContent className="space-y-4 px-5 py-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
-                    Add-ons
-                  </p>
-                  <h3 className="mt-2 text-xl font-semibold text-stone-950">
-                    Modifier groups
-                  </h3>
-                  <p className="mt-1 text-sm text-stone-600">
-                    Create reusable extras like extra patty, toppings, mixers or sauces, then attach them to products.
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={openCreateModifierGroupDialog}
-                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                  >
-                    <TagsIcon className="size-4" />
-                    Add Group
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openCreateModifierOptionDialog()}
-                    disabled={modifierGroups.length === 0}
-                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                  >
-                    <PlusIcon className="size-4" />
-                    Add Option
-                  </Button>
-                </div>
-              </div>
-
-              {modifierGroups.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
-                  No add-on groups yet. Add a group, then add options and attach it to products.
-                </p>
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {modifierGroups.map((group) => (
-                    <div
-                      key={group.id}
-                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-base font-semibold text-stone-950">{group.name}</p>
-                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
-                            {group.selectionType === "SINGLE" ? "Single choice" : "Multiple choice"}
-                            {group.isRequired ? " - Required" : ""}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => openCreateModifierOptionDialog(group.id)}
-                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                        >
-                          <PlusIcon className="size-4" />
-                          Option
-                        </Button>
-                      </div>
-                      {group.options.length === 0 ? (
-                        <p className="mt-3 text-sm text-stone-500">No options yet.</p>
-                      ) : (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {group.options.map((option) => (
-                            <span
-                              key={option.id}
-                              className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700"
-                            >
-                              {option.name}
-                              {Number(option.priceDelta) > 0
-                                ? ` + ${formatPrice(option.priceDelta, { currency })}`
-                                : ""}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
           {isLoading ? (
             <div className="flex items-center gap-2 text-sm text-stone-500">
               <Spinner className="text-stone-500" />
@@ -930,6 +857,96 @@ export function MenuManager() {
               ))}
             </div>
           )}
+
+          <Card className="rounded-xl border-stone-200 bg-white shadow-none">
+            <CardContent className="space-y-4 px-5 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Add-ons
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-stone-950">
+                    Modifier groups
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Create reusable extras like extra patty, toppings, mixers or sauces, then attach them to products.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={openCreateModifierGroupDialog}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <TagsIcon className="size-4" />
+                    Add Group
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openCreateModifierOptionDialog()}
+                    disabled={modifierGroups.length === 0}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <PlusIcon className="size-4" />
+                    Add Option
+                  </Button>
+                </div>
+              </div>
+
+              {modifierGroups.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+                  No add-on groups yet. Add a group, then add options and attach it to products.
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {modifierGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-stone-950">{group.name}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
+                            {group.selectionType === "SINGLE" ? "Single choice" : "Multiple choice"}
+                            {group.isRequired ? " - Required" : ""}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openCreateModifierOptionDialog(group.id)}
+                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                        >
+                          <PlusIcon className="size-4" />
+                          Option
+                        </Button>
+                      </div>
+                      {group.options.length === 0 ? (
+                        <p className="mt-3 text-sm text-stone-500">No options yet.</p>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {group.options.map((option) => (
+                            <span
+                              key={option.id}
+                              className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700"
+                            >
+                              {option.name}
+                              {Number(option.priceDelta) > 0
+                                ? ` + ${formatPrice(option.priceDelta, { currency })}`
+                                : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </CardContent>
       </Card>
 
