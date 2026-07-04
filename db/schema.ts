@@ -567,6 +567,12 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
+  index("orders_tenant_status_created_idx").on(
+    table.organizationId,
+    table.locationId,
+    table.status,
+    table.createdAt,
+  ),
   uniqueIndex("orders_location_order_date_no_unique").on(
     table.organizationId,
     table.locationId,
@@ -601,7 +607,13 @@ export const orderItems = pgTable("order_items", {
   inventoryReservedAt: timestamp("inventory_reserved_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("order_items_tenant_order_idx").on(
+    table.organizationId,
+    table.locationId,
+    table.orderId,
+  ),
+]);
 
 export const orderItemModifiers = pgTable(
   "order_item_modifiers",
