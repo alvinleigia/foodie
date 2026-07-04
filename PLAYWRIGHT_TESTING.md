@@ -15,11 +15,14 @@ The first test suite covers:
 - Inline validation on the platform company form.
 - Optional company creation on staging, disabled by default.
 - Optional menu-manager validation checks when manager credentials are provided.
+- Optional tenant-isolation checks for users with access to more than one
+  company/domain.
 
 The tests live in:
 
 - `tests/e2e/platform.spec.ts`
 - `tests/e2e/menu-validation.spec.ts`
+- `tests/e2e/tenant-isolation.spec.ts`
 - `tests/e2e/helpers.ts`
 
 ## One-Time Setup
@@ -122,6 +125,25 @@ $env:E2E_MANAGER_CONTEXT="Snack Shack - Webmly Fast food"
 Use an account that has restaurant manager access. A company-owner-only account
 will land on the company dashboard and the menu-manager test will fail because
 the add-on controls are not available there.
+
+## Tenant Isolation Tests
+
+Tenant-isolation tests need one accepted user who has access to two different
+tenant domains. The test confirms that each domain only exposes memberships for
+that tenant and rejects switching to a membership from the other tenant.
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL="https://foodie-staging.leigia.com"
+$env:E2E_ISOLATION_ALLOWED_BASE_URL="https://all-go-online.foodie-staging.leigia.com"
+$env:E2E_ISOLATION_FORBIDDEN_BASE_URL="https://dominos.foodie-staging.leigia.com"
+$env:E2E_ISOLATION_ALLOWED_CONTEXT="All Go Online"
+$env:E2E_ISOLATION_FORBIDDEN_CONTEXT="Dominos"
+$env:E2E_ISOLATION_USERNAME="user-with-both-access"
+$env:E2E_ISOLATION_PASSWORD="user-password"
+npm run test:e2e -- tests/e2e/tenant-isolation.spec.ts
+```
+
+If these variables are not set, tenant-isolation tests are skipped.
 
 ## Useful Commands
 
