@@ -45,6 +45,7 @@ test.describe("platform company forms", () => {
     await page.getByRole("button", { name: /create company/i }).click();
 
     await expect(page).toHaveURL(/\/platform\/companies/);
+    await expect(page.getByText("Loading companies...")).toBeHidden({ timeout: 15000 });
     await expect(page.getByText(companyName)).toBeVisible();
   });
 });

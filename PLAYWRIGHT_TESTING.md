@@ -96,16 +96,32 @@ Only use this on staging.
 ## Menu Manager Tests
 
 Menu-manager tests need a manager user with access to a restaurant/location.
-Set these variables before running:
+Because tenant staff log in on the company domain, set a separate manager base
+URL before running:
 
 ```powershell
 $env:PLAYWRIGHT_BASE_URL="https://foodie-staging.leigia.com"
+$env:E2E_MANAGER_BASE_URL="https://all-go-online.foodie-staging.leigia.com"
 $env:E2E_MANAGER_USERNAME="manager-username"
 $env:E2E_MANAGER_PASSWORD="manager-password"
 npm run test:e2e
 ```
 
-If these variables are not set, menu-manager tests are skipped.
+If these variables are not set, menu-manager tests are skipped. You can also
+use `E2E_COMPANY_BASE_URL` instead of `E2E_MANAGER_BASE_URL` if you prefer one
+shared tenant-domain variable for company-scoped tests.
+
+If the same login has multiple access contexts, the test will switch to a
+`RESTAURANT MANAGER` context automatically. To target a specific
+restaurant/location, set:
+
+```powershell
+$env:E2E_MANAGER_CONTEXT="Snack Shack - Webmly Fast food"
+```
+
+Use an account that has restaurant manager access. A company-owner-only account
+will land on the company dashboard and the menu-manager test will fail because
+the add-on controls are not available there.
 
 ## Useful Commands
 

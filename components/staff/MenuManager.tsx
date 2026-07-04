@@ -1533,10 +1533,12 @@ export function MenuManager() {
           <div className="grid gap-4 px-6 pb-4">
             <FormField
               label="Group name"
+              htmlFor="modifier-group-name"
               error={getFieldError(modifierGroupFieldErrors, "name")}
               errorId="modifier-group-name-error"
             >
               <Input
+                id="modifier-group-name"
                 value={modifierGroupDraft.name}
                 onChange={(event) => {
                   clearModifierGroupFieldError("name");
@@ -1550,10 +1552,12 @@ export function MenuManager() {
             </FormField>
             <FormField
               label="Description"
+              htmlFor="modifier-group-description"
               error={getFieldError(modifierGroupFieldErrors, "description")}
               errorId="modifier-group-description-error"
             >
               <Textarea
+                id="modifier-group-description"
                 value={modifierGroupDraft.description}
                 onChange={(event) => {
                   clearModifierGroupFieldError("description");
@@ -1572,10 +1576,12 @@ export function MenuManager() {
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 label="Selection type"
+                htmlFor="modifier-group-selection-type"
                 error={getFieldError(modifierGroupFieldErrors, "selectionType")}
                 errorId="modifier-group-selection-type-error"
               >
                 <NativeSelect
+                  id="modifier-group-selection-type"
                   value={modifierGroupDraft.selectionType}
                   onChange={(event) => {
                     clearModifierGroupFieldError("selectionType");
@@ -1591,10 +1597,12 @@ export function MenuManager() {
               </FormField>
               <FormField
                 label="Sort order"
+                htmlFor="modifier-group-sort-order"
                 error={getFieldError(modifierGroupFieldErrors, "sortOrder")}
                 errorId="modifier-group-sort-order-error"
               >
                 <Input
+                  id="modifier-group-sort-order"
                   type="number"
                   min="0"
                   value={modifierGroupDraft.sortOrder}
@@ -1616,10 +1624,12 @@ export function MenuManager() {
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 label="Minimum selections"
+                htmlFor="modifier-group-min-selections"
                 error={getFieldError(modifierGroupFieldErrors, "minSelections")}
                 errorId="modifier-group-min-selections-error"
               >
                 <Input
+                  id="modifier-group-min-selections"
                   type="number"
                   min="0"
                   value={modifierGroupDraft.minSelections}
@@ -1641,10 +1651,12 @@ export function MenuManager() {
               </FormField>
               <FormField
                 label="Maximum selections"
+                htmlFor="modifier-group-max-selections"
                 error={getFieldError(modifierGroupFieldErrors, "maxSelections")}
                 errorId="modifier-group-max-selections-error"
               >
                 <Input
+                  id="modifier-group-max-selections"
                   type="number"
                   min="1"
                   value={modifierGroupDraft.maxSelections}
