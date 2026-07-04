@@ -1,14 +1,22 @@
 import { expect, type Page } from "@playwright/test";
 
-type MembershipOption = {
+export type MembershipOption = {
   membershipId: string;
   role: string;
+  organizationId: string;
   organizationName: string;
+  organizationType: string;
+  locationId: string | null;
   locationName: string | null;
   locationLabel: string | null;
 };
 
-type MembershipPayload = {
+export type MembershipPayload = {
+  active: {
+    organizationId: string;
+    locationId: string;
+    role: string;
+  };
   memberships: MembershipOption[];
 };
 
@@ -49,7 +57,7 @@ function normalizeContext(value: string) {
     .toLowerCase();
 }
 
-function getMembershipSearchText(membership: MembershipOption) {
+export function getMembershipSearchText(membership: MembershipOption) {
   return normalizeContext(
     [
       membership.organizationName,
@@ -62,10 +70,33 @@ function getMembershipSearchText(membership: MembershipOption) {
   );
 }
 
-function hasMatchingContext(searchText: string, contextText: string) {
+export function hasMatchingContext(searchText: string, contextText: string) {
   const contextTokens = normalizeContext(contextText).split(" ").filter(Boolean);
 
   return contextTokens.every((token) => searchText.includes(token));
+}
+
+export async function getSessionMemberships(page: Page, baseUrl: string | undefined) {
+  const response = await page.request.get(pathForBaseUrl(baseUrl, "/api/session/memberships"));
+
+  expect(response.ok()).toBeTruthy();
+
+  return (await response.json()) as MembershipPayload;
+}
+
+export function findAccessContext(payload: MembershipPayload, contextText: string) {
+  return payload.memberships.find((option) =>
+    hasMatchingContext(getMembershipSearchText(option), contextText),
+  );
+}
+
+export function isActiveMembershipInList(payload: MembershipPayload) {
+  return payload.memberships.some(
+    (membership) =>
+      membership.organizationId === payload.active.organizationId &&
+      (membership.locationId ?? "") === payload.active.locationId &&
+      membership.role === payload.active.role,
+  );
 }
 
 export async function activateAccessContext(
@@ -73,11 +104,8 @@ export async function activateAccessContext(
   baseUrl: string | undefined,
   contextText: string,
 ) {
-  const response = await page.request.get(pathForBaseUrl(baseUrl, "/api/session/memberships"));
-  const payload = (await response.json()) as MembershipPayload;
-  const membership = payload.memberships.find((option) =>
-    hasMatchingContext(getMembershipSearchText(option), contextText),
-  );
+  const payload = await getSessionMemberships(page, baseUrl);
+  const membership = findAccessContext(payload, contextText);
 
   if (!membership) {
     const availableContexts = payload.memberships
