@@ -5,9 +5,10 @@ import { useState } from "react";
 import { CopyIcon, UserCheckIcon, UserPlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,8 @@ const emptyInviteDraft = {
   role: "",
 };
 
+type StaffInviteField = "email" | "name" | "role" | "username";
+
 export function StaffInviteForm({
   apiPath,
   assignExistingHref,
@@ -56,10 +59,11 @@ export function StaffInviteForm({
 }: StaffInviteFormProps) {
   const [draft, setDraft] = useState({ ...emptyInviteDraft, role: defaultRole });
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<StaffInviteField>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submitInvite() {
+    validation.clearErrors();
     setIsSubmitting(true);
 
     let payload: { inviteUrl?: unknown };
@@ -67,15 +71,16 @@ export function StaffInviteForm({
     try {
       payload = await requestJson(apiPath, { body: draft });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to create invite.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
 
     setDraft({ ...emptyInviteDraft, role: defaultRole });
-    setError(null);
+    validation.clearErrors();
     setInviteUrl(typeof payload.inviteUrl === "string" ? payload.inviteUrl : null);
     await onSuccess?.(payload);
     setIsSubmitting(false);
@@ -84,7 +89,7 @@ export function StaffInviteForm({
 
   const canAssignExisting =
     Boolean(assignExistingHref) &&
-    error?.toLowerCase().includes("user already exists");
+    validation.formError?.toLowerCase().includes("user already exists");
   const assignIdentifier = draft.email.trim() || draft.username.trim();
   const assignHref = assignExistingHref
     ? `${assignExistingHref}${assignExistingHref.includes("?") ? "&" : "?"}identifier=${encodeURIComponent(assignIdentifier)}`
@@ -105,9 +110,9 @@ export function StaffInviteForm({
               void submitInvite();
             }}
           >
-            {error ? (
+            {validation.formError ? (
               <div className="rounded-lg border border-rose-200 bg-rose-50 p-4">
-                <p className="text-sm text-rose-700">{error}</p>
+                <p className="text-sm text-rose-700">{validation.formError}</p>
                 {canAssignExisting ? (
                   <Button
                     asChild
@@ -123,41 +128,75 @@ export function StaffInviteForm({
               </div>
             ) : null}
             <div className="grid gap-4 md:grid-cols-3">
-              <FormField label="Username">
+              <FormField
+                label="Username"
+                error={validation.getError("username")}
+                errorId="invite-username-error"
+              >
                 <Input
                   value={draft.username}
-                  onChange={(event) =>
+                  aria-describedby={
+                    validation.getError("username")
+                      ? "invite-username-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(validation.getError("username"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("username");
                     setDraft((current) => ({
                       ...current,
                       username: event.target.value,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </FormField>
-              <FormField label="Name">
+              <FormField
+                label="Name"
+                error={validation.getError("name")}
+                errorId="invite-name-error"
+              >
                 <Input
                   value={draft.name}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, name: event.target.value }))
+                  aria-describedby={
+                    validation.getError("name") ? "invite-name-error" : undefined
                   }
+                  aria-invalid={Boolean(validation.getError("name"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("name");
+                    setDraft((current) => ({ ...current, name: event.target.value }))
+                  }}
                 />
               </FormField>
-              <FormField label="Email">
+              <FormField
+                label="Email"
+                error={validation.getError("email")}
+                errorId="invite-email-error"
+              >
                 <Input
                   type="email"
                   value={draft.email}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, email: event.target.value }))
+                  aria-describedby={
+                    validation.getError("email") ? "invite-email-error" : undefined
                   }
+                  aria-invalid={Boolean(validation.getError("email"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("email");
+                    setDraft((current) => ({ ...current, email: event.target.value }))
+                  }}
                 />
               </FormField>
             </div>
-            <FormField label="Role">
+            <FormField
+              label="Role"
+              error={validation.getError("role")}
+              errorId="invite-role-error"
+            >
               <Select
                 value={draft.role}
-                onValueChange={(role) =>
-                  setDraft((current) => ({ ...current, role }))
-                }
+                onValueChange={(role) => {
+                  validation.clearFieldError("role");
+                  setDraft((current) => ({ ...current, role }));
+                }}
               >
                 <SelectTrigger className="bg-white">
                   <SelectValue />

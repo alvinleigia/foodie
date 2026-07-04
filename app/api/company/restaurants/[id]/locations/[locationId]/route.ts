@@ -55,7 +55,7 @@ export async function PATCH(
     });
   } catch (error) {
     if (error instanceof ZodError) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }
 
     return NextResponse.json(

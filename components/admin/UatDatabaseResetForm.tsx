@@ -6,9 +6,11 @@ import { useState } from "react";
 import { RotateCcwIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,11 +19,11 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
   const router = useRouter();
   const [confirmationText, setConfirmationText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<"confirmationText">();
 
   async function resetDatabase() {
     setIsSubmitting(true);
-    setError(null);
+    validation.clearErrors();
 
     let payload: { message?: string };
 
@@ -30,9 +32,10 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
         body: { confirmationText },
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to reset UAT data.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
@@ -60,16 +63,28 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
             void resetDatabase();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <label className="grid gap-2 text-sm font-medium text-stone-800">
-            Type reset to continue
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Type reset to continue"
+            error={validation.getError("confirmationText")}
+            errorId="uat-confirmation-error"
+          >
             <Input
               value={confirmationText}
-              onChange={(event) => setConfirmationText(event.target.value)}
+              aria-describedby={
+                validation.getError("confirmationText") ? "uat-confirmation-error" : undefined
+              }
+              aria-invalid={Boolean(validation.getError("confirmationText"))}
+              onChange={(event) => {
+                validation.clearFieldError("confirmationText");
+                setConfirmationText(event.target.value);
+              }}
               disabled={isSubmitting}
               placeholder="reset"
             />
-          </label>
+          </FormField>
           <div className="flex flex-wrap gap-3 pt-2">
             <Button
               type="submit"

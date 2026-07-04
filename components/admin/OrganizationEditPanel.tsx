@@ -6,10 +6,11 @@ import { useState } from "react";
 import { ArrowLeftIcon, PowerIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,13 @@ type OrganizationEditPanelProps = {
   showPrimaryLocation?: boolean;
 };
 
+type OrganizationEditField =
+  | "currency"
+  | "isActive"
+  | "location"
+  | "name"
+  | "timezone";
+
 export function OrganizationEditPanel({
   apiPath,
   backHref,
@@ -63,10 +71,11 @@ export function OrganizationEditPanel({
       : undefined,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<OrganizationEditField>();
 
   async function submitUpdate(nextDraft = draft) {
     setIsSaving(true);
+    validation.clearErrors();
 
     try {
       await requestJson(apiPath, {
@@ -74,14 +83,15 @@ export function OrganizationEditPanel({
         method: "PATCH",
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSaving(false);
       return;
     }
 
-    setError(null);
+    validation.clearErrors();
     setDraft(nextDraft);
     setIsSaving(false);
     toast.success(`${entityLabel} updated.`);
@@ -114,36 +124,57 @@ export function OrganizationEditPanel({
               void submitUpdate();
             }}
           >
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-            <FormField label={`${entityLabel} name`}>
+            {validation.formError ? (
+              <p className="text-sm text-rose-600">{validation.formError}</p>
+            ) : null}
+            <FormField
+              label={`${entityLabel} name`}
+              error={validation.getError("name")}
+              errorId="organization-name-error"
+            >
               <Input
                 value={draft.name}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, name: event.target.value }))
+                aria-describedby={
+                  validation.getError("name") ? "organization-name-error" : undefined
                 }
+                aria-invalid={Boolean(validation.getError("name"))}
+                onChange={(event) => {
+                  validation.clearFieldError("name");
+                  setDraft((current) => ({ ...current, name: event.target.value }));
+                }}
               />
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField label="Timezone">
+              <FormField
+                label="Timezone"
+                error={validation.getError("timezone")}
+                errorId="organization-timezone-error"
+              >
                 <TimezoneSelect
                   value={draft.timezone}
-                  onValueChange={(timezone) =>
+                  onValueChange={(timezone) => {
+                    validation.clearFieldError("timezone");
                     setDraft((current) => ({
                       ...current,
                       timezone,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </FormField>
-              <FormField label="Currency">
+              <FormField
+                label="Currency"
+                error={validation.getError("currency")}
+                errorId="organization-currency-error"
+              >
                 <CurrencySelect
                   value={draft.currency}
-                  onValueChange={(currency) =>
+                  onValueChange={(currency) => {
+                    validation.clearFieldError("currency");
                     setDraft((current) => ({
                       ...current,
                       currency,
-                    }))
-                  }
+                    }));
+                  }}
                 />
               </FormField>
             </div>
@@ -157,6 +188,11 @@ export function OrganizationEditPanel({
                     This controls the outlet/counter where orders, QR links and
                     staff location access are attached.
                   </p>
+                  {validation.getError("location") ? (
+                    <p className="mt-2 text-sm text-rose-600">
+                      {validation.getError("location")}
+                    </p>
+                  ) : null}
                 </div>
                 <FormField label="Location name">
                   <Input

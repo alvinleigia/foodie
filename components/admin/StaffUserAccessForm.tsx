@@ -6,9 +6,10 @@ import { useState } from "react";
 import { SaveIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -44,6 +45,8 @@ const staffRoles: Array<{ label: string; value: StaffRole }> = [
   { label: "Order Operator", value: "ORDER_OPERATOR" },
 ];
 
+type StaffUserAccessField = "isActive" | "role";
+
 export function StaffUserAccessForm({
   apiPath,
   backHref,
@@ -57,9 +60,10 @@ export function StaffUserAccessForm({
     isActive: user.isActive,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<StaffUserAccessField>();
 
   async function save() {
+    validation.clearErrors();
     setIsSaving(true);
 
     try {
@@ -68,10 +72,11 @@ export function StaffUserAccessForm({
         method: "PATCH",
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
+      const result = validation.applyCaught(caught, "Failed to update staff access.");
       setIsSaving(false);
-      toast.error(message);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       return;
     }
 
@@ -101,16 +106,23 @@ export function StaffUserAccessForm({
             void save();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Role">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Role"
+            error={validation.getError("role")}
+            errorId="staff-user-role-error"
+          >
             <Select
               value={draft.role}
-              onValueChange={(role) =>
+              onValueChange={(role) => {
+                validation.clearFieldError("role");
                 setDraft((current) => ({
                   ...current,
                   role: role as StaffRole,
-                }))
-              }
+                }));
+              }}
             >
               <SelectTrigger className="bg-white">
                 <SelectValue />
@@ -130,12 +142,19 @@ export function StaffUserAccessForm({
               <input
                 type="checkbox"
                 checked={draft.isActive}
-                onChange={(event) =>
+                aria-describedby={
+                  validation.getError("isActive")
+                    ? "staff-user-active-error"
+                    : undefined
+                }
+                aria-invalid={Boolean(validation.getError("isActive"))}
+                onChange={(event) => {
+                  validation.clearFieldError("isActive");
                   setDraft((current) => ({
                     ...current,
                     isActive: event.target.checked,
-                  }))
-                }
+                  }));
+                }}
                 className="mt-1 size-4 rounded border-stone-300"
               />
               <span>
@@ -148,6 +167,11 @@ export function StaffUserAccessForm({
                 </span>
               </span>
             </label>
+            {validation.getError("isActive") ? (
+              <p id="staff-user-active-error" className="mt-2 text-sm text-rose-600">
+                {validation.getError("isActive")}
+              </p>
+            ) : null}
           </div>
 
           <p className="text-xs uppercase tracking-[0.16em] text-stone-400">

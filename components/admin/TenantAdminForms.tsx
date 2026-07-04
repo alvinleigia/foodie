@@ -10,6 +10,7 @@ import { getApiError, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { StaffInviteForm } from "@/components/admin/StaffInviteForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -48,6 +49,10 @@ type StaffAccess = {
   role: MembershipRole;
   isActive: boolean;
 };
+
+type TenantRestaurantField = "currency" | "logoUrl" | "name" | "timezone";
+type TenantLocationField = "isActive" | "label" | "name" | "qrSlug" | "timezone";
+type TenantStaffAccessField = "isActive" | "role";
 
 async function submitJson(path: string, method: "POST" | "PATCH", body: unknown) {
   return requestJson(path, {
@@ -123,19 +128,21 @@ export function TenantRestaurantSettingsForm({
     currency: organization.currency,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<TenantRestaurantField>();
 
   async function save() {
     setIsSaving(true);
+    validation.clearErrors();
     try {
       await submitJson("/api/tenant/admin/organization", "PATCH", draft);
       toast.success("Restaurant settings updated.");
       router.push(backHref);
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Action failed.";
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(err);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSaving(false);
     }
   }
@@ -156,38 +163,68 @@ export function TenantRestaurantSettingsForm({
             void save();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Name">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Name"
+            error={validation.getError("name")}
+            errorId="tenant-restaurant-name-error"
+          >
             <Input
               value={draft.name}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+              aria-describedby={
+                validation.getError("name") ? "tenant-restaurant-name-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("name"))}
+              onChange={(event) => {
+                validation.clearFieldError("name");
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </FormField>
-          <FormField label="Logo URL">
+          <FormField
+            label="Logo URL"
+            error={validation.getError("logoUrl")}
+            errorId="tenant-restaurant-logo-error"
+          >
             <Input
               value={draft.logoUrl}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, logoUrl: event.target.value }))
+              aria-describedby={
+                validation.getError("logoUrl") ? "tenant-restaurant-logo-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("logoUrl"))}
+              onChange={(event) => {
+                validation.clearFieldError("logoUrl");
+                setDraft((current) => ({ ...current, logoUrl: event.target.value }));
+              }}
             />
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Timezone">
+            <FormField
+              label="Timezone"
+              error={validation.getError("timezone")}
+              errorId="tenant-restaurant-timezone-error"
+            >
               <TimezoneSelect
                 value={draft.timezone}
-                onValueChange={(timezone) =>
+                onValueChange={(timezone) => {
+                  validation.clearFieldError("timezone");
                   setDraft((current) => ({ ...current, timezone }))
-                }
+                }}
               />
             </FormField>
-            <FormField label="Currency">
+            <FormField
+              label="Currency"
+              error={validation.getError("currency")}
+              errorId="tenant-restaurant-currency-error"
+            >
               <CurrencySelect
                 value={draft.currency}
-                onValueChange={(currency) =>
+                onValueChange={(currency) => {
+                  validation.clearFieldError("currency");
                   setDraft((current) => ({ ...current, currency }))
-                }
+                }}
               />
             </FormField>
           </div>
@@ -218,7 +255,7 @@ export function TenantLocationSettingsForm({
     isActive: location.isActive,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<TenantLocationField>();
   const [qrSlugStatus, setQrSlugStatus] = useState<{
     available: boolean | null;
     error: string | null;
@@ -277,34 +314,37 @@ export function TenantLocationSettingsForm({
 
   async function save() {
     if (qrSlugStatus.isChecking) {
-      setError("Please wait while QR slug availability is checked.");
+      validation.setFieldError("qrSlug", "Please wait while QR slug availability is checked.");
       return;
     }
 
     if (qrSlugStatus.available === false) {
-      setError(qrSlugStatus.error ?? "QR slug is not available.");
+      validation.setFieldError("qrSlug", qrSlugStatus.error ?? "QR slug is not available.");
       return;
     }
 
     setIsSaving(true);
+    validation.clearErrors();
     try {
       await submitJson("/api/tenant/admin/location", "PATCH", draft);
       toast.success("Location settings updated.");
       router.push(backHref);
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Action failed.";
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(err);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSaving(false);
     }
   }
 
+  const qrSlugError = validation.getError("qrSlug") ?? qrSlugStatus.error;
   const qrSlugHelp =
     qrSlugStatus.isChecking
       ? "Checking QR slug availability..."
-      : qrSlugStatus.error
-        ? qrSlugStatus.error
+      : qrSlugError
+        ? qrSlugError
         : draft.qrSlug.trim()
           ? "QR slug is available."
           : "Used in the public customer link, for example /order?qr=main-lobby.";
@@ -325,22 +365,42 @@ export function TenantLocationSettingsForm({
             void save();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Name">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Name"
+            error={validation.getError("name")}
+            errorId="tenant-location-name-error"
+          >
             <Input
               value={draft.name}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+              aria-describedby={
+                validation.getError("name") ? "tenant-location-name-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("name"))}
+              onChange={(event) => {
+                validation.clearFieldError("name");
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Label">
+            <FormField
+              label="Label"
+              error={validation.getError("label")}
+              errorId="tenant-location-label-error"
+            >
               <Input
                 value={draft.label}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, label: event.target.value }))
+                aria-describedby={
+                  validation.getError("label") ? "tenant-location-label-error" : undefined
                 }
+                aria-invalid={Boolean(validation.getError("label"))}
+                onChange={(event) => {
+                  validation.clearFieldError("label");
+                  setDraft((current) => ({ ...current, label: event.target.value }));
+                }}
               />
             </FormField>
             <FormField label="QR slug">
@@ -353,18 +413,19 @@ export function TenantLocationSettingsForm({
                     ...current,
                     qrSlug: nextQrSlug,
                   }));
+                  validation.clearFieldError("qrSlug");
                   setQrSlugStatus(
                     nextQrSlug.trim()
                       ? { available: null, error: null, isChecking: true }
                       : { available: true, error: null, isChecking: false },
                   );
                 }}
-                aria-invalid={Boolean(qrSlugStatus.error)}
+                aria-invalid={Boolean(qrSlugError)}
                 className="aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
               />
               <p
                 className={
-                  qrSlugStatus.error
+                  qrSlugError
                     ? "text-sm text-rose-600"
                     : draft.qrSlug.trim() && qrSlugStatus.available
                       ? "text-sm text-emerald-700"
@@ -375,12 +436,17 @@ export function TenantLocationSettingsForm({
               </p>
             </FormField>
           </div>
-          <FormField label="Timezone">
+          <FormField
+            label="Timezone"
+            error={validation.getError("timezone")}
+            errorId="tenant-location-timezone-error"
+          >
             <TimezoneSelect
               value={draft.timezone}
-              onValueChange={(timezone) =>
+              onValueChange={(timezone) => {
+                validation.clearFieldError("timezone");
                 setDraft((current) => ({ ...current, timezone }))
-              }
+              }}
             />
           </FormField>
           <label className="flex items-center gap-2 text-sm text-stone-700">
@@ -441,19 +507,21 @@ export function TenantStaffAccessForm({
     isActive: staff.isActive,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<TenantStaffAccessField>();
 
   async function save() {
     setIsSaving(true);
+    validation.clearErrors();
     try {
       await submitJson(`/api/tenant/admin/staff/${staff.membershipId}`, "PATCH", draft);
       toast.success("Staff access updated.");
       router.push(backHref);
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Action failed.";
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(err);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSaving(false);
     }
   }
@@ -472,27 +540,42 @@ export function TenantStaffAccessForm({
             void save();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Role">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Role"
+            error={validation.getError("role")}
+            errorId="tenant-staff-role-error"
+          >
             <StaffRoleSelect
               value={draft.role}
-              onChange={(role) => setDraft((current) => ({ ...current, role }))}
+              onChange={(role) => {
+                validation.clearFieldError("role");
+                setDraft((current) => ({ ...current, role }));
+              }}
             />
           </FormField>
-          <label className="flex items-center gap-2 text-sm text-stone-700">
-            <input
-              type="checkbox"
-              checked={draft.isActive}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  isActive: event.target.checked,
-                }))
-              }
-              className="size-4 rounded border-stone-300"
-            />
-            Staff access is active
-          </label>
+          <div className="grid gap-2">
+            <label className="flex items-center gap-2 text-sm text-stone-700">
+              <input
+                type="checkbox"
+                checked={draft.isActive}
+                onChange={(event) => {
+                  validation.clearFieldError("isActive");
+                  setDraft((current) => ({
+                    ...current,
+                    isActive: event.target.checked,
+                  }));
+                }}
+                className="size-4 rounded border-stone-300"
+              />
+              Staff access is active
+            </label>
+            {validation.getError("isActive") ? (
+              <p className="text-sm text-rose-600">{validation.getError("isActive")}</p>
+            ) : null}
+          </div>
           <FormActions
             backHref={backHref}
             isSaving={isSaving}

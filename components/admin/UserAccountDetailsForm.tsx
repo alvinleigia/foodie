@@ -8,10 +8,11 @@ import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type UserAccount = {
@@ -31,6 +32,8 @@ type UserAccountDetailsFormProps = {
   user: UserAccount;
 };
 
+type UserAccountDetailsField = "email" | "name" | "username";
+
 export function UserAccountDetailsForm({
   apiPath,
   backHref,
@@ -43,9 +46,10 @@ export function UserAccountDetailsForm({
     email: user.email,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<UserAccountDetailsField>();
 
   async function save() {
+    validation.clearErrors();
     setIsSaving(true);
 
     try {
@@ -55,17 +59,15 @@ export function UserAccountDetailsForm({
         method: "PATCH",
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(
-        caught,
-        "Could not update account details.",
-      );
-      setError(message);
+      const result = validation.applyCaught(caught, "Could not update account details.");
       setIsSaving(false);
-      toast.error(message);
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       return;
     }
 
-    setError(null);
+    validation.clearErrors();
     toast.success("Account details updated.");
     router.push(backHref);
     router.refresh();
@@ -101,36 +103,67 @@ export function UserAccountDetailsForm({
             </p>
           </div>
 
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
 
-          <FormField label="Name">
+          <FormField
+            label="Name"
+            error={validation.getError("name")}
+            errorId="account-name-error"
+          >
             <Input
               value={draft.name}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+              aria-describedby={
+                validation.getError("name") ? "account-name-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("name"))}
+              onChange={(event) => {
+                validation.clearFieldError("name");
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </FormField>
 
-          <FormField label="Username">
+          <FormField
+            label="Username"
+            error={validation.getError("username")}
+            errorId="account-username-error"
+          >
             <Input
               value={draft.username}
-              onChange={(event) =>
+              aria-describedby={
+                validation.getError("username")
+                  ? "account-username-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(validation.getError("username"))}
+              onChange={(event) => {
+                validation.clearFieldError("username");
                 setDraft((current) => ({
                   ...current,
                   username: event.target.value,
-                }))
-              }
+                }));
+              }}
             />
           </FormField>
 
-          <FormField label="Email">
+          <FormField
+            label="Email"
+            error={validation.getError("email")}
+            errorId="account-email-error"
+          >
             <Input
               type="email"
               value={draft.email}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, email: event.target.value }))
+              aria-describedby={
+                validation.getError("email") ? "account-email-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("email"))}
+              onChange={(event) => {
+                validation.clearFieldError("email");
+                setDraft((current) => ({ ...current, email: event.target.value }));
+              }}
             />
           </FormField>
 

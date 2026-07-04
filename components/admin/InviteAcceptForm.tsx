@@ -5,9 +5,10 @@ import { useState } from "react";
 import { LogInIcon, UserCheckIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,14 @@ type InviteAcceptFormProps = {
   token: string;
 };
 
+type InviteAcceptField = "confirmPassword" | "password" | "token";
+
 export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAccepted, setIsAccepted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<InviteAcceptField>();
 
   if (!token || !invitation) {
     return (
@@ -79,9 +82,10 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
           className="grid gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
+            validation.clearErrors();
 
             if (invitation.requiresPassword && password !== confirmPassword) {
-              setError("Passwords do not match.");
+              validation.setFieldError("confirmPassword", "Passwords do not match.");
               return;
             }
 
@@ -96,34 +100,61 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
                 fallbackError: "Could not accept invitation.",
               });
             } catch (caught) {
-              const message = getCaughtErrorMessage(caught, "Could not accept invitation.");
-              setError(message);
-              toast.error(message);
+              const result = validation.applyCaught(caught, "Could not accept invitation.");
+              if (!result.hasFieldErrors) {
+                toast.error(result.message);
+              }
               setIsSubmitting(false);
               return;
             }
 
-            setError(null);
+            validation.clearErrors();
             setIsAccepted(true);
             setIsSubmitting(false);
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
           {invitation.requiresPassword ? (
             <>
-              <FormField label="Password">
+              <FormField
+                label="Password"
+                error={validation.getError("password")}
+                errorId="invite-password-error"
+              >
                 <Input
                   type="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  aria-describedby={
+                    validation.getError("password") ? "invite-password-error" : undefined
+                  }
+                  aria-invalid={Boolean(validation.getError("password"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("password");
+                    setPassword(event.target.value);
+                  }}
                   placeholder="Minimum 8 characters"
                 />
               </FormField>
-              <FormField label="Confirm password">
+              <FormField
+                label="Confirm password"
+                error={validation.getError("confirmPassword")}
+                errorId="invite-confirm-password-error"
+              >
                 <Input
                   type="password"
                   value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  aria-describedby={
+                    validation.getError("confirmPassword")
+                      ? "invite-confirm-password-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(validation.getError("confirmPassword"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("confirmPassword");
+                    setConfirmPassword(event.target.value);
+                  }}
                   placeholder="Re-enter password"
                 />
               </FormField>

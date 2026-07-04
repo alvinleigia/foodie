@@ -15,6 +15,7 @@ import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,6 +50,8 @@ type CompanyDomainsResponse = {
   domains?: CompanyDomain[];
 };
 
+type CompanyDomainField = "domain" | "isPrimary" | "purpose";
+
 function normalizeDomainInput(value: string) {
   return value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
 }
@@ -66,10 +69,12 @@ export function CompanyDomainsPanel({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingDomainId, setPendingDomainId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<CompanyDomainField>();
 
   async function addDomain() {
     setIsSubmitting(true);
     setError(null);
+    validation.clearErrors();
 
     let payload: CompanyDomainsResponse;
 
@@ -83,9 +88,10 @@ export function CompanyDomainsPanel({
         },
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to add domain.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
@@ -94,6 +100,7 @@ export function CompanyDomainsPanel({
     setDomain("");
     setPurpose("ORDERING");
     setIsPrimary(false);
+    validation.clearErrors();
     setIsSubmitting(false);
     toast.success("Domain linked.");
   }
@@ -142,25 +149,46 @@ export function CompanyDomainsPanel({
               void addDomain();
             }}
           >
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+            {validation.formError ? (
+              <p className="text-sm text-rose-600">{validation.formError}</p>
+            ) : null}
 
             <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-              <FormField label="Domain" htmlFor="company-domain">
+              <FormField
+                label="Domain"
+                htmlFor="company-domain"
+                error={validation.getError("domain")}
+                errorId="company-domain-error"
+              >
                 <Input
                   id="company-domain"
                   value={domain}
-                  onChange={(event) => setDomain(event.target.value)}
+                  aria-describedby={
+                    validation.getError("domain")
+                      ? "company-domain-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(validation.getError("domain"))}
+                  onChange={(event) => {
+                    validation.clearFieldError("domain");
+                    setDomain(event.target.value);
+                  }}
                   placeholder="foodie.allgoonline.co.uk"
                   disabled={isSubmitting}
                 />
               </FormField>
 
-              <FormField label="Purpose">
+              <FormField
+                label="Purpose"
+                error={validation.getError("purpose")}
+                errorId="company-domain-purpose-error"
+              >
                 <Select
                   value={purpose}
-                  onValueChange={(nextPurpose) =>
-                    setPurpose(nextPurpose as "ORDERING" | "BOTH")
-                  }
+                  onValueChange={(nextPurpose) => {
+                    validation.clearFieldError("purpose");
+                    setPurpose(nextPurpose as "ORDERING" | "BOTH");
+                  }}
                 >
                   <SelectTrigger className="bg-white">
                     <SelectValue />
@@ -176,10 +204,18 @@ export function CompanyDomainsPanel({
             <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
               <Checkbox
                 checked={isPrimary}
-                onCheckedChange={(checked) => setIsPrimary(checked === true)}
+                onCheckedChange={(checked) => {
+                  validation.clearFieldError("isPrimary");
+                  setIsPrimary(checked === true);
+                }}
               />
               Make this the primary company domain
             </label>
+            {validation.getError("isPrimary") ? (
+              <p className="text-sm text-rose-600">
+                {validation.getError("isPrimary")}
+              </p>
+            ) : null}
 
             <div className="rounded-lg border border-dashed border-stone-200 bg-stone-50 p-4 text-sm text-stone-600">
               <p className="font-semibold text-stone-950">DNS reminder</p>
@@ -222,6 +258,7 @@ export function CompanyDomainsPanel({
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
+          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
           {domains.length === 0 ? (
             <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
               No domains linked yet.

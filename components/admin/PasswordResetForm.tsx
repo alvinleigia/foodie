@@ -5,12 +5,13 @@ import { useState } from "react";
 import { KeyRoundIcon, LogInIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { requestJson } from "@/lib/api-client";
 
 type PasswordResetFormProps = {
   reset: {
@@ -21,12 +22,14 @@ type PasswordResetFormProps = {
   token: string;
 };
 
+type PasswordResetField = "confirmPassword" | "password" | "token";
+
 export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<PasswordResetField>();
 
   if (!token || !reset) {
     return (
@@ -83,9 +86,10 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
           className="grid gap-4"
           onSubmit={async (event) => {
             event.preventDefault();
+            validation.clearErrors();
 
             if (password !== confirmPassword) {
-              setError("Passwords do not match.");
+              validation.setFieldError("confirmPassword", "Passwords do not match.");
               return;
             }
 
@@ -97,32 +101,61 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
                 fallbackError: "Could not reset password.",
               });
             } catch (caught) {
-              const message = getCaughtErrorMessage(caught, "Could not reset password.");
-              setError(message);
-              toast.error(message);
+              const result = validation.applyCaught(caught, "Could not reset password.");
+              if (!result.hasFieldErrors) {
+                toast.error(result.message);
+              }
               setIsSubmitting(false);
               return;
             }
 
-            setError(null);
+            validation.clearErrors();
             setIsComplete(true);
             setIsSubmitting(false);
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="New password">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="New password"
+            error={validation.getError("password")}
+            errorId="password-reset-password-error"
+          >
             <Input
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              aria-describedby={
+                validation.getError("password")
+                  ? "password-reset-password-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(validation.getError("password"))}
+              onChange={(event) => {
+                validation.clearFieldError("password");
+                setPassword(event.target.value);
+              }}
               placeholder="Minimum 8 characters"
             />
           </FormField>
-          <FormField label="Confirm password">
+          <FormField
+            label="Confirm password"
+            error={validation.getError("confirmPassword")}
+            errorId="password-reset-confirm-error"
+          >
             <Input
               type="password"
               value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
+              aria-describedby={
+                validation.getError("confirmPassword")
+                  ? "password-reset-confirm-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(validation.getError("confirmPassword"))}
+              onChange={(event) => {
+                validation.clearFieldError("confirmPassword");
+                setConfirmPassword(event.target.value);
+              }}
               placeholder="Re-enter password"
             />
           </FormField>

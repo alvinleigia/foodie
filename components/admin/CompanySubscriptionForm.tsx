@@ -6,9 +6,10 @@ import { useState } from "react";
 import { SaveIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -33,6 +34,8 @@ type CompanySubscriptionFormProps = {
   currentStatus: SubscriptionStatus;
 };
 
+type CompanySubscriptionField = "status";
+
 export function CompanySubscriptionForm({
   apiPath,
   backHref,
@@ -41,10 +44,11 @@ export function CompanySubscriptionForm({
 }: CompanySubscriptionFormProps) {
   const router = useRouter();
   const [status, setStatus] = useState<SubscriptionStatus>(currentStatus);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<CompanySubscriptionField>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submitStatus() {
+    validation.clearErrors();
     setIsSubmitting(true);
 
     try {
@@ -53,9 +57,10 @@ export function CompanySubscriptionForm({
         method: "PATCH",
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to update subscription.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
@@ -83,13 +88,20 @@ export function CompanySubscriptionForm({
             void submitStatus();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Subscription status">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Subscription status"
+            error={validation.getError("status")}
+            errorId="subscription-status-error"
+          >
             <Select
               value={status}
-              onValueChange={(nextStatus) =>
-                setStatus(nextStatus as SubscriptionStatus)
-              }
+              onValueChange={(nextStatus) => {
+                validation.clearFieldError("status");
+                setStatus(nextStatus as SubscriptionStatus);
+              }}
             >
               <SelectTrigger className="bg-white">
                 <SelectValue />

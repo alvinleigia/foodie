@@ -27,12 +27,19 @@ export async function POST(request: Request) {
   const parsed = resetSchema.safeParse(await request.json());
 
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
   if (parsed.data.confirmationText.trim().toLowerCase() !== "reset") {
     return NextResponse.json(
-      { error: 'Type "reset" exactly to reset UAT data.' },
+      {
+        error: {
+          fieldErrors: {
+            confirmationText: ['Type "reset" exactly to reset UAT data.'],
+          },
+          formErrors: [],
+        },
+      },
       { status: 400 },
     );
   }
