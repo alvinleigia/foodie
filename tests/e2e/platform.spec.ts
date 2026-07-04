@@ -44,8 +44,16 @@ test.describe("platform company forms", () => {
     await page.locator("input").first().fill(companyName);
     await page.getByRole("button", { name: /create company/i }).click();
 
-    await expect(page).toHaveURL(/\/platform\/companies/);
+    await expect(page).toHaveURL(
+      (url) => url.pathname === "/platform/companies",
+      { timeout: 15000 },
+    );
+    await expect(
+      page.getByRole("heading", { name: /^parent companies$/i }),
+    ).toBeVisible();
     await expect(page.getByText("Loading companies...")).toBeHidden({ timeout: 15000 });
-    await expect(page.getByText(companyName)).toBeVisible();
+    await expect(page.getByText(companyName, { exact: true })).toBeVisible({
+      timeout: 15000,
+    });
   });
 });
