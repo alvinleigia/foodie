@@ -10,6 +10,7 @@ import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -111,9 +112,9 @@ export function OrganizationEditPanel({
                 Edit {entityLabel.toLowerCase()}
               </h3>
             </div>
-            <span className="rounded-md border border-stone-200 bg-stone-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-600">
+            <StatusPill tone={draft.isActive ? "success" : "warning"}>
               {draft.isActive ? "Active" : "Disabled"}
-            </span>
+            </StatusPill>
           </div>
         </CardHeader>
         <CardContent className="px-5 pb-5">

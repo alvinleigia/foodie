@@ -6,13 +6,13 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
-  UserCheckIcon,
-  UserPlusIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -110,11 +110,6 @@ export function PlatformCompaniesPanel() {
                 <ButtonLabel icon={PlusIcon}>Add Company</ButtonLabel>
               </Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-lg">
-              <Link href="/platform/users/reassign?returnTo=/platform/companies">
-                <ButtonLabel icon={UserCheckIcon}>Reassign User</ButtonLabel>
-              </Link>
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
@@ -149,21 +144,31 @@ export function PlatformCompaniesPanel() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  <StatusPill tone={company.isActive ? "success" : "warning"}>
                     {company.isActive ? "Active" : "Disabled"}
-                  </span>
-                  <span className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">
+                  </StatusPill>
+                  <StatusPill
+                    tone={
+                      company.subscription?.status === "ACTIVE"
+                        ? "success"
+                        : company.subscription?.status === "TRIALING"
+                          ? "warning"
+                          : company.subscription?.status
+                            ? "danger"
+                            : "neutral"
+                    }
+                  >
                     {company.subscription?.status ?? "No subscription"}
-                  </span>
+                  </StatusPill>
                   <DesktopQuickAction
                     href={`/platform/companies/${company.id}`}
                     icon={PencilIcon}
                     label={`Edit ${company.name} details`}
                   />
                   <DesktopQuickAction
-                    href={`/platform/companies/${company.id}/staff/invite`}
-                    icon={UserPlusIcon}
-                    label={`Invite user to ${company.name}`}
+                    href={`/platform/companies/${company.id}/users`}
+                    icon={UsersIcon}
+                    label={`Manage users for ${company.name}`}
                   />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -181,11 +186,6 @@ export function PlatformCompaniesPanel() {
                       <DropdownMenuLabel>Company actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
                         <Link href={`/platform/companies/${company.id}`}>Edit details</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <Link href={`/platform/companies/${company.id}/staff/invite`}>
-                          Invite company user
-                        </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
                         <Link href={`/platform/companies/${company.id}/users`}>

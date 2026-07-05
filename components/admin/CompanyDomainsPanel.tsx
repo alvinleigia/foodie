@@ -15,6 +15,7 @@ import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -274,22 +275,14 @@ export function CompanyDomainsPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-stone-950">{domainRecord.domain}</p>
                   {domainRecord.isActive && domainRecord.isPrimary ? (
-                    <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                      Primary
-                    </span>
+                    <StatusPill tone="success">Primary</StatusPill>
                   ) : null}
-                  <span
-                    className={
-                      domainRecord.isActive
-                        ? "rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700"
-                        : "rounded-md border border-stone-200 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500"
-                    }
-                  >
+                  <StatusPill tone={domainRecord.isActive ? "success" : "warning"}>
                     {domainRecord.isActive ? "Active" : "Disabled"}
-                  </span>
-                  <span className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  </StatusPill>
+                  <StatusPill>
                     {domainRecord.purpose.toLowerCase()}
-                  </span>
+                  </StatusPill>
                 </div>
                 {domainRecord.isActive ? (
                   <a
