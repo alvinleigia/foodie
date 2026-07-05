@@ -697,7 +697,7 @@ export async function createCompanyStaffUser(companyOrganizationId: string, inpu
   });
 }
 
-const companyMembershipRoles = ["COMPANY_OWNER", "COMPANY_MANAGER"] as const;
+const companyMembershipRoles = ["COMPANY_OWNER"] as const;
 const restaurantMembershipRoles = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"] as const;
 
 export async function listCompanyStaffMemberships(companyOrganizationId: string) {
@@ -1139,8 +1139,7 @@ export async function reassignExistingUser(
 ) {
   const parsed = reassignExistingUserSchema.parse(input);
   const identifier = parsed.identifier.toLowerCase();
-  const isCompanyRole =
-    parsed.role === "COMPANY_OWNER" || parsed.role === "COMPANY_MANAGER";
+  const isCompanyRole = parsed.role === "COMPANY_OWNER";
   const isLocationRole =
     parsed.role === "RESTAURANT_MANAGER" || parsed.role === "ORDER_OPERATOR";
   const db = getDb();
@@ -1184,7 +1183,7 @@ export async function reassignExistingUser(
   }
 
   if (isCompanyRole && parsed.locationId) {
-    throw new Error("Company owner/manager access cannot be assigned to a location.");
+    throw new Error("Company owner access cannot be assigned to a location.");
   }
 
   if (isLocationRole && !parsed.locationId) {
@@ -1330,12 +1329,7 @@ export async function reassignExistingUserForCompany(
 
   return reassignExistingUser(input, {
     allowedOrganizationIds: organizationIds,
-    allowedRoles: [
-      "COMPANY_OWNER",
-      "COMPANY_MANAGER",
-      "RESTAURANT_MANAGER",
-      "ORDER_OPERATOR",
-    ],
+    allowedRoles: ["COMPANY_OWNER", "RESTAURANT_MANAGER", "ORDER_OPERATOR"],
     deactivateOrganizationIds: organizationIds,
     userScopeOrganizationIds: organizationIds,
   });

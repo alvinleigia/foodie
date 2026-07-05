@@ -227,7 +227,7 @@ export async function createCompanyStaffInvitation(
     origin,
     organizationId: company.id,
     locationId: null,
-    allowedRoles: ["COMPANY_OWNER", "COMPANY_MANAGER"],
+    allowedRoles: ["COMPANY_OWNER"],
   });
 }
 

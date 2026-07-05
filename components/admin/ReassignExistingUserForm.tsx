@@ -80,12 +80,11 @@ type ReassignExistingUserFormProps = {
 
 type ReassignRole = Extract<
   MembershipRole,
-  "COMPANY_OWNER" | "COMPANY_MANAGER" | "RESTAURANT_MANAGER" | "ORDER_OPERATOR"
+  "COMPANY_OWNER" | "RESTAURANT_MANAGER" | "ORDER_OPERATOR"
 >;
 
 const roles: Array<{ label: string; value: ReassignRole }> = [
   { label: "Company Owner", value: "COMPANY_OWNER" },
-  { label: "Company Manager", value: "COMPANY_MANAGER" },
   { label: "Restaurant Manager", value: "RESTAURANT_MANAGER" },
   { label: "Order Operator", value: "ORDER_OPERATOR" },
 ];
@@ -98,7 +97,7 @@ type ReassignField =
   | "role";
 
 function isCompanyRole(role: ReassignRole) {
-  return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";
+  return role === "COMPANY_OWNER";
 }
 
 function getRoleLabel(role: ReassignRole, roleOptions: Array<{ label: string; value: ReassignRole }>) {
@@ -244,7 +243,7 @@ export function ReassignExistingUserForm({
   const deactivationLabel = deactivateExisting
     ? companyRole
       ? "Current active memberships in scope will be disabled before this access is enabled."
-      : "Other active location-level memberships in scope will be disabled. Company owner/manager access will stay active."
+      : "Other active location-level memberships in scope will be disabled. Company owner access will stay active."
     : "Existing memberships will stay active and this access will be added alongside them.";
   const canSubmit =
     identifier.trim().length >= 3 &&

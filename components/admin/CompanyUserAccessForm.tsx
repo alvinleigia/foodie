@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-type CompanyRole = Extract<MembershipRole, "COMPANY_OWNER" | "COMPANY_MANAGER">;
+type CompanyRole = Extract<MembershipRole, "COMPANY_OWNER">;
 
 type CompanyUserAccess = {
   membershipId: string;
@@ -41,7 +41,6 @@ type CompanyUserAccessFormProps = {
 
 const companyRoles: Array<{ label: string; value: CompanyRole }> = [
   { label: "Company Owner", value: "COMPANY_OWNER" },
-  { label: "Company Manager", value: "COMPANY_MANAGER" },
 ];
 
 type CompanyUserAccessField = "isActive" | "role";
@@ -52,8 +51,7 @@ export function CompanyUserAccessForm({
   user,
 }: CompanyUserAccessFormProps) {
   const router = useRouter();
-  const initialRole =
-    user.role === "COMPANY_MANAGER" ? "COMPANY_MANAGER" : "COMPANY_OWNER";
+  const initialRole = "COMPANY_OWNER";
   const [draft, setDraft] = useState<{ role: CompanyRole; isActive: boolean }>({
     role: initialRole,
     isActive: user.isActive,

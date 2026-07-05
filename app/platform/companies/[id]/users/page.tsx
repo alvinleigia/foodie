@@ -24,14 +24,14 @@ export default async function PlatformCompanyUsersPage(
 
   const users = await listCompanyStaffMemberships(company.id);
   const companyUsersPath = `/platform/companies/${company.id}/users`;
-  const assignHref = `/platform/users/reassign?companyId=${company.id}&role=COMPANY_MANAGER&returnTo=${encodeURIComponent(companyUsersPath)}`;
+  const assignHref = `/platform/users/reassign?companyId=${company.id}&role=COMPANY_OWNER&returnTo=${encodeURIComponent(companyUsersPath)}`;
 
   return (
     <SaasAdminShell
       activePath="/platform/companies"
       eyebrow="Platform"
       title={`${company.name} users`}
-      description="Manage company owner and manager memberships."
+      description="Manage company owner memberships."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,

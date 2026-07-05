@@ -114,7 +114,11 @@ export async function authenticateStaff(
         : baseAccessCondition,
     );
   const [record] = records
-    .filter((candidate) => isMembershipAllowedInScope(candidate, options.accessScope))
+    .filter(
+      (candidate) =>
+        candidate.membershipRole !== "COMPANY_MANAGER" &&
+        isMembershipAllowedInScope(candidate, options.accessScope),
+    )
     .sort(
       (first, second) =>
         getScopedAccessPriority(first, options.accessScope) -

@@ -7,7 +7,6 @@ import { getCurrentTenantContext } from "@/lib/tenant-context";
 const tenantAdminRoles = [
   "PLATFORM_ADMIN",
   "COMPANY_OWNER",
-  "COMPANY_MANAGER",
   "RESTAURANT_MANAGER",
 ] as const;
 

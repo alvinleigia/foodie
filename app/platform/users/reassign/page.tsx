@@ -36,7 +36,6 @@ function getInitialRole(value: string | string[] | undefined) {
 
   if (
     role === "COMPANY_OWNER" ||
-    role === "COMPANY_MANAGER" ||
     role === "RESTAURANT_MANAGER" ||
     role === "ORDER_OPERATOR"
   ) {

@@ -4,12 +4,11 @@ import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options"
 
 export const staffRoles = [
   "COMPANY_OWNER",
-  "COMPANY_MANAGER",
   "RESTAURANT_MANAGER",
   "ORDER_OPERATOR",
 ] as const;
 
-export const companyStaffRoles = ["COMPANY_OWNER", "COMPANY_MANAGER"] as const;
+export const companyStaffRoles = ["COMPANY_OWNER"] as const;
 
 export const restaurantStaffRoles = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"] as const;
 

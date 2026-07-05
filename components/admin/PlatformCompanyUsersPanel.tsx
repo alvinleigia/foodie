@@ -65,7 +65,7 @@ function getAccountHref(membershipId: string, returnTo: string) {
 export function PlatformCompanyUsersPanel({
   assignHref,
   companyId,
-  description = "Manage company owner and manager memberships for this tenant.",
+  description = "Manage company owner memberships for this tenant.",
   editHrefBase = `/platform/companies/${companyId}/users`,
   emptyMessage = "No company users yet.",
   inviteHref = `/platform/companies/${companyId}/staff/invite`,
