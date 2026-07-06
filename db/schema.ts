@@ -82,6 +82,11 @@ export const tenantDomainPurposeEnum = pgEnum("tenant_domain_purpose", [
   "BOTH",
 ]);
 
+export const modifierSelectionTypeEnum = pgEnum("modifier_selection_type", [
+  "SINGLE",
+  "MULTIPLE",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -408,6 +413,95 @@ export const menuItemTags = pgTable(
   ],
 );
 
+export const modifierGroups = pgTable(
+  "modifier_groups",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    locationId: uuid("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    selectionType: modifierSelectionTypeEnum("selection_type")
+      .default("MULTIPLE")
+      .notNull(),
+    isRequired: boolean("is_required").default(false).notNull(),
+    minSelections: integer("min_selections").default(0).notNull(),
+    maxSelections: integer("max_selections"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("modifier_groups_organization_idx").on(table.organizationId),
+    index("modifier_groups_location_idx").on(table.locationId),
+    uniqueIndex("modifier_groups_tenant_slug_unique").on(
+      table.organizationId,
+      table.locationId,
+      table.slug,
+    ),
+  ],
+);
+
+export const modifierOptions = pgTable(
+  "modifier_options",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    locationId: uuid("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
+    groupId: uuid("group_id")
+      .references(() => modifierGroups.id, { onDelete: "cascade" })
+      .notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    priceDelta: numeric("price_delta", { precision: 10, scale: 2 })
+      .default("0")
+      .notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    isSoldOut: boolean("is_sold_out").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("modifier_options_group_idx").on(table.groupId),
+    uniqueIndex("modifier_options_group_slug_unique").on(table.groupId, table.slug),
+  ],
+);
+
+export const menuItemModifierGroups = pgTable(
+  "menu_item_modifier_groups",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    menuItemId: uuid("menu_item_id")
+      .references(() => menuItems.id, { onDelete: "cascade" })
+      .notNull(),
+    modifierGroupId: uuid("modifier_group_id")
+      .references(() => modifierGroups.id, { onDelete: "cascade" })
+      .notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("menu_item_modifier_groups_unique").on(
+      table.menuItemId,
+      table.modifierGroupId,
+    ),
+    index("menu_item_modifier_groups_item_idx").on(table.menuItemId),
+    index("menu_item_modifier_groups_group_idx").on(table.modifierGroupId),
+  ],
+);
+
 export const inventoryItems = pgTable(
   "inventory_items",
   {
@@ -473,6 +567,12 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
+  index("orders_tenant_status_created_idx").on(
+    table.organizationId,
+    table.locationId,
+    table.status,
+    table.createdAt,
+  ),
   uniqueIndex("orders_location_order_date_no_unique").on(
     table.organizationId,
     table.locationId,
@@ -507,4 +607,40 @@ export const orderItems = pgTable("order_items", {
   inventoryReservedAt: timestamp("inventory_reserved_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("order_items_tenant_order_idx").on(
+    table.organizationId,
+    table.locationId,
+    table.orderId,
+  ),
+]);
+
+export const orderItemModifiers = pgTable(
+  "order_item_modifiers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    locationId: uuid("location_id")
+      .references(() => locations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderItemId: uuid("order_item_id")
+      .references(() => orderItems.id, { onDelete: "cascade" })
+      .notNull(),
+    modifierGroupId: text("modifier_group_id").notNull(),
+    modifierGroupName: text("modifier_group_name").notNull(),
+    modifierId: text("modifier_id").notNull(),
+    modifierName: text("modifier_name").notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    priceDelta: numeric("price_delta", { precision: 10, scale: 2 })
+      .default("0")
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_item_modifiers_order_item_idx").on(table.orderItemId),
+    index("order_item_modifiers_organization_idx").on(table.organizationId),
+    index("order_item_modifiers_location_idx").on(table.locationId),
+  ],
+);

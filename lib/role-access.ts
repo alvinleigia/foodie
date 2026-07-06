@@ -2,10 +2,7 @@ import type { MembershipRole } from "@/lib/staff-auth";
 
 export const platformAdminRoles = ["PLATFORM_ADMIN"] satisfies MembershipRole[];
 
-export const companyAdminRoles = [
-  "COMPANY_OWNER",
-  "COMPANY_MANAGER",
-] satisfies MembershipRole[];
+export const companyAdminRoles = ["COMPANY_OWNER"] satisfies MembershipRole[];
 
 export const restaurantAdminRoles = [
   "RESTAURANT_MANAGER",
@@ -34,7 +31,7 @@ export function getHomePathForRole(role: MembershipRole) {
     return "/platform";
   }
 
-  if (role === "COMPANY_OWNER" || role === "COMPANY_MANAGER") {
+  if (role === "COMPANY_OWNER") {
     return "/company";
   }
 
@@ -65,7 +62,7 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
     href === "/company/restaurants" ||
     href === "/company/users"
   ) {
-    return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";
+    return role === "COMPANY_OWNER";
   }
 
   if (

@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { fetchJson, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Spinner } from "@/components/shared/Spinner";
 import {
   ReportBreakdown,
@@ -342,9 +343,9 @@ export function CompanyRestaurantsPanel({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  <StatusPill tone={restaurant.isActive ? "success" : "warning"}>
                     {restaurant.isActive ? "Active" : "Disabled"}
-                  </span>
+                  </StatusPill>
                   <DesktopQuickAction
                     href={`/company/restaurants/${restaurant.id}`}
                     icon={PencilIcon}

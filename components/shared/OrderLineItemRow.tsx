@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { PackageIcon } from "lucide-react";
 
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
-import { OrderItemStatus } from "@/lib/constants";
+import { OrderItemStatus, OrderLineItemModifier } from "@/lib/constants";
 import { formatPrice } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -16,18 +16,26 @@ type OrderLineItemRowProps = {
   quantity: number;
   status?: OrderItemStatus;
   unitPrice?: string | null;
+  modifiers?: OrderLineItemModifier[];
 };
 
 function formatLinePrice(
   unitPrice: string | null | undefined,
   quantity: number,
   currency?: string,
+  modifiers: OrderLineItemModifier[] = [],
 ) {
-  if (!unitPrice) {
+  const basePrice = unitPrice ? Number(unitPrice) : 0;
+  const modifierPrice = modifiers.reduce(
+    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
+    0,
+  );
+
+  if (!unitPrice && modifierPrice === 0) {
     return null;
   }
 
-  return formatPrice(Number(unitPrice) * quantity, { currency });
+  return formatPrice((basePrice + modifierPrice) * quantity, { currency });
 }
 
 export function OrderLineItemRow({
@@ -40,8 +48,9 @@ export function OrderLineItemRow({
   quantity,
   status,
   unitPrice,
+  modifiers = [],
 }: OrderLineItemRowProps) {
-  const linePrice = formatLinePrice(unitPrice, quantity, currency);
+  const linePrice = formatLinePrice(unitPrice, quantity, currency, modifiers);
 
   return (
     <div
@@ -69,6 +78,22 @@ export function OrderLineItemRow({
             ) : null}
             {notes ? (
               <p className="mt-1 text-xs text-stone-500">Note: {notes}</p>
+            ) : null}
+            {modifiers.length > 0 ? (
+              <div className="mt-2 grid gap-1">
+                {modifiers.map((modifier) => (
+                  <p
+                    key={modifier.id ?? `${modifier.modifierGroupId}-${modifier.modifierId}`}
+                    className="text-xs text-stone-500"
+                  >
+                    {modifier.modifierGroupName}: {modifier.modifierName}
+                    {modifier.quantity > 1 ? ` x${modifier.quantity}` : ""}
+                    {Number(modifier.priceDelta) > 0
+                      ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
+                      : ""}
+                  </p>
+                ))}
+              </div>
             ) : null}
           </div>
         </div>

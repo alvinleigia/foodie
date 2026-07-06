@@ -17,7 +17,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/lib/api-client";
+import {
+  type FieldErrors,
+  getApiErrorMessage,
+  getApiValidationErrors,
+  getFieldError,
+  getFirstFieldError,
+  hasFieldErrors,
+} from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -48,7 +55,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
-import { MenuCategoryRecord, MenuItemRecord, MenuTagRecord } from "@/types/menu";
+import {
+  MenuCategoryRecord,
+  MenuItemRecord,
+  MenuModifierGroupRecord,
+  MenuTagRecord,
+} from "@/types/menu";
 
 type CategoryDraft = {
   id: string | null;
@@ -69,7 +81,33 @@ type ItemDraft = {
   isActive: boolean;
   isSoldOut: boolean;
   tagIds: string[];
+  modifierGroupIds: string[];
 };
+
+type ModifierGroupDraft = {
+  name: string;
+  description: string;
+  selectionType: "SINGLE" | "MULTIPLE";
+  isRequired: boolean;
+  minSelections: string;
+  maxSelections: string;
+  sortOrder: string;
+  isActive: boolean;
+};
+
+type ModifierOptionDraft = {
+  groupId: string;
+  name: string;
+  priceDelta: string;
+  sortOrder: string;
+  isActive: boolean;
+  isSoldOut: boolean;
+};
+
+type ModifierGroupField = keyof ModifierGroupDraft & string;
+type ModifierOptionField = keyof ModifierOptionDraft & string;
+type CategoryField = keyof CategoryDraft & string;
+type ItemField = keyof ItemDraft & string;
 
 const emptyCategoryDraft: CategoryDraft = {
   id: null,
@@ -90,10 +128,32 @@ const emptyItemDraft: ItemDraft = {
   isActive: true,
   isSoldOut: false,
   tagIds: [],
+  modifierGroupIds: [],
+};
+
+const emptyModifierGroupDraft: ModifierGroupDraft = {
+  name: "",
+  description: "",
+  selectionType: "MULTIPLE",
+  isRequired: false,
+  minSelections: "0",
+  maxSelections: "",
+  sortOrder: "0",
+  isActive: true,
+};
+
+const emptyModifierOptionDraft: ModifierOptionDraft = {
+  groupId: "",
+  name: "",
+  priceDelta: "0",
+  sortOrder: "0",
+  isActive: true,
+  isSoldOut: false,
 };
 
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
+  const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
   const [currency, setCurrency] = useState("INR");
   const [isLoading, setIsLoading] = useState(true);
@@ -101,10 +161,22 @@ export function MenuManager() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
+  const [isModifierGroupDialogOpen, setIsModifierGroupDialogOpen] = useState(false);
+  const [isModifierOptionDialogOpen, setIsModifierOptionDialogOpen] = useState(false);
   const [isClearMenuDialogOpen, setIsClearMenuDialogOpen] = useState(false);
   const [clearMenuConfirmationText, setClearMenuConfirmationText] = useState("");
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategoryDraft);
+  const [categoryFieldErrors, setCategoryFieldErrors] = useState<FieldErrors<CategoryField>>({});
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
   const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft);
+  const [itemFieldErrors, setItemFieldErrors] = useState<FieldErrors<ItemField>>({});
+  const [itemFormError, setItemFormError] = useState<string | null>(null);
+  const [modifierGroupDraft, setModifierGroupDraft] = useState<ModifierGroupDraft>(emptyModifierGroupDraft);
+  const [modifierGroupFieldErrors, setModifierGroupFieldErrors] = useState<FieldErrors<ModifierGroupField>>({});
+  const [modifierGroupFormError, setModifierGroupFormError] = useState<string | null>(null);
+  const [modifierOptionDraft, setModifierOptionDraft] = useState<ModifierOptionDraft>(emptyModifierOptionDraft);
+  const [modifierOptionFieldErrors, setModifierOptionFieldErrors] = useState<FieldErrors<ModifierOptionField>>({});
+  const [modifierOptionFormError, setModifierOptionFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sortedCategories = useMemo(
@@ -127,11 +199,13 @@ export function MenuManager() {
       if (!response.ok) {
         setError(payload.error ?? "Failed to load menu.");
         setCategories([]);
+        setModifierGroups([]);
         setIsLoading(false);
         return;
       }
 
       setCategories(payload.categories ?? []);
+      setModifierGroups(payload.modifierGroups ?? []);
       setTags(payload.tags ?? []);
       setCurrency(payload.currency ?? "INR");
       setError(null);
@@ -143,6 +217,8 @@ export function MenuManager() {
 
   function openCreateCategoryDialog() {
     setCategoryDraft(emptyCategoryDraft);
+    setCategoryFieldErrors({});
+    setCategoryFormError(null);
     setIsCategoryDialogOpen(true);
   }
 
@@ -154,6 +230,8 @@ export function MenuManager() {
       sortOrder: String(category.sortOrder),
       isActive: category.isActive,
     });
+    setCategoryFieldErrors({});
+    setCategoryFormError(null);
     setIsCategoryDialogOpen(true);
   }
 
@@ -162,6 +240,8 @@ export function MenuManager() {
       ...emptyItemDraft,
       categoryId: categoryId ?? sortedCategories[0]?.id ?? "",
     });
+    setItemFieldErrors({});
+    setItemFormError(null);
     setIsItemDialogOpen(true);
   }
 
@@ -177,11 +257,15 @@ export function MenuManager() {
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
       tagIds: item.tags?.map((tag) => tag.id) ?? [],
+      modifierGroupIds: item.modifierGroups?.map((group) => group.id) ?? [],
     });
+    setItemFieldErrors({});
+    setItemFormError(null);
     setIsItemDialogOpen(true);
   }
 
   function toggleItemDraftTag(tagId: string, isSelected: boolean) {
+    clearItemFieldError("tagIds");
     setItemDraft((current) => ({
       ...current,
       tagIds: isSelected
@@ -190,7 +274,88 @@ export function MenuManager() {
     }));
   }
 
+  function toggleItemDraftModifierGroup(groupId: string, isSelected: boolean) {
+    clearItemFieldError("modifierGroupIds");
+    setItemDraft((current) => ({
+      ...current,
+      modifierGroupIds: isSelected
+        ? Array.from(new Set([...current.modifierGroupIds, groupId]))
+        : current.modifierGroupIds.filter((currentGroupId) => currentGroupId !== groupId),
+    }));
+  }
+
+  function clearCategoryFieldError(field: CategoryField) {
+    setCategoryFormError(null);
+    setCategoryFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function clearItemFieldError(field: ItemField) {
+    setItemFormError(null);
+    setItemFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function clearModifierGroupFieldError(field: ModifierGroupField) {
+    setModifierGroupFormError(null);
+    setModifierGroupFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function clearModifierOptionFieldError(field: ModifierOptionField) {
+    setModifierOptionFormError(null);
+    setModifierOptionFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function openCreateModifierGroupDialog() {
+    setModifierGroupDraft(emptyModifierGroupDraft);
+    setModifierGroupFieldErrors({});
+    setModifierGroupFormError(null);
+    setIsModifierGroupDialogOpen(true);
+  }
+
+  function openCreateModifierOptionDialog(groupId?: string) {
+    setModifierOptionDraft({
+      ...emptyModifierOptionDraft,
+      groupId: groupId ?? modifierGroups[0]?.id ?? "",
+    });
+    setModifierOptionFieldErrors({});
+    setModifierOptionFormError(null);
+    setIsModifierOptionDialogOpen(true);
+  }
+
   async function submitCategory() {
+    setCategoryFieldErrors({});
+    setCategoryFormError(null);
     setPendingAction("category");
     const path = categoryDraft.id
       ? `/api/menu/categories/${categoryDraft.id}`
@@ -211,15 +376,25 @@ export function MenuManager() {
     const payload = await response.json();
 
     if (!response.ok) {
-      const message = getApiErrorMessage(payload);
-      setError(message);
-      toast.error(message);
+      const validation = getApiValidationErrors<CategoryField>(payload);
+      const message =
+        validation.formError ??
+        getFirstFieldError(validation.fieldErrors) ??
+        getApiErrorMessage(payload);
+
+      setCategoryFieldErrors(validation.fieldErrors);
+      setCategoryFormError(validation.formError);
+      if (response.status >= 500 || (!hasFieldErrors(validation.fieldErrors) && !validation.formError)) {
+        toast.error(message);
+      }
       setPendingAction(null);
       return;
     }
 
     setCategories(payload.categories ?? []);
     setError(null);
+    setCategoryFieldErrors({});
+    setCategoryFormError(null);
     setIsCategoryDialogOpen(false);
     setCategoryDraft(emptyCategoryDraft);
     setPendingAction(null);
@@ -227,6 +402,8 @@ export function MenuManager() {
   }
 
   async function submitItem() {
+    setItemFieldErrors({});
+    setItemFormError(null);
     setPendingAction("item");
     const path = itemDraft.id ? `/api/menu/items/${itemDraft.id}` : "/api/menu/items";
     const method = itemDraft.id ? "PATCH" : "POST";
@@ -244,25 +421,141 @@ export function MenuManager() {
         isActive: itemDraft.isActive,
         isSoldOut: itemDraft.isSoldOut,
         tagIds: itemDraft.tagIds,
+        modifierGroupIds: itemDraft.modifierGroupIds,
       }),
     });
 
     const payload = await response.json();
 
     if (!response.ok) {
-      const message = getApiErrorMessage(payload);
-      setError(message);
-      toast.error(message);
+      const validation = getApiValidationErrors<ItemField>(payload);
+      const message =
+        validation.formError ??
+        getFirstFieldError(validation.fieldErrors) ??
+        getApiErrorMessage(payload);
+
+      setItemFieldErrors(validation.fieldErrors);
+      setItemFormError(validation.formError);
+      if (response.status >= 500 || (!hasFieldErrors(validation.fieldErrors) && !validation.formError)) {
+        toast.error(message);
+      }
       setPendingAction(null);
       return;
     }
 
     setCategories(payload.categories ?? []);
     setError(null);
+    setItemFieldErrors({});
+    setItemFormError(null);
     setIsItemDialogOpen(false);
     setItemDraft(emptyItemDraft);
     setPendingAction(null);
     toast.success(itemDraft.id ? "Item updated." : "Item added.");
+  }
+
+  async function submitModifierGroup() {
+    const minSelections = Number(modifierGroupDraft.minSelections);
+    const maxSelections = modifierGroupDraft.maxSelections.trim()
+      ? Number(modifierGroupDraft.maxSelections)
+      : null;
+
+    if (
+      maxSelections !== null
+      && Number.isFinite(minSelections)
+      && Number.isFinite(maxSelections)
+      && maxSelections < minSelections
+    ) {
+      const message = "Maximum selections cannot be lower than minimum selections.";
+      setModifierGroupFieldErrors({ maxSelections: message });
+      setModifierGroupFormError(null);
+      return;
+    }
+
+    setModifierGroupFieldErrors({});
+    setModifierGroupFormError(null);
+    setPendingAction("modifier-group");
+
+    const response = await fetch("/api/menu/modifier-groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: modifierGroupDraft.name,
+        description: modifierGroupDraft.description,
+        selectionType: modifierGroupDraft.selectionType,
+        isRequired: modifierGroupDraft.isRequired,
+        minSelections: modifierGroupDraft.minSelections,
+        maxSelections: modifierGroupDraft.maxSelections,
+        sortOrder: modifierGroupDraft.sortOrder,
+        isActive: modifierGroupDraft.isActive,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      const validation = getApiValidationErrors<ModifierGroupField>(payload);
+      const message = validation.formError ?? getFirstFieldError(validation.fieldErrors) ?? "Failed to save add-on group.";
+
+      setModifierGroupFieldErrors(validation.fieldErrors);
+      setModifierGroupFormError(validation.formError);
+      if (response.status >= 500 || (!hasFieldErrors(validation.fieldErrors) && !validation.formError)) {
+        toast.error(message);
+      }
+      setPendingAction(null);
+      return;
+    }
+
+    setCategories(payload.categories ?? []);
+    setModifierGroups(payload.modifierGroups ?? []);
+    setError(null);
+    setModifierGroupFieldErrors({});
+    setModifierGroupFormError(null);
+    setIsModifierGroupDialogOpen(false);
+    setModifierGroupDraft(emptyModifierGroupDraft);
+    setPendingAction(null);
+    toast.success("Add-on group added.");
+  }
+
+  async function submitModifierOption() {
+    setModifierOptionFieldErrors({});
+    setModifierOptionFormError(null);
+    setPendingAction("modifier-option");
+
+    const response = await fetch("/api/menu/modifiers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        groupId: modifierOptionDraft.groupId,
+        name: modifierOptionDraft.name,
+        priceDelta: modifierOptionDraft.priceDelta,
+        sortOrder: modifierOptionDraft.sortOrder,
+        isActive: modifierOptionDraft.isActive,
+        isSoldOut: modifierOptionDraft.isSoldOut,
+      }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      const validation = getApiValidationErrors<ModifierOptionField>(payload);
+      const message = validation.formError ?? getFirstFieldError(validation.fieldErrors) ?? "Failed to save add-on option.";
+
+      setModifierOptionFieldErrors(validation.fieldErrors);
+      setModifierOptionFormError(validation.formError);
+      if (response.status >= 500 || (!hasFieldErrors(validation.fieldErrors) && !validation.formError)) {
+        toast.error(message);
+      }
+      setPendingAction(null);
+      return;
+    }
+
+    setCategories(payload.categories ?? []);
+    setModifierGroups(payload.modifierGroups ?? []);
+    setError(null);
+    setModifierOptionFieldErrors({});
+    setModifierOptionFormError(null);
+    setIsModifierOptionDialogOpen(false);
+    setModifierOptionDraft(emptyModifierOptionDraft);
+    setPendingAction(null);
+    toast.success("Add-on option added.");
   }
 
   async function toggleItemSoldOut(item: MenuItemRecord) {
@@ -458,6 +751,25 @@ export function MenuManager() {
             <Button
               type="button"
               variant="outline"
+              onClick={openCreateModifierGroupDialog}
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+            >
+              <TagsIcon className="size-4" />
+              Add Add-on Group
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => openCreateModifierOptionDialog()}
+              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              disabled={modifierGroups.length === 0}
+            >
+              <PlusIcon className="size-4" />
+              Add Add-on Option
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => void exportMenu()}
               disabled={pendingAction === "export"}
               className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
@@ -615,6 +927,18 @@ export function MenuManager() {
                                   ))}
                                 </div>
                               ) : null}
+                              {item.modifierGroups && item.modifierGroups.length > 0 ? (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  {item.modifierGroups.map((group) => (
+                                    <span
+                                      key={group.id}
+                                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700"
+                                    >
+                                      {group.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             <div className="text-left md:text-right">
                               <p className="text-sm font-semibold text-stone-900">
@@ -661,6 +985,96 @@ export function MenuManager() {
               ))}
             </div>
           )}
+
+          <Card className="rounded-xl border-stone-200 bg-white shadow-none">
+            <CardContent className="space-y-4 px-5 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">
+                    Add-ons
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-stone-950">
+                    Modifier groups
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Create reusable extras like extra patty, toppings, mixers or sauces, then attach them to products.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={openCreateModifierGroupDialog}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <TagsIcon className="size-4" />
+                    Add Group
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openCreateModifierOptionDialog()}
+                    disabled={modifierGroups.length === 0}
+                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                  >
+                    <PlusIcon className="size-4" />
+                    Add Option
+                  </Button>
+                </div>
+              </div>
+
+              {modifierGroups.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-500">
+                  No add-on groups yet. Add a group, then add options and attach it to products.
+                </p>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {modifierGroups.map((group) => (
+                    <div
+                      key={group.id}
+                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-stone-950">{group.name}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
+                            {group.selectionType === "SINGLE" ? "Single choice" : "Multiple choice"}
+                            {group.isRequired ? " - Required" : ""}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => openCreateModifierOptionDialog(group.id)}
+                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                        >
+                          <PlusIcon className="size-4" />
+                          Option
+                        </Button>
+                      </div>
+                      {group.options.length === 0 ? (
+                        <p className="mt-3 text-sm text-stone-500">No options yet.</p>
+                      ) : (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {group.options.map((option) => (
+                            <span
+                              key={option.id}
+                              className="rounded-lg border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700"
+                            >
+                              {option.name}
+                              {Number(option.priceDelta) > 0
+                                ? ` + ${formatPrice(option.priceDelta, { currency })}`
+                                : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </CardContent>
       </Card>
 
@@ -675,35 +1089,82 @@ export function MenuManager() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 px-6 pb-4">
-            <FormField label="Category name">
+            <FormField
+              label="Category name"
+              error={getFieldError(categoryFieldErrors, "name")}
+              errorId="menu-category-name-error"
+            >
               <Input
                 value={categoryDraft.name}
-                onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))}
+                onChange={(event) => {
+                  clearCategoryFieldError("name");
+                  setCategoryDraft((current) => ({ ...current, name: event.target.value }));
+                }}
+                aria-invalid={Boolean(getFieldError(categoryFieldErrors, "name"))}
+                aria-describedby={
+                  getFieldError(categoryFieldErrors, "name")
+                    ? "menu-category-name-error"
+                    : undefined
+                }
                 className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
-            <FormField label="Description">
+            <FormField
+              label="Description"
+              error={getFieldError(categoryFieldErrors, "description")}
+              errorId="menu-category-description-error"
+            >
               <Textarea
                 value={categoryDraft.description}
-                onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))}
+                onChange={(event) => {
+                  clearCategoryFieldError("description");
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }));
+                }}
+                aria-invalid={Boolean(getFieldError(categoryFieldErrors, "description"))}
+                aria-describedby={
+                  getFieldError(categoryFieldErrors, "description")
+                    ? "menu-category-description-error"
+                    : undefined
+                }
                 rows={4}
               />
             </FormField>
-            <FormField label="Sort order">
+            <FormField
+              label="Sort order"
+              error={getFieldError(categoryFieldErrors, "sortOrder")}
+              errorId="menu-category-sort-order-error"
+            >
               <Input
                 type="number"
                 min="0"
                 value={categoryDraft.sortOrder}
-                onChange={(event) => setCategoryDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                onChange={(event) => {
+                  clearCategoryFieldError("sortOrder");
+                  setCategoryDraft((current) => ({
+                    ...current,
+                    sortOrder: event.target.value,
+                  }));
+                }}
+                aria-invalid={Boolean(getFieldError(categoryFieldErrors, "sortOrder"))}
+                aria-describedby={
+                  getFieldError(categoryFieldErrors, "sortOrder")
+                    ? "menu-category-sort-order-error"
+                    : undefined
+                }
                 className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
+            {categoryFormError ? <p className="text-sm text-rose-600">{categoryFormError}</p> : null}
             <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
               <Checkbox
                 checked={categoryDraft.isActive}
-                onCheckedChange={(checked) =>
-                  setCategoryDraft((current) => ({ ...current, isActive: checked === true }))
-                }
+                onCheckedChange={(checked) => {
+                  clearCategoryFieldError("isActive");
+                  setCategoryDraft((current) => ({ ...current, isActive: checked === true }));
+                }}
               />
               Show this category to customers
             </label>
@@ -805,10 +1266,17 @@ export function MenuManager() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid max-h-[calc(100vh-15rem)] gap-4 overflow-x-hidden overflow-y-auto px-6 pb-4">
-            <FormField label="Category">
+            <FormField
+              label="Category"
+              error={getFieldError(itemFieldErrors, "categoryId")}
+              errorId="menu-item-category-error"
+            >
               <NativeSelect
                 value={itemDraft.categoryId}
-                onChange={(event) => setItemDraft((current) => ({ ...current, categoryId: event.target.value }))}
+                onChange={(event) => {
+                  clearItemFieldError("categoryId");
+                  setItemDraft((current) => ({ ...current, categoryId: event.target.value }));
+                }}
               >
                 <option value="">Choose a category</option>
                 {sortedCategories.map((category) => (
@@ -820,36 +1288,78 @@ export function MenuManager() {
             </FormField>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField label="Product name">
+              <FormField
+                label="Product name"
+                error={getFieldError(itemFieldErrors, "name")}
+                errorId="menu-item-name-error"
+              >
                 <Input
                   value={itemDraft.name}
-                  onChange={(event) => setItemDraft((current) => ({ ...current, name: event.target.value }))}
+                  onChange={(event) => {
+                    clearItemFieldError("name");
+                    setItemDraft((current) => ({ ...current, name: event.target.value }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(itemFieldErrors, "name"))}
+                  aria-describedby={
+                    getFieldError(itemFieldErrors, "name") ? "menu-item-name-error" : undefined
+                  }
                   className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
-              <FormField label="Price">
+              <FormField
+                label="Price"
+                error={getFieldError(itemFieldErrors, "price")}
+                errorId="menu-item-price-error"
+              >
                 <Input
                   type="number"
                   inputMode="decimal"
                   min="0"
                   step="0.01"
                   value={itemDraft.price}
-                  onChange={(event) => setItemDraft((current) => ({ ...current, price: event.target.value }))}
+                  onChange={(event) => {
+                    clearItemFieldError("price");
+                    setItemDraft((current) => ({ ...current, price: event.target.value }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(itemFieldErrors, "price"))}
+                  aria-describedby={
+                    getFieldError(itemFieldErrors, "price") ? "menu-item-price-error" : undefined
+                  }
                   placeholder="9.99"
                   className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
             </div>
 
-            <FormField label="Description">
+            <FormField
+              label="Description"
+              error={getFieldError(itemFieldErrors, "description")}
+              errorId="menu-item-description-error"
+            >
               <Textarea
                 value={itemDraft.description}
-                onChange={(event) => setItemDraft((current) => ({ ...current, description: event.target.value }))}
+                onChange={(event) => {
+                  clearItemFieldError("description");
+                  setItemDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }));
+                }}
+                aria-invalid={Boolean(getFieldError(itemFieldErrors, "description"))}
+                aria-describedby={
+                  getFieldError(itemFieldErrors, "description")
+                    ? "menu-item-description-error"
+                    : undefined
+                }
                 rows={4}
               />
             </FormField>
 
-            <FormField label="Tags">
+            <FormField
+              label="Tags"
+              error={getFieldError(itemFieldErrors, "tagIds")}
+              errorId="menu-item-tags-error"
+            >
               {tags.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
                   No menu tags are available yet. Run the latest database migration to seed default tags.
@@ -874,23 +1384,78 @@ export function MenuManager() {
               )}
             </FormField>
 
-            <FormField label="Image URL">
+            <FormField
+              label="Add-ons"
+              error={getFieldError(itemFieldErrors, "modifierGroupIds")}
+              errorId="menu-item-add-ons-error"
+            >
+              {modifierGroups.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
+                  No add-on groups are available yet. Create add-on groups in Menu Manager first.
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {modifierGroups.map((group) => (
+                    <label
+                      key={group.id}
+                      className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-900"
+                    >
+                      <Checkbox
+                        checked={itemDraft.modifierGroupIds.includes(group.id)}
+                        onCheckedChange={(checked) =>
+                          toggleItemDraftModifierGroup(group.id, checked === true)
+                        }
+                      />
+                      <span>{group.name}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </FormField>
+
+            <FormField
+              label="Image URL"
+              error={getFieldError(itemFieldErrors, "imageUrl")}
+              errorId="menu-item-image-url-error"
+            >
               <Input
                 type="url"
                 value={itemDraft.imageUrl}
-                onChange={(event) => setItemDraft((current) => ({ ...current, imageUrl: event.target.value }))}
+                onChange={(event) => {
+                  clearItemFieldError("imageUrl");
+                  setItemDraft((current) => ({ ...current, imageUrl: event.target.value }));
+                }}
+                aria-invalid={Boolean(getFieldError(itemFieldErrors, "imageUrl"))}
+                aria-describedby={
+                  getFieldError(itemFieldErrors, "imageUrl")
+                    ? "menu-item-image-url-error"
+                    : undefined
+                }
                 placeholder="https://..."
                 className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
               />
             </FormField>
 
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-              <FormField label="Sort order">
+              <FormField
+                label="Sort order"
+                error={getFieldError(itemFieldErrors, "sortOrder")}
+                errorId="menu-item-sort-order-error"
+              >
                 <Input
                   type="number"
                   min="0"
                   value={itemDraft.sortOrder}
-                  onChange={(event) => setItemDraft((current) => ({ ...current, sortOrder: event.target.value }))}
+                  onChange={(event) => {
+                    clearItemFieldError("sortOrder");
+                    setItemDraft((current) => ({ ...current, sortOrder: event.target.value }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(itemFieldErrors, "sortOrder"))}
+                  aria-describedby={
+                    getFieldError(itemFieldErrors, "sortOrder")
+                      ? "menu-item-sort-order-error"
+                      : undefined
+                  }
                   className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
                 />
               </FormField>
@@ -909,22 +1474,25 @@ export function MenuManager() {
                 </div>
               </div>
             </div>
+            {itemFormError ? <p className="text-sm text-rose-600">{itemFormError}</p> : null}
 
             <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
               <Checkbox
                 checked={itemDraft.isActive}
-                onCheckedChange={(checked) =>
-                  setItemDraft((current) => ({ ...current, isActive: checked === true }))
-                }
+                onCheckedChange={(checked) => {
+                  clearItemFieldError("isActive");
+                  setItemDraft((current) => ({ ...current, isActive: checked === true }));
+                }}
               />
               Show this product to customers
             </label>
             <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
               <Checkbox
                 checked={itemDraft.isSoldOut}
-                onCheckedChange={(checked) =>
-                  setItemDraft((current) => ({ ...current, isSoldOut: checked === true }))
-                }
+                onCheckedChange={(checked) => {
+                  clearItemFieldError("isSoldOut");
+                  setItemDraft((current) => ({ ...current, isSoldOut: checked === true }));
+                }}
               />
               Mark this product as sold out
             </label>
@@ -948,6 +1516,361 @@ export function MenuManager() {
                 <ButtonLabel icon={SaveIcon}>Save Product</ButtonLabel>
               ) : (
                 <ButtonLabel icon={PlusIcon}>Add Product</ButtonLabel>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isModifierGroupDialogOpen} onOpenChange={setIsModifierGroupDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-xl border border-white/70 bg-white p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-2xl text-stone-950">Add add-on group</DialogTitle>
+            <DialogDescription>
+              Create a reusable group like toppings, extras, sauces or mixers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 pb-4">
+            <FormField
+              label="Group name"
+              htmlFor="modifier-group-name"
+              error={getFieldError(modifierGroupFieldErrors, "name")}
+              errorId="modifier-group-name-error"
+            >
+              <Input
+                id="modifier-group-name"
+                value={modifierGroupDraft.name}
+                onChange={(event) => {
+                  clearModifierGroupFieldError("name");
+                  setModifierGroupDraft((current) => ({ ...current, name: event.target.value }));
+                }}
+                aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "name"))}
+                aria-describedby={getFieldError(modifierGroupFieldErrors, "name") ? "modifier-group-name-error" : undefined}
+                placeholder="Extra toppings"
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+              />
+            </FormField>
+            <FormField
+              label="Description"
+              htmlFor="modifier-group-description"
+              error={getFieldError(modifierGroupFieldErrors, "description")}
+              errorId="modifier-group-description-error"
+            >
+              <Textarea
+                id="modifier-group-description"
+                value={modifierGroupDraft.description}
+                onChange={(event) => {
+                  clearModifierGroupFieldError("description");
+                  setModifierGroupDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }));
+                }}
+                aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "description"))}
+                aria-describedby={
+                  getFieldError(modifierGroupFieldErrors, "description") ? "modifier-group-description-error" : undefined
+                }
+                rows={3}
+              />
+            </FormField>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Selection type"
+                htmlFor="modifier-group-selection-type"
+                error={getFieldError(modifierGroupFieldErrors, "selectionType")}
+                errorId="modifier-group-selection-type-error"
+              >
+                <NativeSelect
+                  id="modifier-group-selection-type"
+                  value={modifierGroupDraft.selectionType}
+                  onChange={(event) => {
+                    clearModifierGroupFieldError("selectionType");
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      selectionType: event.target.value as "SINGLE" | "MULTIPLE",
+                    }));
+                  }}
+                >
+                  <option value="MULTIPLE">Multiple choice</option>
+                  <option value="SINGLE">Single choice</option>
+                </NativeSelect>
+              </FormField>
+              <FormField
+                label="Sort order"
+                htmlFor="modifier-group-sort-order"
+                error={getFieldError(modifierGroupFieldErrors, "sortOrder")}
+                errorId="modifier-group-sort-order-error"
+              >
+                <Input
+                  id="modifier-group-sort-order"
+                  type="number"
+                  min="0"
+                  value={modifierGroupDraft.sortOrder}
+                  onChange={(event) => {
+                    clearModifierGroupFieldError("sortOrder");
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      sortOrder: event.target.value,
+                    }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "sortOrder"))}
+                  aria-describedby={
+                    getFieldError(modifierGroupFieldErrors, "sortOrder") ? "modifier-group-sort-order-error" : undefined
+                  }
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Minimum selections"
+                htmlFor="modifier-group-min-selections"
+                error={getFieldError(modifierGroupFieldErrors, "minSelections")}
+                errorId="modifier-group-min-selections-error"
+              >
+                <Input
+                  id="modifier-group-min-selections"
+                  type="number"
+                  min="0"
+                  value={modifierGroupDraft.minSelections}
+                  onChange={(event) => {
+                    clearModifierGroupFieldError("minSelections");
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      minSelections: event.target.value,
+                    }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "minSelections"))}
+                  aria-describedby={
+                    getFieldError(modifierGroupFieldErrors, "minSelections")
+                      ? "modifier-group-min-selections-error"
+                      : undefined
+                  }
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+              <FormField
+                label="Maximum selections"
+                htmlFor="modifier-group-max-selections"
+                error={getFieldError(modifierGroupFieldErrors, "maxSelections")}
+                errorId="modifier-group-max-selections-error"
+              >
+                <Input
+                  id="modifier-group-max-selections"
+                  type="number"
+                  min="1"
+                  value={modifierGroupDraft.maxSelections}
+                  onChange={(event) => {
+                    clearModifierGroupFieldError("maxSelections");
+                    setModifierGroupDraft((current) => ({
+                      ...current,
+                      maxSelections: event.target.value,
+                    }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "maxSelections"))}
+                  aria-describedby={
+                    getFieldError(modifierGroupFieldErrors, "maxSelections")
+                      ? "modifier-group-max-selections-error"
+                      : undefined
+                  }
+                  placeholder="No limit"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            {modifierGroupFormError ? <p className="text-sm text-rose-600">{modifierGroupFormError}</p> : null}
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierGroupDraft.isRequired}
+                onCheckedChange={(checked) =>
+                  setModifierGroupDraft((current) => ({
+                    ...current,
+                    isRequired: checked === true,
+                  }))
+                }
+              />
+              Require customers to choose from this group
+            </label>
+          </div>
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModifierGroupDialogOpen(false)}
+              className="rounded-lg"
+            >
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitModifierGroup()}
+              disabled={pendingAction === "modifier-group"}
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+            >
+              {pendingAction === "modifier-group" ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                <ButtonLabel icon={PlusIcon}>Add Group</ButtonLabel>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isModifierOptionDialogOpen} onOpenChange={setIsModifierOptionDialogOpen}>
+        <DialogContent className="max-w-2xl rounded-xl border border-white/70 bg-white p-0">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle className="text-2xl text-stone-950">Add add-on option</DialogTitle>
+            <DialogDescription>
+              Add a selectable option inside an add-on group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 pb-4">
+            <FormField
+              label="Add-on group"
+              error={getFieldError(modifierOptionFieldErrors, "groupId")}
+              errorId="modifier-option-group-error"
+            >
+              <NativeSelect
+                value={modifierOptionDraft.groupId}
+                onChange={(event) => {
+                  clearModifierOptionFieldError("groupId");
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    groupId: event.target.value,
+                  }));
+                }}
+              >
+                <option value="">Choose a group</option>
+                {modifierGroups.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+            <div className="grid gap-4 md:grid-cols-2">
+              <FormField
+                label="Option name"
+                error={getFieldError(modifierOptionFieldErrors, "name")}
+                errorId="modifier-option-name-error"
+              >
+                <Input
+                  value={modifierOptionDraft.name}
+                  onChange={(event) => {
+                    clearModifierOptionFieldError("name");
+                    setModifierOptionDraft((current) => ({
+                      ...current,
+                      name: event.target.value,
+                    }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(modifierOptionFieldErrors, "name"))}
+                  aria-describedby={getFieldError(modifierOptionFieldErrors, "name") ? "modifier-option-name-error" : undefined}
+                  placeholder="Extra patty"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+              <FormField
+                label="Extra price"
+                error={getFieldError(modifierOptionFieldErrors, "priceDelta")}
+                errorId="modifier-option-price-error"
+              >
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  value={modifierOptionDraft.priceDelta}
+                  onChange={(event) => {
+                    clearModifierOptionFieldError("priceDelta");
+                    setModifierOptionDraft((current) => ({
+                      ...current,
+                      priceDelta: event.target.value,
+                    }));
+                  }}
+                  aria-invalid={Boolean(getFieldError(modifierOptionFieldErrors, "priceDelta"))}
+                  aria-describedby={
+                    getFieldError(modifierOptionFieldErrors, "priceDelta") ? "modifier-option-price-error" : undefined
+                  }
+                  placeholder="0.00"
+                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                />
+              </FormField>
+            </div>
+            <FormField
+              label="Sort order"
+              error={getFieldError(modifierOptionFieldErrors, "sortOrder")}
+              errorId="modifier-option-sort-order-error"
+            >
+              <Input
+                type="number"
+                min="0"
+                value={modifierOptionDraft.sortOrder}
+                onChange={(event) => {
+                  clearModifierOptionFieldError("sortOrder");
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    sortOrder: event.target.value,
+                  }));
+                }}
+                aria-invalid={Boolean(getFieldError(modifierOptionFieldErrors, "sortOrder"))}
+                aria-describedby={
+                  getFieldError(modifierOptionFieldErrors, "sortOrder") ? "modifier-option-sort-order-error" : undefined
+                }
+                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+              />
+            </FormField>
+            {modifierOptionFormError ? <p className="text-sm text-rose-600">{modifierOptionFormError}</p> : null}
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierOptionDraft.isActive}
+                onCheckedChange={(checked) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    isActive: checked === true,
+                  }))
+                }
+              />
+              Show this add-on to customers
+            </label>
+            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Checkbox
+                checked={modifierOptionDraft.isSoldOut}
+                onCheckedChange={(checked) =>
+                  setModifierOptionDraft((current) => ({
+                    ...current,
+                    isSoldOut: checked === true,
+                  }))
+                }
+              />
+              Mark this add-on as sold out
+            </label>
+          </div>
+          <DialogFooter className="border-stone-200 bg-stone-50/80">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsModifierOptionDialogOpen(false)}
+              className="rounded-lg"
+            >
+              <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submitModifierOption()}
+              disabled={pendingAction === "modifier-option"}
+              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+            >
+              {pendingAction === "modifier-option" ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                <ButtonLabel icon={PlusIcon}>Add Option</ButtonLabel>
               )}
             </Button>
           </DialogFooter>

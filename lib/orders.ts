@@ -1,19 +1,38 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
-import { OrderLineItem, OrderStatus } from "@/lib/constants";
+import { orderItemModifiers, orderItems, orders } from "@/db/schema";
+import { OrderLineItem, OrderLineItemModifier, OrderStatus } from "@/lib/constants";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 
+const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
+const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
+
+function activeOrderRank() {
+  return sql<number>`case ${orders.status}
+    when 'PENDING' then 1
+    when 'PREPARING' then 2
+    when 'READY' then 3
+    else 4
+  end`;
+}
+
+function pastOrderClosedAt() {
+  return sql<Date>`coalesce(${orders.deliveredAt}, ${orders.cancelledAt}, ${orders.createdAt})`;
+}
+
 export function isActiveOrderStatus(status: OrderStatus) {
-  return status === "PENDING" || status === "PREPARING" || status === "READY";
+  return activeOrderStatuses.includes(status);
 }
 
 export function isPastOrderStatus(status: OrderStatus) {
-  return status === "DELIVERED" || status === "CANCELLED";
+  return pastOrderStatuses.includes(status);
 }
 
-function groupItemsByOrder(items: typeof orderItems.$inferSelect[]) {
+function groupItemsByOrder(
+  items: typeof orderItems.$inferSelect[],
+  modifiersByItemId = new Map<string, OrderLineItemModifier[]>(),
+) {
   const map = new Map<string, OrderLineItem[]>();
 
   for (const item of items) {
@@ -34,11 +53,50 @@ function groupItemsByOrder(items: typeof orderItems.$inferSelect[]) {
       readyAt: item.readyAt?.toISOString() ?? null,
       deliveredAt: item.deliveredAt?.toISOString() ?? null,
       cancelledAt: item.cancelledAt?.toISOString() ?? null,
+      modifiers: modifiersByItemId.get(item.id) ?? [],
     });
     map.set(item.orderId, list);
   }
 
   return map;
+}
+
+async function getModifiersByOrderItemId(
+  itemIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, OrderLineItemModifier[]>();
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(orderItemModifiers)
+    .where(
+      and(
+        inArray(orderItemModifiers.orderItemId, itemIds),
+        eq(orderItemModifiers.organizationId, context.organizationId),
+        eq(orderItemModifiers.locationId, context.locationId),
+      ),
+    );
+  const modifiersByItemId = new Map<string, OrderLineItemModifier[]>();
+
+  for (const row of rows) {
+    const modifiers = modifiersByItemId.get(row.orderItemId) ?? [];
+    modifiers.push({
+      id: row.id,
+      modifierGroupId: row.modifierGroupId,
+      modifierGroupName: row.modifierGroupName,
+      modifierId: row.modifierId,
+      modifierName: row.modifierName,
+      quantity: row.quantity,
+      priceDelta: row.priceDelta,
+    });
+    modifiersByItemId.set(row.orderItemId, modifiers);
+  }
+
+  return modifiersByItemId;
 }
 
 export function buildOrderSummary(items: Array<{ drinkName: string; quantity: number }>) {
@@ -88,81 +146,45 @@ export function serializeOrder(
 
 export async function getActiveOrders(context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
-  const activeOrders = await db
+  return db
     .select()
     .from(orders)
     .where(
       and(
         eq(orders.organizationId, context.organizationId),
         eq(orders.locationId, context.locationId),
+        inArray(orders.status, activeOrderStatuses),
       ),
     )
-    .orderBy(desc(orders.createdAt));
-
-  const statusRank: Record<OrderStatus, number> = {
-    PENDING: 1,
-    PREPARING: 2,
-    READY: 3,
-    DELIVERED: 4,
-    CANCELLED: 5,
-  };
-
-  return activeOrders
-    .filter((order) => isActiveOrderStatus(order.status))
-    .sort((left, right) => {
-      const rankDifference = statusRank[left.status] - statusRank[right.status];
-
-      if (rankDifference !== 0) {
-        return rankDifference;
-      }
-
-      return right.createdAt.getTime() - left.createdAt.getTime();
-    });
+    .orderBy(activeOrderRank(), desc(orders.createdAt));
 }
 
 export async function getStaffOrders(context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
-  const allOrders = await db
-    .select()
-    .from(orders)
-    .where(
-      and(
-        eq(orders.organizationId, context.organizationId),
-        eq(orders.locationId, context.locationId),
-      ),
-    )
-    .orderBy(desc(orders.createdAt));
-
-  const statusRank: Record<OrderStatus, number> = {
-    PENDING: 1,
-    PREPARING: 2,
-    READY: 3,
-    DELIVERED: 4,
-    CANCELLED: 5,
-  };
-
-  const activeOrders = allOrders
-    .filter((order) => isActiveOrderStatus(order.status))
-    .sort((left, right) => {
-      const rankDifference = statusRank[left.status] - statusRank[right.status];
-
-      if (rankDifference !== 0) {
-        return rankDifference;
-      }
-
-      return right.createdAt.getTime() - left.createdAt.getTime();
-    });
-
-  const pastOrders = allOrders
-    .filter((order) => isPastOrderStatus(order.status))
-    .sort((left, right) => {
-      const leftClosedAt =
-        left.deliveredAt?.getTime() ?? left.cancelledAt?.getTime() ?? left.createdAt.getTime();
-      const rightClosedAt =
-        right.deliveredAt?.getTime() ?? right.cancelledAt?.getTime() ?? right.createdAt.getTime();
-
-      return rightClosedAt - leftClosedAt;
-    });
+  const [activeOrders, pastOrders] = await Promise.all([
+    db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.organizationId, context.organizationId),
+          eq(orders.locationId, context.locationId),
+          inArray(orders.status, activeOrderStatuses),
+        ),
+      )
+      .orderBy(activeOrderRank(), desc(orders.createdAt)),
+    db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.organizationId, context.organizationId),
+          eq(orders.locationId, context.locationId),
+          inArray(orders.status, pastOrderStatuses),
+        ),
+      )
+      .orderBy(desc(pastOrderClosedAt())),
+  ]);
 
   return { activeOrders, pastOrders };
 }
@@ -214,7 +236,12 @@ export async function getOrderItemsForOrders(
       ),
     );
 
-  return groupItemsByOrder(items);
+  const modifiersByItemId = await getModifiersByOrderItemId(
+    items.map((item) => item.id),
+    context,
+  );
+
+  return groupItemsByOrder(items, modifiersByItemId);
 }
 
 export async function getOrderItems(
@@ -233,5 +260,10 @@ export async function getOrderItems(
       ),
     );
 
-  return groupItemsByOrder(items).get(orderId) ?? [];
+  const modifiersByItemId = await getModifiersByOrderItemId(
+    items.map((item) => item.id),
+    context,
+  );
+
+  return groupItemsByOrder(items, modifiersByItemId).get(orderId) ?? [];
 }

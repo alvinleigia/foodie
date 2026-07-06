@@ -38,6 +38,17 @@ export type OrderLineItem = {
   readyAt: string | null;
   deliveredAt: string | null;
   cancelledAt: string | null;
+  modifiers?: OrderLineItemModifier[];
+};
+
+export type OrderLineItemModifier = {
+  id?: string;
+  modifierGroupId: string;
+  modifierGroupName: string;
+  modifierId: string;
+  modifierName: string;
+  quantity: number;
+  priceDelta: string;
 };
 
 export type LocalCustomerOrder = {

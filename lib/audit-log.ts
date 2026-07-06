@@ -84,7 +84,7 @@ async function getAuditWhere(viewer: AuditViewer) {
     return eq(auditLogs.id, "00000000-0000-0000-0000-000000000000");
   }
 
-  if (viewer.role === "COMPANY_OWNER" || viewer.role === "COMPANY_MANAGER") {
+  if (viewer.role === "COMPANY_OWNER") {
     const organizationIds = await getCompanyScopedOrganizationIds(organizationId);
     return inArray(auditLogs.organizationId, organizationIds);
   }

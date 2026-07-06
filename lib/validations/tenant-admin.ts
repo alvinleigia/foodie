@@ -4,12 +4,11 @@ import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options"
 
 export const staffRoles = [
   "COMPANY_OWNER",
-  "COMPANY_MANAGER",
   "RESTAURANT_MANAGER",
   "ORDER_OPERATOR",
 ] as const;
 
-export const companyStaffRoles = ["COMPANY_OWNER", "COMPANY_MANAGER"] as const;
+export const companyStaffRoles = ["COMPANY_OWNER"] as const;
 
 export const restaurantStaffRoles = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"] as const;
 
@@ -113,6 +112,12 @@ export const acceptStaffInvitationSchema = z.object({
 export const resetPasswordSchema = z.object({
   token: z.string().trim().min(20),
   password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const updateUserAccountSchema = z.object({
+  username: z.string().trim().min(3, "Username is required").max(60),
+  name: z.string().trim().min(2, "Name is required").max(120),
+  email: z.string().trim().email("Enter a valid email"),
 });
 
 export const createCompanyOrganizationSchema = z.object({

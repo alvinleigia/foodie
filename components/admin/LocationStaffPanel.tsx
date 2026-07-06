@@ -4,11 +4,13 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
+  UserPenIcon,
   UserPlusIcon,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -91,12 +93,14 @@ export function LocationStaffPanel({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-stone-950">{user.name}</p>
-                  <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  <StatusPill tone={user.isActive ? "success" : "warning"}>
                     {user.isActive ? "Access Active" : "Access Disabled"}
-                  </span>
-                  <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  </StatusPill>
+                  <StatusPill
+                    tone={user.userStatus === "ACTIVE" ? "success" : "warning"}
+                  >
                     Account {user.userStatus.toLowerCase()}
-                  </span>
+                  </StatusPill>
                 </div>
                 <p className="mt-1 text-sm text-stone-500">
                   {user.username} - {user.email}
@@ -132,6 +136,13 @@ export function LocationStaffPanel({
                         href={`/company/users/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
                       >
                         Edit access
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href={`/users/${user.membershipId}/account?returnTo=${encodeURIComponent(currentHref)}`}
+                      >
+                        <ButtonLabel icon={UserPenIcon}>Edit account details</ButtonLabel>
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>

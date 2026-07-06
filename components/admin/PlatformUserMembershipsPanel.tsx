@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { KeyRoundIcon, UserCheckIcon } from "lucide-react";
+import { KeyRoundIcon, UserCheckIcon, UserPenIcon } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatAppDate } from "@/lib/date-format";
@@ -35,29 +36,6 @@ type PlatformUserMembership = {
 type PlatformUserMembershipsPanelProps = {
   users: PlatformUserMembership[];
 };
-
-function StatusPill({
-  tone = "neutral",
-  children,
-}: {
-  tone?: "neutral" | "success" | "warning";
-  children: React.ReactNode;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-      : tone === "warning"
-        ? "border-amber-200 bg-amber-50 text-amber-700"
-        : "border-stone-200 bg-white text-stone-500";
-
-  return (
-    <span
-      className={`rounded-md border px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] ${toneClass}`}
-    >
-      {children}
-    </span>
-  );
-}
 
 function getScopeLabel(membership: UserMembership) {
   if (membership.role === "PLATFORM_ADMIN") {
@@ -148,13 +126,20 @@ export function PlatformUserMembershipsPanel({
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusPill
                         tone={membership.isActive ? "success" : "warning"}
                       >
                         {membership.isActive ? "Access active" : "Access disabled"}
                       </StatusPill>
                       <StatusPill>{formatRole(membership.role)}</StatusPill>
+                      <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
+                        <Link
+                          href={`/users/${membership.membershipId}/account?returnTo=${encodeURIComponent("/platform/users/memberships")}`}
+                        >
+                          <ButtonLabel icon={UserPenIcon}>Account</ButtonLabel>
+                        </Link>
+                      </Button>
                       <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
                         <Link
                           href={`/users/${membership.membershipId}/reset-password?returnTo=${encodeURIComponent("/platform/users/memberships")}`}

@@ -41,10 +41,10 @@ async function hashPassword(password) {
   return `scrypt:${salt}:${Buffer.from(key).toString("hex")}`;
 }
 
-const env = readEnv();
+const env = { ...readEnv(), ...process.env };
 
 if (!env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is missing from .env.local.");
+  throw new Error("DATABASE_URL is missing from .env.local or the current shell.");
 }
 
 const username = env.PLATFORM_OWNER_USERNAME?.trim();

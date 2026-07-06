@@ -3,8 +3,10 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { locations, memberships, organizations, users } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
+import { isMembershipAllowedInScope, type ScopedMembershipAccess } from "@/lib/location-access";
 import { verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
+import type { TenantDomainAccessScope } from "@/lib/tenant-domains";
 
 export type MembershipRole =
   | "PLATFORM_ADMIN"
@@ -25,10 +27,30 @@ export type StaffPrincipal = {
 
 type AuthenticateStaffOptions = {
   platformOnly?: boolean;
+  accessScope?: TenantDomainAccessScope;
 };
 
 function normalizeIdentifier(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function getScopedAccessPriority(
+  record: ScopedMembershipAccess,
+  scope?: TenantDomainAccessScope,
+) {
+  if (!scope || scope.type === "PLATFORM") {
+    return 0;
+  }
+
+  if (scope.type === "COMPANY") {
+    return record.organizationType === "COMPANY" ? 0 : 1;
+  }
+
+  if (scope.type === "RESTAURANT") {
+    return record.organizationId === scope.restaurantOrganizationId ? 0 : 1;
+  }
+
+  return record.locationId === scope.locationId ? 0 : 1;
 }
 
 export async function authenticateStaff(
@@ -61,7 +83,7 @@ export async function authenticateStaff(
     eq(organizations.isActive, true),
     or(isNull(memberships.locationId), eq(locations.isActive, true)),
   );
-  const [record] = await db
+  const records = await db
     .select({
       id: users.id,
       name: users.name,
@@ -72,6 +94,7 @@ export async function authenticateStaff(
       membershipRole: memberships.role,
       organizationId: memberships.organizationId,
       organizationType: organizations.type,
+      parentOrganizationId: organizations.parentOrganizationId,
       locationId: memberships.locationId,
       membershipActive: memberships.isActive,
       organizationActive: organizations.isActive,
@@ -89,8 +112,18 @@ export async function authenticateStaff(
             eq(organizations.type, "PLATFORM"),
           )
         : baseAccessCondition,
+    );
+  const [record] = records
+    .filter(
+      (candidate) =>
+        candidate.membershipRole !== "COMPANY_MANAGER" &&
+        isMembershipAllowedInScope(candidate, options.accessScope),
     )
-    .limit(1);
+    .sort(
+      (first, second) =>
+        getScopedAccessPriority(first, options.accessScope) -
+        getScopedAccessPriority(second, options.accessScope),
+    );
 
   if (!record) {
     return null;

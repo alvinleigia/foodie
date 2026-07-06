@@ -40,11 +40,6 @@ const adminRoutes: AdminRoute[] = [
     description: "Parent company tenants.",
   },
   {
-    href: "/platform/users/reassign",
-    label: "Reassign User",
-    description: "Move existing user access.",
-  },
-  {
     href: "/platform/users/memberships",
     label: "User Memberships",
     description: "Review cross-tenant access.",

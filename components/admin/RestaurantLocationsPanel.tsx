@@ -12,11 +12,19 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import {
+  type FieldErrors,
+  getCaughtValidationErrors,
+  getFieldError,
+  getFirstFieldError,
+  hasFieldErrors,
+  requestJson,
+} from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { FormField } from "@/components/shared/FormField";
 import { TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -46,6 +54,7 @@ type LocationDraft = {
   timezone: string;
   isActive: boolean;
 };
+type LocationField = keyof LocationDraft & string;
 
 type RestaurantLocationsPanelProps = {
   locations: RestaurantLocation[];
@@ -86,6 +95,12 @@ export function RestaurantLocationsPanel({
   const [editDrafts, setEditDrafts] = useState<Record<string, LocationDraft>>(() =>
     Object.fromEntries(initialLocations.map((location) => [location.id, toDraft(location)])),
   );
+  const [fieldErrorsByLocation, setFieldErrorsByLocation] = useState<
+    Record<string, FieldErrors<LocationField>>
+  >({});
+  const [formErrorsByLocation, setFormErrorsByLocation] = useState<
+    Record<string, string | null>
+  >({});
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,8 +115,25 @@ export function RestaurantLocationsPanel({
         method: action === "create" ? "POST" : "PATCH",
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
+      const locationId = action.includes(":") ? action.split(":")[1] : null;
+      const validation = getCaughtValidationErrors<LocationField>(caught);
+      const message =
+        validation.formError ??
+        getFirstFieldError(validation.fieldErrors) ??
+        "Failed to save location.";
+
+      if (locationId) {
+        setFieldErrorsByLocation((current) => ({
+          ...current,
+          [locationId]: validation.fieldErrors,
+        }));
+        setFormErrorsByLocation((current) => ({
+          ...current,
+          [locationId]: validation.formError,
+        }));
+      }
+
+      setError(hasFieldErrors(validation.fieldErrors) ? null : message);
       toast.error(message);
       setPendingAction(null);
       return;
@@ -122,6 +154,8 @@ export function RestaurantLocationsPanel({
     );
     setEditingLocationId(null);
     setError(null);
+    setFieldErrorsByLocation({});
+    setFormErrorsByLocation({});
     setPendingAction(null);
     toast.success(action === "create" ? "Location created." : "Location updated.");
   }
@@ -134,6 +168,24 @@ export function RestaurantLocationsPanel({
         ...patch,
       },
     }));
+    setFieldErrorsByLocation((current) => {
+      const currentErrors = current[locationId];
+
+      if (!currentErrors) {
+        return current;
+      }
+
+      const nextErrors = { ...currentErrors };
+      for (const field of Object.keys(patch) as LocationField[]) {
+        delete nextErrors[field];
+      }
+
+      return {
+        ...current,
+        [locationId]: nextErrors,
+      };
+    });
+    setFormErrorsByLocation((current) => ({ ...current, [locationId]: null }));
   }
 
   return (
@@ -178,6 +230,8 @@ export function RestaurantLocationsPanel({
           {locations.map((location) => {
             const draft = editDrafts[location.id] ?? toDraft(location);
             const isEditing = editingLocationId === location.id;
+            const fieldErrors = fieldErrorsByLocation[location.id] ?? {};
+            const formError = formErrorsByLocation[location.id] ?? null;
 
             return isEditing ? (
               <form
@@ -192,7 +246,10 @@ export function RestaurantLocationsPanel({
                   );
                 }}
               >
-                <FormField label="Location name">
+                <FormField
+                  label="Location name"
+                  error={getFieldError(fieldErrors, "name")}
+                >
                   <Input
                     value={draft.name}
                     onChange={(event) =>
@@ -200,7 +257,7 @@ export function RestaurantLocationsPanel({
                     }
                   />
                 </FormField>
-                <FormField label="Label">
+                <FormField label="Label" error={getFieldError(fieldErrors, "label")}>
                   <Input
                     value={draft.label}
                     onChange={(event) =>
@@ -208,7 +265,7 @@ export function RestaurantLocationsPanel({
                     }
                   />
                 </FormField>
-                <FormField label="QR slug">
+                <FormField label="QR slug" error={getFieldError(fieldErrors, "qrSlug")}>
                   <Input
                     value={draft.qrSlug}
                     onChange={(event) =>
@@ -218,7 +275,10 @@ export function RestaurantLocationsPanel({
                     }
                   />
                 </FormField>
-                <FormField label="Timezone">
+                <FormField
+                  label="Timezone"
+                  error={getFieldError(fieldErrors, "timezone")}
+                >
                   <TimezoneSelect
                     value={draft.timezone}
                     onValueChange={(timezone) =>
@@ -226,17 +286,25 @@ export function RestaurantLocationsPanel({
                     }
                   />
                 </FormField>
-                <label className="mt-auto flex h-8 items-center gap-2 text-sm text-stone-700">
-                  <input
-                    type="checkbox"
-                    checked={draft.isActive}
-                    onChange={(event) =>
-                      updateEditDraft(location.id, { isActive: event.target.checked })
-                    }
-                    className="size-4 rounded border-stone-300"
-                  />
-                  Active
-                </label>
+                <div className="mt-auto grid gap-1">
+                  <label className="flex h-8 items-center gap-2 text-sm text-stone-700">
+                    <input
+                      type="checkbox"
+                      checked={draft.isActive}
+                      onChange={(event) =>
+                        updateEditDraft(location.id, { isActive: event.target.checked })
+                      }
+                      className="size-4 rounded border-stone-300"
+                    />
+                    Active
+                  </label>
+                  {getFieldError(fieldErrors, "isActive") ? (
+                    <p className="text-sm text-rose-600">
+                      {getFieldError(fieldErrors, "isActive")}
+                    </p>
+                  ) : null}
+                  {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
+                </div>
                 <Button
                   type="submit"
                   variant="outline"
@@ -276,9 +344,9 @@ export function RestaurantLocationsPanel({
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold text-stone-950">{location.name}</p>
-                    <span className="rounded-md border border-stone-200 bg-stone-50 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                    <StatusPill tone={location.isActive ? "success" : "warning"}>
                       {location.isActive ? "Active" : "Disabled"}
-                    </span>
+                    </StatusPill>
                   </div>
                   <p className="mt-1 text-sm text-stone-500">
                     {location.label || "No label"} - {location.timezone}

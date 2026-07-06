@@ -6,10 +6,11 @@ import { useState } from "react";
 import { PlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,21 +25,25 @@ type CreateCompanyFormProps = {
   backHref: string;
 };
 
+type CreateCompanyField = "currency" | "name" | "timezone";
+
 export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(emptyCompanyDraft);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<CreateCompanyField>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submitCompany() {
+    validation.clearErrors();
     setIsSubmitting(true);
 
     try {
       await requestJson("/api/platform/companies", { body: draft });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to create company.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
@@ -64,36 +69,57 @@ export function CreateCompanyForm({ backHref }: CreateCompanyFormProps) {
             void submitCompany();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Company name">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Company name"
+            error={validation.getError("name")}
+            errorId="company-name-error"
+          >
             <Input
               value={draft.name}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+              aria-describedby={
+                validation.getError("name") ? "company-name-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("name"))}
+              onChange={(event) => {
+                validation.clearFieldError("name");
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Timezone">
+            <FormField
+              label="Timezone"
+              error={validation.getError("timezone")}
+              errorId="company-timezone-error"
+            >
               <TimezoneSelect
                 value={draft.timezone}
-                onValueChange={(timezone) =>
+                onValueChange={(timezone) => {
+                  validation.clearFieldError("timezone");
                   setDraft((current) => ({
                     ...current,
                     timezone,
-                  }))
-                }
+                  }));
+                }}
               />
             </FormField>
-            <FormField label="Currency">
+            <FormField
+              label="Currency"
+              error={validation.getError("currency")}
+              errorId="company-currency-error"
+            >
               <CurrencySelect
                 value={draft.currency}
-                onValueChange={(currency) =>
+                onValueChange={(currency) => {
+                  validation.clearFieldError("currency");
                   setDraft((current) => ({
                     ...current,
                     currency,
-                  }))
-                }
+                  }));
+                }}
               />
             </FormField>
           </div>

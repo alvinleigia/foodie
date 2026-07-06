@@ -4,6 +4,7 @@ import { ExternalLinkIcon, MapPinIcon, PencilIcon } from "lucide-react";
 
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { requireRestaurantAdminPage } from "@/lib/restaurant-admin-page";
@@ -54,9 +55,9 @@ export default async function RestaurantLocationPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <MapPinIcon className="size-4 text-stone-500" />
                   <p className="font-semibold text-stone-950">{snapshot.location.name}</p>
-                  <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                  <StatusPill tone={snapshot.location.isActive ? "success" : "warning"}>
                     {snapshot.location.isActive ? "Active" : "Disabled"}
-                  </span>
+                  </StatusPill>
                 </div>
                 <p className="mt-2 text-sm text-stone-600">
                   {snapshot.location.label || "No location label"}

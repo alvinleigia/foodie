@@ -36,14 +36,11 @@ export default async function PlatformCompanyStaffInvitePage(
     >
       <StaffInviteForm
         apiPath={`/api/platform/companies/${company.id}/staff`}
-        assignExistingHref={`/platform/users/reassign?companyId=${company.id}&role=COMPANY_MANAGER&returnTo=${encodeURIComponent(`/platform/companies/${company.id}/users`)}`}
+        assignExistingHref={`/platform/users/reassign?companyId=${company.id}&role=COMPANY_OWNER&returnTo=${encodeURIComponent(`/platform/companies/${company.id}/users`)}`}
         backHref={`/platform/companies/${company.id}/users`}
         defaultRole="COMPANY_OWNER"
-        description="Company users can manage child restaurants and reporting based on their role."
-        roles={[
-          { label: "Company Owner", value: "COMPANY_OWNER" },
-          { label: "Company Manager", value: "COMPANY_MANAGER" },
-        ]}
+        description="Company owners can manage child restaurants and reporting."
+        roles={[{ label: "Company Owner", value: "COMPANY_OWNER" }]}
         title={`Invite user to ${company.name}`}
       />
     </SaasAdminShell>

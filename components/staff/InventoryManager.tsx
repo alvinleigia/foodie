@@ -12,7 +12,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { getApiErrorMessage } from "@/lib/api-client";
+import {
+  type FieldErrors,
+  getApiErrorMessage,
+  getApiValidationErrors,
+  getFieldError,
+  getFirstFieldError,
+  hasFieldErrors,
+} from "@/lib/api-client";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -31,6 +38,8 @@ type InventoryDraft = {
   notes: string;
   unit: string;
 };
+
+type InventoryField = keyof InventoryDraft & string;
 
 const statusConfig: Record<
   InventoryStatus,
@@ -80,6 +89,9 @@ function formatQuantity(value: string) {
 export function InventoryManager() {
   const [inventory, setInventory] = useState<InventoryRecord[]>([]);
   const [drafts, setDrafts] = useState<Record<string, InventoryDraft>>({});
+  const [fieldErrorsByItem, setFieldErrorsByItem] = useState<
+    Record<string, FieldErrors<InventoryField>>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -158,6 +170,23 @@ export function InventoryManager() {
         ...patch,
       },
     }));
+
+    setFieldErrorsByItem((current) => {
+      const currentErrors = current[menuItemId];
+      if (!currentErrors) {
+        return current;
+      }
+
+      const nextErrors = { ...currentErrors };
+      for (const field of Object.keys(patch) as InventoryField[]) {
+        delete nextErrors[field];
+      }
+
+      return {
+        ...current,
+        [menuItemId]: nextErrors,
+      };
+    });
   }
 
   function startEditing(record: InventoryRecord) {
@@ -166,6 +195,7 @@ export function InventoryManager() {
       [record.menuItemId]: toDraft(record),
     }));
     setEditingItemId(record.menuItemId);
+    setFieldErrorsByItem((current) => ({ ...current, [record.menuItemId]: {} }));
     setError(null);
   }
 
@@ -175,6 +205,7 @@ export function InventoryManager() {
       [record.menuItemId]: toDraft(record),
     }));
     setEditingItemId(null);
+    setFieldErrorsByItem((current) => ({ ...current, [record.menuItemId]: {} }));
     setError(null);
   }
 
@@ -193,9 +224,20 @@ export function InventoryManager() {
     const payload = await response.json();
 
     if (!response.ok) {
-      const message = getApiErrorMessage(payload);
-      setError(message);
-      toast.error(message);
+      const validation = getApiValidationErrors<InventoryField>(payload);
+      const message =
+        validation.formError ??
+        getFirstFieldError(validation.fieldErrors) ??
+        getApiErrorMessage(payload);
+
+      setFieldErrorsByItem((current) => ({
+        ...current,
+        [record.menuItemId]: validation.fieldErrors,
+      }));
+      setError(validation.formError);
+      if (response.status >= 500 || (!hasFieldErrors(validation.fieldErrors) && !validation.formError)) {
+        toast.error(message);
+      }
       setPendingAction(null);
       return;
     }
@@ -208,6 +250,7 @@ export function InventoryManager() {
       ),
     );
     setEditingItemId(null);
+    setFieldErrorsByItem((current) => ({ ...current, [record.menuItemId]: {} }));
     setError(null);
     setPendingAction(null);
     toast.success(`${record.itemName} inventory updated.`);
@@ -287,6 +330,7 @@ export function InventoryManager() {
                   <div className="space-y-3">
                     {group.items.map((record) => {
                       const draft = drafts[record.menuItemId] ?? toDraft(record);
+                      const fieldErrors = fieldErrorsByItem[record.menuItemId] ?? {};
                       const isEditing = editingItemId === record.menuItemId;
                       const isAnotherItemEditing = editingItemId !== null && !isEditing;
                       const isSaving = pendingAction === record.menuItemId;
@@ -322,13 +366,23 @@ export function InventoryManager() {
                           </div>
 
                           <div className="mt-4 grid gap-4 md:grid-cols-4">
-                            <FormField label="Current quantity">
+                            <FormField
+                              label="Current quantity"
+                              error={getFieldError(fieldErrors, "currentQuantity")}
+                              errorId={`inventory-current-quantity-${record.menuItemId}`}
+                            >
                               <Input
                                 type="number"
                                 min="0"
                                 step="0.01"
                                 value={draft.currentQuantity}
                                 disabled={!isEditing || isSaving}
+                                aria-invalid={Boolean(getFieldError(fieldErrors, "currentQuantity"))}
+                                aria-describedby={
+                                  getFieldError(fieldErrors, "currentQuantity")
+                                    ? `inventory-current-quantity-${record.menuItemId}`
+                                    : undefined
+                                }
                                 onChange={(event) =>
                                   updateDraft(record.menuItemId, {
                                     currentQuantity: event.target.value,
@@ -336,13 +390,23 @@ export function InventoryManager() {
                                 }
                               />
                             </FormField>
-                            <FormField label="Low stock alert">
+                            <FormField
+                              label="Low stock alert"
+                              error={getFieldError(fieldErrors, "lowStockThreshold")}
+                              errorId={`inventory-low-stock-${record.menuItemId}`}
+                            >
                               <Input
                                 type="number"
                                 min="0"
                                 step="0.01"
                                 value={draft.lowStockThreshold}
                                 disabled={!isEditing || isSaving}
+                                aria-invalid={Boolean(getFieldError(fieldErrors, "lowStockThreshold"))}
+                                aria-describedby={
+                                  getFieldError(fieldErrors, "lowStockThreshold")
+                                    ? `inventory-low-stock-${record.menuItemId}`
+                                    : undefined
+                                }
                                 onChange={(event) =>
                                   updateDraft(record.menuItemId, {
                                     lowStockThreshold: event.target.value,
@@ -350,35 +414,62 @@ export function InventoryManager() {
                                 }
                               />
                             </FormField>
-                            <FormField label="Unit">
+                            <FormField
+                              label="Unit"
+                              error={getFieldError(fieldErrors, "unit")}
+                              errorId={`inventory-unit-${record.menuItemId}`}
+                            >
                               <Input
                                 value={draft.unit}
                                 disabled={!isEditing || isSaving}
+                                aria-invalid={Boolean(getFieldError(fieldErrors, "unit"))}
+                                aria-describedby={
+                                  getFieldError(fieldErrors, "unit")
+                                    ? `inventory-unit-${record.menuItemId}`
+                                    : undefined
+                                }
                                 onChange={(event) =>
                                   updateDraft(record.menuItemId, { unit: event.target.value })
                                 }
                               />
                             </FormField>
-                            <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700 md:mt-6">
-                              <Checkbox
-                                checked={draft.isTracked}
-                                disabled={!isEditing || isSaving}
-                                onCheckedChange={(checked) =>
-                                  updateDraft(record.menuItemId, {
-                                    isTracked: checked === true,
-                                  })
-                                }
-                              />
-                              Track stock
-                            </label>
+                            <div className="md:mt-6">
+                              <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">
+                                <Checkbox
+                                  checked={draft.isTracked}
+                                  disabled={!isEditing || isSaving}
+                                  onCheckedChange={(checked) =>
+                                    updateDraft(record.menuItemId, {
+                                      isTracked: checked === true,
+                                    })
+                                  }
+                                />
+                                Track stock
+                              </label>
+                              {getFieldError(fieldErrors, "isTracked") ? (
+                                <p className="mt-2 text-sm text-rose-600">
+                                  {getFieldError(fieldErrors, "isTracked")}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
 
                           <div className="mt-4">
-                            <FormField label="Inventory notes">
+                            <FormField
+                              label="Inventory notes"
+                              error={getFieldError(fieldErrors, "notes")}
+                              errorId={`inventory-notes-${record.menuItemId}`}
+                            >
                               <Textarea
                                 rows={2}
                                 value={draft.notes}
                                 disabled={!isEditing || isSaving}
+                                aria-invalid={Boolean(getFieldError(fieldErrors, "notes"))}
+                                aria-describedby={
+                                  getFieldError(fieldErrors, "notes")
+                                    ? `inventory-notes-${record.menuItemId}`
+                                    : undefined
+                                }
                                 onChange={(event) =>
                                   updateDraft(record.menuItemId, { notes: event.target.value })
                                 }

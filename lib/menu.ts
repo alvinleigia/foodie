@@ -5,15 +5,23 @@ import { getDb } from "@/db";
 import {
   inventoryItems,
   menuCategories,
+  menuItemModifierGroups,
   menuItems,
   menuItemTags,
   menuTags,
+  modifierGroups,
+  modifierOptions,
   organizations,
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { MenuCategoryRecord } from "@/types/menu";
-import type { MenuItemRecord, MenuTagRecord } from "@/types/menu";
+import type {
+  MenuItemRecord,
+  MenuModifierGroupRecord,
+  MenuModifierOptionRecord,
+  MenuTagRecord,
+} from "@/types/menu";
 
 const defaultMenuSeed = drinkCategories.map((category, categoryIndex) => ({
   slug: category.id,
@@ -43,7 +51,7 @@ function slugify(value: string) {
 }
 
 async function ensureUniqueSlug(
-  table: typeof menuCategories | typeof menuItems,
+  table: typeof menuCategories | typeof menuItems | typeof modifierGroups | typeof modifierOptions,
   baseName: string,
   excludeId?: string,
 ) {
@@ -177,6 +185,7 @@ function groupMenuData(
   includeInactive: boolean,
   inventoryByItemId = new Map<string, typeof inventoryItems.$inferSelect>(),
   tagsByItemId = new Map<string, MenuTagRecord[]>(),
+  modifierGroupsByItemId = new Map<string, MenuModifierGroupRecord[]>(),
 ) {
   const categoryMap = new Map<string, MenuCategoryRecord>();
 
@@ -223,6 +232,7 @@ function groupMenuData(
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
       tags: tagsByItemId.get(item.id) ?? [],
+      modifierGroups: modifierGroupsByItemId.get(item.id) ?? [],
       ...getMenuInventoryState(inventoryByItemId.get(item.id)),
     });
   }
@@ -360,8 +370,171 @@ async function getMenuTagsByItemId(itemIds: string[]) {
   return tagsByItemId;
 }
 
+function serializeModifierOption(
+  option: typeof modifierOptions.$inferSelect,
+): MenuModifierOptionRecord {
+  return {
+    id: option.id,
+    groupId: option.groupId,
+    slug: option.slug,
+    name: option.name,
+    priceDelta: option.priceDelta,
+    sortOrder: option.sortOrder,
+    isActive: option.isActive,
+    isSoldOut: option.isSoldOut,
+  };
+}
+
+function serializeModifierGroup(
+  group: typeof modifierGroups.$inferSelect,
+  options: MenuModifierOptionRecord[],
+): MenuModifierGroupRecord {
+  return {
+    id: group.id,
+    organizationId: group.organizationId,
+    locationId: group.locationId,
+    slug: group.slug,
+    name: group.name,
+    description: group.description,
+    selectionType: group.selectionType,
+    isRequired: group.isRequired,
+    minSelections: group.minSelections,
+    maxSelections: group.maxSelections,
+    sortOrder: group.sortOrder,
+    isActive: group.isActive,
+    options,
+  };
+}
+
+export async function getMenuModifierGroups(
+  context: TenantContext = getDefaultTenantContext(),
+  includeInactive = true,
+) {
+  const db = getDb();
+  const groupRows = await db
+    .select()
+    .from(modifierGroups)
+    .where(
+      and(
+        eq(modifierGroups.organizationId, context.organizationId),
+        eq(modifierGroups.locationId, context.locationId),
+      ),
+    )
+    .orderBy(asc(modifierGroups.sortOrder), asc(modifierGroups.name));
+
+  const visibleGroups = includeInactive
+    ? groupRows
+    : groupRows.filter((group) => group.isActive);
+
+  if (visibleGroups.length === 0) {
+    return [];
+  }
+
+  const optionRows = await db
+    .select()
+    .from(modifierOptions)
+    .where(inArray(modifierOptions.groupId, visibleGroups.map((group) => group.id)))
+    .orderBy(asc(modifierOptions.sortOrder), asc(modifierOptions.name));
+  const optionsByGroupId = new Map<string, MenuModifierOptionRecord[]>();
+
+  for (const option of optionRows) {
+    if (!includeInactive && (!option.isActive || option.isSoldOut)) {
+      continue;
+    }
+
+    const groupOptions = optionsByGroupId.get(option.groupId) ?? [];
+    groupOptions.push(serializeModifierOption(option));
+    optionsByGroupId.set(option.groupId, groupOptions);
+  }
+
+  return visibleGroups.map((group) =>
+    serializeModifierGroup(group, optionsByGroupId.get(group.id) ?? []),
+  );
+}
+
+async function getMenuModifierGroupsByItemId(
+  itemIds: string[],
+  context: TenantContext,
+  includeInactive: boolean,
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, MenuModifierGroupRecord[]>();
+  }
+
+  const db = getDb();
+  const links = await db
+    .select({
+      menuItemId: menuItemModifierGroups.menuItemId,
+      sortOrder: menuItemModifierGroups.sortOrder,
+      group: modifierGroups,
+    })
+    .from(menuItemModifierGroups)
+    .innerJoin(
+      modifierGroups,
+      eq(menuItemModifierGroups.modifierGroupId, modifierGroups.id),
+    )
+    .where(
+      and(
+        inArray(menuItemModifierGroups.menuItemId, itemIds),
+        eq(menuItemModifierGroups.isActive, true),
+        eq(modifierGroups.organizationId, context.organizationId),
+        eq(modifierGroups.locationId, context.locationId),
+      ),
+    )
+    .orderBy(asc(menuItemModifierGroups.sortOrder), asc(modifierGroups.sortOrder), asc(modifierGroups.name));
+
+  const visibleLinks = includeInactive
+    ? links
+    : links.filter((link) => link.group.isActive);
+
+  if (visibleLinks.length === 0) {
+    return new Map<string, MenuModifierGroupRecord[]>();
+  }
+
+  const groupIds = Array.from(new Set(visibleLinks.map((link) => link.group.id)));
+  const optionRows = await db
+    .select()
+    .from(modifierOptions)
+    .where(inArray(modifierOptions.groupId, groupIds))
+    .orderBy(asc(modifierOptions.sortOrder), asc(modifierOptions.name));
+  const optionsByGroupId = new Map<string, MenuModifierOptionRecord[]>();
+
+  for (const option of optionRows) {
+    if (!includeInactive && (!option.isActive || option.isSoldOut)) {
+      continue;
+    }
+
+    const groupOptions = optionsByGroupId.get(option.groupId) ?? [];
+    groupOptions.push(serializeModifierOption(option));
+    optionsByGroupId.set(option.groupId, groupOptions);
+  }
+
+  const groupsByItemId = new Map<string, MenuModifierGroupRecord[]>();
+
+  for (const link of visibleLinks) {
+    const itemGroups = groupsByItemId.get(link.menuItemId) ?? [];
+    itemGroups.push(
+      serializeModifierGroup(link.group, optionsByGroupId.get(link.group.id) ?? []),
+    );
+    itemGroups.sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+    groupsByItemId.set(link.menuItemId, itemGroups);
+  }
+
+  return groupsByItemId;
+}
+
 function normalizeMenuTagIds(tagIds: string[] | undefined) {
   return Array.from(new Set(tagIds ?? []));
+}
+
+function normalizeMenuModifierGroupIds(groupIds: string[] | undefined) {
+  return Array.from(new Set(groupIds ?? []));
 }
 
 async function assertMenuTagsExist(tagIds: string[]) {
@@ -382,6 +555,28 @@ async function assertMenuTagsExist(tagIds: string[]) {
 
   if (existingTags.length !== tagIds.length) {
     throw new Error("One or more menu tags are invalid.");
+  }
+}
+
+async function assertMenuModifierGroupsExist(groupIds: string[], context: TenantContext) {
+  if (groupIds.length === 0) {
+    return;
+  }
+
+  const db = getDb();
+  const existingGroups = await db
+    .select({ id: modifierGroups.id })
+    .from(modifierGroups)
+    .where(
+      and(
+        inArray(modifierGroups.id, groupIds),
+        eq(modifierGroups.organizationId, context.organizationId),
+        eq(modifierGroups.locationId, context.locationId),
+      ),
+    );
+
+  if (existingGroups.length !== groupIds.length) {
+    throw new Error("One or more add-on groups are invalid.");
   }
 }
 
@@ -412,8 +607,20 @@ export async function getPublicMenu(context: TenantContext = getDefaultTenantCon
     context,
   );
   const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
+  const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
+    items.map((item) => item.id),
+    context,
+    false,
+  );
 
-  return groupMenuData(categories, items, false, inventoryByItemId, tagsByItemId);
+  return groupMenuData(
+    categories,
+    items,
+    false,
+    inventoryByItemId,
+    tagsByItemId,
+    modifierGroupsByItemId,
+  );
 }
 
 export async function getAdminMenu(context: TenantContext = getDefaultTenantContext()) {
@@ -439,8 +646,20 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
   const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
+  const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
+    items.map((item) => item.id),
+    context,
+    true,
+  );
 
-  return groupMenuData(categories, items, true, undefined, tagsByItemId);
+  return groupMenuData(
+    categories,
+    items,
+    true,
+    undefined,
+    tagsByItemId,
+    modifierGroupsByItemId,
+  );
 }
 
 export async function getTenantMenuCurrency(
@@ -511,6 +730,147 @@ export async function getMenuSelectionSnapshot(
     .limit(1);
 
   return { category, inventory: inventory ?? null, item };
+}
+
+export async function getMenuModifierSelectionSnapshots(
+  itemId: string,
+  requestedModifiers: Array<{ groupId: string; modifierId: string; quantity: number }>,
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (requestedModifiers.length === 0) {
+    return [];
+  }
+
+  const groupsByItemId = await getMenuModifierGroupsByItemId([itemId], context, false);
+  const allowedGroups = groupsByItemId.get(itemId) ?? [];
+  const allowedGroupMap = new Map(allowedGroups.map((group) => [group.id, group]));
+  const selectionsByGroupId = new Map<string, number>();
+  const snapshots = [];
+
+  for (const requestedModifier of requestedModifiers) {
+    const group = allowedGroupMap.get(requestedModifier.groupId);
+
+    if (!group) {
+      throw new Error("Invalid add-on selection.");
+    }
+
+    const option = group.options.find(
+      (groupOption) => groupOption.id === requestedModifier.modifierId,
+    );
+
+    if (!option || !option.isActive || option.isSoldOut) {
+      throw new Error("One or more add-ons are unavailable.");
+    }
+
+    const nextGroupQuantity =
+      (selectionsByGroupId.get(group.id) ?? 0) + requestedModifier.quantity;
+    selectionsByGroupId.set(group.id, nextGroupQuantity);
+
+    snapshots.push({
+      modifierGroupId: group.id,
+      modifierGroupName: group.name,
+      modifierId: option.id,
+      modifierName: option.name,
+      quantity: requestedModifier.quantity,
+      priceDelta: option.priceDelta,
+    });
+  }
+
+  for (const group of allowedGroups) {
+    const selectedQuantity = selectionsByGroupId.get(group.id) ?? 0;
+
+    if (group.isRequired && selectedQuantity < Math.max(group.minSelections, 1)) {
+      throw new Error(`${group.name} requires a selection.`);
+    }
+
+    if (group.maxSelections !== null && selectedQuantity > group.maxSelections) {
+      throw new Error(`${group.name} allows only ${group.maxSelections} selection(s).`);
+    }
+
+    if (group.selectionType === "SINGLE" && selectedQuantity > 1) {
+      throw new Error(`${group.name} allows only one selection.`);
+    }
+  }
+
+  return snapshots;
+}
+
+export async function createMenuModifierGroup(input: {
+  name: string;
+  description?: string | null;
+  selectionType: "SINGLE" | "MULTIPLE";
+  isRequired: boolean;
+  minSelections: number;
+  maxSelections: number | null;
+  sortOrder: number;
+  isActive: boolean;
+}, context: TenantContext = getDefaultTenantContext()) {
+  const db = getDb();
+  const slug = await ensureUniqueSlug(modifierGroups, input.name);
+  const [createdGroup] = await db
+    .insert(modifierGroups)
+    .values({
+      organizationId: context.organizationId,
+      locationId: context.locationId,
+      slug,
+      name: input.name,
+      description: input.description ?? null,
+      selectionType: input.selectionType,
+      isRequired: input.isRequired,
+      minSelections: input.minSelections,
+      maxSelections: input.maxSelections,
+      sortOrder: input.sortOrder,
+      isActive: input.isActive,
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return createdGroup;
+}
+
+export async function createMenuModifierOption(input: {
+  groupId: string;
+  name: string;
+  priceDelta: string;
+  sortOrder: number;
+  isActive: boolean;
+  isSoldOut: boolean;
+}, context: TenantContext = getDefaultTenantContext()) {
+  const db = getDb();
+  const [group] = await db
+    .select({ id: modifierGroups.id })
+    .from(modifierGroups)
+    .where(
+      and(
+        eq(modifierGroups.id, input.groupId),
+        eq(modifierGroups.organizationId, context.organizationId),
+        eq(modifierGroups.locationId, context.locationId),
+      ),
+    )
+    .limit(1);
+
+  if (!group) {
+    throw new Error("Add-on group not found.");
+  }
+
+  const slug = await ensureUniqueSlug(modifierOptions, input.name);
+  const [createdOption] = await db
+    .insert(modifierOptions)
+    .values({
+      organizationId: context.organizationId,
+      locationId: context.locationId,
+      groupId: input.groupId,
+      slug,
+      name: input.name,
+      priceDelta: input.priceDelta,
+      sortOrder: input.sortOrder,
+      isActive: input.isActive,
+      isSoldOut: input.isSoldOut,
+      updatedAt: new Date(),
+    })
+    .returning();
+
+  return createdOption;
 }
 
 export async function createMenuCategory(input: {
@@ -584,6 +944,7 @@ export async function createMenuItem(input: {
   isActive: boolean;
   isSoldOut?: boolean;
   tagIds?: string[];
+  modifierGroupIds?: string[];
 }, context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
   const [category] = await db
@@ -604,7 +965,9 @@ export async function createMenuItem(input: {
 
   const slug = await ensureUniqueSlug(menuItems, input.name);
   const tagIds = normalizeMenuTagIds(input.tagIds);
+  const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
+  await assertMenuModifierGroupsExist(modifierGroupIds, context);
 
   const createdItem = await db.transaction(async (tx) => {
     const [item] = await tx
@@ -634,6 +997,16 @@ export async function createMenuItem(input: {
       );
     }
 
+    if (modifierGroupIds.length > 0) {
+      await tx.insert(menuItemModifierGroups).values(
+        modifierGroupIds.map((modifierGroupId, index) => ({
+          menuItemId: item.id,
+          modifierGroupId,
+          sortOrder: index,
+        })),
+      );
+    }
+
     return item;
   });
 
@@ -652,6 +1025,7 @@ export async function updateMenuItem(
     isActive: boolean;
     isSoldOut?: boolean;
     tagIds?: string[];
+    modifierGroupIds?: string[];
   },
   context: TenantContext = getDefaultTenantContext(),
 ) {
@@ -674,7 +1048,9 @@ export async function updateMenuItem(
 
   const slug = await ensureUniqueSlug(menuItems, input.name, itemId);
   const tagIds = normalizeMenuTagIds(input.tagIds);
+  const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
+  await assertMenuModifierGroupsExist(modifierGroupIds, context);
 
   const updatedItem = await db.transaction(async (tx) => {
     const [item] = await tx
@@ -707,12 +1083,25 @@ export async function updateMenuItem(
     }
 
     await tx.delete(menuItemTags).where(eq(menuItemTags.menuItemId, item.id));
+    await tx
+      .delete(menuItemModifierGroups)
+      .where(eq(menuItemModifierGroups.menuItemId, item.id));
 
     if (tagIds.length > 0) {
       await tx.insert(menuItemTags).values(
         tagIds.map((tagId) => ({
           menuItemId: item.id,
           tagId,
+        })),
+      );
+    }
+
+    if (modifierGroupIds.length > 0) {
+      await tx.insert(menuItemModifierGroups).values(
+        modifierGroupIds.map((modifierGroupId, index) => ({
+          menuItemId: item.id,
+          modifierGroupId,
+          sortOrder: index,
         })),
       );
     }

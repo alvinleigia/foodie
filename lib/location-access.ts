@@ -26,17 +26,22 @@ export type MembershipAccessOption = {
   locationLabel: string | null;
 };
 
-type MembershipAccessRow = MembershipAccessOption & {
+export type ScopedMembershipAccess = Pick<
+  MembershipAccessOption,
+  "organizationId" | "organizationType" | "locationId"
+> & {
   parentOrganizationId: string | null;
 };
+
+type MembershipAccessRow = MembershipAccessOption & ScopedMembershipAccess;
 
 type LocationAccessRow = LocationAccessOption & {
   organizationType: "PLATFORM" | "COMPANY" | "RESTAURANT";
   parentOrganizationId: string | null;
 };
 
-function isMembershipAllowedInScope(
-  option: MembershipAccessRow,
+export function isMembershipAllowedInScope(
+  option: ScopedMembershipAccess,
   scope?: TenantDomainAccessScope,
 ) {
   if (!scope || scope.type === "PLATFORM") {

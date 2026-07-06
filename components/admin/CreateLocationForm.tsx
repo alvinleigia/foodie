@@ -6,10 +6,11 @@ import { useState } from "react";
 import { MapPinPlusIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { TimezoneSelect } from "@/components/shared/LocaleSelects";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,13 +28,16 @@ type CreateLocationFormProps = {
   restaurantId: string;
 };
 
+type CreateLocationField = "isActive" | "label" | "name" | "qrSlug" | "timezone";
+
 export function CreateLocationForm({ backHref, restaurantId }: CreateLocationFormProps) {
   const router = useRouter();
   const [draft, setDraft] = useState(emptyLocationDraft);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<CreateLocationField>();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function submitLocation() {
+    validation.clearErrors();
     setIsSubmitting(true);
 
     try {
@@ -41,9 +45,10 @@ export function CreateLocationForm({ backHref, restaurantId }: CreateLocationFor
         body: draft,
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to create location.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
@@ -69,43 +74,77 @@ export function CreateLocationForm({ backHref, restaurantId }: CreateLocationFor
             void submitLocation();
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Location name">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Location name"
+            error={validation.getError("name")}
+            errorId="location-name-error"
+          >
             <Input
               value={draft.name}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, name: event.target.value }))
+              aria-describedby={
+                validation.getError("name") ? "location-name-error" : undefined
               }
+              aria-invalid={Boolean(validation.getError("name"))}
+              onChange={(event) => {
+                validation.clearFieldError("name");
+                setDraft((current) => ({ ...current, name: event.target.value }));
+              }}
             />
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Label">
+            <FormField
+              label="Label"
+              error={validation.getError("label")}
+              errorId="location-label-error"
+            >
               <Input
                 value={draft.label}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, label: event.target.value }))
+                aria-describedby={
+                  validation.getError("label") ? "location-label-error" : undefined
                 }
+                aria-invalid={Boolean(validation.getError("label"))}
+                onChange={(event) => {
+                  validation.clearFieldError("label");
+                  setDraft((current) => ({ ...current, label: event.target.value }));
+                }}
               />
             </FormField>
-            <FormField label="QR slug">
+            <FormField
+              label="QR slug"
+              error={validation.getError("qrSlug")}
+              errorId="location-qr-slug-error"
+            >
               <Input
                 placeholder="panaji-counter"
                 value={draft.qrSlug}
-                onChange={(event) =>
+                aria-describedby={
+                  validation.getError("qrSlug") ? "location-qr-slug-error" : undefined
+                }
+                aria-invalid={Boolean(validation.getError("qrSlug"))}
+                onChange={(event) => {
+                  validation.clearFieldError("qrSlug");
                   setDraft((current) => ({
                     ...current,
                     qrSlug: event.target.value.toLowerCase(),
-                  }))
-                }
+                  }));
+                }}
               />
             </FormField>
           </div>
-          <FormField label="Timezone">
+          <FormField
+            label="Timezone"
+            error={validation.getError("timezone")}
+            errorId="location-timezone-error"
+          >
             <TimezoneSelect
               value={draft.timezone}
-              onValueChange={(timezone) =>
-                setDraft((current) => ({ ...current, timezone }))
-              }
+              onValueChange={(timezone) => {
+                validation.clearFieldError("timezone");
+                setDraft((current) => ({ ...current, timezone }));
+              }}
             />
           </FormField>
           <label className="flex items-center gap-2 text-sm text-stone-700">

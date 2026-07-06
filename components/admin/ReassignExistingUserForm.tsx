@@ -6,9 +6,10 @@ import { useMemo, useState } from "react";
 import { ShieldAlertIcon, UserCheckIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { useFormValidation } from "@/components/shared/useFormValidation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -79,18 +80,24 @@ type ReassignExistingUserFormProps = {
 
 type ReassignRole = Extract<
   MembershipRole,
-  "COMPANY_OWNER" | "COMPANY_MANAGER" | "RESTAURANT_MANAGER" | "ORDER_OPERATOR"
+  "COMPANY_OWNER" | "RESTAURANT_MANAGER" | "ORDER_OPERATOR"
 >;
 
 const roles: Array<{ label: string; value: ReassignRole }> = [
   { label: "Company Owner", value: "COMPANY_OWNER" },
-  { label: "Company Manager", value: "COMPANY_MANAGER" },
   { label: "Restaurant Manager", value: "RESTAURANT_MANAGER" },
   { label: "Order Operator", value: "ORDER_OPERATOR" },
 ];
 
+type ReassignField =
+  | "deactivateExisting"
+  | "identifier"
+  | "locationId"
+  | "organizationId"
+  | "role";
+
 function isCompanyRole(role: ReassignRole) {
-  return role === "COMPANY_OWNER" || role === "COMPANY_MANAGER";
+  return role === "COMPANY_OWNER";
 }
 
 function getRoleLabel(role: ReassignRole, roleOptions: Array<{ label: string; value: ReassignRole }>) {
@@ -129,7 +136,7 @@ export function ReassignExistingUserForm({
   const [restaurantId, setRestaurantId] = useState(defaultRestaurant?.id ?? "");
   const [locationId, setLocationId] = useState(defaultLocation?.id ?? "");
   const [deactivateExisting, setDeactivateExisting] = useState(defaultDeactivateExisting);
-  const [error, setError] = useState<string | null>(null);
+  const validation = useFormValidation<ReassignField>();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -173,6 +180,7 @@ export function ReassignExistingUserForm({
     const nextCompany = targets.find((company) => company.id === nextCompanyId);
     const nextRestaurant = nextCompany?.restaurants[0];
 
+    validation.clearFieldError("organizationId");
     setCompanyId(nextCompanyId);
     setRestaurantId(nextRestaurant?.id ?? "");
     setLocationId(nextRestaurant?.locations[0]?.id ?? "");
@@ -183,16 +191,19 @@ export function ReassignExistingUserForm({
       (restaurant) => restaurant.id === nextRestaurantId,
     );
 
+    validation.clearFieldError("organizationId");
     setRestaurantId(nextRestaurantId);
     setLocationId(nextRestaurant?.locations[0]?.id ?? "");
   }
 
   function chooseUser(user: ReassignableUser) {
+    validation.clearFieldError("identifier");
     setIdentifier(user.email);
     setIsIdentifierFocused(false);
   }
 
   async function submitReassignment() {
+    validation.clearErrors();
     setIsSubmitting(true);
     const companyRole = isCompanyRole(role);
 
@@ -207,15 +218,16 @@ export function ReassignExistingUserForm({
         },
       });
     } catch (caught) {
-      const message = getCaughtErrorMessage(caught);
-      setError(message);
-      toast.error(message);
+      const result = validation.applyCaught(caught, "Failed to reassign user.");
+      if (!result.hasFieldErrors) {
+        toast.error(result.message);
+      }
       setIsSubmitting(false);
       return;
     }
 
     setIdentifier("");
-    setError(null);
+    validation.clearErrors();
     setIsSubmitting(false);
     toast.success("User reassigned.");
     setIsConfirmOpen(false);
@@ -231,7 +243,7 @@ export function ReassignExistingUserForm({
   const deactivationLabel = deactivateExisting
     ? companyRole
       ? "Current active memberships in scope will be disabled before this access is enabled."
-      : "Other active location-level memberships in scope will be disabled. Company owner/manager access will stay active."
+      : "Other active location-level memberships in scope will be disabled. Company owner access will stay active."
     : "Existing memberships will stay active and this access will be added alongside them.";
   const canSubmit =
     identifier.trim().length >= 3 &&
@@ -259,12 +271,27 @@ export function ReassignExistingUserForm({
             }
           }}
         >
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-          <FormField label="Existing email or username">
+          {validation.formError ? (
+            <p className="text-sm text-rose-600">{validation.formError}</p>
+          ) : null}
+          <FormField
+            label="Existing email or username"
+            error={validation.getError("identifier")}
+            errorId="reassign-identifier-error"
+          >
             <div className="relative">
               <Input
                 value={identifier}
-                onChange={(event) => setIdentifier(event.target.value)}
+                aria-describedby={
+                  validation.getError("identifier")
+                    ? "reassign-identifier-error"
+                    : undefined
+                }
+                aria-invalid={Boolean(validation.getError("identifier"))}
+                onChange={(event) => {
+                  validation.clearFieldError("identifier");
+                  setIdentifier(event.target.value);
+                }}
                 onFocus={() => setIsIdentifierFocused(true)}
                 onBlur={() => setIsIdentifierFocused(false)}
                 placeholder="Start typing a name, email or username"
@@ -313,8 +340,18 @@ export function ReassignExistingUserForm({
             </div>
           </FormField>
 
-          <FormField label="New role">
-            <Select value={role} onValueChange={(value) => setRole(value as ReassignRole)}>
+          <FormField
+            label="New role"
+            error={validation.getError("role")}
+            errorId="reassign-role-error"
+          >
+            <Select
+              value={role}
+              onValueChange={(value) => {
+                validation.clearFieldError("role");
+                setRole(value as ReassignRole);
+              }}
+            >
               <SelectTrigger className="bg-white">
                 <SelectValue />
               </SelectTrigger>
@@ -328,7 +365,11 @@ export function ReassignExistingUserForm({
             </Select>
           </FormField>
 
-          <FormField label="Target company">
+          <FormField
+            label="Target company"
+            error={companyRole ? validation.getError("organizationId") : null}
+            errorId="reassign-company-error"
+          >
             <Select value={activeCompanyId} onValueChange={changeCompany}>
               <SelectTrigger className="bg-white">
                 <SelectValue placeholder="Choose company" />
@@ -345,7 +386,11 @@ export function ReassignExistingUserForm({
 
           {!companyRole ? (
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField label="Target restaurant">
+              <FormField
+                label="Target restaurant"
+                error={validation.getError("organizationId")}
+                errorId="reassign-restaurant-error"
+              >
                 <Select value={activeRestaurantId} onValueChange={changeRestaurant}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Choose restaurant" />
@@ -359,8 +404,18 @@ export function ReassignExistingUserForm({
                   </SelectContent>
                 </Select>
               </FormField>
-              <FormField label="Target location">
-                <Select value={activeLocationId} onValueChange={setLocationId}>
+              <FormField
+                label="Target location"
+                error={validation.getError("locationId")}
+                errorId="reassign-location-error"
+              >
+                <Select
+                  value={activeLocationId}
+                  onValueChange={(nextLocationId) => {
+                    validation.clearFieldError("locationId");
+                    setLocationId(nextLocationId);
+                  }}
+                >
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Choose location" />
                   </SelectTrigger>
@@ -382,7 +437,16 @@ export function ReassignExistingUserForm({
               <input
                 type="checkbox"
                 checked={deactivateExisting}
-                onChange={(event) => setDeactivateExisting(event.target.checked)}
+                aria-describedby={
+                  validation.getError("deactivateExisting")
+                    ? "reassign-deactivate-error"
+                    : undefined
+                }
+                aria-invalid={Boolean(validation.getError("deactivateExisting"))}
+                onChange={(event) => {
+                  validation.clearFieldError("deactivateExisting");
+                  setDeactivateExisting(event.target.checked);
+                }}
                 className="mt-1 size-4 rounded border-stone-300"
               />
               <span>
@@ -395,6 +459,11 @@ export function ReassignExistingUserForm({
                 </span>
               </span>
             </label>
+            {validation.getError("deactivateExisting") ? (
+              <p id="reassign-deactivate-error" className="mt-2 text-sm text-rose-600">
+                {validation.getError("deactivateExisting")}
+              </p>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">

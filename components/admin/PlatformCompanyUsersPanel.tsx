@@ -3,11 +3,13 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
+  UserPenIcon,
   UserPlusIcon,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -57,10 +59,14 @@ function getResetHref(membershipId: string, returnTo: string) {
   return `/users/${membershipId}/reset-password?returnTo=${encodeURIComponent(returnTo)}`;
 }
 
+function getAccountHref(membershipId: string, returnTo: string) {
+  return `/users/${membershipId}/account?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
 export function PlatformCompanyUsersPanel({
   assignHref,
   companyId,
-  description = "Manage company owner and manager memberships for this tenant.",
+  description = "Manage company owner memberships for this tenant.",
   editHrefBase = `/platform/companies/${companyId}/users`,
   emptyMessage = "No company users yet.",
   inviteHref = `/platform/companies/${companyId}/staff/invite`,
@@ -110,12 +116,14 @@ export function PlatformCompanyUsersPanel({
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold text-stone-950">{user.name}</p>
-                <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                <StatusPill tone={user.isActive ? "success" : "warning"}>
                   {user.isActive ? "Access Active" : "Access Disabled"}
-                </span>
-                <span className="rounded-md border border-stone-200 bg-white px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.14em] text-stone-500">
+                </StatusPill>
+                <StatusPill
+                  tone={user.userStatus === "ACTIVE" ? "success" : "warning"}
+                >
                   Account {user.userStatus.toLowerCase()}
-                </span>
+                </StatusPill>
               </div>
               <p className="mt-1 text-sm text-stone-500">
                 {user.username} - {user.email}
@@ -148,6 +156,11 @@ export function PlatformCompanyUsersPanel({
                   <DropdownMenuLabel>User actions</DropdownMenuLabel>
                   <DropdownMenuItem asChild>
                     <Link href={`${editHrefBase}/${user.membershipId}`}>Edit access</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={getAccountHref(user.membershipId, editHrefBase)}>
+                      <ButtonLabel icon={UserPenIcon}>Edit account details</ButtonLabel>
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={getResetHref(user.membershipId, editHrefBase)}>
