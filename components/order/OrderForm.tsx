@@ -1137,7 +1137,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           }
         }}
       >
-        <AlertDialogContent className="max-w-[calc(100vw-2rem)] rounded-xl md:max-w-lg">
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] rounded-xl sm:max-w-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Add another {quantityPromptItem?.drinkName ?? "item"}?
@@ -1147,10 +1147,10 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               add-ons.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col-reverse sm:flex-col-reverse md:flex-row md:flex-wrap">
-            <AlertDialogCancel className="w-full md:w-auto">Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-row flex-wrap justify-end sm:flex-nowrap">
+            <AlertDialogCancel className="w-auto whitespace-nowrap">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="w-full whitespace-nowrap md:w-auto"
+              className="w-auto whitespace-nowrap"
               onClick={() => {
                 if (quantityPromptItem) {
                   increaseCartItemQuantity(quantityPromptItem);
@@ -1162,7 +1162,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               Same customization
             </AlertDialogAction>
             <AlertDialogAction
-              className="w-full whitespace-nowrap md:w-auto"
+              className="w-auto whitespace-nowrap"
               onClick={() => {
                 if (quantityPromptItem) {
                   openNewCustomizationFromLine(quantityPromptItem);
