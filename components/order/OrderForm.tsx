@@ -30,6 +30,24 @@ import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -54,6 +72,7 @@ type OrderFormProps = {
 };
 
 type CartItem = {
+  lineId: string;
   categoryId: string;
   categoryName: string;
   drinkId: string;
@@ -73,6 +92,11 @@ type CartModifierSelection = {
   modifierName: string;
   quantity: number;
   priceDelta: string;
+};
+
+type CustomizerState = {
+  mode: "new" | "edit";
+  item: CartItem;
 };
 
 type OrderDraft = {
@@ -117,16 +141,20 @@ function getStockLimitError(drinkName: string, stockLimit: number) {
 
 function getCartItemUnitTotal(item: CartItem) {
   const basePrice = item.unitPrice ? Number(item.unitPrice) : 0;
-  const modifierPrice = item.modifierSelections.reduce(
-    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
-    0,
-  );
+  const modifierPrice = getCartItemModifierUnitTotal(item);
 
   if (!item.unitPrice && modifierPrice === 0) {
     return null;
   }
 
   return basePrice + modifierPrice;
+}
+
+function getCartItemModifierUnitTotal(item: CartItem) {
+  return item.modifierSelections.reduce(
+    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
+    0,
+  );
 }
 
 function getCartItemLineTotal(item: CartItem) {
@@ -149,6 +177,29 @@ function getModifierSelection(
   );
 }
 
+function createCartLineId(drinkId: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${drinkId}-${crypto.randomUUID()}`;
+  }
+
+  return `${drinkId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function getModifierSelectionSignature(item: CartItem) {
+  return item.modifierSelections
+    .map((selection) => `${selection.groupId}:${selection.modifierId}:${selection.quantity}`)
+    .sort()
+    .join("|");
+}
+
+function hasSameCartConfiguration(left: CartItem, right: CartItem) {
+  return (
+    left.drinkId === right.drinkId &&
+    left.notes.trim() === right.notes.trim() &&
+    getModifierSelectionSignature(left) === getModifierSelectionSignature(right)
+  );
+}
+
 export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
@@ -162,6 +213,9 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
+  const [customizerError, setCustomizerError] = useState<string | null>(null);
+  const [quantityPromptItem, setQuantityPromptItem] = useState<CartItem | null>(null);
   const [screen, setScreen] = useState<"menu" | "review">("menu");
   const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>(undefined);
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -337,60 +391,101 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     }));
   }
 
+  function createCartItem(category: MenuCategoryRecord, drink: MenuItemRecord): CartItem {
+    return {
+      lineId: createCartLineId(drink.id),
+      categoryId: category.id,
+      categoryName: category.name,
+      drinkId: drink.id,
+      drinkName: drink.name,
+      quantity: 1,
+      notes: "",
+      unitPrice: drink.price ?? null,
+      stockLimit: getStockLimit(drink),
+      modifierGroups: drink.modifierGroups ?? [],
+      modifierSelections: [],
+    };
+  }
+
+  function getSelectedQuantityForDrink(drinkId: string, exceptLineId?: string) {
+    return cartItems.reduce((sum, item) => {
+      if (item.drinkId !== drinkId || item.lineId === exceptLineId) {
+        return sum;
+      }
+
+      return sum + item.quantity;
+    }, 0);
+  }
+
+  function canAddQuantityToCartItem(item: CartItem, quantity: number, exceptLineId?: string) {
+    if (item.stockLimit === null) {
+      return true;
+    }
+
+    if (getSelectedQuantityForDrink(item.drinkId, exceptLineId) + quantity > item.stockLimit) {
+      setError(getStockLimitError(item.drinkName, item.stockLimit));
+      return false;
+    }
+
+    return true;
+  }
+
+  function addCartLine(item: CartItem) {
+    if (!canAddQuantityToCartItem(item, item.quantity, item.lineId)) {
+      return false;
+    }
+
+    setCartItems((currentItems) => {
+      const matchingIndex = currentItems.findIndex((currentItem) =>
+        currentItem.lineId !== item.lineId && hasSameCartConfiguration(currentItem, item),
+      );
+
+      if (matchingIndex >= 0) {
+        return currentItems.map((currentItem, index) =>
+          index === matchingIndex
+            ? {
+                ...currentItem,
+                quantity:
+                  currentItem.stockLimit === null
+                    ? Math.min(currentItem.quantity + item.quantity, 20)
+                    : currentItem.quantity + item.quantity,
+              }
+            : currentItem,
+        );
+      }
+
+      return [...currentItems, item];
+    });
+    setError(null);
+    return true;
+  }
+
   function addToCart(category: MenuCategoryRecord, drink: MenuItemRecord) {
     if (drink.isSoldOut || drink.isUnavailableDueToStock) {
       setError(`${drink.name} is currently unavailable.`);
       return;
     }
 
-    const stockLimit = getStockLimit(drink);
-    const existingItem = cartItems.find((item) => item.drinkId === drink.id);
+    const nextItem = createCartItem(category, drink);
 
-    if (stockLimit !== null && (existingItem?.quantity ?? 0) >= stockLimit) {
-      setError(getStockLimitError(drink.name, stockLimit));
+    if (!canAddQuantityToCartItem(nextItem, 1)) {
       return;
     }
 
-    setCartItems((currentItems) => {
-      const existingIndex = currentItems.findIndex((item) => item.drinkId === drink.id);
+    if (nextItem.modifierGroups.length > 0) {
+      setCustomizer({ mode: "new", item: nextItem });
+      setCustomizerError(null);
+      setError(null);
+      return;
+    }
 
-      if (existingIndex >= 0) {
-        return currentItems.map((item, index) =>
-          index === existingIndex
-            ? {
-                ...item,
-                quantity:
-                  item.stockLimit === null
-                    ? Math.min(item.quantity + 1, 20)
-                    : Math.min(item.quantity + 1, item.stockLimit),
-              }
-            : item,
-        );
-      }
-
-      return [
-        ...currentItems,
-        {
-          categoryId: category.id,
-          categoryName: category.name,
-          drinkId: drink.id,
-          drinkName: drink.name,
-          quantity: 1,
-          notes: "",
-          unitPrice: drink.price ?? null,
-          stockLimit,
-          modifierGroups: drink.modifierGroups ?? [],
-          modifierSelections: [],
-        },
-      ];
-    });
-    setError(null);
+    addCartLine(nextItem);
   }
 
-  function updateCartItem(drinkId: string, updater: (item: CartItem) => CartItem | null) {
+  function updateCartItem(lineId: string, updater: (item: CartItem) => CartItem | null) {
     setCartItems((currentItems) =>
       currentItems.flatMap((item) => {
-        if (item.drinkId !== drinkId) {
+        if (item.lineId !== lineId) {
           return [item];
         }
 
@@ -400,12 +495,78 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     );
   }
 
-  function toggleCartItemModifier(
-    drinkId: string,
+  function increaseCartItemQuantity(item: CartItem) {
+    if (item.stockLimit !== null && getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit) {
+      setError(getStockLimitError(item.drinkName, item.stockLimit));
+      return;
+    }
+
+    updateCartItem(item.lineId, (current) => ({
+      ...current,
+      quantity:
+        current.stockLimit === null
+          ? Math.min(current.quantity + 1, 20)
+          : current.quantity + 1,
+    }));
+    setError(null);
+  }
+
+  function decreaseCartItemQuantity(lineId: string) {
+    updateCartItem(lineId, (current) =>
+      current.quantity <= 1 ? null : { ...current, quantity: current.quantity - 1 },
+    );
+  }
+
+  function requestQuantityIncrease(item: CartItem) {
+    if (item.modifierGroups.length === 0) {
+      increaseCartItemQuantity(item);
+      return;
+    }
+
+    setQuantityPromptItem(item);
+  }
+
+  function openCustomizerForItem(item: CartItem, mode: CustomizerState["mode"] = "edit") {
+    setCustomizer({
+      mode,
+      item: {
+        ...item,
+        modifierSelections: [...item.modifierSelections],
+      },
+    });
+    setCustomizerError(null);
+    setError(null);
+  }
+
+  function openNewCustomizationFromLine(item: CartItem) {
+    openCustomizerForItem(
+      {
+        ...item,
+        lineId: createCartLineId(item.drinkId),
+        quantity: 1,
+        notes: "",
+        modifierSelections: [...item.modifierSelections],
+      },
+      "new",
+    );
+  }
+
+  function updateCustomizerItem(updater: (item: CartItem) => CartItem) {
+    setCustomizer((current) =>
+      current
+        ? {
+            ...current,
+            item: updater(current.item),
+          }
+        : current,
+    );
+  }
+
+  function toggleCustomizerModifier(
     group: MenuModifierGroupRecord,
     option: MenuModifierOptionRecord,
   ) {
-    const cartItem = cartItems.find((item) => item.drinkId === drinkId);
+    const cartItem = customizer?.item ?? null;
     const existingSelection = cartItem ? getModifierSelection(cartItem, group, option) : null;
 
     if (
@@ -419,12 +580,12 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
       );
 
       if (currentGroupSelections.length >= group.maxSelections) {
-        setError(`Choose up to ${group.maxSelections} option(s) for ${group.name}.`);
+        setCustomizerError(`Choose up to ${group.maxSelections} option(s) for ${group.name}.`);
         return;
       }
     }
 
-    updateCartItem(drinkId, (current) => {
+    updateCustomizerItem((current) => {
       const currentSelection = getModifierSelection(current, group, option);
 
       if (currentSelection) {
@@ -465,10 +626,51 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
         modifierSelections: [...current.modifierSelections, nextSelection],
       };
     });
+    setCustomizerError(null);
   }
 
-  function getModifierValidationError() {
-    for (const item of cartItems) {
+  function saveCustomization() {
+    if (!customizer) {
+      return;
+    }
+
+    const modifierError = getModifierValidationError([customizer.item]);
+
+    if (modifierError) {
+      setCustomizerError(modifierError);
+      return;
+    }
+
+    if (
+      !canAddQuantityToCartItem(
+        customizer.item,
+        customizer.item.quantity,
+        customizer.mode === "edit" ? customizer.item.lineId : undefined,
+      )
+    ) {
+      return;
+    }
+
+    if (customizer.mode === "edit") {
+      setCartItems((currentItems) =>
+        currentItems.map((currentItem) =>
+          currentItem.lineId === customizer.item.lineId ? customizer.item : currentItem,
+        ),
+      );
+      setCustomizer(null);
+      setCustomizerError(null);
+      setError(null);
+      return;
+    }
+
+    if (addCartLine(customizer.item)) {
+      setCustomizer(null);
+      setCustomizerError(null);
+    }
+  }
+
+  function getModifierValidationError(items = cartItems) {
+    for (const item of items) {
       for (const group of item.modifierGroups) {
         const selectedCount = item.modifierSelections.filter(
           (selection) => selection.groupId === group.id,
@@ -616,142 +818,153 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               </div>
             ) : (
               <div className="grid gap-4">
-                {cartItems.map((item) => (
-                  <div key={item.drinkId} className="rounded-xl border border-stone-200 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-semibold text-stone-950">{item.drinkName}</p>
-                        <p className="text-sm text-stone-500">{item.categoryName}</p>
-                        <p className="mt-1 text-sm font-semibold text-stone-900">
-                          {formatPrice(getCartItemUnitTotal(item)?.toFixed(2) ?? null, { currency })}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => updateCartItem(item.drinkId, () => null)}
-                        className="rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900"
-                      >
-                        <Trash2Icon className="size-4" />
-                        Remove
-                      </Button>
-                    </div>
+                {cartItems.map((item) => {
+                  const modifierUnitTotal = getCartItemModifierUnitTotal(item);
+                  const itemUnitTotal = getCartItemUnitTotal(item);
 
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <div className="inline-flex items-center overflow-hidden rounded-lg border border-stone-200">
+                  return (
+                    <div
+                      key={item.lineId}
+                      className="rounded-xl border border-stone-200 bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-stone-950">
+                            {item.drinkName}
+                          </p>
+                          <p className="text-sm text-stone-500">{item.categoryName}</p>
+                        </div>
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() =>
-                            updateCartItem(item.drinkId, (current) =>
-                              current.quantity <= 1
-                                ? null
-                                : { ...current, quantity: current.quantity - 1 },
-                            )
-                          }
-                          className="rounded-none"
+                          onClick={() => updateCartItem(item.lineId, () => null)}
+                          className="rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900"
                         >
-                          <MinusIcon className="size-4" />
-                        </Button>
-                        <span className="min-w-12 px-4 text-center text-sm font-semibold text-stone-950">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() =>
-                            updateCartItem(item.drinkId, (current) => ({
-                              ...current,
-                              quantity:
-                                current.stockLimit === null
-                                  ? Math.min(current.quantity + 1, 20)
-                                  : Math.min(current.quantity + 1, current.stockLimit),
-                            }))
-                          }
-                          disabled={item.stockLimit !== null && item.quantity >= item.stockLimit}
-                          className="rounded-none"
-                        >
-                          <PlusIcon className="size-4" />
+                          <Trash2Icon className="size-4" />
+                          Remove
                         </Button>
                       </div>
-                    </div>
 
-                    {item.modifierGroups.length > 0 ? (
-                      <div className="mt-4 grid gap-3">
-                        {item.modifierGroups.map((group) => (
-                          <div key={group.id} className="rounded-lg border border-stone-200 p-3">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-semibold text-stone-950">
-                                  {group.name}
-                                </p>
-                                <p className="mt-0.5 text-xs text-stone-500">
-                                  {group.selectionType === "SINGLE"
-                                    ? "Choose one"
-                                    : "Choose any"}
-                                  {group.isRequired ? " - Required" : ""}
-                                </p>
-                              </div>
-                              {group.maxSelections !== null ? (
-                                <span className="rounded-md bg-stone-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">
-                                  Max {group.maxSelections}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-3 grid gap-2">
-                              {group.options.map((option) => {
-                                const selection = getModifierSelection(item, group, option);
-
-                                return (
-                                  <label
-                                    key={option.id}
-                                    className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
-                                  >
-                                    <span className="inline-flex items-center gap-3">
-                                      <Checkbox
-                                        checked={Boolean(selection)}
-                                        disabled={option.isSoldOut}
-                                        onCheckedChange={() =>
-                                          toggleCartItemModifier(item.drinkId, group, option)
-                                        }
-                                      />
-                                      <span className="font-medium text-stone-900">
-                                        {option.name}
-                                        {option.isSoldOut ? " (sold out)" : ""}
-                                      </span>
-                                    </span>
-                                    <span className="text-xs font-semibold text-stone-600">
-                                      {Number(option.priceDelta) > 0
-                                        ? `+ ${formatPrice(option.priceDelta, { currency })}`
-                                        : "Included"}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
+                      <div className="mt-3 grid gap-1 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-stone-500">Base item</span>
+                          <span className="font-medium text-stone-900">
+                            {formatPrice(item.unitPrice, { currency })}
+                          </span>
+                        </div>
+                        {item.modifierSelections.length > 0 ? (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-stone-500">Add-ons</span>
+                            <span className="font-medium text-stone-900">
+                              {modifierUnitTotal > 0
+                                ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                : "Included"}
+                            </span>
                           </div>
-                        ))}
+                        ) : null}
+                        <div className="flex items-center justify-between gap-3 border-t border-stone-200 pt-2 font-semibold text-stone-950">
+                          <span>Item total</span>
+                          <span>{formatPrice(itemUnitTotal, { currency })}</span>
+                        </div>
+                        {item.quantity > 1 ? (
+                          <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
+                            <span>Line total for {item.quantity} item(s)</span>
+                            <span className="font-semibold text-stone-900">
+                              {formatCartItemLineTotal(item, currency)}
+                            </span>
+                          </div>
+                        ) : null}
                       </div>
-                    ) : null}
 
-                    <div className="mt-4">
-                      <FormField label="Notes for this item">
-                        <Textarea
-                          value={item.notes}
-                          onChange={(event) =>
-                            updateCartItem(item.drinkId, (current) => ({
-                              ...current,
-                              notes: event.target.value,
-                            }))
-                          }
-                          rows={2}
-                          placeholder="Less ice, no garnish, serve later..."
-                        />
-                      </FormField>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <div className="inline-flex items-center overflow-hidden rounded-lg border border-stone-200">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => decreaseCartItemQuantity(item.lineId)}
+                            className="rounded-none"
+                          >
+                            <MinusIcon className="size-4" />
+                          </Button>
+                          <span className="min-w-12 px-4 text-center text-sm font-semibold text-stone-950">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => requestQuantityIncrease(item)}
+                            disabled={
+                              item.stockLimit !== null &&
+                              getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit
+                            }
+                            className="rounded-none"
+                          >
+                            <PlusIcon className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {item.modifierGroups.length > 0 ? (
+                        <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-stone-950">Customization</p>
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                {item.modifierSelections.length > 0
+                                  ? "Selected add-ons for this cart line."
+                                  : "No add-ons selected for this cart line."}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => openCustomizerForItem(item)}
+                              className="h-9 rounded-lg bg-white"
+                            >
+                              <ButtonLabel icon={TagsIcon}>Edit</ButtonLabel>
+                            </Button>
+                          </div>
+
+                          {item.modifierSelections.length > 0 ? (
+                            <div className="mt-3 grid gap-2">
+                              {item.modifierSelections.map((modifier) => (
+                                <div
+                                  key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                                >
+                                  <span className="font-medium text-stone-900">
+                                    {modifier.groupName}: {modifier.modifierName}
+                                  </span>
+                                  <span className="text-xs font-semibold text-stone-600">
+                                    {Number(modifier.priceDelta) > 0
+                                      ? `+ ${formatPrice(modifier.priceDelta, { currency })}`
+                                      : "Included"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4">
+                        <FormField label="Notes for this item">
+                          <Textarea
+                            value={item.notes}
+                            onChange={(event) =>
+                              updateCartItem(item.lineId, (current) => ({
+                                ...current,
+                                notes: event.target.value,
+                              }))
+                            }
+                            rows={2}
+                            placeholder="Less ice, no garnish, serve later..."
+                          />
+                        </FormField>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -776,6 +989,195 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={Boolean(customizer)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCustomizer(null);
+            setCustomizerError(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl p-0 sm:max-w-xl">
+          {customizer ? (
+            <>
+              <DialogHeader className="px-6 pt-6">
+                <DialogTitle>
+                  {customizer.mode === "edit" ? "Edit customization" : "Customize item"}
+                </DialogTitle>
+                <DialogDescription>
+                  Choose add-ons for {customizer.item.drinkName}. Each different customization is
+                  kept as a separate cart line.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 px-6 py-5">
+                <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-stone-950">
+                        {customizer.item.drinkName}
+                      </p>
+                      <p className="text-sm text-stone-500">{customizer.item.categoryName}</p>
+                    </div>
+                    <div className="min-w-44 text-right text-xs text-stone-500">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Base item</span>
+                        <span className="font-medium text-stone-900">
+                          {formatPrice(customizer.item.unitPrice, { currency })}
+                        </span>
+                      </div>
+                      {customizer.item.modifierSelections.length > 0 ? (
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                          <span>Add-ons</span>
+                          <span className="font-medium text-stone-900">
+                            {getCartItemModifierUnitTotal(customizer.item) > 0
+                              ? `+ ${formatPrice(getCartItemModifierUnitTotal(customizer.item), {
+                                  currency,
+                                })}`
+                              : "Included"}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex items-center justify-between gap-3 border-t border-stone-200 pt-2 text-sm font-semibold text-stone-950">
+                        <span>Item total</span>
+                        <span>{formatPrice(getCartItemUnitTotal(customizer.item), { currency })}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {customizer.item.modifierGroups.map((group) => (
+                  <div key={group.id} className="rounded-lg border border-stone-200 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-stone-950">{group.name}</p>
+                        <p className="mt-0.5 text-xs text-stone-500">
+                          {group.selectionType === "SINGLE" ? "Choose one" : "Choose any"}
+                          {group.isRequired ? " - Required" : ""}
+                        </p>
+                      </div>
+                      {group.maxSelections !== null ? (
+                        <span className="rounded-md bg-stone-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+                          Max {group.maxSelections}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                      {group.options.map((option) => {
+                        const selection = getModifierSelection(customizer.item, group, option);
+
+                        return (
+                          <label
+                            key={option.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
+                          >
+                            <span className="inline-flex items-center gap-3">
+                              <Checkbox
+                                checked={Boolean(selection)}
+                                disabled={option.isSoldOut}
+                                onCheckedChange={() => toggleCustomizerModifier(group, option)}
+                              />
+                              <span className="font-medium text-stone-900">
+                                {option.name}
+                                {option.isSoldOut ? " (sold out)" : ""}
+                              </span>
+                            </span>
+                            <span className="text-xs font-semibold text-stone-600">
+                              {Number(option.priceDelta) > 0
+                                ? `+ ${formatPrice(option.priceDelta, { currency })}`
+                                : "Included"}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {customizerError ? (
+                  <p className="text-sm text-rose-600">{customizerError}</p>
+                ) : null}
+              </div>
+
+              <DialogFooter className="border-t border-stone-200 px-6 py-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setCustomizer(null);
+                    setCustomizerError(null);
+                  }}
+                  className="min-h-11 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={saveCustomization}
+                  className="min-h-11 rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+                >
+                  <ButtonLabel icon={customizer.mode === "edit" ? TagsIcon : PlusIcon}>
+                    {customizer.mode === "edit" ? "Save Customization" : "Add to Cart"}
+                  </ButtonLabel>
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={Boolean(quantityPromptItem)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setQuantityPromptItem(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] rounded-xl sm:w-fit sm:min-w-[38rem] sm:max-w-[44rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Add another {quantityPromptItem?.drinkName ?? "item"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Continue with the same customization or create a separate cart line with different
+              add-ons.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row sm:flex-nowrap sm:justify-end">
+            <AlertDialogCancel className="w-full whitespace-nowrap sm:w-auto">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="w-full whitespace-nowrap sm:w-auto"
+              onClick={() => {
+                if (quantityPromptItem) {
+                  increaseCartItemQuantity(quantityPromptItem);
+                }
+
+                setQuantityPromptItem(null);
+              }}
+            >
+              Same customization
+            </AlertDialogAction>
+            <AlertDialogAction
+              className="w-full whitespace-nowrap sm:w-auto"
+              onClick={() => {
+                if (quantityPromptItem) {
+                  openNewCustomizationFromLine(quantityPromptItem);
+                }
+
+                setQuantityPromptItem(null);
+              }}
+            >
+              Customize separately
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {screen === "review" ? (
         <Card className="overflow-hidden rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
@@ -828,37 +1230,67 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               </div>
 
               <div className="mt-4 grid gap-3">
-                {cartItems.map((item) => (
-                  <div key={item.drinkId} className="grid grid-cols-[1fr_auto] gap-3 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium text-stone-900">
-                        {item.drinkName} x{item.quantity}
-                      </p>
-                      <p className="text-stone-500">{item.categoryName}</p>
-                      {item.modifierSelections.length > 0 ? (
-                        <div className="mt-1 grid gap-1">
-                          {item.modifierSelections.map((modifier) => (
-                            <p
-                              key={`${modifier.groupId}-${modifier.modifierId}`}
-                              className="text-xs text-stone-500"
-                            >
-                              {modifier.groupName}: {modifier.modifierName}
-                              {Number(modifier.priceDelta) > 0
-                                ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
-                                : ""}
+                {cartItems.map((item) => {
+                  const modifierUnitTotal = getCartItemModifierUnitTotal(item);
+                  const itemUnitTotal = getCartItemUnitTotal(item);
+
+                  return (
+                    <div key={item.lineId} className="grid grid-cols-[1fr_auto] gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-stone-900">
+                          {item.drinkName} x{item.quantity}
+                        </p>
+                        <p className="text-stone-500">{item.categoryName}</p>
+                        <div className="mt-2 grid gap-1 text-xs text-stone-500">
+                          <p>
+                            Base item:{" "}
+                            <span className="font-medium text-stone-700">
+                              {formatPrice(item.unitPrice, { currency })}
+                            </span>
+                          </p>
+                          {item.modifierSelections.length > 0 ? (
+                            <p>
+                              Add-ons:{" "}
+                              <span className="font-medium text-stone-700">
+                                {modifierUnitTotal > 0
+                                  ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                  : "Included"}
+                              </span>
                             </p>
-                          ))}
+                          ) : null}
+                          <p>
+                            Item total:{" "}
+                            <span className="font-medium text-stone-700">
+                              {formatPrice(itemUnitTotal, { currency })}
+                            </span>{" "}
+                            each
+                          </p>
                         </div>
-                      ) : null}
-                      {item.notes.trim() ? (
-                        <p className="mt-1 text-xs text-stone-500">Note: {item.notes.trim()}</p>
-                      ) : null}
+                        {item.modifierSelections.length > 0 ? (
+                          <div className="mt-2 grid gap-1">
+                            {item.modifierSelections.map((modifier) => (
+                              <p
+                                key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
+                                className="text-xs text-stone-500"
+                              >
+                                {modifier.groupName}: {modifier.modifierName}
+                                {Number(modifier.priceDelta) > 0
+                                  ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
+                                  : ""}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                        {item.notes.trim() ? (
+                          <p className="mt-1 text-xs text-stone-500">Note: {item.notes.trim()}</p>
+                        ) : null}
+                      </div>
+                      <p className="font-medium text-stone-900">
+                        {formatCartItemLineTotal(item, currency)}
+                      </p>
                     </div>
-                    <p className="font-medium text-stone-900">
-                      {formatCartItemLineTotal(item, currency)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="my-4 border-t border-dashed border-stone-200" />
@@ -1068,10 +1500,21 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                       ) : (
                         <div className="grid gap-4">
                           {category.items.map((drink) => {
-                            const cartItem = cartItems.find((item) => item.drinkId === drink.id);
+                            const selectedCartItems = cartItems.filter(
+                              (item) => item.drinkId === drink.id,
+                            );
+                            const cartItem = selectedCartItems[0] ?? null;
+                            const latestCartItem =
+                              selectedCartItems[selectedCartItems.length - 1] ?? null;
+                            const selectedQuantity = selectedCartItems.reduce(
+                              (sum, item) => sum + item.quantity,
+                              0,
+                            );
+                            const hasSelectedItem = selectedQuantity > 0;
+                            const hasModifiers = Boolean(drink.modifierGroups?.length);
                             const stockLimit = getStockLimit(drink);
                             const hasReachedStockLimit =
-                              stockLimit !== null && (cartItem?.quantity ?? 0) >= stockLimit;
+                              stockLimit !== null && selectedQuantity >= stockLimit;
                             const isUnavailable =
                               drink.isSoldOut || drink.isUnavailableDueToStock;
                             const unavailableLabel = drink.isSoldOut
@@ -1084,7 +1527,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                               <div
                                 key={drink.id}
                                 className={`grid grid-cols-[1fr_96px] gap-4 border-b border-stone-100 pb-4 last:border-b-0 sm:grid-cols-[1fr_128px] ${
-                                  cartItem ? "rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-200" : ""
+                                  hasSelectedItem ? "rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-200" : ""
                                 }`}
                               >
                                 <div className="min-w-0">
@@ -1092,10 +1535,10 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                     <p className="text-base font-semibold leading-snug text-stone-950">
                                       {drink.name}
                                     </p>
-                                    {cartItem ? (
+                                    {hasSelectedItem ? (
                                       <span className="inline-flex items-center gap-1 rounded-md bg-stone-950 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
                                         <CheckIcon className="size-3" />
-                                        x{cartItem.quantity}
+                                        x{selectedQuantity}
                                       </span>
                                     ) : null}
                                     {unavailableLabel ? (
@@ -1134,18 +1577,12 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                   <p className="mt-3 text-sm font-semibold text-stone-950">
                                     {formatPrice(drink.price ?? null, { currency })}
                                   </p>
-                                  {cartItem ? (
+                                  {hasModifiers && latestCartItem ? (
                                     <div className="mt-3 inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        onClick={() =>
-                                          updateCartItem(drink.id, (current) =>
-                                            current.quantity <= 1
-                                              ? null
-                                              : { ...current, quantity: current.quantity - 1 },
-                                          )
-                                        }
+                                        onClick={() => decreaseCartItemQuantity(latestCartItem.lineId)}
                                         disabled={isSubmitting}
                                         aria-label={`Reduce ${drink.name} quantity`}
                                         className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
@@ -1153,23 +1590,59 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
                                         <MinusIcon className="size-4" />
                                       </Button>
                                       <span className="min-w-10 px-3 text-center text-sm font-semibold text-stone-950">
-                                        {cartItem.quantity}
+                                        {selectedQuantity}
                                       </span>
                                       <Button
                                         type="button"
                                         variant="ghost"
-                                        onClick={() =>
-                                          updateCartItem(drink.id, (current) => ({
-                                            ...current,
-                                            quantity:
-                                              current.stockLimit === null
-                                                ? Math.min(current.quantity + 1, 20)
-                                                : Math.min(
-                                                    current.quantity + 1,
-                                                    current.stockLimit,
-                                                  ),
-                                          }))
-                                        }
+                                        onClick={() => requestQuantityIncrease(latestCartItem)}
+                                        disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
+                                        aria-label={`Increase ${drink.name} quantity`}
+                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
+                                      >
+                                        <PlusIcon className="size-4" />
+                                      </Button>
+                                    </div>
+                                  ) : hasModifiers ? (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={() => addToCart(category, drink)}
+                                      disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
+                                      className={
+                                        isUnavailable || hasReachedStockLimit
+                                          ? "mt-3 h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
+                                          : "mt-3 h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
+                                      }
+                                    >
+                                      {!isUnavailable && !hasReachedStockLimit ? (
+                                        <TagsIcon className="size-4" />
+                                      ) : null}
+                                      {isUnavailable
+                                        ? unavailableLabel
+                                        : hasReachedStockLimit
+                                          ? "Limit reached"
+                                          : "Customize"}
+                                    </Button>
+                                  ) : cartItem ? (
+                                    <div className="mt-3 inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => decreaseCartItemQuantity(cartItem.lineId)}
+                                        disabled={isSubmitting}
+                                        aria-label={`Reduce ${drink.name} quantity`}
+                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
+                                      >
+                                        <MinusIcon className="size-4" />
+                                      </Button>
+                                      <span className="min-w-10 px-3 text-center text-sm font-semibold text-stone-950">
+                                        {selectedQuantity}
+                                      </span>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() => requestQuantityIncrease(cartItem)}
                                         disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                         aria-label={`Increase ${drink.name} quantity`}
                                         className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
