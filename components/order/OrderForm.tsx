@@ -1137,7 +1137,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           }
         }}
       >
-        <AlertDialogContent className="max-w-[calc(100vw-2rem)] rounded-xl sm:max-w-2xl">
+        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] rounded-xl sm:w-fit sm:min-w-[38rem] sm:max-w-[44rem]">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Add another {quantityPromptItem?.drinkName ?? "item"}?
@@ -1147,10 +1147,12 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               add-ons.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-row flex-wrap justify-end sm:flex-nowrap">
-            <AlertDialogCancel className="w-auto whitespace-nowrap">Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row sm:flex-nowrap sm:justify-end">
+            <AlertDialogCancel className="w-full whitespace-nowrap sm:w-auto">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="w-auto whitespace-nowrap"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => {
                 if (quantityPromptItem) {
                   increaseCartItemQuantity(quantityPromptItem);
@@ -1162,7 +1164,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               Same customization
             </AlertDialogAction>
             <AlertDialogAction
-              className="w-auto whitespace-nowrap"
+              className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => {
                 if (quantityPromptItem) {
                   openNewCustomizationFromLine(quantityPromptItem);
