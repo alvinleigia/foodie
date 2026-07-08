@@ -141,16 +141,20 @@ function getStockLimitError(drinkName: string, stockLimit: number) {
 
 function getCartItemUnitTotal(item: CartItem) {
   const basePrice = item.unitPrice ? Number(item.unitPrice) : 0;
-  const modifierPrice = item.modifierSelections.reduce(
-    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
-    0,
-  );
+  const modifierPrice = getCartItemModifierUnitTotal(item);
 
   if (!item.unitPrice && modifierPrice === 0) {
     return null;
   }
 
   return basePrice + modifierPrice;
+}
+
+function getCartItemModifierUnitTotal(item: CartItem) {
+  return item.modifierSelections.reduce(
+    (sum, modifier) => sum + Number(modifier.priceDelta) * modifier.quantity,
+    0,
+  );
 }
 
 function getCartItemLineTotal(item: CartItem) {
@@ -814,115 +818,153 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               </div>
             ) : (
               <div className="grid gap-4">
-                {cartItems.map((item) => (
-                  <div key={item.lineId} className="rounded-xl border border-stone-200 bg-white p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-semibold text-stone-950">{item.drinkName}</p>
-                        <p className="text-sm text-stone-500">{item.categoryName}</p>
-                        <p className="mt-1 text-sm font-semibold text-stone-900">
-                          {formatPrice(getCartItemUnitTotal(item)?.toFixed(2) ?? null, { currency })}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => updateCartItem(item.lineId, () => null)}
-                        className="rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900"
-                      >
-                        <Trash2Icon className="size-4" />
-                        Remove
-                      </Button>
-                    </div>
+                {cartItems.map((item) => {
+                  const modifierUnitTotal = getCartItemModifierUnitTotal(item);
+                  const itemUnitTotal = getCartItemUnitTotal(item);
 
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
-                      <div className="inline-flex items-center overflow-hidden rounded-lg border border-stone-200">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => decreaseCartItemQuantity(item.lineId)}
-                          className="rounded-none"
-                        >
-                          <MinusIcon className="size-4" />
-                        </Button>
-                        <span className="min-w-12 px-4 text-center text-sm font-semibold text-stone-950">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => requestQuantityIncrease(item)}
-                          disabled={
-                            item.stockLimit !== null &&
-                            getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit
-                          }
-                          className="rounded-none"
-                        >
-                          <PlusIcon className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {item.modifierGroups.length > 0 ? (
-                      <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-stone-950">Customization</p>
-                            <p className="mt-0.5 text-xs text-stone-500">
-                              {item.modifierSelections.length > 0
-                                ? "Selected add-ons for this cart line."
-                                : "No add-ons selected for this cart line."}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => openCustomizerForItem(item)}
-                            className="h-9 rounded-lg bg-white"
-                          >
-                            <ButtonLabel icon={TagsIcon}>Edit</ButtonLabel>
-                          </Button>
+                  return (
+                    <div
+                      key={item.lineId}
+                      className="rounded-xl border border-stone-200 bg-white p-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-stone-950">
+                            {item.drinkName}
+                          </p>
+                          <p className="text-sm text-stone-500">{item.categoryName}</p>
                         </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => updateCartItem(item.lineId, () => null)}
+                          className="rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900"
+                        >
+                          <Trash2Icon className="size-4" />
+                          Remove
+                        </Button>
+                      </div>
 
+                      <div className="mt-3 grid gap-1 rounded-lg border border-stone-100 bg-stone-50 px-3 py-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-stone-500">Base item</span>
+                          <span className="font-medium text-stone-900">
+                            {formatPrice(item.unitPrice, { currency })}
+                          </span>
+                        </div>
                         {item.modifierSelections.length > 0 ? (
-                          <div className="mt-3 grid gap-2">
-                            {item.modifierSelections.map((modifier) => (
-                              <div
-                                key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
-                                className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
-                              >
-                                <span className="font-medium text-stone-900">
-                                  {modifier.groupName}: {modifier.modifierName}
-                                </span>
-                                <span className="text-xs font-semibold text-stone-600">
-                                  {Number(modifier.priceDelta) > 0
-                                    ? `+ ${formatPrice(modifier.priceDelta, { currency })}`
-                                    : "Included"}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-stone-500">Add-ons</span>
+                            <span className="font-medium text-stone-900">
+                              {modifierUnitTotal > 0
+                                ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                : "Included"}
+                            </span>
+                          </div>
+                        ) : null}
+                        <div className="flex items-center justify-between gap-3 border-t border-stone-200 pt-2 font-semibold text-stone-950">
+                          <span>Item total</span>
+                          <span>{formatPrice(itemUnitTotal, { currency })}</span>
+                        </div>
+                        {item.quantity > 1 ? (
+                          <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
+                            <span>Line total for {item.quantity} item(s)</span>
+                            <span className="font-semibold text-stone-900">
+                              {formatCartItemLineTotal(item, currency)}
+                            </span>
                           </div>
                         ) : null}
                       </div>
-                    ) : null}
 
-                    <div className="mt-4">
-                      <FormField label="Notes for this item">
-                        <Textarea
-                          value={item.notes}
-                          onChange={(event) =>
-                            updateCartItem(item.lineId, (current) => ({
-                              ...current,
-                              notes: event.target.value,
-                            }))
-                          }
-                          rows={2}
-                          placeholder="Less ice, no garnish, serve later..."
-                        />
-                      </FormField>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <div className="inline-flex items-center overflow-hidden rounded-lg border border-stone-200">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => decreaseCartItemQuantity(item.lineId)}
+                            className="rounded-none"
+                          >
+                            <MinusIcon className="size-4" />
+                          </Button>
+                          <span className="min-w-12 px-4 text-center text-sm font-semibold text-stone-950">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => requestQuantityIncrease(item)}
+                            disabled={
+                              item.stockLimit !== null &&
+                              getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit
+                            }
+                            className="rounded-none"
+                          >
+                            <PlusIcon className="size-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {item.modifierGroups.length > 0 ? (
+                        <div className="mt-4 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-stone-950">Customization</p>
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                {item.modifierSelections.length > 0
+                                  ? "Selected add-ons for this cart line."
+                                  : "No add-ons selected for this cart line."}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => openCustomizerForItem(item)}
+                              className="h-9 rounded-lg bg-white"
+                            >
+                              <ButtonLabel icon={TagsIcon}>Edit</ButtonLabel>
+                            </Button>
+                          </div>
+
+                          {item.modifierSelections.length > 0 ? (
+                            <div className="mt-3 grid gap-2">
+                              {item.modifierSelections.map((modifier) => (
+                                <div
+                                  key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
+                                  className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm"
+                                >
+                                  <span className="font-medium text-stone-900">
+                                    {modifier.groupName}: {modifier.modifierName}
+                                  </span>
+                                  <span className="text-xs font-semibold text-stone-600">
+                                    {Number(modifier.priceDelta) > 0
+                                      ? `+ ${formatPrice(modifier.priceDelta, { currency })}`
+                                      : "Included"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+
+                      <div className="mt-4">
+                        <FormField label="Notes for this item">
+                          <Textarea
+                            value={item.notes}
+                            onChange={(event) =>
+                              updateCartItem(item.lineId, (current) => ({
+                                ...current,
+                                notes: event.target.value,
+                              }))
+                            }
+                            rows={2}
+                            placeholder="Less ice, no garnish, serve later..."
+                          />
+                        </FormField>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -972,18 +1014,37 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
 
               <div className="grid gap-4 px-6 py-5">
                 <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <p className="text-base font-semibold text-stone-950">
                         {customizer.item.drinkName}
                       </p>
                       <p className="text-sm text-stone-500">{customizer.item.categoryName}</p>
                     </div>
-                    <p className="text-sm font-semibold text-stone-950">
-                      {formatPrice(getCartItemUnitTotal(customizer.item)?.toFixed(2) ?? null, {
-                        currency,
-                      })}
-                    </p>
+                    <div className="min-w-44 text-right text-xs text-stone-500">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>Base item</span>
+                        <span className="font-medium text-stone-900">
+                          {formatPrice(customizer.item.unitPrice, { currency })}
+                        </span>
+                      </div>
+                      {customizer.item.modifierSelections.length > 0 ? (
+                        <div className="mt-1 flex items-center justify-between gap-3">
+                          <span>Add-ons</span>
+                          <span className="font-medium text-stone-900">
+                            {getCartItemModifierUnitTotal(customizer.item) > 0
+                              ? `+ ${formatPrice(getCartItemModifierUnitTotal(customizer.item), {
+                                  currency,
+                                })}`
+                              : "Included"}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="mt-2 flex items-center justify-between gap-3 border-t border-stone-200 pt-2 text-sm font-semibold text-stone-950">
+                        <span>Item total</span>
+                        <span>{formatPrice(getCartItemUnitTotal(customizer.item), { currency })}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1076,7 +1137,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           }
         }}
       >
-        <AlertDialogContent className="rounded-xl">
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] rounded-xl md:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Add another {quantityPromptItem?.drinkName ?? "item"}?
@@ -1086,9 +1147,10 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               add-ons.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col-reverse sm:flex-col-reverse md:flex-row md:flex-wrap">
+            <AlertDialogCancel className="w-full md:w-auto">Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="w-full whitespace-nowrap md:w-auto"
               onClick={() => {
                 if (quantityPromptItem) {
                   increaseCartItemQuantity(quantityPromptItem);
@@ -1100,6 +1162,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               Same customization
             </AlertDialogAction>
             <AlertDialogAction
+              className="w-full whitespace-nowrap md:w-auto"
               onClick={() => {
                 if (quantityPromptItem) {
                   openNewCustomizationFromLine(quantityPromptItem);
@@ -1165,37 +1228,67 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               </div>
 
               <div className="mt-4 grid gap-3">
-                {cartItems.map((item) => (
-                  <div key={item.lineId} className="grid grid-cols-[1fr_auto] gap-3 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium text-stone-900">
-                        {item.drinkName} x{item.quantity}
-                      </p>
-                      <p className="text-stone-500">{item.categoryName}</p>
-                      {item.modifierSelections.length > 0 ? (
-                        <div className="mt-1 grid gap-1">
-                          {item.modifierSelections.map((modifier) => (
-                            <p
-                              key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
-                              className="text-xs text-stone-500"
-                            >
-                              {modifier.groupName}: {modifier.modifierName}
-                              {Number(modifier.priceDelta) > 0
-                                ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
-                                : ""}
+                {cartItems.map((item) => {
+                  const modifierUnitTotal = getCartItemModifierUnitTotal(item);
+                  const itemUnitTotal = getCartItemUnitTotal(item);
+
+                  return (
+                    <div key={item.lineId} className="grid grid-cols-[1fr_auto] gap-3 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-stone-900">
+                          {item.drinkName} x{item.quantity}
+                        </p>
+                        <p className="text-stone-500">{item.categoryName}</p>
+                        <div className="mt-2 grid gap-1 text-xs text-stone-500">
+                          <p>
+                            Base item:{" "}
+                            <span className="font-medium text-stone-700">
+                              {formatPrice(item.unitPrice, { currency })}
+                            </span>
+                          </p>
+                          {item.modifierSelections.length > 0 ? (
+                            <p>
+                              Add-ons:{" "}
+                              <span className="font-medium text-stone-700">
+                                {modifierUnitTotal > 0
+                                  ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                  : "Included"}
+                              </span>
                             </p>
-                          ))}
+                          ) : null}
+                          <p>
+                            Item total:{" "}
+                            <span className="font-medium text-stone-700">
+                              {formatPrice(itemUnitTotal, { currency })}
+                            </span>{" "}
+                            each
+                          </p>
                         </div>
-                      ) : null}
-                      {item.notes.trim() ? (
-                        <p className="mt-1 text-xs text-stone-500">Note: {item.notes.trim()}</p>
-                      ) : null}
+                        {item.modifierSelections.length > 0 ? (
+                          <div className="mt-2 grid gap-1">
+                            {item.modifierSelections.map((modifier) => (
+                              <p
+                                key={`${item.lineId}-${modifier.groupId}-${modifier.modifierId}`}
+                                className="text-xs text-stone-500"
+                              >
+                                {modifier.groupName}: {modifier.modifierName}
+                                {Number(modifier.priceDelta) > 0
+                                  ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
+                                  : ""}
+                              </p>
+                            ))}
+                          </div>
+                        ) : null}
+                        {item.notes.trim() ? (
+                          <p className="mt-1 text-xs text-stone-500">Note: {item.notes.trim()}</p>
+                        ) : null}
+                      </div>
+                      <p className="font-medium text-stone-900">
+                        {formatCartItemLineTotal(item, currency)}
+                      </p>
                     </div>
-                    <p className="font-medium text-stone-900">
-                      {formatCartItemLineTotal(item, currency)}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="my-4 border-t border-dashed border-stone-200" />
