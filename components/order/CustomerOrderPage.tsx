@@ -12,6 +12,7 @@ type CustomerOrderPageProps = {
   } | null;
   customerAuthProviders: {
     apple: boolean;
+    email: boolean;
     facebook: boolean;
     google: boolean;
   };
@@ -62,6 +63,7 @@ export function CustomerOrderPage({
       )}
 
       <OrderForm
+        key={user ? "staff" : customer?.email || "customer-guest"}
         customer={customer}
         customerAuthProviders={customerAuthProviders}
         isStaffOrder={Boolean(user)}

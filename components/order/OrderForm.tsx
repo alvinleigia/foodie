@@ -8,7 +8,9 @@ import {
   CheckIcon,
   CreditCardIcon,
   ImageIcon,
+  KeyRoundIcon,
   LogInIcon,
+  MailIcon,
   MinusIcon,
   PlusIcon,
   PhoneIcon,
@@ -85,6 +87,7 @@ type OrderFormProps = {
   } | null;
   customerAuthProviders: {
     apple: boolean;
+    email: boolean;
     facebook: boolean;
     google: boolean;
   };
@@ -245,7 +248,16 @@ export function OrderForm({
   const [startingLoginProvider, setStartingLoginProvider] = useState<
     "apple" | "facebook" | "google" | null
   >(null);
-  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [otpEmail, setOtpEmail] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpStep, setOtpStep] = useState<"email" | "code">("email");
+  const [otpRetrySeconds, setOtpRetrySeconds] = useState(0);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [customerName, setCustomerName] = useState(customer?.name ?? "");
+  const [savedCustomerName, setSavedCustomerName] = useState(customer?.name ?? null);
   const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
   const [savedCustomerPhone, setSavedCustomerPhone] = useState(customer?.phone ?? null);
   const [selectedStaffCustomer, setSelectedStaffCustomer] =
@@ -260,8 +272,25 @@ export function OrderForm({
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
-  const canPlaceOrder =
-    isStaffOrder || Boolean(customer && isValidCustomerPhone(savedCustomerPhone));
+  const hasCompleteCustomerProfile = Boolean(
+    customer &&
+      savedCustomerName &&
+      savedCustomerName.trim().length >= 2 &&
+      isValidCustomerPhone(savedCustomerPhone),
+  );
+  const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
+
+  useEffect(() => {
+    if (otpRetrySeconds <= 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setOtpRetrySeconds((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [otpRetrySeconds]);
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -863,42 +892,112 @@ export function OrderForm({
     providerLabel: string,
   ) {
     setStartingLoginProvider(provider);
-    setError(null);
+    setLoginError(null);
 
     try {
       await signIn(provider, { redirectTo: window.location.href });
     } catch {
-      setError(`${providerLabel} sign-in could not be started. Please try again.`);
+      setLoginError(`${providerLabel} sign-in could not be started. Please try again.`);
       setStartingLoginProvider(null);
     }
   }
 
-  async function saveCustomerPhone() {
+  async function requestCustomerLoginCode() {
+    const email = otpEmail.trim().toLowerCase();
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setLoginError("Enter a valid email address.");
+      return;
+    }
+
+    setIsRequestingOtp(true);
+    setLoginError(null);
+
+    try {
+      await requestJson("/api/customer/auth/request-code", {
+        body: { email },
+        fallbackError: "The sign-in code could not be sent.",
+      });
+      setOtpEmail(email);
+      setOtpCode("");
+      setOtpStep("code");
+      setOtpRetrySeconds(60);
+      toast.success("Sign-in code sent.");
+    } catch (otpError) {
+      setLoginError(getCaughtErrorMessage(otpError, "The sign-in code could not be sent."));
+    } finally {
+      setIsRequestingOtp(false);
+    }
+  }
+
+  async function verifyCustomerLoginCode() {
+    if (!/^\d{6}$/.test(otpCode.trim())) {
+      setLoginError("Enter the six-digit code.");
+      return;
+    }
+
+    setIsVerifyingOtp(true);
+    setLoginError(null);
+
+    try {
+      const result = await signIn("customer-email-otp", {
+        code: otpCode.trim(),
+        email: otpEmail,
+        redirect: false,
+        redirectTo: window.location.href,
+      });
+
+      if (!result.ok) {
+        setLoginError("The code is invalid or has expired. Request a new code and try again.");
+        return;
+      }
+
+      toast.success("Signed in successfully.");
+      router.refresh();
+    } catch {
+      setLoginError("The code could not be verified. Please try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  }
+
+  async function saveCustomerProfile() {
+    if (customerName.trim().length < 2) {
+      setError("Enter your name before continuing.");
+      return;
+    }
+
     if (!isValidCustomerPhone(customerPhone)) {
       setError("Enter a valid phone number with country code.");
       return;
     }
 
-    setIsSavingPhone(true);
+    setIsSavingProfile(true);
     setError(null);
 
     try {
-      const payload = await requestJson<{ customer: { phone: string | null } }>(
+      const payload = await requestJson<{
+        customer: { name: string; phone: string | null };
+      }>(
         "/api/customer/profile",
         {
-          body: { phone: customerPhone },
-          fallbackError: "Phone number could not be saved.",
+          body: { name: customerName, phone: customerPhone },
+          fallbackError: "Profile could not be saved.",
           method: "PATCH",
         },
       );
+      const name = payload.customer.name.trim();
       const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhone);
+      setCustomerName(name);
+      setSavedCustomerName(name);
       setCustomerPhone(phone);
       setSavedCustomerPhone(phone);
-      toast.success("Phone number saved.");
-    } catch (phoneError) {
-      setError(getCaughtErrorMessage(phoneError, "Phone number could not be saved."));
+      toast.success("Profile saved.");
+      router.refresh();
+    } catch (profileError) {
+      setError(getCaughtErrorMessage(profileError, "Profile could not be saved."));
     } finally {
-      setIsSavingPhone(false);
+      setIsSavingProfile(false);
     }
   }
 
@@ -1316,13 +1415,137 @@ export function OrderForm({
             ) : null}
 
             {!isStaffOrder && !customer ? (
-              <div className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
                 <div>
                   <p className="font-semibold text-stone-950">Sign in to continue</p>
                   <p className="mt-1 text-sm text-stone-600">
                     Your orders will be saved to your account for easy tracking and reordering.
                   </p>
                 </div>
+
+                {customerAuthProviders.email ? (
+                  otpStep === "email" ? (
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <FormField label="Email address" htmlFor="customer-login-email">
+                        <Input
+                          id="customer-login-email"
+                          type="email"
+                          value={otpEmail}
+                          onChange={(event) => {
+                            setOtpEmail(event.target.value);
+                            setLoginError(null);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              void requestCustomerLoginCode();
+                            }
+                          }}
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                          disabled={isRequestingOtp}
+                          className="h-11 bg-white"
+                        />
+                      </FormField>
+                      <Button
+                        type="button"
+                        onClick={requestCustomerLoginCode}
+                        disabled={isRequestingOtp}
+                        className="min-h-11 px-4"
+                      >
+                        {isRequestingOtp ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Spinner className="text-white" />
+                            Sending...
+                          </span>
+                        ) : (
+                          <ButtonLabel icon={MailIcon}>Email me a code</ButtonLabel>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm text-stone-600">
+                          Enter the code sent to <span className="font-medium text-stone-900">{otpEmail}</span>.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="link"
+                          onClick={() => {
+                            setOtpStep("email");
+                            setOtpCode("");
+                            setLoginError(null);
+                          }}
+                          className="h-auto p-0 text-stone-700"
+                        >
+                          Change email
+                        </Button>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                        <FormField label="Six-digit code" htmlFor="customer-login-code">
+                          <Input
+                            id="customer-login-code"
+                            value={otpCode}
+                            onChange={(event) => {
+                              setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6));
+                              setLoginError(null);
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                void verifyCustomerLoginCode();
+                              }
+                            }}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={6}
+                            autoComplete="one-time-code"
+                            disabled={isVerifyingOtp}
+                            className="h-11 bg-white text-base"
+                          />
+                        </FormField>
+                        <Button
+                          type="button"
+                          onClick={verifyCustomerLoginCode}
+                          disabled={isVerifyingOtp}
+                          className="min-h-11 px-4"
+                        >
+                          {isVerifyingOtp ? (
+                            <span className="inline-flex items-center gap-2">
+                              <Spinner className="text-white" />
+                              Verifying...
+                            </span>
+                          ) : (
+                            <ButtonLabel icon={KeyRoundIcon}>Verify code</ButtonLabel>
+                          )}
+                        </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="link"
+                        onClick={requestCustomerLoginCode}
+                        disabled={isRequestingOtp || otpRetrySeconds > 0}
+                        className="h-auto w-fit p-0 text-stone-700"
+                      >
+                        {otpRetrySeconds > 0
+                          ? `Resend code in ${otpRetrySeconds}s`
+                          : "Resend code"}
+                      </Button>
+                    </div>
+                  )
+                ) : null}
+
+                {(customerAuthProviders.google ||
+                  customerAuthProviders.apple ||
+                  customerAuthProviders.facebook) && customerAuthProviders.email ? (
+                  <div className="flex items-center gap-3 text-xs font-medium uppercase text-stone-400">
+                    <span className="h-px flex-1 bg-stone-200" />
+                    Or
+                    <span className="h-px flex-1 bg-stone-200" />
+                  </div>
+                ) : null}
+
                 {customerAuthProviders.google ||
                 customerAuthProviders.apple ||
                 customerAuthProviders.facebook ? (
@@ -1371,29 +1594,49 @@ export function OrderForm({
                       </Button>
                     ) : null}
                   </div>
-                ) : (
+                ) : !customerAuthProviders.email ? (
                   <p className="text-sm font-medium text-amber-700">
                     Customer login is temporarily unavailable.
                   </p>
-                )}
+                ) : null}
+
+                {loginError ? <p className="text-sm text-rose-600">{loginError}</p> : null}
               </div>
             ) : customer ? (
               <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">
-                    Signed in as {customer.name || customer.email}
+                    {hasCompleteCustomerProfile
+                      ? `Signed in as ${savedCustomerName}`
+                      : "Complete your profile"}
                   </p>
                   {customer.email ? (
                     <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
                   ) : null}
                 </div>
-                {isValidCustomerPhone(savedCustomerPhone) ? (
-                  <p className="flex items-center gap-2 text-sm font-medium text-emerald-900">
-                    <PhoneIcon className="size-4" />
-                    {savedCustomerPhone}
-                  </p>
+                {hasCompleteCustomerProfile ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-emerald-900">
+                    <span>{savedCustomerName}</span>
+                    <span className="flex items-center gap-2">
+                      <PhoneIcon className="size-4" />
+                      {savedCustomerPhone}
+                    </span>
+                  </div>
                 ) : (
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FormField label="Name" htmlFor="review-customer-profile-name">
+                      <Input
+                        id="review-customer-profile-name"
+                        value={customerName}
+                        onChange={(event) => {
+                          setCustomerName(event.target.value);
+                          setError(null);
+                        }}
+                        autoComplete="name"
+                        disabled={isSavingProfile}
+                        className="h-11 border-emerald-200 bg-white"
+                      />
+                    </FormField>
                     <FormField
                       label="Phone number"
                       description="Required for order fulfilment. Include the country code."
@@ -1409,23 +1652,23 @@ export function OrderForm({
                         }}
                         placeholder="+91 98765 43210"
                         autoComplete="tel"
-                        disabled={isSavingPhone}
+                        disabled={isSavingProfile}
                         className="h-11 border-emerald-200 bg-white"
                       />
                     </FormField>
                     <Button
                       type="button"
-                      onClick={saveCustomerPhone}
-                      disabled={isSavingPhone}
-                      className="min-h-11"
+                      onClick={saveCustomerProfile}
+                      disabled={isSavingProfile}
+                      className="min-h-11 sm:col-span-2 sm:w-fit"
                     >
-                      {isSavingPhone ? (
+                      {isSavingProfile ? (
                         <span className="inline-flex items-center gap-2">
                           <Spinner className="text-white" />
                           Saving...
                         </span>
                       ) : (
-                        <ButtonLabel icon={PhoneIcon}>Save phone</ButtonLabel>
+                        <ButtonLabel icon={CheckIcon}>Save and continue</ButtonLabel>
                       )}
                     </Button>
                   </div>
