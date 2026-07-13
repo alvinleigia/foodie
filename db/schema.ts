@@ -87,6 +87,20 @@ export const modifierSelectionTypeEnum = pgEnum("modifier_selection_type", [
   "MULTIPLE",
 ]);
 
+export const orderSourceEnum = pgEnum("order_source", [
+  "CUSTOMER_SELF_SERVICE",
+  "STAFF_CREATED",
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "NOT_REQUIRED",
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "CANCELLED",
+  "REFUNDED",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -98,6 +112,48 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerifiedAt: timestamp("email_verified_at"),
+    phone: text("phone"),
+    phoneVerifiedAt: timestamp("phone_verified_at"),
+    dateOfBirth: date("date_of_birth"),
+    gender: text("gender"),
+    marketingOptIn: boolean("marketing_opt_in").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("customers_email_unique").on(sql`lower(${table.email})`),
+    index("customers_phone_idx").on(table.phone),
+  ],
+);
+
+export const customerOAuthAccounts = pgTable(
+  "customer_oauth_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("customer_oauth_accounts_customer_idx").on(table.customerId),
+    uniqueIndex("customer_oauth_accounts_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId,
+    ),
+  ],
+);
 
 export const organizations = pgTable(
   "organizations",
@@ -550,6 +606,16 @@ export const orders = pgTable("orders", {
   orderNo: integer("order_no").notNull(),
   customerName: text("customer_name").notNull(),
   customerToken: text("customer_token").notNull(),
+  customerId: uuid("customer_id").references(() => customers.id, {
+    onDelete: "set null",
+  }),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
+  paymentStatus: paymentStatusEnum("payment_status")
+    .default("NOT_REQUIRED")
+    .notNull(),
   categoryId: text("category_id").notNull(),
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
@@ -573,6 +639,9 @@ export const orders = pgTable("orders", {
     table.status,
     table.createdAt,
   ),
+  index("orders_customer_created_idx").on(table.customerId, table.createdAt),
+  index("orders_created_by_user_idx").on(table.createdByUserId),
+  index("orders_payment_status_idx").on(table.paymentStatus),
   uniqueIndex("orders_location_order_date_no_unique").on(
     table.organizationId,
     table.locationId,
