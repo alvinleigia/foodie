@@ -256,10 +256,10 @@ export function OrderForm({
   const [isRequestingOtp, setIsRequestingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [customerName, setCustomerName] = useState(customer?.name ?? "");
-  const [savedCustomerName, setSavedCustomerName] = useState(customer?.name ?? null);
-  const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
-  const [savedCustomerPhone, setSavedCustomerPhone] = useState(customer?.phone ?? null);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [savedCustomerName, setSavedCustomerName] = useState<string | null>(null);
+  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
+  const [savedCustomerPhone, setSavedCustomerPhone] = useState<string | null>(null);
   const [selectedStaffCustomer, setSelectedStaffCustomer] =
     useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -272,11 +272,15 @@ export function OrderForm({
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+  const customerNameValue = customerName ?? customer?.name ?? "";
+  const savedCustomerNameValue = savedCustomerName ?? customer?.name ?? null;
+  const customerPhoneValue = customerPhone ?? customer?.phone ?? "";
+  const savedCustomerPhoneValue = savedCustomerPhone ?? customer?.phone ?? null;
   const hasCompleteCustomerProfile = Boolean(
     customer &&
-      savedCustomerName &&
-      savedCustomerName.trim().length >= 2 &&
-      isValidCustomerPhone(savedCustomerPhone),
+      savedCustomerNameValue &&
+      savedCustomerNameValue.trim().length >= 2 &&
+      isValidCustomerPhone(savedCustomerPhoneValue),
   );
   const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
 
@@ -962,12 +966,12 @@ export function OrderForm({
   }
 
   async function saveCustomerProfile() {
-    if (customerName.trim().length < 2) {
+    if (customerNameValue.trim().length < 2) {
       setError("Enter your name before continuing.");
       return;
     }
 
-    if (!isValidCustomerPhone(customerPhone)) {
+    if (!isValidCustomerPhone(customerPhoneValue)) {
       setError("Enter a valid phone number with country code.");
       return;
     }
@@ -981,13 +985,13 @@ export function OrderForm({
       }>(
         "/api/customer/profile",
         {
-          body: { name: customerName, phone: customerPhone },
+          body: { name: customerNameValue, phone: customerPhoneValue },
           fallbackError: "Profile could not be saved.",
           method: "PATCH",
         },
       );
       const name = payload.customer.name.trim();
-      const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhone);
+      const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhoneValue);
       setCustomerName(name);
       setSavedCustomerName(name);
       setCustomerPhone(phone);
@@ -1607,7 +1611,7 @@ export function OrderForm({
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">
                     {hasCompleteCustomerProfile
-                      ? `Signed in as ${savedCustomerName}`
+                      ? `Signed in as ${savedCustomerNameValue}`
                       : "Complete your profile"}
                   </p>
                   {customer.email ? (
@@ -1616,10 +1620,10 @@ export function OrderForm({
                 </div>
                 {hasCompleteCustomerProfile ? (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-emerald-900">
-                    <span>{savedCustomerName}</span>
+                    <span>{savedCustomerNameValue}</span>
                     <span className="flex items-center gap-2">
                       <PhoneIcon className="size-4" />
-                      {savedCustomerPhone}
+                      {savedCustomerPhoneValue}
                     </span>
                   </div>
                 ) : (
@@ -1627,7 +1631,7 @@ export function OrderForm({
                     <FormField label="Name" htmlFor="review-customer-profile-name">
                       <Input
                         id="review-customer-profile-name"
-                        value={customerName}
+                        value={customerNameValue}
                         onChange={(event) => {
                           setCustomerName(event.target.value);
                           setError(null);
@@ -1645,7 +1649,7 @@ export function OrderForm({
                       <Input
                         id="review-customer-phone"
                         type="tel"
-                        value={customerPhone}
+                        value={customerPhoneValue}
                         onChange={(event) => {
                           setCustomerPhone(event.target.value);
                           setError(null);

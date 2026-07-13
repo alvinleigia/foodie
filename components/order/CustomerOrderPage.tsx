@@ -63,7 +63,6 @@ export function CustomerOrderPage({
       )}
 
       <OrderForm
-        key={user ? "staff" : customer?.email || "customer-guest"}
         customer={customer}
         customerAuthProviders={customerAuthProviders}
         isStaffOrder={Boolean(user)}
