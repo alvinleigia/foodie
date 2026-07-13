@@ -39,6 +39,10 @@ export async function getPublicOrderRouteContext({
         }
       : null;
   const customerAuthProviders = {
+    apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
+    facebook: Boolean(
+      process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET,
+    ),
     google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
   };
   const hasSignedLocationAccess = Boolean(

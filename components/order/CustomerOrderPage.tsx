@@ -11,6 +11,8 @@ type CustomerOrderPageProps = {
     phone?: string | null;
   } | null;
   customerAuthProviders: {
+    apple: boolean;
+    facebook: boolean;
     google: boolean;
   };
   locationQrSlug?: string;

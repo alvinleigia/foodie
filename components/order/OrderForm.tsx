@@ -84,6 +84,8 @@ type OrderFormProps = {
     phone?: string | null;
   } | null;
   customerAuthProviders: {
+    apple: boolean;
+    facebook: boolean;
     google: boolean;
   };
   isStaffOrder?: boolean;
@@ -240,7 +242,9 @@ export function OrderForm({
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isStartingLogin, setIsStartingLogin] = useState(false);
+  const [startingLoginProvider, setStartingLoginProvider] = useState<
+    "apple" | "facebook" | "google" | null
+  >(null);
   const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
   const [savedCustomerPhone, setSavedCustomerPhone] = useState(customer?.phone ?? null);
@@ -852,15 +856,18 @@ export function OrderForm({
     );
   }
 
-  async function startGoogleLogin() {
-    setIsStartingLogin(true);
+  async function startCustomerLogin(
+    provider: "apple" | "facebook" | "google",
+    providerLabel: string,
+  ) {
+    setStartingLoginProvider(provider);
     setError(null);
 
     try {
-      await signIn("google", { redirectTo: window.location.href });
+      await signIn(provider, { redirectTo: window.location.href });
     } catch {
-      setError("Google sign-in could not be started. Please try again.");
-      setIsStartingLogin(false);
+      setError(`${providerLabel} sign-in could not be started. Please try again.`);
+      setStartingLoginProvider(null);
     }
   }
 
@@ -1312,23 +1319,54 @@ export function OrderForm({
                     Your orders will be saved to your account for easy tracking and reordering.
                   </p>
                 </div>
-                {customerAuthProviders.google ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={startGoogleLogin}
-                    disabled={isStartingLogin}
-                    className="min-h-11 rounded-lg border-stone-300 bg-white px-4"
-                  >
-                    {isStartingLogin ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Spinner />
-                        Connecting...
-                      </span>
-                    ) : (
-                      <ButtonLabel icon={LogInIcon}>Continue with Google</ButtonLabel>
-                    )}
-                  </Button>
+                {customerAuthProviders.google ||
+                customerAuthProviders.apple ||
+                customerAuthProviders.facebook ? (
+                  <div className="grid gap-2 sm:grid-flow-col sm:auto-cols-fr">
+                    {customerAuthProviders.google ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => startCustomerLogin("google", "Google")}
+                        disabled={startingLoginProvider !== null}
+                        className="min-h-11 rounded-lg border-stone-300 bg-white px-4"
+                      >
+                        {startingLoginProvider === "google" ? (
+                          <Spinner />
+                        ) : (
+                          <ButtonLabel icon={LogInIcon}>Google</ButtonLabel>
+                        )}
+                      </Button>
+                    ) : null}
+                    {customerAuthProviders.apple ? (
+                      <Button
+                        type="button"
+                        onClick={() => startCustomerLogin("apple", "Apple")}
+                        disabled={startingLoginProvider !== null}
+                        className="min-h-11 rounded-lg bg-stone-950 px-4 text-white hover:bg-stone-800"
+                      >
+                        {startingLoginProvider === "apple" ? (
+                          <Spinner className="text-white" />
+                        ) : (
+                          <ButtonLabel icon={LogInIcon}>Apple</ButtonLabel>
+                        )}
+                      </Button>
+                    ) : null}
+                    {customerAuthProviders.facebook ? (
+                      <Button
+                        type="button"
+                        onClick={() => startCustomerLogin("facebook", "Facebook")}
+                        disabled={startingLoginProvider !== null}
+                        className="min-h-11 rounded-lg bg-[#1877f2] px-4 text-white hover:bg-[#166ad8]"
+                      >
+                        {startingLoginProvider === "facebook" ? (
+                          <Spinner className="text-white" />
+                        ) : (
+                          <ButtonLabel icon={LogInIcon}>Facebook</ButtonLabel>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : (
                   <p className="text-sm font-medium text-amber-700">
                     Customer login is temporarily unavailable.

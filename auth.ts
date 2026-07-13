@@ -1,5 +1,7 @@
 import NextAuth from "next-auth";
+import Apple from "next-auth/providers/apple";
 import Credentials from "next-auth/providers/credentials";
+import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
 
 import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
@@ -17,6 +19,33 @@ const googleProvider =
   googleClientId && googleClientSecret
     ? Google({ clientId: googleClientId, clientSecret: googleClientSecret })
     : null;
+const appleClientId = process.env.AUTH_APPLE_ID;
+const appleClientSecret = process.env.AUTH_APPLE_SECRET;
+const appleProvider =
+  appleClientId && appleClientSecret
+    ? Apple({ clientId: appleClientId, clientSecret: appleClientSecret })
+    : null;
+const facebookClientId = process.env.AUTH_FACEBOOK_ID;
+const facebookClientSecret = process.env.AUTH_FACEBOOK_SECRET;
+const facebookProvider =
+  facebookClientId && facebookClientSecret
+    ? Facebook({ clientId: facebookClientId, clientSecret: facebookClientSecret })
+    : null;
+
+function hasTrustedOAuthEmail(
+  provider: string,
+  profile: Record<string, unknown> | undefined,
+) {
+  if (provider === "google") {
+    return profile?.email_verified === true;
+  }
+
+  if (provider === "apple") {
+    return profile?.email_verified === true || profile?.email_verified === "true";
+  }
+
+  return provider === "facebook";
+}
 
 export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
   session: {
@@ -43,6 +72,8 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       },
     }),
     ...(googleProvider ? [googleProvider] : []),
+    ...(appleProvider ? [appleProvider] : []),
+    ...(facebookProvider ? [facebookProvider] : []),
   ],
   callbacks: {
     async signIn({ account, profile, user }) {
@@ -51,13 +82,17 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
         return true;
       }
 
-      if (account.provider !== "google") {
+      if (!["apple", "facebook", "google"].includes(account.provider)) {
         return false;
       }
 
-      const googleProfile = profile as { email_verified?: boolean } | undefined;
-
-      if (!user.email || googleProfile?.email_verified !== true) {
+      if (
+        !user.email ||
+        !hasTrustedOAuthEmail(
+          account.provider,
+          profile as Record<string, unknown> | undefined,
+        )
+      ) {
         return false;
       }
 
