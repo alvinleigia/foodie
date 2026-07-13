@@ -10,6 +10,7 @@ import {
   LogInIcon,
   MinusIcon,
   PlusIcon,
+  PhoneIcon,
   SendIcon,
   ShoppingCartIcon,
   TagsIcon,
@@ -23,8 +24,12 @@ import {
   syncCustomerOrdersResetMarker,
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import {
+  isValidCustomerPhone,
+  normalizeCustomerPhone,
+} from "@/lib/validations/customer";
 import { FormField } from "@/components/shared/FormField";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -71,6 +76,7 @@ type OrderFormProps = {
   customer?: {
     email?: string | null;
     name?: string | null;
+    phone?: string | null;
   } | null;
   customerAuthProviders: {
     google: boolean;
@@ -230,6 +236,9 @@ export function OrderForm({
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isStartingLogin, setIsStartingLogin] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
+  const [savedCustomerPhone, setSavedCustomerPhone] = useState(customer?.phone ?? null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
   const [customizerError, setCustomizerError] = useState<string | null>(null);
@@ -240,7 +249,8 @@ export function OrderForm({
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
-  const canPlaceOrder = isStaffOrder || Boolean(customer);
+  const canPlaceOrder =
+    isStaffOrder || Boolean(customer && isValidCustomerPhone(savedCustomerPhone));
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -740,8 +750,13 @@ export function OrderForm({
   }
 
   async function confirmOrder() {
-    if (!canPlaceOrder) {
+    if (!isStaffOrder && !customer) {
       setError("Sign in before placing your order.");
+      return;
+    }
+
+    if (!canPlaceOrder) {
+      setError("Add a valid phone number before placing your order.");
       return;
     }
 
@@ -830,6 +845,35 @@ export function OrderForm({
     } catch {
       setError("Google sign-in could not be started. Please try again.");
       setIsStartingLogin(false);
+    }
+  }
+
+  async function saveCustomerPhone() {
+    if (!isValidCustomerPhone(customerPhone)) {
+      setError("Enter a valid phone number with country code.");
+      return;
+    }
+
+    setIsSavingPhone(true);
+    setError(null);
+
+    try {
+      const payload = await requestJson<{ customer: { phone: string | null } }>(
+        "/api/customer/profile",
+        {
+          body: { phone: customerPhone },
+          fallbackError: "Phone number could not be saved.",
+          method: "PATCH",
+        },
+      );
+      const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhone);
+      setCustomerPhone(phone);
+      setSavedCustomerPhone(phone);
+      toast.success("Phone number saved.");
+    } catch (phoneError) {
+      setError(getCaughtErrorMessage(phoneError, "Phone number could not be saved."));
+    } finally {
+      setIsSavingPhone(false);
     }
   }
 
@@ -1263,13 +1307,58 @@ export function OrderForm({
                 )}
               </div>
             ) : customer ? (
-              <div className="-mx-6 border-y border-stone-200 bg-emerald-50 px-6 py-4">
-                <p className="text-sm font-semibold text-emerald-950">
-                  Signed in as {customer.name || customer.email}
-                </p>
-                {customer.email ? (
-                  <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
-                ) : null}
+              <div className="-mx-6 grid gap-4 border-y border-stone-200 bg-emerald-50 px-6 py-4">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-950">
+                    Signed in as {customer.name || customer.email}
+                  </p>
+                  {customer.email ? (
+                    <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
+                  ) : null}
+                </div>
+                {isValidCustomerPhone(savedCustomerPhone) ? (
+                  <p className="flex items-center gap-2 text-sm font-medium text-emerald-900">
+                    <PhoneIcon className="size-4" />
+                    {savedCustomerPhone}
+                  </p>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <FormField
+                      label="Phone number"
+                      description="Required for order fulfilment. Include the country code."
+                      htmlFor="review-customer-phone"
+                    >
+                      <Input
+                        id="review-customer-phone"
+                        type="tel"
+                        value={customerPhone}
+                        onChange={(event) => {
+                          setCustomerPhone(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="+91 98765 43210"
+                        autoComplete="tel"
+                        disabled={isSavingPhone}
+                        className="h-11 border-emerald-200 bg-white"
+                      />
+                    </FormField>
+                    <Button
+                      type="button"
+                      onClick={saveCustomerPhone}
+                      disabled={isSavingPhone}
+                      className="min-h-11"
+                    >
+                      {isSavingPhone ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="text-white" />
+                          Saving...
+                        </span>
+                      ) : (
+                        <ButtonLabel icon={PhoneIcon}>Save phone</ButtonLabel>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             ) : null}
 

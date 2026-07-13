@@ -8,6 +8,7 @@ type CustomerOrderPageProps = {
   customer?: {
     email?: string | null;
     name?: string | null;
+    phone?: string | null;
   } | null;
   customerAuthProviders: {
     google: boolean;
@@ -50,6 +51,8 @@ export function CustomerOrderPage({
         <AppHeader
           activePath="/order"
           customerMenu={{
+            accountHref: customer ? "/account" : undefined,
+            customerName: customer?.name,
             orderHref: getCustomerHref("/order", { locationQrSlug, locationSlug }),
             ordersHref: getCustomerHref("/order/status", { locationQrSlug, locationSlug }),
           }}

@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 
 import { auth } from "@/auth";
+import { getCustomerProfile } from "@/lib/customer-account";
 import {
   getInactiveTenantDomain,
   getTenantContextFromDomain,
@@ -19,6 +20,10 @@ export async function getPublicOrderRouteContext({
   locationSlug,
 }: PublicOrderRouteOptions) {
   const session = await auth().catch(() => null);
+  const customerProfile =
+    session?.user.kind === "customer"
+      ? await getCustomerProfile(session.user.id).catch(() => null)
+      : null;
   const user = session?.user.kind === "staff"
     ? {
         name: session.user.name,
@@ -28,8 +33,9 @@ export async function getPublicOrderRouteContext({
   const customer =
     session?.user.kind === "customer"
       ? {
-          email: session.user.email,
-          name: session.user.name,
+          email: customerProfile?.email ?? session.user.email,
+          name: customerProfile?.name ?? session.user.name,
+          phone: customerProfile?.phone ?? null,
         }
       : null;
   const customerAuthProviders = {

@@ -22,6 +22,7 @@ import {
 import { getDb } from "@/db";
 import { orderItemModifiers, orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
+import { getCustomerProfile } from "@/lib/customer-account";
 import {
   canAccessRole,
   operationalRoles,
@@ -33,6 +34,7 @@ import {
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
+import { isValidCustomerPhone } from "@/lib/validations/customer";
 
 export async function GET() {
   try {
@@ -79,6 +81,17 @@ export async function POST(request: NextRequest) {
       !canAccessRole(session.user.role, operationalRoles)
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    if (session.user.kind === "customer") {
+      const customer = await getCustomerProfile(session.user.id);
+
+      if (!customer || !isValidCustomerPhone(customer.phone)) {
+        return NextResponse.json(
+          { error: "Add a valid phone number before placing your order." },
+          { status: 409 },
+        );
+      }
     }
 
     const rateLimit = checkRateLimit({

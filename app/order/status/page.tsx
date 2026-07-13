@@ -31,10 +31,8 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
   const locationSlug =
     props.locationSlug ?? (typeof locationValue === "string" ? locationValue : undefined);
-  const { hasTenantContext, unavailableReason, user } = await getPublicOrderRouteContext({
-    locationQrSlug,
-    locationSlug,
-  });
+  const { customer, hasTenantContext, unavailableReason, user } =
+    await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -46,6 +44,8 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
             <AppHeader
               activePath="/order/status"
               customerMenu={{
+                accountHref: customer ? "/account" : undefined,
+                customerName: customer?.name,
                 orderHref: getCustomerHref("/order", {
                   locationQrSlug,
                   locationSlug,

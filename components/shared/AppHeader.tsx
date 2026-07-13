@@ -8,6 +8,7 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  UserRoundIcon,
   UtensilsIcon,
 } from "lucide-react";
 
@@ -40,6 +41,8 @@ type AppHeaderProps = {
   activePath?: string;
   className?: string;
   customerMenu?: {
+    accountHref?: string;
+    customerName?: string | null;
     orderHref?: string;
     ordersHref?: string;
   };
@@ -224,7 +227,7 @@ export function AppHeader({
             <DropdownMenuLabel>
               <span className="block text-stone-500">Customer</span>
               <span className="mt-1 block text-sm font-semibold text-stone-100">
-                Order menu
+                {customerMenu.customerName ?? "Order menu"}
               </span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -240,6 +243,29 @@ export function AppHeader({
                 Your orders
               </Link>
             </DropdownMenuItem>
+            {customerMenu.accountHref ? (
+              <DropdownMenuItem asChild>
+                <Link href={customerMenu.accountHref}>
+                  <UserRoundIcon />
+                  Profile
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {customerMenu.accountHref ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void signOut({ callbackUrl: customerMenu.orderHref ?? "/order" });
+                  }}
+                >
+                  <LogOutIcon />
+                  Sign out
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
