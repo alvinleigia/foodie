@@ -1617,6 +1617,11 @@ export function OrderForm({
                   {customer.email ? (
                     <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
                   ) : null}
+                  {!hasCompleteCustomerProfile ? (
+                    <p className="mt-2 text-sm text-emerald-800">
+                      A phone number is required for order fulfilment. Include the country code.
+                    </p>
+                  ) : null}
                 </div>
                 {hasCompleteCustomerProfile ? (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-emerald-900">
@@ -1641,11 +1646,7 @@ export function OrderForm({
                         className="h-11 border-emerald-200 bg-white"
                       />
                     </FormField>
-                    <FormField
-                      label="Phone number"
-                      description="Required for order fulfilment. Include the country code."
-                      htmlFor="review-customer-phone"
-                    >
+                    <FormField label="Phone number" htmlFor="review-customer-phone">
                       <Input
                         id="review-customer-phone"
                         type="tel"
