@@ -53,7 +53,7 @@ AUTH_APPLE_ID="apple-services-id"
 AUTH_APPLE_SECRET="apple-client-secret-jwt"
 AUTH_FACEBOOK_ID="facebook-app-id"
 AUTH_FACEBOOK_SECRET="facebook-app-secret"
-RESEND_API_KEY="re_..."
+SMTP2GO_API_KEY="api-..."
 EMAIL_FROM="Foodie Orders <orders@example.com>"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
@@ -63,7 +63,7 @@ PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
-OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP requires a Resend API key and a sender on a verified domain. Codes expire after 10 minutes and are stored only as keyed hashes. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
+OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP requires an SMTP2GO API key and a verified sender address or domain. Codes expire after 10 minutes and are stored only as keyed hashes. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 

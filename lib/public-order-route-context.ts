@@ -41,7 +41,7 @@ export async function getPublicOrderRouteContext({
   const customerAuthProviders = {
     apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
     email: Boolean(
-      process.env.AUTH_SECRET && process.env.RESEND_API_KEY && process.env.EMAIL_FROM,
+      process.env.AUTH_SECRET && process.env.SMTP2GO_API_KEY && process.env.EMAIL_FROM,
     ),
     facebook: Boolean(
       process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET,

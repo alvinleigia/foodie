@@ -43,37 +43,48 @@ function otpHashesMatch(expectedHash: string, actualHash: string) {
 }
 
 async function sendCustomerEmailOtp(email: string, code: string, id: string) {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = process.env.SMTP2GO_API_KEY;
   const from = process.env.EMAIL_FROM;
 
   if (!apiKey || !from) {
     throw new Error("Customer email delivery is not configured.");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
+  const response = await fetch("https://api.smtp2go.com/v3/email/send", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Accept: "application/json",
       "Content-Type": "application/json",
-      "Idempotency-Key": `customer-login-${id}`,
     },
     body: JSON.stringify({
-      from,
+      api_key: apiKey,
+      sender: from,
       to: [email],
       subject: "Your sign-in code",
-      text: `Your sign-in code is ${code}. It expires in 10 minutes. If you did not request this code, you can ignore this email.`,
-      html: `<p>Your sign-in code is:</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you did not request this code, you can ignore this email.</p>`,
+      text_body: `Your sign-in code is ${code}. It expires in 10 minutes. If you did not request this code, you can ignore this email.`,
+      html_body: `<p>Your sign-in code is:</p><p style="font-size:24px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you did not request this code, you can ignore this email.</p>`,
+      custom_headers: [
+        { header: "X-OTP-Request-ID", value: id },
+      ],
     }),
   });
 
-  if (!response.ok) {
+  const payload = (await response.json().catch(() => null)) as
+    | { data?: { failed?: number; succeeded?: number } }
+    | null;
+
+  if (
+    !response.ok ||
+    payload?.data?.failed !== 0 ||
+    payload?.data?.succeeded !== 1
+  ) {
     throw new Error(`Email delivery failed with status ${response.status}.`);
   }
 }
 
 export function isCustomerEmailOtpConfigured() {
   return Boolean(
-    process.env.AUTH_SECRET && process.env.RESEND_API_KEY && process.env.EMAIL_FROM,
+    process.env.AUTH_SECRET && process.env.SMTP2GO_API_KEY && process.env.EMAIL_FROM,
   );
 }
 
