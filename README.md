@@ -5,6 +5,8 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 ## Current Status
 
 - Customer order page with cart and recent order status.
+- Customer Google login, required phone capture, profile management and account-linked order history.
+- Stripe-hosted customer checkout with webhook-gated fulfilment; staff-created orders bypass online payment.
 - Staff operations panel with item-level order workflow.
 - Menu manager for categories and products.
 - Inventory manager for location-scoped product stock levels.
@@ -45,11 +47,17 @@ Create `.env.local` from `.env.example`:
 ```bash
 DATABASE_URL="postgresql://user:password@host:6543/postgres"
 AUTH_SECRET="replace-with-a-long-random-secret"
+AUTH_GOOGLE_ID="google-oauth-client-id"
+AUTH_GOOGLE_SECRET="google-oauth-client-secret"
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
 PLATFORM_OWNER_USERNAME="owner"
 PLATFORM_OWNER_EMAIL="owner@example.com"
 PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
+
+Google OAuth must allow `/api/auth/callback/google` on each ordering origin. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 

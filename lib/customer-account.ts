@@ -82,6 +82,7 @@ export async function getCustomerOrderHistory(customerId: string) {
       orderId: orders.id,
       orderNo: orders.orderNo,
       organizationName: organizations.name,
+      paymentStatus: orders.paymentStatus,
       status: orders.status,
     })
     .from(orders)

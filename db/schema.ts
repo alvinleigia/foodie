@@ -616,6 +616,12 @@ export const orders = pgTable("orders", {
   paymentStatus: paymentStatusEnum("payment_status")
     .default("NOT_REQUIRED")
     .notNull(),
+  paymentAmount: numeric("payment_amount", { precision: 10, scale: 2 }),
+  paymentCurrency: text("payment_currency"),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentExpiresAt: timestamp("payment_expires_at"),
+  paidAt: timestamp("paid_at"),
   categoryId: text("category_id").notNull(),
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
@@ -642,6 +648,12 @@ export const orders = pgTable("orders", {
   index("orders_customer_created_idx").on(table.customerId, table.createdAt),
   index("orders_created_by_user_idx").on(table.createdByUserId),
   index("orders_payment_status_idx").on(table.paymentStatus),
+  uniqueIndex("orders_stripe_checkout_session_unique").on(
+    table.stripeCheckoutSessionId,
+  ),
+  uniqueIndex("orders_stripe_payment_intent_unique").on(
+    table.stripePaymentIntentId,
+  ),
   uniqueIndex("orders_location_order_date_no_unique").on(
     table.organizationId,
     table.locationId,

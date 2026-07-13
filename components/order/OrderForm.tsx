@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import {
   ArrowLeftIcon,
   CheckIcon,
+  CreditCardIcon,
   ImageIcon,
   LogInIcon,
   MinusIcon,
@@ -830,6 +831,13 @@ export function OrderForm({
     writeStoredCustomerOrders([nextOrder, ...existingOrders]);
 
     onOrderCreated?.(nextOrder);
+
+    if (typeof payload.checkoutUrl === "string" && payload.checkoutUrl) {
+      toast.success("Order saved. Opening secure payment...");
+      window.location.assign(payload.checkoutUrl);
+      return;
+    }
+
     toast.success(`Order #${payload.orderNo} placed successfully.`);
     setDraft({ customerName: "" });
     setSelectedStaffCustomer(null);
@@ -1521,10 +1529,12 @@ export function OrderForm({
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
                     <Spinner className="text-white" />
-                    Placing Order...
+                    {isStaffOrder ? "Placing Order..." : "Opening Payment..."}
                   </span>
                 ) : (
-                  <ButtonLabel icon={SendIcon}>Confirm Order</ButtonLabel>
+                  <ButtonLabel icon={isStaffOrder ? SendIcon : CreditCardIcon}>
+                    {isStaffOrder ? "Confirm Order" : "Proceed to Payment"}
+                  </ButtonLabel>
                 )}
               </Button>
             </div>

@@ -91,8 +91,16 @@ export default async function CustomerAccountPage() {
                           {order.organizationName} - {order.locationName}
                         </p>
                       </div>
-                      <StatusPill tone={getOrderStatusTone(order.status)}>
-                        {order.status}
+                      <StatusPill
+                        tone={getOrderStatusTone(
+                          order.paymentStatus === "PENDING"
+                            ? "PENDING"
+                            : order.status,
+                        )}
+                      >
+                        {order.paymentStatus === "PENDING"
+                          ? "PAYMENT PENDING"
+                          : order.status}
                       </StatusPill>
                     </div>
                     <div className="mt-4 grid gap-2 border-t border-stone-200 pt-4">

@@ -141,6 +141,7 @@ export function serializeOrder(
     deliveredAt: order.deliveredAt?.toISOString() ?? null,
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     announcementCount: order.announcementCount,
+    paymentStatus: order.paymentStatus,
   };
 }
 
@@ -170,6 +171,7 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
           eq(orders.organizationId, context.organizationId),
           eq(orders.locationId, context.locationId),
           inArray(orders.status, activeOrderStatuses),
+          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
         ),
       )
       .orderBy(activeOrderRank(), desc(orders.createdAt)),
@@ -181,6 +183,7 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
           eq(orders.organizationId, context.organizationId),
           eq(orders.locationId, context.locationId),
           inArray(orders.status, pastOrderStatuses),
+          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
         ),
       )
       .orderBy(desc(pastOrderClosedAt())),

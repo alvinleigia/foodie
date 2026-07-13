@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { generateCustomerToken } from "@/lib/order-token";
 import { getLocationBusinessDate, getNextOrderNumber } from "@/lib/order-number";
@@ -38,6 +39,13 @@ import {
 } from "@/lib/rate-limit";
 import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
 import { isValidCustomerPhone } from "@/lib/validations/customer";
+import {
+  buildOrderPaymentPricing,
+  cancelPendingOrderPaymentByOrderId,
+  createOrderCheckoutSession,
+} from "@/lib/order-payments";
+import { getStripe } from "@/lib/stripe";
+import { logError } from "@/lib/logger";
 
 export async function GET() {
   try {
@@ -86,15 +94,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    if (session.user.kind === "customer") {
-      const customer = await getCustomerProfile(session.user.id);
+    const customerProfile =
+      session.user.kind === "customer"
+        ? await getCustomerProfile(session.user.id)
+        : null;
 
-      if (!customer || !isValidCustomerPhone(customer.phone)) {
-        return NextResponse.json(
-          { error: "Add a valid phone number before placing your order." },
-          { status: 409 },
-        );
-      }
+    if (
+      session.user.kind === "customer" &&
+      (!customerProfile || !isValidCustomerPhone(customerProfile.phone))
+    ) {
+      return NextResponse.json(
+        { error: "Add a valid phone number before placing your order." },
+        { status: 409 },
+      );
+    }
+
+    if (session.user.kind === "customer" && !process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json(
+        { error: "Online payment is temporarily unavailable." },
+        { status: 503 },
+      );
     }
 
     const rateLimit = checkRateLimit({
@@ -214,6 +233,14 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
+    const currency = await getTenantMenuCurrency(tenantContext);
+    const paymentPricing =
+      session.user.kind === "customer"
+        ? buildOrderPaymentPricing(cartItems, currency)
+        : null;
+    const paymentExpiresAt = paymentPricing
+      ? new Date(Date.now() + 30 * 60 * 1000)
+      : null;
     const summaryCategoryName =
       cartItems.length === 1 ? cartItems[0].categoryName : `${cartItems.length} categories`;
     const summaryDrinkName = buildOrderSummary(
@@ -239,6 +266,10 @@ export async function POST(request: NextRequest) {
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
+          paymentStatus: paymentPricing ? "PENDING" : "NOT_REQUIRED",
+          paymentAmount: paymentPricing?.amountTotal ?? null,
+          paymentCurrency: paymentPricing?.currency ?? null,
+          paymentExpiresAt,
           categoryId: cartItems[0].categoryId,
           categoryName: summaryCategoryName,
           drinkId: cartItems[0].drinkId,
@@ -292,9 +323,61 @@ export async function POST(request: NextRequest) {
       return newOrder;
     });
 
+    let checkoutUrl: string | null = null;
+
+    if (paymentPricing && paymentExpiresAt && customerProfile) {
+      let checkoutSessionId: string | null = null;
+
+      try {
+        const checkoutSession = await createOrderCheckoutSession({
+          customerEmail: customerProfile.email,
+          customerId: customerProfile.id,
+          expiresAt: paymentExpiresAt,
+          lineItems: paymentPricing.lineItems,
+          orderId: createdOrder.id,
+          origin: new URL(request.url).origin,
+        });
+        checkoutSessionId = checkoutSession.id;
+        checkoutUrl = checkoutSession.url;
+
+        const [updatedOrder] = await db
+          .update(orders)
+          .set({
+            stripeCheckoutSessionId: checkoutSession.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(orders.id, createdOrder.id),
+              eq(orders.paymentStatus, "PENDING"),
+            ),
+          )
+          .returning({ id: orders.id });
+
+        if (!updatedOrder) {
+          throw new Error("Payment session could not be linked to the order.");
+        }
+      } catch (paymentError) {
+        if (checkoutSessionId) {
+          await getStripe().checkout.sessions.expire(checkoutSessionId).catch(() => null);
+        }
+
+        await cancelPendingOrderPaymentByOrderId(createdOrder.id, "FAILED").catch(
+          () => null,
+        );
+        logError("order.checkout.create_failed", paymentError, {
+          orderId: createdOrder.id,
+          organizationId: tenantContext.organizationId,
+          locationId: tenantContext.locationId,
+        });
+        throw new Error("Payment could not be started. Please try again.");
+      }
+    }
+
     return NextResponse.json({
       ...serializeOrder(createdOrder, cartItems),
-      currency: await getTenantMenuCurrency(tenantContext),
+      checkoutUrl,
+      currency,
       ordersResetAt: await getOrdersResetAt(),
     });
   } catch (error) {
