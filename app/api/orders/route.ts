@@ -22,7 +22,10 @@ import {
 import { getDb } from "@/db";
 import { orderItemModifiers, orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
-import { getCustomerProfile } from "@/lib/customer-account";
+import {
+  getCustomerProfile,
+  getStaffVisibleCustomer,
+} from "@/lib/customer-account";
 import {
   canAccessRole,
   operationalRoles,
@@ -110,6 +113,22 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const linkedStaffCustomer =
+      session.user.kind === "staff" && parsed.data.customerId
+        ? await getStaffVisibleCustomer(parsed.data.customerId, tenantContext)
+        : null;
+
+    if (
+      session.user.kind === "staff" &&
+      parsed.data.customerId &&
+      !linkedStaffCustomer
+    ) {
+      return NextResponse.json(
+        { error: "Customer is not available for this restaurant." },
+        { status: 403 },
+      );
     }
 
     const requestedQuantityByDrinkId = new Map<string, number>();
@@ -213,7 +232,10 @@ export async function POST(request: NextRequest) {
           orderNo,
           customerName: parsed.data.customerName.trim(),
           customerToken,
-          customerId: session.user.kind === "customer" ? session.user.id : null,
+          customerId:
+            session.user.kind === "customer"
+              ? session.user.id
+              : linkedStaffCustomer?.id ?? null,
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",

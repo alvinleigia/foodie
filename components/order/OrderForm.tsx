@@ -31,6 +31,10 @@ import {
   normalizeCustomerPhone,
 } from "@/lib/validations/customer";
 import { FormField } from "@/components/shared/FormField";
+import {
+  StaffCustomerSearch,
+  type StaffCustomerSummary,
+} from "@/components/order/StaffCustomerSearch";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -239,6 +243,8 @@ export function OrderForm({
   const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
   const [savedCustomerPhone, setSavedCustomerPhone] = useState(customer?.phone ?? null);
+  const [selectedStaffCustomer, setSelectedStaffCustomer] =
+    useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
   const [customizerError, setCustomizerError] = useState<string | null>(null);
@@ -781,6 +787,7 @@ export function OrderForm({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
         customerName: draft.customerName.trim(),
         items: cartItems.map((item) => ({
           categoryId: item.categoryId,
@@ -825,6 +832,7 @@ export function OrderForm({
     onOrderCreated?.(nextOrder);
     toast.success(`Order #${payload.orderNo} placed successfully.`);
     setDraft({ customerName: "" });
+    setSelectedStaffCustomer(null);
     setCartItems([]);
     setIsCartOpen(false);
     setIsSubmitting(false);
@@ -1275,6 +1283,19 @@ export function OrderForm({
           </CardHeader>
 
           <CardContent className="grid gap-4 px-6 pb-6">
+            {isStaffOrder ? (
+              <StaffCustomerSearch
+                selectedCustomer={selectedStaffCustomer}
+                onChange={(nextCustomer) => {
+                  setSelectedStaffCustomer(nextCustomer);
+
+                  if (nextCustomer) {
+                    setDraft({ customerName: nextCustomer.name });
+                  }
+                }}
+              />
+            ) : null}
+
             {!isStaffOrder && !customer ? (
               <div className="-mx-6 grid gap-4 border-y border-stone-200 bg-stone-50 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>

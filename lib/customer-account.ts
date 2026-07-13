@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import type { customerProfileUpdateSchema } from "@/lib/validations/customer";
 import type { z } from "zod";
+import type { TenantContext } from "@/lib/tenant-context";
 
 export type CustomerProfileUpdate = z.infer<typeof customerProfileUpdateSchema>;
 
@@ -118,4 +119,57 @@ export async function getCustomerOrderHistory(customerId: string) {
     createdAt: order.createdAt.toISOString(),
     items: itemsByOrderId.get(order.orderId) ?? [],
   }));
+}
+
+export async function searchCustomersForStaff(
+  query: string,
+  context: TenantContext,
+) {
+  const searchTerm = `%${query.trim()}%`;
+
+  return getDb()
+    .selectDistinct({
+      email: customers.email,
+      id: customers.id,
+      name: customers.name,
+      phone: customers.phone,
+    })
+    .from(customers)
+    .innerJoin(orders, eq(orders.customerId, customers.id))
+    .where(
+      and(
+        eq(orders.organizationId, context.organizationId),
+        or(
+          ilike(customers.name, searchTerm),
+          ilike(customers.email, searchTerm),
+          ilike(customers.phone, searchTerm),
+        ),
+      ),
+    )
+    .orderBy(asc(customers.name))
+    .limit(10);
+}
+
+export async function getStaffVisibleCustomer(
+  customerId: string,
+  context: TenantContext,
+) {
+  const [customer] = await getDb()
+    .select({
+      email: customers.email,
+      id: customers.id,
+      name: customers.name,
+      phone: customers.phone,
+    })
+    .from(customers)
+    .innerJoin(orders, eq(orders.customerId, customers.id))
+    .where(
+      and(
+        eq(customers.id, customerId),
+        eq(orders.organizationId, context.organizationId),
+      ),
+    )
+    .limit(1);
+
+  return customer ?? null;
 }

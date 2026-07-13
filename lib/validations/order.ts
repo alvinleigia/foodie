@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const createOrderSchema = z
   .object({
+    customerId: z.string().uuid("Choose a valid customer").nullable().optional(),
     customerName: z
       .string()
       .trim()
