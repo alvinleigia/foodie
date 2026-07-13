@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { generateCustomerToken } from "@/lib/order-token";
 import { getLocationBusinessDate, getNextOrderNumber } from "@/lib/order-number";
 import { createOrderSchema } from "@/lib/validations/order";
@@ -21,7 +22,11 @@ import {
 import { getDb } from "@/db";
 import { orderItemModifiers, orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
-import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
+import {
+  canAccessRole,
+  operationalRoles,
+  restaurantAdminRoles,
+} from "@/lib/role-access";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
@@ -63,6 +68,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+
+    if (!session?.user || (session.user.kind !== "staff" && session.user.kind !== "customer")) {
+      return NextResponse.json({ error: "Sign in before placing an order." }, { status: 401 });
+    }
+
+    if (
+      session.user.kind === "staff" &&
+      !canAccessRole(session.user.role, operationalRoles)
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const rateLimit = checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-create"),
       limit: 12,
@@ -182,6 +200,10 @@ export async function POST(request: NextRequest) {
           orderNo,
           customerName: parsed.data.customerName.trim(),
           customerToken,
+          customerId: session.user.kind === "customer" ? session.user.id : null,
+          createdByUserId: session.user.kind === "staff" ? session.user.id : null,
+          source:
+            session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
           categoryId: cartItems[0].categoryId,
           categoryName: summaryCategoryName,
           drinkId: cartItems[0].drinkId,

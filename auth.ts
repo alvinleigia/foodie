@@ -1,6 +1,8 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 
+import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
 import {
@@ -8,6 +10,13 @@ import {
   isRootPlatformDomain,
 } from "@/lib/tenant-domains";
 import type { MembershipRole } from "@/lib/staff-auth";
+
+const googleClientId = process.env.AUTH_GOOGLE_ID;
+const googleClientSecret = process.env.AUTH_GOOGLE_SECRET;
+const googleProvider =
+  googleClientId && googleClientSecret
+    ? Google({ clientId: googleClientId, clientSecret: googleClientSecret })
+    : null;
 
 export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
   session: {
@@ -33,10 +42,53 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
         });
       },
     }),
+    ...(googleProvider ? [googleProvider] : []),
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
+    async signIn({ account, profile, user }) {
+      if (!account || account.provider === "credentials") {
+        user.kind = "staff";
+        return true;
+      }
+
+      if (account.provider !== "google") {
+        return false;
+      }
+
+      const googleProfile = profile as { email_verified?: boolean } | undefined;
+
+      if (!user.email || googleProfile?.email_verified !== true) {
+        return false;
+      }
+
+      const customer = await getOrCreateOAuthCustomer({
+        email: user.email,
+        name: user.name ?? "",
+        provider: account.provider,
+        providerAccountId: account.providerAccountId,
+      });
+
+      user.id = customer.id;
+      user.kind = "customer";
+      user.email = customer.email;
+      user.name = customer.name;
+
+      return true;
+    },
+    async jwt({ token, user, account, trigger, session }) {
       if (user) {
+        if (account && account.provider !== "credentials") {
+          token.sub = user.id;
+          token.kind = "customer";
+          delete token.role;
+          delete token.membershipId;
+          delete token.organizationId;
+          delete token.locationId;
+          delete token.username;
+
+          return token;
+        }
+
         const staffUser = user as {
           id: string;
           role?: MembershipRole;
@@ -46,13 +98,18 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
         };
 
         token.sub = staffUser.id;
+        token.kind = "staff";
         token.role = staffUser.role ?? "ORDER_OPERATOR";
         token.organizationId = staffUser.organizationId;
         token.locationId = staffUser.locationId;
         token.username = staffUser.username;
       }
 
-      if (trigger === "update" && token.sub) {
+      if (!token.kind && token.role) {
+        token.kind = "staff";
+      }
+
+      if (trigger === "update" && token.kind === "staff" && token.sub) {
         const nextUser = session?.user as
           | {
               membershipId?: unknown;
@@ -91,19 +148,39 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       return token;
     },
     session({ session, token }) {
-      if (session.user) {
-        session.user.id = typeof token.sub === "string" ? token.sub : "";
-        session.user.role =
-          (typeof token.role === "string" ? token.role : "ORDER_OPERATOR") as MembershipRole;
-        session.user.organizationId =
-          typeof token.organizationId === "string" ? token.organizationId : "";
-        session.user.locationId =
-          typeof token.locationId === "string" ? token.locationId : "";
-        session.user.username =
-          typeof token.username === "string" ? token.username : undefined;
+      const id = typeof token.sub === "string" ? token.sub : "";
+      const baseUser = {
+        email: session.user.email,
+        image: session.user.image,
+        name: session.user.name,
+      };
+
+      if (token.kind === "customer") {
+        return {
+          ...session,
+          user: {
+            ...baseUser,
+            id,
+            kind: "customer" as const,
+          },
+        };
       }
 
-      return session;
+      return {
+        ...session,
+        user: {
+          ...baseUser,
+          id,
+          kind: "staff" as const,
+          role: (typeof token.role === "string"
+            ? token.role
+            : "ORDER_OPERATOR") as MembershipRole,
+          organizationId:
+            typeof token.organizationId === "string" ? token.organizationId : "",
+          locationId: typeof token.locationId === "string" ? token.locationId : "",
+          username: typeof token.username === "string" ? token.username : undefined,
+        },
+      };
     },
   },
 });

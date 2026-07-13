@@ -9,7 +9,7 @@ import { getTenantDomainAccessScopeFromRequest } from "@/lib/tenant-domains";
 export async function GET(request: Request) {
   const session = await auth();
 
-  if (!session?.user.id) {
+  if (session?.user.kind !== "staff") {
     redirect("/staff/login");
   }
 

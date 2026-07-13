@@ -18,7 +18,11 @@ export function getDefaultTenantContext(): TenantContext {
 export async function getCurrentTenantContext() {
   const session = await auth();
 
-  if (session?.user.organizationId && session.user.locationId) {
+  if (
+    session?.user.kind === "staff" &&
+    session.user.organizationId &&
+    session.user.locationId
+  ) {
     await assertTenantSubscriptionAccess(session.user.organizationId);
 
     return {
@@ -27,7 +31,7 @@ export async function getCurrentTenantContext() {
     };
   }
 
-  if (session?.user) {
+  if (session?.user.kind === "staff") {
     throw new Error("Signed-in user is missing tenant or location access.");
   }
 
@@ -86,7 +90,11 @@ export async function getPublicTenantContextFromRequest(request: Request) {
 
   const session = await auth();
 
-  if (session?.user.organizationId && session.user.locationId) {
+  if (
+    session?.user.kind === "staff" &&
+    session.user.organizationId &&
+    session.user.locationId
+  ) {
     await assertTenantSubscriptionAccess(session.user.organizationId);
 
     return {
@@ -95,7 +103,7 @@ export async function getPublicTenantContextFromRequest(request: Request) {
     };
   }
 
-  if (session?.user) {
+  if (session?.user.kind === "staff") {
     throw new Error("Signed-in user is missing tenant or location access.");
   }
 

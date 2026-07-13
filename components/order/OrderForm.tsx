@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import {
   ArrowLeftIcon,
   CheckIcon,
   ImageIcon,
+  LogInIcon,
   MinusIcon,
   PlusIcon,
   SendIcon,
@@ -66,6 +68,14 @@ import {
 } from "@/types/menu";
 
 type OrderFormProps = {
+  customer?: {
+    email?: string | null;
+    name?: string | null;
+  } | null;
+  customerAuthProviders: {
+    google: boolean;
+  };
+  isStaffOrder?: boolean;
   locationQrSlug?: string;
   locationSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
@@ -200,18 +210,26 @@ function hasSameCartConfiguration(left: CartItem, right: CartItem) {
   );
 }
 
-export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
+export function OrderForm({
+  customer,
+  customerAuthProviders,
+  isStaffOrder = false,
+  locationQrSlug,
+  locationSlug,
+  onOrderCreated,
+}: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [currency, setCurrency] = useState("INR");
   const [draft, setDraft] = useState<OrderDraft>({
-    customerName: "",
+    customerName: customer?.name ?? "",
   });
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isStartingLogin, setIsStartingLogin] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
   const [customizerError, setCustomizerError] = useState<string | null>(null);
@@ -222,6 +240,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+  const canPlaceOrder = isStaffOrder || Boolean(customer);
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -721,6 +740,11 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   }
 
   async function confirmOrder() {
+    if (!canPlaceOrder) {
+      setError("Sign in before placing your order.");
+      return;
+    }
+
     if (draft.customerName.trim().length < 2) {
       setError("Please enter the customer's name.");
       return;
@@ -795,6 +819,18 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
         ? `/order/status/${encodeURIComponent(locationSlug)}`
         : withPublicContext("/order/status", { locationQrSlug }),
     );
+  }
+
+  async function startGoogleLogin() {
+    setIsStartingLogin(true);
+    setError(null);
+
+    try {
+      await signIn("google", { redirectTo: window.location.href });
+    } catch {
+      setError("Google sign-in could not be started. Please try again.");
+      setIsStartingLogin(false);
+    }
   }
 
   return (
@@ -1195,6 +1231,48 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           </CardHeader>
 
           <CardContent className="grid gap-4 px-6 pb-6">
+            {!isStaffOrder && !customer ? (
+              <div className="-mx-6 grid gap-4 border-y border-stone-200 bg-stone-50 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <p className="font-semibold text-stone-950">Sign in to continue</p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    Your orders will be saved to your account for easy tracking and reordering.
+                  </p>
+                </div>
+                {customerAuthProviders.google ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={startGoogleLogin}
+                    disabled={isStartingLogin}
+                    className="min-h-11 rounded-lg border-stone-300 bg-white px-4"
+                  >
+                    {isStartingLogin ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Spinner />
+                        Connecting...
+                      </span>
+                    ) : (
+                      <ButtonLabel icon={LogInIcon}>Continue with Google</ButtonLabel>
+                    )}
+                  </Button>
+                ) : (
+                  <p className="text-sm font-medium text-amber-700">
+                    Customer login is temporarily unavailable.
+                  </p>
+                )}
+              </div>
+            ) : customer ? (
+              <div className="-mx-6 border-y border-stone-200 bg-emerald-50 px-6 py-4">
+                <p className="text-sm font-semibold text-emerald-950">
+                  Signed in as {customer.name || customer.email}
+                </p>
+                {customer.email ? (
+                  <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
+                ) : null}
+              </div>
+            ) : null}
+
             <FormField label="Customer name or table number" htmlFor="review-customer-name">
               <Input
                 id="review-customer-name"
@@ -1327,7 +1405,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               <Button
                 type="button"
                 onClick={confirmOrder}
-                disabled={isSubmitting || cartItems.length === 0}
+                disabled={isSubmitting || cartItems.length === 0 || !canPlaceOrder}
                 className="min-h-12 rounded-lg bg-stone-950 py-3 text-white hover:bg-stone-800"
               >
                 {isSubmitting ? (

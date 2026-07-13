@@ -5,6 +5,13 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
+  customer?: {
+    email?: string | null;
+    name?: string | null;
+  } | null;
+  customerAuthProviders: {
+    google: boolean;
+  };
   locationQrSlug?: string;
   locationSlug?: string;
   user?: {
@@ -28,7 +35,13 @@ function getCustomerHref(path: "/order" | "/order/status", options: {
   return path;
 }
 
-export function CustomerOrderPage({ locationQrSlug, locationSlug, user }: CustomerOrderPageProps) {
+export function CustomerOrderPage({
+  customer,
+  customerAuthProviders,
+  locationQrSlug,
+  locationSlug,
+  user,
+}: CustomerOrderPageProps) {
   return (
     <>
       {user ? (
@@ -43,7 +56,13 @@ export function CustomerOrderPage({ locationQrSlug, locationSlug, user }: Custom
         />
       )}
 
-      <OrderForm locationQrSlug={locationQrSlug} locationSlug={locationSlug} />
+      <OrderForm
+        customer={customer}
+        customerAuthProviders={customerAuthProviders}
+        isStaffOrder={Boolean(user)}
+        locationQrSlug={locationQrSlug}
+        locationSlug={locationSlug}
+      />
     </>
   );
 }

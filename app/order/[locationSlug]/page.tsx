@@ -7,14 +7,23 @@ export default async function LocationOrderPage(
   props: PageProps<"/order/[locationSlug]">,
 ) {
   const params = await props.params;
-  const { hasTenantContext, unavailableReason, user } = await getPublicOrderRouteContext({
-    locationSlug: params.locationSlug,
-  });
+  const {
+    customer,
+    customerAuthProviders,
+    hasTenantContext,
+    unavailableReason,
+    user,
+  } = await getPublicOrderRouteContext({ locationSlug: params.locationSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
       {hasTenantContext ? (
-        <CustomerOrderPage locationSlug={params.locationSlug} user={user} />
+        <CustomerOrderPage
+          customer={customer}
+          customerAuthProviders={customerAuthProviders}
+          locationSlug={params.locationSlug}
+          user={user}
+        />
       ) : (
         <CustomerOrderUnavailable reason={unavailableReason} user={user} />
       )}

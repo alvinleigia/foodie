@@ -16,7 +16,7 @@ const switchMembershipSchema = z.object({
 export async function GET(request: Request) {
   const session = await auth();
 
-  if (!session?.user.id) {
+  if (session?.user.kind !== "staff") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const session = await auth();
 
-  if (!session?.user.id) {
+  if (session?.user.kind !== "staff") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -19,19 +19,33 @@ export async function getPublicOrderRouteContext({
   locationSlug,
 }: PublicOrderRouteOptions) {
   const session = await auth().catch(() => null);
-  const user = session?.user?.role
+  const user = session?.user.kind === "staff"
     ? {
         name: session.user.name,
         role: session.user.role as MembershipRole,
       }
     : null;
+  const customer =
+    session?.user.kind === "customer"
+      ? {
+          email: session.user.email,
+          name: session.user.name,
+        }
+      : null;
+  const customerAuthProviders = {
+    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
+  };
   const hasSignedLocationAccess = Boolean(
-    session?.user.organizationId && session.user.locationId,
+    session?.user.kind === "staff" &&
+      session.user.organizationId &&
+      session.user.locationId,
   );
 
   if (locationQrSlug || hasSignedLocationAccess) {
     return {
       hasTenantContext: true,
+      customer,
+      customerAuthProviders,
       user,
     };
   }
@@ -43,6 +57,8 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      customer,
+      customerAuthProviders,
       unavailableReason: "MISSING_CONTEXT" as const,
       user,
     };
@@ -55,6 +71,8 @@ export async function getPublicOrderRouteContext({
 
   return {
     hasTenantContext: Boolean(domainContext),
+    customer,
+    customerAuthProviders,
     unavailableReason: domainContext
       ? undefined
       : (await getInactiveTenantDomain(requestDomain).catch(() => null))
