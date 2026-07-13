@@ -421,7 +421,9 @@ export function OrderForm({
   }, [cartItems]);
 
   const customerNameError =
-    screen === "review" && error === "Please enter the customer's name." ? error : null;
+    isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
+      ? error
+      : null;
   const reviewError = screen === "review" && error !== customerNameError ? error : null;
 
   function updateDraft<K extends keyof OrderDraft>(key: K, value: OrderDraft[K]) {
@@ -771,8 +773,8 @@ export function OrderForm({
       return;
     }
 
-    if (draft.customerName.trim().length < 2) {
-      setError("Please enter the customer's name.");
+    if (isStaffOrder && draft.customerName.trim().length < 2) {
+      setError("Enter a customer name or table number.");
       return;
     }
 
@@ -793,7 +795,7 @@ export function OrderForm({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
-        customerName: draft.customerName.trim(),
+        customerName: isStaffOrder ? draft.customerName.trim() : undefined,
         items: cartItems.map((item) => ({
           categoryId: item.categoryId,
           drinkId: item.drinkId,
@@ -1287,10 +1289,12 @@ export function OrderForm({
           <CardHeader className="px-6 pt-6">
             <SectionHeader
               eyebrow="Review order"
-              title="Confirm order"
+              title={isStaffOrder ? "Confirm order" : "Review and pay"}
               meta={
                 <p className="text-sm text-stone-600">
-                  Add the customer name or table number and double-check the cart before sending it to the bar queue.
+                  {isStaffOrder
+                    ? "Add a customer name or table number and double-check the cart before sending it to the bar queue."
+                    : "Double-check your cart and contact details before continuing to payment."}
                 </p>
               }
               className="mb-0"
@@ -1312,7 +1316,7 @@ export function OrderForm({
             ) : null}
 
             {!isStaffOrder && !customer ? (
-              <div className="-mx-6 grid gap-4 border-y border-stone-200 bg-stone-50 px-6 py-5 sm:grid-cols-[1fr_auto] sm:items-center">
+              <div className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
                   <p className="font-semibold text-stone-950">Sign in to continue</p>
                   <p className="mt-1 text-sm text-stone-600">
@@ -1374,7 +1378,7 @@ export function OrderForm({
                 )}
               </div>
             ) : customer ? (
-              <div className="-mx-6 grid gap-4 border-y border-stone-200 bg-emerald-50 px-6 py-4">
+              <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">
                     Signed in as {customer.name || customer.email}
@@ -1429,29 +1433,31 @@ export function OrderForm({
               </div>
             ) : null}
 
-            <FormField label="Customer name or table number" htmlFor="review-customer-name">
-              <Input
-                id="review-customer-name"
-                value={draft.customerName}
-                onChange={(event) => {
-                  updateDraft("customerName", event.target.value);
+            {isStaffOrder ? (
+              <FormField label="Customer name or table number" htmlFor="review-customer-name">
+                <Input
+                  id="review-customer-name"
+                  value={draft.customerName}
+                  onChange={(event) => {
+                    updateDraft("customerName", event.target.value);
 
-                  if (customerNameError && event.target.value.trim().length >= 2) {
-                    setError(null);
-                  }
-                }}
-                placeholder="Enter customer name or table number"
-                disabled={isSubmitting}
-                aria-invalid={Boolean(customerNameError)}
-                aria-describedby={customerNameError ? "review-customer-name-error" : undefined}
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
-              />
-              {customerNameError ? (
-                <p id="review-customer-name-error" className="text-sm text-rose-600">
-                  {customerNameError}
-                </p>
-              ) : null}
-            </FormField>
+                    if (customerNameError && event.target.value.trim().length >= 2) {
+                      setError(null);
+                    }
+                  }}
+                  placeholder="Enter customer name or table number"
+                  disabled={isSubmitting}
+                  aria-invalid={Boolean(customerNameError)}
+                  aria-describedby={customerNameError ? "review-customer-name-error" : undefined}
+                  className="h-12 rounded-lg border-stone-200 bg-white px-4 text-base aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
+                />
+                {customerNameError ? (
+                  <p id="review-customer-name-error" className="text-sm text-rose-600">
+                    {customerNameError}
+                  </p>
+                ) : null}
+              </FormField>
+            ) : null}
 
             {reviewError ? <p className="text-sm text-rose-600">{reviewError}</p> : null}
 

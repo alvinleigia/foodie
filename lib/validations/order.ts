@@ -7,7 +7,8 @@ export const createOrderSchema = z
       .string()
       .trim()
       .min(2, "Name is required")
-      .max(80, "Name is too long"),
+      .max(80, "Name is too long")
+      .optional(),
     items: z
       .array(
         z.object({

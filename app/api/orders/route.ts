@@ -99,9 +99,28 @@ export async function POST(request: NextRequest) {
         ? await getCustomerProfile(session.user.id)
         : null;
 
+    if (session.user.kind === "customer" && !customerProfile) {
+      return NextResponse.json(
+        { error: "Your customer profile could not be loaded." },
+        { status: 409 },
+      );
+    }
+
     if (
       session.user.kind === "customer" &&
-      (!customerProfile || !isValidCustomerPhone(customerProfile.phone))
+      customerProfile &&
+      customerProfile.name.trim().length < 2
+    ) {
+      return NextResponse.json(
+        { error: "Add your name before placing your order." },
+        { status: 409 },
+      );
+    }
+
+    if (
+      session.user.kind === "customer" &&
+      customerProfile &&
+      !isValidCustomerPhone(customerProfile.phone)
     ) {
       return NextResponse.json(
         { error: "Add a valid phone number before placing your order." },
@@ -132,6 +151,18 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const orderCustomerName =
+      session.user.kind === "customer"
+        ? customerProfile?.name.trim() ?? ""
+        : parsed.data.customerName?.trim() ?? "";
+
+    if (orderCustomerName.length < 2) {
+      return NextResponse.json(
+        { error: "Enter a customer name or table number." },
+        { status: 400 },
+      );
     }
 
     const linkedStaffCustomer =
@@ -257,7 +288,7 @@ export async function POST(request: NextRequest) {
           locationId: tenantContext.locationId,
           orderDate,
           orderNo,
-          customerName: parsed.data.customerName.trim(),
+          customerName: orderCustomerName,
           customerToken,
           customerId:
             session.user.kind === "customer"
