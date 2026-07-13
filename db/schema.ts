@@ -155,6 +155,24 @@ export const customerOAuthAccounts = pgTable(
   ],
 );
 
+export const customerEmailOtps = pgTable(
+  "customer_email_otps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("customer_email_otps_email_created_idx").on(table.email, table.createdAt),
+    index("customer_email_otps_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const organizations = pgTable(
   "organizations",
   {

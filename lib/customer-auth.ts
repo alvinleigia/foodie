@@ -122,3 +122,63 @@ export async function getOrCreateOAuthCustomer(input: OAuthCustomerInput) {
     return linkedAccount;
   });
 }
+
+export async function getOrCreateEmailCustomer(emailInput: string) {
+  const email = emailInput.trim().toLowerCase();
+
+  if (!email) {
+    throw new Error("Customer email is required.");
+  }
+
+  return getDb().transaction(async (tx) => {
+    let [customer] = await tx
+      .select({
+        email: customers.email,
+        id: customers.id,
+        name: customers.name,
+      })
+      .from(customers)
+      .where(eq(customers.email, email))
+      .limit(1);
+
+    if (!customer) {
+      [customer] = await tx
+        .insert(customers)
+        .values({
+          email,
+          emailVerifiedAt: new Date(),
+          name: "",
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning({
+          email: customers.email,
+          id: customers.id,
+          name: customers.name,
+        });
+    }
+
+    if (!customer) {
+      [customer] = await tx
+        .select({
+          email: customers.email,
+          id: customers.id,
+          name: customers.name,
+        })
+        .from(customers)
+        .where(eq(customers.email, email))
+        .limit(1);
+    }
+
+    if (!customer) {
+      throw new Error("Unable to create the customer account.");
+    }
+
+    await tx
+      .update(customers)
+      .set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(customers.id, customer.id));
+
+    return customer;
+  });
+}

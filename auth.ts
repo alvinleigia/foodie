@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
 
+import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
 import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
@@ -71,15 +72,43 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
         });
       },
     }),
+    Credentials({
+      id: "customer-email-otp",
+      name: "Email code",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        code: { label: "Code", inputMode: "numeric", type: "text" },
+      },
+      async authorize(credentials) {
+        const customer = await authenticateCustomerEmailOtp(credentials);
+
+        return customer
+          ? {
+              id: customer.id,
+              email: customer.email,
+              kind: "customer" as const,
+              name: customer.name,
+            }
+          : null;
+      },
+    }),
     ...(googleProvider ? [googleProvider] : []),
     ...(appleProvider ? [appleProvider] : []),
     ...(facebookProvider ? [facebookProvider] : []),
   ],
   callbacks: {
     async signIn({ account, profile, user }) {
-      if (!account || account.provider === "credentials") {
+      if (!account) {
+        return false;
+      }
+
+      if (account.provider === "credentials") {
         user.kind = "staff";
         return true;
+      }
+
+      if (account.provider === "customer-email-otp") {
+        return user.kind === "customer" && Boolean(user.email);
       }
 
       if (!["apple", "facebook", "google"].includes(account.provider)) {
@@ -110,9 +139,9 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
 
       return true;
     },
-    async jwt({ token, user, account, trigger, session }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
-        if (account && account.provider !== "credentials") {
+        if (user.kind === "customer") {
           token.sub = user.id;
           token.kind = "customer";
           delete token.role;
