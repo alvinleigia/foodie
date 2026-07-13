@@ -5,7 +5,7 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 ## Current Status
 
 - Customer order page with cart and recent order status.
-- Customer Google, Apple and Facebook login, required phone capture, profile management and account-linked order history.
+- Customer email OTP, Google, Apple and Facebook login, required name/phone onboarding, profile management and account-linked order history.
 - Stripe-hosted customer checkout with webhook-gated fulfilment; staff-created orders bypass online payment.
 - Staff operations panel with item-level order workflow.
 - Menu manager for categories and products.
@@ -53,6 +53,8 @@ AUTH_APPLE_ID="apple-services-id"
 AUTH_APPLE_SECRET="apple-client-secret-jwt"
 AUTH_FACEBOOK_ID="facebook-app-id"
 AUTH_FACEBOOK_SECRET="facebook-app-secret"
+RESEND_API_KEY="re_..."
+EMAIL_FROM="Foodie Orders <orders@example.com>"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 PLATFORM_OWNER_USERNAME="owner"
@@ -61,7 +63,7 @@ PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
-OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
+OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP requires a Resend API key and a sender on a verified domain. Codes expire after 10 minutes and are stored only as keyed hashes. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 
@@ -80,6 +82,8 @@ Apply migrations from the committed SQL files:
 ```bash
 npm run db:migrate
 ```
+
+Customer email OTP requires `0022_customer_email_otp.sql`. The migration runner applies it automatically when it has not already been recorded in `app_migrations`.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 
