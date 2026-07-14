@@ -42,3 +42,20 @@ export const organizationPaymentSettingsSchema = z.object({
 export const organizationPaymentActionSchema = z.object({
   action: z.enum(["ONBOARD", "SYNC"]),
 });
+
+export const organizationOAuthSettingsSchema = z.object({
+  provider: z.enum(["GOOGLE", "APPLE", "FACEBOOK"]),
+  mode: z.enum(["INHERIT", "CUSTOM", "DISABLED"]),
+  clientId: z
+    .string()
+    .trim()
+    .max(512, "Client ID must be 512 characters or fewer")
+    .optional()
+    .transform((value) => value || null),
+  clientSecret: z
+    .string()
+    .trim()
+    .max(8192, "Client secret must be 8192 characters or fewer")
+    .optional()
+    .transform((value) => value || null),
+});

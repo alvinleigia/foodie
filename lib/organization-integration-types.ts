@@ -1,5 +1,34 @@
 export type IntegrationMode = "INHERIT" | "CUSTOM" | "DISABLED";
 
+export type SocialAuthProvider = "GOOGLE" | "APPLE" | "FACEBOOK";
+
+export type OrganizationOAuthSettingsSnapshot = {
+  organization: {
+    id: string;
+    name: string;
+    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+  };
+  parent: {
+    id: string;
+    name: string;
+    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+  } | null;
+  settings: {
+    provider: SocialAuthProvider;
+    mode: IntegrationMode;
+    clientId: string;
+    hasClientSecret: boolean;
+    clientSecretHint: string | null;
+  };
+  effective: {
+    status: "CONFIGURED" | "DISABLED" | "UNAVAILABLE";
+    source: "ORGANIZATION" | "PLATFORM_DEFAULT" | "NONE";
+    sourceOrganizationId: string | null;
+    sourceOrganizationName: string;
+    reason: "DISABLED" | "INCOMPLETE" | "NO_CONFIGURATION" | null;
+  };
+};
+
 export type OrganizationEmailSettingsSnapshot = {
   organization: {
     id: string;

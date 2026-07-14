@@ -117,6 +117,12 @@ export const integrationVerificationStatusEnum = pgEnum(
 
 export const paymentProviderEnum = pgEnum("payment_provider", ["STRIPE"]);
 
+export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
+  "GOOGLE",
+  "APPLE",
+  "FACEBOOK",
+]);
+
 export const paymentOnboardingStatusEnum = pgEnum("payment_onboarding_status", [
   "NOT_STARTED",
   "PENDING",
@@ -282,6 +288,33 @@ export const organizationPaymentAccounts = pgTable(
       "organization_payment_accounts_fee_bps_check",
       sql`${table.applicationFeeBps} >= 0 AND ${table.applicationFeeBps} <= 10000`,
     ),
+  ],
+);
+
+export const organizationOAuthSettings = pgTable(
+  "organization_oauth_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: socialAuthProviderEnum("provider").notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    clientId: text("client_id"),
+    clientSecretEncrypted: text("client_secret_encrypted"),
+    clientSecretHint: text("client_secret_hint"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_oauth_settings_org_provider_unique").on(
+      table.organizationId,
+      table.provider,
+    ),
+    index("organization_oauth_settings_mode_idx").on(table.mode),
   ],
 );
 
