@@ -31,3 +31,33 @@ export type OrganizationEmailSettingsSnapshot = {
     reason: "DISABLED" | "INCOMPLETE" | "NOT_VERIFIED" | "NO_CONFIGURATION" | null;
   };
 };
+
+export type OrganizationPaymentSettingsSnapshot = {
+  organization: {
+    id: string;
+    name: string;
+    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+  };
+  parent: {
+    id: string;
+    name: string;
+    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+  } | null;
+  settings: {
+    mode: IntegrationMode;
+    provider: "STRIPE";
+    stripeAccountId: string | null;
+    onboardingStatus: "NOT_STARTED" | "PENDING" | "COMPLETE" | "RESTRICTED";
+    chargesEnabled: boolean;
+    payoutsEnabled: boolean;
+    detailsSubmitted: boolean;
+    lastSyncedAt: string | null;
+  };
+  effective: {
+    status: "CONFIGURED" | "DISABLED" | "UNAVAILABLE";
+    sourceOrganizationId: string | null;
+    sourceOrganizationName: string;
+    stripeAccountId: string | null;
+    reason: "DISABLED" | "INCOMPLETE" | "ONBOARDING_INCOMPLETE" | "NO_CONFIGURATION" | null;
+  };
+};

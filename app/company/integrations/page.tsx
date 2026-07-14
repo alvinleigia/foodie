@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
 import { requireRole } from "@/lib/auth";
 import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-settings";
+import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
 
 export default async function CompanyIntegrationsPage() {
@@ -13,9 +15,10 @@ export default async function CompanyIntegrationsPage() {
     redirect("/staff/login");
   }
 
-  const snapshot = await getOrganizationEmailSettingsSnapshot(
-    session.user.organizationId,
-  );
+  const [emailSnapshot, paymentSnapshot] = await Promise.all([
+    getOrganizationEmailSettingsSnapshot(session.user.organizationId),
+    getOrganizationPaymentSettingsSnapshot(session.user.organizationId),
+  ]);
 
   return (
     <SaasAdminShell
@@ -31,8 +34,12 @@ export default async function CompanyIntegrationsPage() {
     >
       <EmailIntegrationForm
         apiPath="/api/company/integrations/email"
+        initialSnapshot={emailSnapshot}
+      />
+      <StripeIntegrationForm
+        apiPath="/api/company/integrations/stripe"
         backHref="/company"
-        initialSnapshot={snapshot}
+        initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>
   );

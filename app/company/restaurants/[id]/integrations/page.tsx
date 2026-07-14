@@ -2,8 +2,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
 import { requireRole } from "@/lib/auth";
 import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-settings";
+import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
 import { getCompanyRestaurant } from "@/lib/saas-admin";
 
@@ -23,7 +25,10 @@ export default async function CompanyRestaurantIntegrationsPage(
     notFound();
   }
 
-  const snapshot = await getOrganizationEmailSettingsSnapshot(restaurant.id);
+  const [emailSnapshot, paymentSnapshot] = await Promise.all([
+    getOrganizationEmailSettingsSnapshot(restaurant.id),
+    getOrganizationPaymentSettingsSnapshot(restaurant.id),
+  ]);
 
   return (
     <SaasAdminShell
@@ -39,8 +44,12 @@ export default async function CompanyRestaurantIntegrationsPage(
     >
       <EmailIntegrationForm
         apiPath={`/api/company/restaurants/${restaurant.id}/integrations/email`}
+        initialSnapshot={emailSnapshot}
+      />
+      <StripeIntegrationForm
+        apiPath={`/api/company/restaurants/${restaurant.id}/integrations/stripe`}
         backHref={`/company/restaurants/${restaurant.id}`}
-        initialSnapshot={snapshot}
+        initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>
   );

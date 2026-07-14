@@ -30,7 +30,7 @@ type EmailIntegrationField = "apiKey" | "fromEmail" | "fromName" | "replyToEmail
 
 type EmailIntegrationFormProps = {
   apiPath: string;
-  backHref: string;
+  backHref?: string;
   initialSnapshot: OrganizationEmailSettingsSnapshot;
 };
 
@@ -293,11 +293,13 @@ export function EmailIntegrationForm({
           >
             <ButtonLabel icon={SendIcon}>{isTesting ? "Sending..." : "Send test email"}</ButtonLabel>
           </Button>
-          <Button asChild type="button" variant="ghost">
-            <Link href={backHref}>
-              <ButtonLabel icon={XIcon}>Back</ButtonLabel>
-            </Link>
-          </Button>
+          {backHref ? (
+            <Button asChild type="button" variant="ghost">
+              <Link href={backHref}>
+                <ButtonLabel icon={XIcon}>Back</ButtonLabel>
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </form>
     </div>

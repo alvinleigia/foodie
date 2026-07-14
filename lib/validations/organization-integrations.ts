@@ -34,3 +34,11 @@ export const organizationEmailSettingsSchema = z
       });
     }
   });
+
+export const organizationPaymentSettingsSchema = z.object({
+  mode: z.enum(["INHERIT", "CUSTOM", "DISABLED"]),
+});
+
+export const organizationPaymentActionSchema = z.object({
+  action: z.enum(["ONBOARD", "SYNC"]),
+});
