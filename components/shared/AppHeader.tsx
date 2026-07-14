@@ -43,6 +43,7 @@ type AppHeaderProps = {
   customerMenu?: {
     accountHref?: string;
     customerName?: string | null;
+    loginHref?: string;
     orderHref?: string;
     ordersHref?: string;
   };
@@ -243,6 +244,14 @@ export function AppHeader({
                 Your orders
               </Link>
             </DropdownMenuItem>
+            {customerMenu.loginHref ? (
+              <DropdownMenuItem asChild>
+                <Link href={customerMenu.loginHref}>
+                  <LogInIcon />
+                  Customer sign in
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             {customerMenu.accountHref ? (
               <DropdownMenuItem asChild>
                 <Link href={customerMenu.accountHref}>

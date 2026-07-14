@@ -1,7 +1,12 @@
 "use client";
 
+import type { CustomerAuthProviders } from "@/components/order/CustomerLoginForm";
 import { OrderForm } from "@/components/order/OrderForm";
 import { AppHeader } from "@/components/shared/AppHeader";
+import {
+  getCustomerLoginHref,
+  getCustomerOrderHref,
+} from "@/lib/customer-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
@@ -10,12 +15,7 @@ type CustomerOrderPageProps = {
     name?: string | null;
     phone?: string | null;
   } | null;
-  customerAuthProviders: {
-    apple: boolean;
-    email: boolean;
-    facebook: boolean;
-    google: boolean;
-  };
+  customerAuthProviders: CustomerAuthProviders;
   locationQrSlug?: string;
   locationSlug?: string;
   user?: {
@@ -24,21 +24,6 @@ type CustomerOrderPageProps = {
   } | null;
 };
 
-function getCustomerHref(path: "/order" | "/order/status", options: {
-  locationQrSlug?: string;
-  locationSlug?: string;
-}) {
-  if (options.locationSlug) {
-    return `${path}/${encodeURIComponent(options.locationSlug)}`;
-  }
-
-  if (options.locationQrSlug) {
-    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
-  }
-
-  return path;
-}
-
 export function CustomerOrderPage({
   customer,
   customerAuthProviders,
@@ -46,6 +31,10 @@ export function CustomerOrderPage({
   locationSlug,
   user,
 }: CustomerOrderPageProps) {
+  const customerContext = { locationQrSlug, locationSlug };
+  const orderHref = getCustomerOrderHref("/order", customerContext);
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
+
   return (
     <>
       {user ? (
@@ -56,8 +45,14 @@ export function CustomerOrderPage({
           customerMenu={{
             accountHref: customer ? "/account" : undefined,
             customerName: customer?.name,
-            orderHref: getCustomerHref("/order", { locationQrSlug, locationSlug }),
-            ordersHref: getCustomerHref("/order/status", { locationQrSlug, locationSlug }),
+            loginHref: customer
+              ? undefined
+              : getCustomerLoginHref({
+                  ...customerContext,
+                  returnTo: "/account",
+                }),
+            orderHref,
+            ordersHref,
           }}
         />
       )}

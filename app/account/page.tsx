@@ -12,6 +12,7 @@ import {
   getCustomerOrderHistory,
   getCustomerProfile,
 } from "@/lib/customer-account";
+import { getCustomerLoginHref } from "@/lib/customer-navigation";
 
 function getOrderStatusTone(status: string) {
   if (status === "DELIVERED") {
@@ -29,7 +30,7 @@ export default async function CustomerAccountPage() {
   const session = await requireCustomerSession();
 
   if (!session) {
-    redirect("/order");
+    redirect(getCustomerLoginHref({ returnTo: "/account" }));
   }
 
   const [customer, orderHistory] = await Promise.all([

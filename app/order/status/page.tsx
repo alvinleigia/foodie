@@ -2,22 +2,11 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
 import { CustomerOrderStatus } from "@/components/order/CustomerOrderStatus";
+import {
+  getCustomerLoginHref,
+  getCustomerOrderHref,
+} from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
-
-function getCustomerHref(path: "/order" | "/order/status", options: {
-  locationQrSlug?: string;
-  locationSlug?: string;
-}) {
-  if (options.locationSlug) {
-    return `${path}/${encodeURIComponent(options.locationSlug)}`;
-  }
-
-  if (options.locationQrSlug) {
-    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
-  }
-
-  return path;
-}
 
 type CustomerOrderStatusPageProps = {
   searchParams: PageProps<"/order/status">["searchParams"];
@@ -33,6 +22,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
     props.locationSlug ?? (typeof locationValue === "string" ? locationValue : undefined);
   const { customer, hasTenantContext, unavailableReason, user } =
     await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
+  const customerContext = { locationQrSlug, locationSlug };
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -46,14 +36,14 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
               customerMenu={{
                 accountHref: customer ? "/account" : undefined,
                 customerName: customer?.name,
-                orderHref: getCustomerHref("/order", {
-                  locationQrSlug,
-                  locationSlug,
-                }),
-                ordersHref: getCustomerHref("/order/status", {
-                  locationQrSlug,
-                  locationSlug,
-                }),
+                loginHref: customer
+                  ? undefined
+                  : getCustomerLoginHref({
+                      ...customerContext,
+                      returnTo: "/account",
+                    }),
+                orderHref: getCustomerOrderHref("/order", customerContext),
+                ordersHref: getCustomerOrderHref("/order/status", customerContext),
               }}
             />
           )}

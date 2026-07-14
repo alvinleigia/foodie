@@ -2,15 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
 import {
   ArrowLeftIcon,
   CheckIcon,
   CreditCardIcon,
   ImageIcon,
-  KeyRoundIcon,
-  LogInIcon,
-  MailIcon,
   MinusIcon,
   PlusIcon,
   PhoneIcon,
@@ -38,6 +34,10 @@ import {
   StaffCustomerSearch,
   type StaffCustomerSummary,
 } from "@/components/order/StaffCustomerSearch";
+import {
+  CustomerLoginForm,
+  type CustomerAuthProviders,
+} from "@/components/order/CustomerLoginForm";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -85,12 +85,7 @@ type OrderFormProps = {
     name?: string | null;
     phone?: string | null;
   } | null;
-  customerAuthProviders: {
-    apple: boolean;
-    email: boolean;
-    facebook: boolean;
-    google: boolean;
-  };
+  customerAuthProviders: CustomerAuthProviders;
   isStaffOrder?: boolean;
   locationQrSlug?: string;
   locationSlug?: string;
@@ -245,16 +240,6 @@ export function OrderForm({
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [startingLoginProvider, setStartingLoginProvider] = useState<
-    "apple" | "facebook" | "google" | null
-  >(null);
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpStep, setOtpStep] = useState<"email" | "code">("email");
-  const [otpRetrySeconds, setOtpRetrySeconds] = useState(0);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
-  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [savedCustomerName, setSavedCustomerName] = useState<string | null>(null);
@@ -283,18 +268,6 @@ export function OrderForm({
       isValidCustomerPhone(savedCustomerPhoneValue),
   );
   const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
-
-  useEffect(() => {
-    if (otpRetrySeconds <= 0) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setOtpRetrySeconds((seconds) => Math.max(0, seconds - 1));
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [otpRetrySeconds]);
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -891,101 +864,6 @@ export function OrderForm({
     );
   }
 
-  async function startCustomerLogin(
-    provider: "apple" | "facebook" | "google",
-    providerLabel: string,
-  ) {
-    setStartingLoginProvider(provider);
-    setLoginError(null);
-
-    try {
-      await requestJson(
-        withPublicContext("/api/customer/auth/oauth-context", {
-          locationQrSlug,
-          locationSlug,
-        }),
-        {
-          body: { provider },
-          fallbackError: `${providerLabel} sign-in is temporarily unavailable.`,
-        },
-      );
-      await signIn(provider, { redirectTo: window.location.href });
-    } catch (loginStartError) {
-      setLoginError(
-        getCaughtErrorMessage(
-          loginStartError,
-          `${providerLabel} sign-in could not be started. Please try again.`,
-        ),
-      );
-      setStartingLoginProvider(null);
-    }
-  }
-
-  async function requestCustomerLoginCode() {
-    const email = otpEmail.trim().toLowerCase();
-
-    if (!/^\S+@\S+\.\S+$/.test(email)) {
-      setLoginError("Enter a valid email address.");
-      return;
-    }
-
-    setIsRequestingOtp(true);
-    setLoginError(null);
-
-    try {
-      await requestJson(
-        withPublicContext("/api/customer/auth/request-code", {
-          locationQrSlug,
-          locationSlug,
-        }),
-        {
-          body: { email },
-          fallbackError: "The sign-in code could not be sent.",
-        },
-      );
-      setOtpEmail(email);
-      setOtpCode("");
-      setOtpStep("code");
-      setOtpRetrySeconds(60);
-      toast.success("Sign-in code sent.");
-    } catch (otpError) {
-      setLoginError(getCaughtErrorMessage(otpError, "The sign-in code could not be sent."));
-    } finally {
-      setIsRequestingOtp(false);
-    }
-  }
-
-  async function verifyCustomerLoginCode() {
-    if (!/^\d{6}$/.test(otpCode.trim())) {
-      setLoginError("Enter the six-digit code.");
-      return;
-    }
-
-    setIsVerifyingOtp(true);
-    setLoginError(null);
-
-    try {
-      const result = await signIn("customer-email-otp", {
-        code: otpCode.trim(),
-        email: otpEmail,
-        redirect: false,
-        redirectTo: window.location.href,
-      });
-
-      if (!result.ok) {
-        setLoginError("The code is invalid or has expired. Request a new code and try again.");
-        return;
-      }
-
-      toast.success("Signed in successfully.");
-      router.refresh();
-    } catch {
-      setLoginError("The code could not be verified. Please try again.");
-    } finally {
-      setIsVerifyingOtp(false);
-    }
-  }
-
   async function saveCustomerProfile() {
     if (customerNameValue.trim().length < 2) {
       setError("Enter your name before continuing.");
@@ -1440,193 +1318,13 @@ export function OrderForm({
             ) : null}
 
             {!isStaffOrder && !customer ? (
-              <div className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
-                <div>
-                  <p className="font-semibold text-stone-950">Sign in to continue</p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    Your orders will be saved to your account for easy tracking and reordering.
-                  </p>
-                </div>
-
-                {customerAuthProviders.email ? (
-                  otpStep === "email" ? (
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                      <FormField label="Email address" htmlFor="customer-login-email">
-                        <Input
-                          id="customer-login-email"
-                          type="email"
-                          value={otpEmail}
-                          onChange={(event) => {
-                            setOtpEmail(event.target.value);
-                            setLoginError(null);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              void requestCustomerLoginCode();
-                            }
-                          }}
-                          placeholder="you@example.com"
-                          autoComplete="email"
-                          disabled={isRequestingOtp}
-                          className="h-11 bg-white"
-                        />
-                      </FormField>
-                      <Button
-                        type="button"
-                        onClick={requestCustomerLoginCode}
-                        disabled={isRequestingOtp}
-                        className="min-h-11 px-4"
-                      >
-                        {isRequestingOtp ? (
-                          <span className="inline-flex items-center gap-2">
-                            <Spinner className="text-white" />
-                            Sending...
-                          </span>
-                        ) : (
-                          <ButtonLabel icon={MailIcon}>Email me a code</ButtonLabel>
-                        )}
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid gap-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm text-stone-600">
-                          Enter the code sent to <span className="font-medium text-stone-900">{otpEmail}</span>.
-                        </p>
-                        <Button
-                          type="button"
-                          variant="link"
-                          onClick={() => {
-                            setOtpStep("email");
-                            setOtpCode("");
-                            setLoginError(null);
-                          }}
-                          className="h-auto p-0 text-stone-700"
-                        >
-                          Change email
-                        </Button>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-                        <FormField label="Six-digit code" htmlFor="customer-login-code">
-                          <Input
-                            id="customer-login-code"
-                            value={otpCode}
-                            onChange={(event) => {
-                              setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6));
-                              setLoginError(null);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.preventDefault();
-                                void verifyCustomerLoginCode();
-                              }
-                            }}
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            maxLength={6}
-                            autoComplete="one-time-code"
-                            disabled={isVerifyingOtp}
-                            className="h-11 bg-white text-base"
-                          />
-                        </FormField>
-                        <Button
-                          type="button"
-                          onClick={verifyCustomerLoginCode}
-                          disabled={isVerifyingOtp}
-                          className="min-h-11 px-4"
-                        >
-                          {isVerifyingOtp ? (
-                            <span className="inline-flex items-center gap-2">
-                              <Spinner className="text-white" />
-                              Verifying...
-                            </span>
-                          ) : (
-                            <ButtonLabel icon={KeyRoundIcon}>Verify code</ButtonLabel>
-                          )}
-                        </Button>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="link"
-                        onClick={requestCustomerLoginCode}
-                        disabled={isRequestingOtp || otpRetrySeconds > 0}
-                        className="h-auto w-fit p-0 text-stone-700"
-                      >
-                        {otpRetrySeconds > 0
-                          ? `Resend code in ${otpRetrySeconds}s`
-                          : "Resend code"}
-                      </Button>
-                    </div>
-                  )
-                ) : null}
-
-                {(customerAuthProviders.google ||
-                  customerAuthProviders.apple ||
-                  customerAuthProviders.facebook) && customerAuthProviders.email ? (
-                  <div className="flex items-center gap-3 text-xs font-medium uppercase text-stone-400">
-                    <span className="h-px flex-1 bg-stone-200" />
-                    Or
-                    <span className="h-px flex-1 bg-stone-200" />
-                  </div>
-                ) : null}
-
-                {customerAuthProviders.google ||
-                customerAuthProviders.apple ||
-                customerAuthProviders.facebook ? (
-                  <div className="grid gap-2 sm:grid-flow-col sm:auto-cols-fr">
-                    {customerAuthProviders.google ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => startCustomerLogin("google", "Google")}
-                        disabled={startingLoginProvider !== null}
-                        className="min-h-11 rounded-lg border-stone-300 bg-white px-4"
-                      >
-                        {startingLoginProvider === "google" ? (
-                          <Spinner />
-                        ) : (
-                          <ButtonLabel icon={LogInIcon}>Google</ButtonLabel>
-                        )}
-                      </Button>
-                    ) : null}
-                    {customerAuthProviders.apple ? (
-                      <Button
-                        type="button"
-                        onClick={() => startCustomerLogin("apple", "Apple")}
-                        disabled={startingLoginProvider !== null}
-                        className="min-h-11 rounded-lg bg-stone-950 px-4 text-white hover:bg-stone-800"
-                      >
-                        {startingLoginProvider === "apple" ? (
-                          <Spinner className="text-white" />
-                        ) : (
-                          <ButtonLabel icon={LogInIcon}>Apple</ButtonLabel>
-                        )}
-                      </Button>
-                    ) : null}
-                    {customerAuthProviders.facebook ? (
-                      <Button
-                        type="button"
-                        onClick={() => startCustomerLogin("facebook", "Facebook")}
-                        disabled={startingLoginProvider !== null}
-                        className="min-h-11 rounded-lg bg-[#1877f2] px-4 text-white hover:bg-[#166ad8]"
-                      >
-                        {startingLoginProvider === "facebook" ? (
-                          <Spinner className="text-white" />
-                        ) : (
-                          <ButtonLabel icon={LogInIcon}>Facebook</ButtonLabel>
-                        )}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : !customerAuthProviders.email ? (
-                  <p className="text-sm font-medium text-amber-700">
-                    Customer login is temporarily unavailable.
-                  </p>
-                ) : null}
-
-                {loginError ? <p className="text-sm text-rose-600">{loginError}</p> : null}
-              </div>
+              <CustomerLoginForm
+                providers={customerAuthProviders}
+                locationQrSlug={locationQrSlug}
+                locationSlug={locationSlug}
+                onSignedIn={() => router.refresh()}
+                className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+              />
             ) : customer ? (
               <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <div>
