@@ -1,3 +1,5 @@
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+
 type FormatPriceOptions = {
   currency?: string;
   emptyLabel?: string;
@@ -5,7 +7,7 @@ type FormatPriceOptions = {
 
 export function formatPrice(
   price: string | number | null | undefined,
-  { currency = "INR", emptyLabel = "Price on request" }: FormatPriceOptions = {},
+  { currency = DEFAULT_CURRENCY, emptyLabel = "Price on request" }: FormatPriceOptions = {},
 ) {
   if (price === null || price === undefined || price === "") {
     return emptyLabel;

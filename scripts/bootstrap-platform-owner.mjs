@@ -1,38 +1,11 @@
-import fs from "node:fs";
 import { randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 import postgres from "postgres";
 
+import { loadDeploymentEnv, resolveDeploymentConfig } from "./deployment-config.mjs";
+
 const scryptAsync = promisify(scrypt);
 const platformOrganizationId = "00000000-0000-0000-0000-000000000000";
-
-function readEnv() {
-  const env = {};
-  const content = fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "";
-
-  for (const line of content.split(/\r?\n/)) {
-    const trimmed = line.trim();
-
-    if (!trimmed || trimmed.startsWith("#")) {
-      continue;
-    }
-
-    const separatorIndex = trimmed.indexOf("=");
-
-    if (separatorIndex === -1) {
-      continue;
-    }
-
-    const key = trimmed.slice(0, separatorIndex).trim();
-    const value = trimmed
-      .slice(separatorIndex + 1)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    env[key] = value;
-  }
-
-  return env;
-}
 
 async function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -41,7 +14,8 @@ async function hashPassword(password) {
   return `scrypt:${salt}:${Buffer.from(key).toString("hex")}`;
 }
 
-const env = { ...readEnv(), ...process.env };
+const env = loadDeploymentEnv();
+const deployment = resolveDeploymentConfig(env);
 
 if (!env.DATABASE_URL) {
   throw new Error("DATABASE_URL is missing from .env.local or the current shell.");
@@ -124,8 +98,8 @@ try {
       'PLATFORM',
       'foodie-platform',
       'Foodie Platform',
-      'Asia/Calcutta',
-      'INR',
+      ${deployment.timezone},
+      ${deployment.currency},
       true,
       now()
     )
@@ -134,6 +108,66 @@ try {
       type = 'PLATFORM',
       slug = 'foodie-platform',
       name = 'Foodie Platform',
+      timezone = ${deployment.timezone},
+      currency = ${deployment.currency},
+      is_active = true,
+      updated_at = now()
+  `;
+
+  const [existingRootDomain] = await sql`
+    select scope
+    from tenant_domains
+    where domain = ${deployment.rootDomain}
+    limit 1
+  `;
+
+  if (existingRootDomain && existingRootDomain.scope !== "PLATFORM") {
+    throw new Error(
+      `Configured root domain ${deployment.rootDomain} is already assigned to a tenant.`,
+    );
+  }
+
+  await sql`
+    update tenant_domains
+    set
+      is_primary = false,
+      updated_at = now()
+    where scope = 'PLATFORM'
+      and domain <> ${deployment.rootDomain}
+      and is_primary = true
+  `;
+
+  await sql`
+    insert into tenant_domains (
+      domain,
+      scope,
+      purpose,
+      company_organization_id,
+      restaurant_organization_id,
+      location_id,
+      is_primary,
+      is_active,
+      updated_at
+    )
+    values (
+      ${deployment.rootDomain},
+      'PLATFORM',
+      'ADMIN',
+      null,
+      null,
+      null,
+      true,
+      true,
+      now()
+    )
+    on conflict (domain)
+    do update set
+      scope = 'PLATFORM',
+      purpose = 'ADMIN',
+      company_organization_id = null,
+      restaurant_organization_id = null,
+      location_id = null,
+      is_primary = true,
       is_active = true,
       updated_at = now()
   `;
@@ -179,6 +213,7 @@ try {
   }
 
   console.log(`Platform owner verified: ${username}`);
+  console.log(`Deployment verified: ${deployment.region} (${deployment.rootDomain})`);
 } finally {
   await sql.end();
 }

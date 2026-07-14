@@ -18,7 +18,8 @@
     "db:migrate": "node scripts/run-sql-migrations.mjs",
     "db:reset:migrate": "node scripts/run-sql-migrations.mjs --reset --confirm-reset",
     "db:verify:tenant": "node scripts/verify-tenant-foundation.mjs",
-    "db:bootstrap:platform": "node scripts/bootstrap-platform-owner.mjs"
+    "db:bootstrap:platform": "node scripts/bootstrap-platform-owner.mjs",
+    "verify:deployment": "node scripts/verify-deployment-config.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

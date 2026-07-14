@@ -14,12 +14,13 @@ import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
 const emptyLocationDraft = {
   name: "",
   label: "",
   qrSlug: "",
-  timezone: "Asia/Calcutta",
+  timezone: DEFAULT_TIMEZONE,
   isActive: true,
 };
 

@@ -26,6 +26,7 @@ import {
   hasFieldErrors,
 } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
@@ -155,7 +156,7 @@ export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
   const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -207,7 +208,7 @@ export function MenuManager() {
       setCategories(payload.categories ?? []);
       setModifierGroups(payload.modifierGroups ?? []);
       setTags(payload.tags ?? []);
-      setCurrency(payload.currency ?? "INR");
+      setCurrency(payload.currency ?? DEFAULT_CURRENCY);
       setError(null);
       setIsLoading(false);
     }

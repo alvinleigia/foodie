@@ -25,6 +25,7 @@ import {
 } from "@/lib/customer-orders";
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
   isValidCustomerPhone,
   normalizeCustomerPhone,
@@ -231,7 +232,7 @@ export function OrderForm({
 }: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: customer?.name ?? "",
   });
@@ -323,7 +324,7 @@ export function OrderForm({
 
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
-        setCurrency(payload.currency ?? "INR");
+        setCurrency(payload.currency ?? DEFAULT_CURRENCY);
         setMenuError(null);
         setIsLoadingMenu(false);
         setActiveCategoryId(payload.categories?.[0]?.id);

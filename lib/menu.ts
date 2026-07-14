@@ -14,6 +14,7 @@ import {
   organizations,
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
@@ -671,7 +672,7 @@ export async function getTenantMenuCurrency(
     .where(eq(organizations.id, context.organizationId))
     .limit(1);
 
-  return organization?.currency ?? "INR";
+  return organization?.currency ?? DEFAULT_CURRENCY;
 }
 
 export async function getMenuSelectionSnapshot(

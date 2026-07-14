@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
 type RestaurantLocation = {
   id: string;
@@ -71,7 +72,7 @@ const emptyLocationDraft: LocationDraft = {
   name: "",
   label: "",
   qrSlug: "",
-  timezone: "Asia/Calcutta",
+  timezone: DEFAULT_TIMEZONE,
   isActive: true,
 };
 

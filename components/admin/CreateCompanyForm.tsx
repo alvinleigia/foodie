@@ -14,11 +14,12 @@ import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
 const emptyCompanyDraft = {
   name: "",
-  timezone: "Asia/Calcutta",
-  currency: "INR",
+  timezone: DEFAULT_TIMEZONE,
+  currency: DEFAULT_CURRENCY,
 };
 
 type CreateCompanyFormProps = {

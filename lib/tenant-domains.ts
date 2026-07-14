@@ -5,10 +5,9 @@ import { locations, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
 import type { TenantContext } from "@/lib/tenant-context";
 
-export const ROOT_DOMAIN =
-  process.env.NEXT_PUBLIC_ROOT_DOMAIN ??
-  process.env.APP_ROOT_DOMAIN ??
-  "foodie.leigia.com";
+export const ROOT_DOMAIN = normalizeDomain(
+  process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? process.env.APP_ROOT_DOMAIN,
+) ?? "foodie.leigia.com";
 
 export function normalizeDomain(value: string | null | undefined) {
   const rawHost = value?.split(",")[0]?.trim().toLowerCase();

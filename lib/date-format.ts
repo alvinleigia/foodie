@@ -1,5 +1,7 @@
+import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+
 export const APP_DATE_LOCALE = "en-GB";
-export const APP_TIME_ZONE = "Asia/Calcutta";
+export const APP_TIME_ZONE = DEFAULT_TIMEZONE;
 
 export function formatAppDate(value: string | Date) {
   return new Intl.DateTimeFormat(APP_DATE_LOCALE, {

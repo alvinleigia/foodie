@@ -48,6 +48,11 @@ Create `.env.local` from `.env.example`:
 ```bash
 DATABASE_URL="postgresql://user:password@host:6543/postgres"
 AUTH_SECRET="replace-with-a-long-random-secret"
+DEPLOYMENT_REGION="IN"
+APP_ROOT_DOMAIN="foodie.leigia.com"
+NEXT_PUBLIC_ROOT_DOMAIN="foodie.leigia.com"
+NEXT_PUBLIC_DEFAULT_TIMEZONE="Asia/Calcutta"
+NEXT_PUBLIC_DEFAULT_CURRENCY="INR"
 AUTH_GOOGLE_ID="google-oauth-client-id"
 AUTH_GOOGLE_SECRET="google-oauth-client-secret"
 AUTH_APPLE_ID="apple-services-id"
@@ -73,6 +78,20 @@ Customer email OTP resolves restaurant, company and optional platform SMTP2GO se
 `/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, Checkout session completed, async payment succeeded/failed and session expired events, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
+
+Each regional installation should have its own Vercel project, database and environment variables. `APP_ROOT_DOMAIN` and `NEXT_PUBLIC_ROOT_DOMAIN` must match. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
+
+For example, a UK UAT installation can use:
+
+```bash
+DEPLOYMENT_REGION="UK-UAT"
+APP_ROOT_DOMAIN="foodie-uk-staging.example.com"
+NEXT_PUBLIC_ROOT_DOMAIN="foodie-uk-staging.example.com"
+NEXT_PUBLIC_DEFAULT_TIMEZONE="Europe/London"
+NEXT_PUBLIC_DEFAULT_CURRENCY="GBP"
+```
+
+Keep `DATABASE_URL`, `AUTH_SECRET`, tenant credential encryption keys, SMTP, OAuth and Stripe credentials separate for each regional installation. Run `npm run verify:deployment` before deployment, then run migrations and `npm run db:bootstrap:platform` against that installation's database. The bootstrap command applies the configured platform timezone, currency and root domain without changing tenant records.
 
 Set `ENABLE_UAT_DATABASE_RESET="true"` only on a UAT/dev database if you need the platform reset screen at `/platform/uat-reset`. Do not enable it for production.
 
@@ -110,6 +129,12 @@ Verify tenant foundation:
 
 ```bash
 npm run db:verify:tenant
+```
+
+Verify regional deployment settings:
+
+```bash
+npm run verify:deployment
 ```
 
 Start development:

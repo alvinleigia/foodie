@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { locations, orders } from "@/db/schema";
+import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import { TenantContext } from "@/lib/tenant-context";
 
 type DbClient = ReturnType<typeof getDb>;
@@ -42,7 +43,7 @@ export async function getLocationBusinessDate(
     )
     .limit(1);
 
-  return formatDateForTimeZone(new Date(), location?.timezone ?? "Asia/Calcutta");
+  return formatDateForTimeZone(new Date(), location?.timezone ?? DEFAULT_TIMEZONE);
 }
 
 export async function getNextOrderNumber(

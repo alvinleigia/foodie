@@ -11,6 +11,7 @@ import {
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
 import { formatOrderDisplay } from "@/lib/order-display";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
@@ -72,7 +73,7 @@ export function CustomerOrderStatus({
   refreshKey,
 }: CustomerOrderStatusProps) {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
@@ -136,7 +137,7 @@ export function CustomerOrderStatus({
           return;
         }
 
-        setCurrency(payload.currency ?? "INR");
+        setCurrency(payload.currency ?? DEFAULT_CURRENCY);
 
         const wasReset = syncCustomerOrdersResetMarker(payload.ordersResetAt ?? null);
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
 export const staffRoles = [
   "COMPANY_OWNER",
@@ -122,8 +123,8 @@ export const updateUserAccountSchema = z.object({
 
 export const createCompanyOrganizationSchema = z.object({
   name: z.string().trim().min(2, "Company name is required").max(120),
-  timezone: timezoneSchema.default("Asia/Calcutta"),
-  currency: currencySchema.default("INR"),
+  timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+  currency: currencySchema.default(DEFAULT_CURRENCY),
 });
 
 export const updateOrganizationAdminSchema = z.object({
@@ -141,8 +142,8 @@ export const createRestaurantLocationSchema = locationSettingsSchema;
 
 export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),
-  timezone: timezoneSchema.default("Asia/Calcutta"),
-  currency: currencySchema.default("INR"),
+  timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+  currency: currencySchema.default(DEFAULT_CURRENCY),
   locationName: z.string().trim().min(2, "Location name is required").max(120),
   locationLabel: z.string().trim().max(160).optional().transform((value) => value || null),
 });
