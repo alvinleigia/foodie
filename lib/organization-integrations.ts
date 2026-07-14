@@ -34,12 +34,14 @@ export type ResolvedEmailIntegration =
     } & IntegrationSource);
 
 export type ResolvedPaymentIntegration =
-  | ({
+  | {
       status: "CONFIGURED";
       provider: "STRIPE";
       stripeAccountId: string;
       applicationFeeBps: number;
-    } & IntegrationSource)
+      organizationId: string;
+      organizationName: string;
+    }
   | ({
       status: "DISABLED" | "UNAVAILABLE";
       reason: "DISABLED" | "INCOMPLETE" | "ONBOARDING_INCOMPLETE" | "NO_CONFIGURATION";

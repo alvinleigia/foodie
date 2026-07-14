@@ -90,6 +90,22 @@ export async function syncOrganizationStripeAccount(organizationId: string) {
   return getOrganizationPaymentSettingsSnapshot(organizationId);
 }
 
+export async function syncStripeAccountFromWebhook(account: Stripe.Account) {
+  const now = new Date();
+
+  await getDb()
+    .update(organizationPaymentAccounts)
+    .set({
+      onboardingStatus: getOnboardingStatus(account),
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+      lastSyncedAt: now,
+      updatedAt: now,
+    })
+    .where(eq(organizationPaymentAccounts.stripeAccountId, account.id));
+}
+
 export async function getOrganizationPaymentSettingsSnapshot(
   organizationId: string,
 ): Promise<OrganizationPaymentSettingsSnapshot> {

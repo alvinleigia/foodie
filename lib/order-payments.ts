@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { getDb } from "@/db";
@@ -108,13 +108,19 @@ export function buildOrderPaymentPricing(
 }
 
 export async function createOrderCheckoutSession(input: {
+  amountTotalMinor: number;
+  applicationFeeBps: number;
   customerEmail: string;
   customerId: string;
   expiresAt: Date;
   lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
   orderId: string;
   origin: string;
+  stripeAccountId: string;
 }) {
+  const applicationFeeAmount = Math.round(
+    (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
+  );
   const session = await getStripe().checkout.sessions.create(
     {
       cancel_url: `${input.origin}/account?payment=cancelled`,
@@ -128,6 +134,9 @@ export async function createOrderCheckoutSession(input: {
       },
       mode: "payment",
       payment_intent_data: {
+        ...(applicationFeeAmount > 0
+          ? { application_fee_amount: applicationFeeAmount }
+          : {}),
         metadata: {
           customerId: input.customerId,
           orderId: input.orderId,
@@ -135,7 +144,10 @@ export async function createOrderCheckoutSession(input: {
       },
       success_url: `${input.origin}/order/payment/success?session_id={CHECKOUT_SESSION_ID}`,
     },
-    { idempotencyKey: `order-checkout-${input.orderId}` },
+    {
+      idempotencyKey: `order-checkout-${input.orderId}`,
+      stripeAccount: input.stripeAccountId,
+    },
   );
 
   if (!session.url) {
@@ -145,11 +157,21 @@ export async function createOrderCheckoutSession(input: {
   return session;
 }
 
-export async function markOrderPaymentPaid(session: Stripe.Checkout.Session) {
+export async function markOrderPaymentPaid(
+  session: Stripe.Checkout.Session,
+  stripeConnectedAccountId: string | null = null,
+) {
   const [order] = await getDb()
     .select()
     .from(orders)
-    .where(eq(orders.stripeCheckoutSessionId, session.id))
+    .where(
+      and(
+        eq(orders.stripeCheckoutSessionId, session.id),
+        stripeConnectedAccountId
+          ? eq(orders.stripeConnectedAccountId, stripeConnectedAccountId)
+          : isNull(orders.stripeConnectedAccountId),
+      ),
+    )
     .limit(1);
 
   if (!order || order.paymentStatus === "PAID") {
@@ -197,13 +219,23 @@ export async function markOrderPaymentPaid(session: Stripe.Checkout.Session) {
 }
 
 async function cancelPendingOrderPaymentRecord(
-  lookup: { checkoutSessionId: string } | { orderId: string },
+  lookup:
+    | { checkoutSessionId: string; stripeConnectedAccountId?: string | null }
+    | { orderId: string },
   paymentStatus: "CANCELLED" | "FAILED",
 ) {
   return getDb().transaction(async (tx) => {
     const condition =
       "checkoutSessionId" in lookup
-        ? eq(orders.stripeCheckoutSessionId, lookup.checkoutSessionId)
+        ? and(
+            eq(orders.stripeCheckoutSessionId, lookup.checkoutSessionId),
+            lookup.stripeConnectedAccountId
+              ? eq(
+                  orders.stripeConnectedAccountId,
+                  lookup.stripeConnectedAccountId,
+                )
+              : isNull(orders.stripeConnectedAccountId),
+          )
         : eq(orders.id, lookup.orderId);
     const now = new Date();
     const [order] = await tx
@@ -253,8 +285,12 @@ async function cancelPendingOrderPaymentRecord(
 export function cancelPendingOrderPayment(
   checkoutSessionId: string,
   paymentStatus: "CANCELLED" | "FAILED",
+  stripeConnectedAccountId: string | null = null,
 ) {
-  return cancelPendingOrderPaymentRecord({ checkoutSessionId }, paymentStatus);
+  return cancelPendingOrderPaymentRecord(
+    { checkoutSessionId, stripeConnectedAccountId },
+    paymentStatus,
+  );
 }
 
 export function cancelPendingOrderPaymentByOrderId(

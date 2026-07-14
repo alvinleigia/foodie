@@ -46,6 +46,7 @@ import {
 } from "@/lib/order-payments";
 import { getStripe } from "@/lib/stripe";
 import { logError } from "@/lib/logger";
+import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 
 export async function GET() {
   try {
@@ -128,13 +129,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (session.user.kind === "customer" && !process.env.STRIPE_SECRET_KEY) {
-      return NextResponse.json(
-        { error: "Online payment is temporarily unavailable." },
-        { status: 503 },
-      );
-    }
-
     const rateLimit = checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-create"),
       limit: 12,
@@ -148,6 +142,21 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const parsed = createOrderSchema.safeParse(body);
     const tenantContext = await getPublicTenantContextFromRequest(request);
+
+    const paymentIntegration =
+      session.user.kind === "customer"
+        ? await resolveOrganizationPaymentIntegration(tenantContext.organizationId)
+        : null;
+
+    if (
+      session.user.kind === "customer" &&
+      (!process.env.STRIPE_SECRET_KEY || paymentIntegration?.status !== "CONFIGURED")
+    ) {
+      return NextResponse.json(
+        { error: "Online payment is temporarily unavailable." },
+        { status: 503 },
+      );
+    }
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -300,6 +309,14 @@ export async function POST(request: NextRequest) {
           paymentStatus: paymentPricing ? "PENDING" : "NOT_REQUIRED",
           paymentAmount: paymentPricing?.amountTotal ?? null,
           paymentCurrency: paymentPricing?.currency ?? null,
+          paymentAccountOrganizationId:
+            paymentIntegration?.status === "CONFIGURED"
+              ? paymentIntegration.organizationId
+              : null,
+          stripeConnectedAccountId:
+            paymentIntegration?.status === "CONFIGURED"
+              ? paymentIntegration.stripeAccountId
+              : null,
           paymentExpiresAt,
           categoryId: cartItems[0].categoryId,
           categoryName: summaryCategoryName,
@@ -356,17 +373,25 @@ export async function POST(request: NextRequest) {
 
     let checkoutUrl: string | null = null;
 
-    if (paymentPricing && paymentExpiresAt && customerProfile) {
+    if (
+      paymentPricing &&
+      paymentExpiresAt &&
+      customerProfile &&
+      paymentIntegration?.status === "CONFIGURED"
+    ) {
       let checkoutSessionId: string | null = null;
 
       try {
         const checkoutSession = await createOrderCheckoutSession({
+          amountTotalMinor: paymentPricing.amountTotalMinor,
+          applicationFeeBps: paymentIntegration.applicationFeeBps,
           customerEmail: customerProfile.email,
           customerId: customerProfile.id,
           expiresAt: paymentExpiresAt,
           lineItems: paymentPricing.lineItems,
           orderId: createdOrder.id,
           origin: new URL(request.url).origin,
+          stripeAccountId: paymentIntegration.stripeAccountId,
         });
         checkoutSessionId = checkoutSession.id;
         checkoutUrl = checkoutSession.url;
@@ -390,7 +415,13 @@ export async function POST(request: NextRequest) {
         }
       } catch (paymentError) {
         if (checkoutSessionId) {
-          await getStripe().checkout.sessions.expire(checkoutSessionId).catch(() => null);
+          await getStripe()
+            .checkout.sessions.expire(
+              checkoutSessionId,
+              {},
+              { stripeAccount: paymentIntegration.stripeAccountId },
+            )
+            .catch(() => null);
         }
 
         await cancelPendingOrderPaymentByOrderId(createdOrder.id, "FAILED").catch(
