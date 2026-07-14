@@ -7,7 +7,7 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 - Customer order page with cart and recent order status.
 - Customer email OTP, Google, Apple and Facebook login, required name/phone onboarding, profile management and account-linked order history.
 - Stripe Connect-hosted customer checkout with company/restaurant inheritance and webhook-gated fulfilment; staff-created orders bypass online payment.
-- Company and restaurant integration settings with inherited SMTP2GO delivery, encrypted tenant credentials and Stripe connected-account onboarding.
+- Company and restaurant integration settings with inherited SMTP2GO delivery, social login overrides, encrypted tenant credentials and Stripe connected-account onboarding.
 - Staff operations panel with item-level order workflow.
 - Menu manager for categories and products.
 - Inventory manager for location-scoped product stock levels.
@@ -66,7 +66,9 @@ PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
-OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP resolves restaurant, company and platform SMTP2GO settings in that order. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
+The `AUTH_GOOGLE_*`, `AUTH_APPLE_*` and `AUTH_FACEBOOK_*` values are the universal Foodie fallback. Company admins can replace them per provider, and restaurants can inherit the company setting, provide their own credentials or disable a provider. Tenant client secrets are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`. OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on every ordering origin that uses the credentials. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address.
+
+Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
 
 `/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, Checkout session completed, async payment succeeded/failed and session expired events, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
@@ -88,7 +90,7 @@ Apply migrations from the committed SQL files:
 npm run db:migrate
 ```
 
-Customer email OTP requires `0022_customer_email_otp.sql`. The migration runner applies it automatically when it has not already been recorded in `app_migrations`.
+Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, and tenant social login overrides require `0024_tenant_oauth_settings.sql`. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 

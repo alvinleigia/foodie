@@ -12,6 +12,7 @@ Foodie has working SaaS foundations for:
 - Tenant-scoped menus, orders, inventory and reports.
 - Audit logs, rate limiting foundation and structured logging.
 - Domain records, company subdomain foundation and custom domain mapping UI.
+- Universal customer social login with encrypted company overrides and restaurant inheritance or override.
 
 ## Immediate Decision
 
