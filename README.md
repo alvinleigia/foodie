@@ -48,9 +48,10 @@ Create `.env.local` from `.env.example`:
 ```bash
 DATABASE_URL="postgresql://user:password@host:6543/postgres"
 AUTH_SECRET="replace-with-a-long-random-secret"
+DEPLOYMENT_CELL_ID="in-local-1"
 DEPLOYMENT_REGION="IN"
 APP_ROOT_DOMAIN="foodie.leigia.com"
-NEXT_PUBLIC_ROOT_DOMAIN="foodie.leigia.com"
+NEXT_PUBLIC_DEFAULT_LOCALE="en-IN"
 NEXT_PUBLIC_DEFAULT_TIMEZONE="Asia/Calcutta"
 NEXT_PUBLIC_DEFAULT_CURRENCY="INR"
 AUTH_GOOGLE_ID="google-oauth-client-id"
@@ -79,19 +80,20 @@ Customer email OTP resolves restaurant, company and optional platform SMTP2GO se
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 
-Each regional installation should have its own Vercel project, database and environment variables. `APP_ROOT_DOMAIN` and `NEXT_PUBLIC_ROOT_DOMAIN` must match. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
+Each regional installation is an independent deployment cell with its own Vercel project, database and environment variables. `DEPLOYMENT_CELL_ID`, `DEPLOYMENT_REGION`, `APP_ROOT_DOMAIN`, `NEXT_PUBLIC_DEFAULT_LOCALE`, `NEXT_PUBLIC_DEFAULT_TIMEZONE` and `NEXT_PUBLIC_DEFAULT_CURRENCY` are required. There are no regional fallbacks: verification and production builds fail when the cell configuration is missing or invalid. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
 
 For example, a UK UAT installation can use:
 
 ```bash
+DEPLOYMENT_CELL_ID="uk-uat-1"
 DEPLOYMENT_REGION="UK-UAT"
 APP_ROOT_DOMAIN="foodie-uk-staging.example.com"
-NEXT_PUBLIC_ROOT_DOMAIN="foodie-uk-staging.example.com"
+NEXT_PUBLIC_DEFAULT_LOCALE="en-GB"
 NEXT_PUBLIC_DEFAULT_TIMEZONE="Europe/London"
 NEXT_PUBLIC_DEFAULT_CURRENCY="GBP"
 ```
 
-Keep `DATABASE_URL`, `AUTH_SECRET`, tenant credential encryption keys, SMTP, OAuth and Stripe credentials separate for each regional installation. Run `npm run verify:deployment` before deployment, then run migrations and `npm run db:bootstrap:platform` against that installation's database. The bootstrap command applies the configured platform timezone, currency and root domain without changing tenant records.
+Keep `DATABASE_URL`, `AUTH_SECRET`, tenant credential encryption keys, SMTP, OAuth and Stripe credentials separate for each deployment cell. `npm run build` automatically runs `npm run verify:deployment`, then migrations and `npm run db:bootstrap:platform` must run against that cell's database. Bootstrap binds the database to `DEPLOYMENT_CELL_ID`, applies the configured platform locale and root domain, and refuses to modify a database already bound to another cell.
 
 Set `ENABLE_UAT_DATABASE_RESET="true"` only on a UAT/dev database if you need the platform reset screen at `/platform/uat-reset`. Do not enable it for production.
 
@@ -109,7 +111,7 @@ Apply migrations from the committed SQL files:
 npm run db:migrate
 ```
 
-Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, and tenant social login overrides require `0024_tenant_oauth_settings.sql`. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
+Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, tenant social login overrides require `0024_tenant_oauth_settings.sql`, and strict cell defaults require `0026_cell_deployment_defaults.sql`. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 

@@ -5,6 +5,7 @@ import { DownloadIcon } from "lucide-react";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
 
 type OperationalReportsProps = {
@@ -31,9 +32,10 @@ function formatLastOrder(value: string | null) {
     return "No orders yet";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: DEFAULT_TIMEZONE,
   }).format(new Date(value));
 }
 
@@ -54,7 +56,7 @@ function formatMoney(value: number | null) {
     return "-";
   }
 
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(DEFAULT_LOCALE, {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value);

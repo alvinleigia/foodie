@@ -1,6 +1,6 @@
-import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
-export const APP_DATE_LOCALE = "en-GB";
+export const APP_DATE_LOCALE = DEFAULT_LOCALE;
 export const APP_TIME_ZONE = DEFAULT_TIMEZONE;
 
 export function formatAppDate(value: string | Date) {

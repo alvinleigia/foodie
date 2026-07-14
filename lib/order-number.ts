@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { locations, orders } from "@/db/schema";
-import { DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import { TenantContext } from "@/lib/tenant-context";
 
 type DbClient = ReturnType<typeof getDb>;
@@ -10,9 +10,10 @@ type TransactionClient = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 type OrderNumberClient = DbClient | TransactionClient;
 
 function formatDateForTimeZone(date: Date, timeZone: string) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
+  const parts = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
     day: "2-digit",
     month: "2-digit",
+    numberingSystem: "latn",
     timeZone,
     year: "numeric",
   }).formatToParts(date);

@@ -6,8 +6,11 @@
     "node": "24.x"
   },
   "scripts": {
+    "predev": "npm run verify:deployment",
     "dev": "next dev",
+    "prebuild": "npm run verify:deployment",
     "build": "next build",
+    "prestart": "npm run verify:deployment",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",

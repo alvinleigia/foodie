@@ -4,13 +4,6 @@ const supportedCurrencies = new Set(
   JSON.parse(fs.readFileSync(new URL("../data/currencies.json", import.meta.url), "utf8")),
 );
 
-export const LEGACY_DEPLOYMENT_DEFAULTS = {
-  currency: "INR",
-  region: "legacy",
-  rootDomain: "foodie.leigia.com",
-  timezone: "Asia/Calcutta",
-};
-
 function readLocalEnv() {
   const env = {};
   const content = fs.existsSync(".env.local") ? fs.readFileSync(".env.local", "utf8") : "";
@@ -43,6 +36,34 @@ export function loadDeploymentEnv() {
   return { ...readLocalEnv(), ...process.env };
 }
 
+function requireEnvironmentVariable(env, name) {
+  const value = env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`${name} is required for every deployment cell.`);
+  }
+
+  return value;
+}
+
+function assertRequiredCellEnvironment(env) {
+  const requiredVariables = [
+    "DEPLOYMENT_CELL_ID",
+    "DEPLOYMENT_REGION",
+    "APP_ROOT_DOMAIN",
+    "NEXT_PUBLIC_DEFAULT_LOCALE",
+    "NEXT_PUBLIC_DEFAULT_TIMEZONE",
+    "NEXT_PUBLIC_DEFAULT_CURRENCY",
+  ];
+  const missingVariables = requiredVariables.filter((name) => !env[name]?.trim());
+
+  if (missingVariables.length > 0) {
+    throw new Error(
+      `Missing required deployment cell variables: ${missingVariables.join(", ")}.`,
+    );
+  }
+}
+
 function normalizeRootDomain(value) {
   const domain = value.trim().toLowerCase().replace(/\.$/, "");
   const domainPattern = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -64,11 +85,11 @@ function normalizeCurrency(value) {
   return currency;
 }
 
-function normalizeTimezone(value) {
+function normalizeTimezone(value, locale) {
   const timezone = value.trim();
 
   try {
-    new Intl.DateTimeFormat("en", { timeZone: timezone });
+    new Intl.DateTimeFormat(locale, { timeZone: timezone });
   } catch {
     throw new Error("NEXT_PUBLIC_DEFAULT_TIMEZONE must be a valid IANA timezone.");
   }
@@ -76,37 +97,53 @@ function normalizeTimezone(value) {
   return timezone;
 }
 
+function normalizeLocale(value) {
+  const locale = value.trim();
+
+  try {
+    new Intl.DateTimeFormat(locale);
+  } catch {
+    throw new Error("NEXT_PUBLIC_DEFAULT_LOCALE must be a valid BCP 47 locale.");
+  }
+
+  return locale;
+}
+
+function normalizeCellIdentifier(value, name) {
+  const identifier = value.trim();
+
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(identifier)) {
+    throw new Error(`${name} may contain only letters, numbers, hyphens and underscores.`);
+  }
+
+  return identifier;
+}
+
 export function resolveDeploymentConfig(env) {
-  const configuredAppRootDomain = env.APP_ROOT_DOMAIN?.trim();
-  const configuredPublicRootDomain = env.NEXT_PUBLIC_ROOT_DOMAIN?.trim();
-
-  if (
-    configuredAppRootDomain &&
-    configuredPublicRootDomain &&
-    normalizeRootDomain(configuredAppRootDomain) !==
-      normalizeRootDomain(configuredPublicRootDomain)
-  ) {
-    throw new Error("APP_ROOT_DOMAIN and NEXT_PUBLIC_ROOT_DOMAIN must match.");
-  }
-
-  const region = env.DEPLOYMENT_REGION?.trim() || LEGACY_DEPLOYMENT_DEFAULTS.region;
-
-  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(region)) {
-    throw new Error("DEPLOYMENT_REGION may contain only letters, numbers, hyphens and underscores.");
-  }
+  assertRequiredCellEnvironment(env);
+  const locale = normalizeLocale(
+    requireEnvironmentVariable(env, "NEXT_PUBLIC_DEFAULT_LOCALE"),
+  );
 
   return {
-    currency: normalizeCurrency(
-      env.NEXT_PUBLIC_DEFAULT_CURRENCY || LEGACY_DEPLOYMENT_DEFAULTS.currency,
+    cellId: normalizeCellIdentifier(
+      requireEnvironmentVariable(env, "DEPLOYMENT_CELL_ID"),
+      "DEPLOYMENT_CELL_ID",
     ),
-    region,
+    currency: normalizeCurrency(
+      requireEnvironmentVariable(env, "NEXT_PUBLIC_DEFAULT_CURRENCY"),
+    ),
+    locale,
+    region: normalizeCellIdentifier(
+      requireEnvironmentVariable(env, "DEPLOYMENT_REGION"),
+      "DEPLOYMENT_REGION",
+    ),
     rootDomain: normalizeRootDomain(
-      configuredAppRootDomain ||
-        configuredPublicRootDomain ||
-        LEGACY_DEPLOYMENT_DEFAULTS.rootDomain,
+      requireEnvironmentVariable(env, "APP_ROOT_DOMAIN"),
     ),
     timezone: normalizeTimezone(
-      env.NEXT_PUBLIC_DEFAULT_TIMEZONE || LEGACY_DEPLOYMENT_DEFAULTS.timezone,
+      requireEnvironmentVariable(env, "NEXT_PUBLIC_DEFAULT_TIMEZONE"),
+      locale,
     ),
   };
 }

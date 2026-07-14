@@ -33,6 +33,53 @@ if (!username || !password) {
 const sql = postgres(env.DATABASE_URL, { prepare: false });
 
 try {
+  const [existingDeploymentCell] = await sql`
+    select cell_id
+    from deployment_cells
+    where id = 1
+    limit 1
+  `;
+
+  if (
+    existingDeploymentCell &&
+    existingDeploymentCell.cell_id !== deployment.cellId
+  ) {
+    throw new Error(
+      `Database belongs to deployment cell ${existingDeploymentCell.cell_id}, not ${deployment.cellId}.`,
+    );
+  }
+
+  await sql`
+    insert into deployment_cells (
+      id,
+      cell_id,
+      region,
+      root_domain,
+      default_locale,
+      default_timezone,
+      default_currency,
+      updated_at
+    )
+    values (
+      1,
+      ${deployment.cellId},
+      ${deployment.region},
+      ${deployment.rootDomain},
+      ${deployment.locale},
+      ${deployment.timezone},
+      ${deployment.currency},
+      now()
+    )
+    on conflict (id)
+    do update set
+      region = excluded.region,
+      root_domain = excluded.root_domain,
+      default_locale = excluded.default_locale,
+      default_timezone = excluded.default_timezone,
+      default_currency = excluded.default_currency,
+      updated_at = now()
+  `;
+
   const email =
     env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase() ??
     `${username.toLowerCase()}@platform.staff.local`;
@@ -213,7 +260,9 @@ try {
   }
 
   console.log(`Platform owner verified: ${username}`);
-  console.log(`Deployment verified: ${deployment.region} (${deployment.rootDomain})`);
+  console.log(
+    `Deployment verified: ${deployment.cellId} / ${deployment.region} (${deployment.rootDomain})`,
+  );
 } finally {
   await sql.end();
 }

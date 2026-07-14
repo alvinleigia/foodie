@@ -17,6 +17,7 @@ import {
   getCustomerOrderHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 function getOrderStatusTone(status: string) {
@@ -149,9 +150,10 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
                       ))}
                     </div>
                     <p className="mt-4 text-xs text-stone-500">
-                      {new Intl.DateTimeFormat("en-IN", {
+                      {new Intl.DateTimeFormat(DEFAULT_LOCALE, {
                         dateStyle: "medium",
                         timeStyle: "short",
+                        timeZone: DEFAULT_TIMEZONE,
                       }).format(new Date(order.createdAt))}
                     </p>
                   </CardContent>

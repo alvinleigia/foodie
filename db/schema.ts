@@ -130,6 +130,25 @@ export const paymentOnboardingStatusEnum = pgEnum("payment_onboarding_status", [
   "RESTRICTED",
 ]);
 
+export const deploymentCells = pgTable(
+  "deployment_cells",
+  {
+    id: integer("id").primaryKey(),
+    cellId: text("cell_id").notNull(),
+    region: text("region").notNull(),
+    rootDomain: text("root_domain").notNull(),
+    defaultLocale: text("default_locale").notNull(),
+    defaultTimezone: text("default_timezone").notNull(),
+    defaultCurrency: text("default_currency").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("deployment_cells_cell_id_unique").on(table.cellId),
+    check("deployment_cells_singleton_check", sql`${table.id} = 1`),
+  ],
+);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -214,8 +233,8 @@ export const organizations = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     logoUrl: text("logo_url"),
-    timezone: text("timezone").default("Asia/Calcutta").notNull(),
-    currency: text("currency").default("INR").notNull(),
+    timezone: text("timezone").notNull(),
+    currency: text("currency").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -407,7 +426,7 @@ export const locations = pgTable(
     qrSlug: text("qr_slug"),
     name: text("name").notNull(),
     label: text("label"),
-    timezone: text("timezone").default("Asia/Calcutta").notNull(),
+    timezone: text("timezone").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -1,33 +1,51 @@
-import fs from "node:fs";
 import postgres from "postgres";
+
+import { loadDeploymentEnv, resolveDeploymentConfig } from "./deployment-config.mjs";
 
 const PLATFORM_ORGANIZATION_ID = "00000000-0000-0000-0000-000000000000";
 
-function readDatabaseUrl() {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
-  }
+const env = loadDeploymentEnv();
+const deployment = resolveDeploymentConfig(env);
 
-  const envLine = fs
-    .readFileSync(".env.local", "utf8")
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("DATABASE_URL="));
-
-  if (!envLine) {
-    throw new Error("DATABASE_URL is missing from .env.local or the current shell.");
-  }
-
-  return envLine
-    .slice("DATABASE_URL=".length)
-    .trim()
-    .replace(/^['"]|['"]$/g, "");
+if (!env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is missing from .env.local or the current shell.");
 }
 
-const sql = postgres(readDatabaseUrl(), { prepare: false });
+const sql = postgres(env.DATABASE_URL, { prepare: false });
 
 try {
+  const [deploymentCell] = await sql`
+    select
+      cell_id,
+      region,
+      root_domain,
+      default_locale,
+      default_timezone,
+      default_currency
+    from deployment_cells
+    where id = 1
+    limit 1
+  `;
+
+  if (!deploymentCell) {
+    throw new Error("Deployment cell is not bound to this database. Run db:bootstrap:platform.");
+  }
+
+  if (
+    deploymentCell.cell_id !== deployment.cellId ||
+    deploymentCell.region !== deployment.region ||
+    deploymentCell.root_domain !== deployment.rootDomain ||
+    deploymentCell.default_locale !== deployment.locale ||
+    deploymentCell.default_timezone !== deployment.timezone ||
+    deploymentCell.default_currency !== deployment.currency
+  ) {
+    throw new Error(
+      `Database configuration does not match deployment cell ${deployment.cellId}. Run db:bootstrap:platform.`,
+    );
+  }
+
   const [platform] = await sql`
-    select id, name, type
+    select id, name, type, timezone, currency
     from organizations
     where id = ${PLATFORM_ORGANIZATION_ID}
       and type = 'PLATFORM'
@@ -35,6 +53,47 @@ try {
 
   if (!platform) {
     throw new Error("Platform organization is missing. Run migrations first.");
+  }
+
+  if (
+    platform.timezone !== deployment.timezone ||
+    platform.currency !== deployment.currency
+  ) {
+    throw new Error(
+      "Platform locale does not match this deployment cell. Run db:bootstrap:platform.",
+    );
+  }
+
+  const [platformDomain] = await sql`
+    select domain
+    from tenant_domains
+    where scope = 'PLATFORM'
+      and is_primary = true
+      and is_active = true
+    limit 1
+  `;
+
+  if (platformDomain?.domain !== deployment.rootDomain) {
+    throw new Error(
+      "Platform root domain does not match this deployment cell. Run db:bootstrap:platform.",
+    );
+  }
+
+  const localeColumns = await sql`
+    select table_name, column_name, column_default
+    from information_schema.columns
+    where table_schema = 'public'
+      and (
+        (table_name = 'organizations' and column_name in ('timezone', 'currency'))
+        or (table_name = 'locations' and column_name = 'timezone')
+      )
+  `;
+  const defaultedColumn = localeColumns.find((column) => column.column_default !== null);
+
+  if (defaultedColumn) {
+    throw new Error(
+      `${defaultedColumn.table_name}.${defaultedColumn.column_name} still has a regional database default. Run migrations.`,
+    );
   }
 
   const tables = ["menu_categories", "menu_items", "orders", "order_items"];
@@ -54,6 +113,7 @@ try {
 
   console.log("Tenant foundation verified.");
   console.log(`Platform organization: ${platform.name}`);
+  console.log(`Deployment cell: ${deployment.cellId}`);
 } finally {
   await sql.end();
 }

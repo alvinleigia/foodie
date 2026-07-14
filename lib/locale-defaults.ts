@@ -1,8 +1,30 @@
-const LEGACY_DEFAULT_CURRENCY = "INR";
-const LEGACY_DEFAULT_TIMEZONE = "Asia/Calcutta";
+function requirePublicEnvironmentVariable(name: string, value: string | undefined) {
+  const normalized = value?.trim();
+
+  if (!normalized) {
+    throw new Error(`${name} is required for this deployment cell.`);
+  }
+
+  return normalized;
+}
+
+function resolveLocale(value: string | undefined) {
+  const locale = requirePublicEnvironmentVariable("NEXT_PUBLIC_DEFAULT_LOCALE", value);
+
+  try {
+    new Intl.DateTimeFormat(locale);
+  } catch {
+    throw new Error("NEXT_PUBLIC_DEFAULT_LOCALE must be a valid BCP 47 locale.");
+  }
+
+  return locale;
+}
 
 function resolveCurrency(value: string | undefined) {
-  const currency = value?.trim().toUpperCase() || LEGACY_DEFAULT_CURRENCY;
+  const currency = requirePublicEnvironmentVariable(
+    "NEXT_PUBLIC_DEFAULT_CURRENCY",
+    value,
+  ).toUpperCase();
 
   if (!/^[A-Z]{3}$/.test(currency)) {
     throw new Error("NEXT_PUBLIC_DEFAULT_CURRENCY must be a three-letter currency code.");
@@ -11,11 +33,14 @@ function resolveCurrency(value: string | undefined) {
   return currency;
 }
 
-function resolveTimezone(value: string | undefined) {
-  const timezone = value?.trim() || LEGACY_DEFAULT_TIMEZONE;
+function resolveTimezone(value: string | undefined, locale: string) {
+  const timezone = requirePublicEnvironmentVariable(
+    "NEXT_PUBLIC_DEFAULT_TIMEZONE",
+    value,
+  );
 
   try {
-    new Intl.DateTimeFormat("en", { timeZone: timezone });
+    new Intl.DateTimeFormat(locale, { timeZone: timezone });
   } catch {
     throw new Error("NEXT_PUBLIC_DEFAULT_TIMEZONE must be a valid IANA timezone.");
   }
@@ -23,9 +48,11 @@ function resolveTimezone(value: string | undefined) {
   return timezone;
 }
 
+export const DEFAULT_LOCALE = resolveLocale(process.env.NEXT_PUBLIC_DEFAULT_LOCALE);
 export const DEFAULT_CURRENCY = resolveCurrency(
   process.env.NEXT_PUBLIC_DEFAULT_CURRENCY,
 );
 export const DEFAULT_TIMEZONE = resolveTimezone(
   process.env.NEXT_PUBLIC_DEFAULT_TIMEZONE,
+  DEFAULT_LOCALE,
 );
