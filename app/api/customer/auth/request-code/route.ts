@@ -2,19 +2,20 @@ import { NextResponse } from "next/server";
 
 import {
   CustomerEmailOtpCooldownError,
-  isCustomerEmailOtpConfigured,
   requestCustomerEmailOtp,
 } from "@/lib/customer-email-otp";
 import { logError } from "@/lib/logger";
+import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import { customerEmailOtpRequestSchema } from "@/lib/validations/customer-email-otp";
+import { getPublicTenantContextFromRequest } from "@/lib/tenant-context";
 
 export async function POST(request: Request) {
-  if (!isCustomerEmailOtpConfigured()) {
+  if (!process.env.AUTH_SECRET) {
     return NextResponse.json(
       { error: "Email sign-in is temporarily unavailable." },
       { status: 503 },
@@ -39,7 +40,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { expiresAt } = await requestCustomerEmailOtp(parsed.data.email);
+    const tenantContext = await getPublicTenantContextFromRequest(request);
+    const delivery = await resolveOrganizationEmailIntegration(
+      tenantContext.organizationId,
+    );
+
+    if (delivery.status !== "CONFIGURED") {
+      return NextResponse.json(
+        { error: "Email sign-in is temporarily unavailable." },
+        { status: 503 },
+      );
+    }
+
+    const { expiresAt } = await requestCustomerEmailOtp(parsed.data.email, delivery);
 
     return NextResponse.json({
       expiresAt: expiresAt.toISOString(),

@@ -918,10 +918,16 @@ export function OrderForm({
     setLoginError(null);
 
     try {
-      await requestJson("/api/customer/auth/request-code", {
-        body: { email },
-        fallbackError: "The sign-in code could not be sent.",
-      });
+      await requestJson(
+        withPublicContext("/api/customer/auth/request-code", {
+          locationQrSlug,
+          locationSlug,
+        }),
+        {
+          body: { email },
+          fallbackError: "The sign-in code could not be sent.",
+        },
+      );
       setOtpEmail(email);
       setOtpCode("");
       setOtpStep("code");

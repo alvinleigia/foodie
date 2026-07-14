@@ -6,7 +6,9 @@ import {
   getInactiveTenantDomain,
   getTenantContextFromDomain,
 } from "@/lib/tenant-domains";
+import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import type { MembershipRole } from "@/lib/staff-auth";
+import { getTenantContextFromQrSlug } from "@/lib/tenant-context";
 
 type PublicOrderRouteOptions = {
   locationQrSlug?: string;
@@ -24,12 +26,13 @@ export async function getPublicOrderRouteContext({
     session?.user.kind === "customer"
       ? await getCustomerProfile(session.user.id).catch(() => null)
       : null;
-  const user = session?.user.kind === "staff"
-    ? {
-        name: session.user.name,
-        role: session.user.role as MembershipRole,
-      }
-    : null;
+  const user =
+    session?.user.kind === "staff"
+      ? {
+          name: session.user.name,
+          role: session.user.role as MembershipRole,
+        }
+      : null;
   const customer =
     session?.user.kind === "customer"
       ? {
@@ -38,23 +41,40 @@ export async function getPublicOrderRouteContext({
           phone: customerProfile?.phone ?? null,
         }
       : null;
-  const customerAuthProviders = {
-    apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
-    email: Boolean(
-      process.env.AUTH_SECRET && process.env.SMTP2GO_API_KEY && process.env.EMAIL_FROM,
-    ),
-    facebook: Boolean(
-      process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET,
-    ),
-    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
-  };
   const hasSignedLocationAccess = Boolean(
     session?.user.kind === "staff" &&
       session.user.organizationId &&
       session.user.locationId,
   );
 
-  if (locationQrSlug || hasSignedLocationAccess) {
+  const requestHeaders = await headers();
+  const requestDomain =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const tenantContext = locationQrSlug
+    ? await getTenantContextFromQrSlug(locationQrSlug).catch(() => null)
+    : hasSignedLocationAccess && session?.user.kind === "staff"
+      ? {
+          organizationId: session.user.organizationId!,
+          locationId: session.user.locationId!,
+        }
+      : requestDomain
+        ? await getTenantContextFromDomain(requestDomain, locationSlug).catch(() => null)
+        : null;
+  const emailIntegration = tenantContext
+    ? await resolveOrganizationEmailIntegration(tenantContext.organizationId).catch(
+        () => null,
+      )
+    : null;
+  const customerAuthProviders = {
+    apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
+    email: Boolean(process.env.AUTH_SECRET && emailIntegration?.status === "CONFIGURED"),
+    facebook: Boolean(
+      process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET,
+    ),
+    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
+  };
+
+  if (tenantContext) {
     return {
       hasTenantContext: true,
       customer,
@@ -62,10 +82,6 @@ export async function getPublicOrderRouteContext({
       user,
     };
   }
-
-  const requestHeaders = await headers();
-  const requestDomain =
-    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
 
   if (!requestDomain) {
     return {
@@ -77,20 +93,13 @@ export async function getPublicOrderRouteContext({
     };
   }
 
-  const domainContext = await getTenantContextFromDomain(
-    requestDomain,
-    locationSlug,
-  ).catch(() => null);
-
   return {
-    hasTenantContext: Boolean(domainContext),
+    hasTenantContext: false,
     customer,
     customerAuthProviders,
-    unavailableReason: domainContext
-      ? undefined
-      : (await getInactiveTenantDomain(requestDomain).catch(() => null))
-        ? ("DOMAIN_DISABLED" as const)
-        : ("MISSING_CONTEXT" as const),
+    unavailableReason: (await getInactiveTenantDomain(requestDomain).catch(() => null))
+      ? ("DOMAIN_DISABLED" as const)
+      : ("MISSING_CONTEXT" as const),
     user,
   };
 }
