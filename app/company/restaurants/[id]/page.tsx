@@ -1,8 +1,12 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { MailIcon } from "lucide-react";
 
 import { auth } from "@/auth";
 import { OrganizationEditPanel } from "@/components/admin/OrganizationEditPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { Button } from "@/components/ui/button";
 import { canAccessRole, companyAdminRoles } from "@/lib/role-access";
 import { getCompanyRestaurant } from "@/lib/saas-admin";
 
@@ -38,6 +42,13 @@ export default async function CompanyRestaurantEditPage(
         role: session.user.role,
       }}
     >
+      <div className="mb-5 flex justify-end">
+        <Button asChild variant="outline">
+          <Link href={`/company/restaurants/${restaurant.id}/integrations`}>
+            <ButtonLabel icon={MailIcon}>Email delivery</ButtonLabel>
+          </Link>
+        </Button>
+      </div>
       <OrganizationEditPanel
         apiPath={`/api/company/restaurants/${restaurant.id}`}
         backHref="/company"

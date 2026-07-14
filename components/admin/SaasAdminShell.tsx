@@ -60,6 +60,11 @@ const adminRoutes: AdminRoute[] = [
     description: "Manage user access.",
   },
   {
+    href: "/company/integrations",
+    label: "Company Integrations",
+    description: "Email and payment services.",
+  },
+  {
     href: "/restaurant",
     label: "Restaurant",
     description: "Restaurant dashboard.",
@@ -73,6 +78,11 @@ const adminRoutes: AdminRoute[] = [
     href: "/restaurant/staff",
     label: "Restaurant Staff",
     description: "Manage location staff.",
+  },
+  {
+    href: "/restaurant/integrations",
+    label: "Restaurant Integrations",
+    description: "Inherited and custom services.",
   },
   {
     href: "/operations/orders",
