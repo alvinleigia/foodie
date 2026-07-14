@@ -6,7 +6,8 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 
 - Customer order page with cart and recent order status.
 - Customer email OTP, Google, Apple and Facebook login, required name/phone onboarding, profile management and account-linked order history.
-- Stripe-hosted customer checkout with webhook-gated fulfilment; staff-created orders bypass online payment.
+- Stripe Connect-hosted customer checkout with company/restaurant inheritance and webhook-gated fulfilment; staff-created orders bypass online payment.
+- Company and restaurant integration settings with inherited SMTP2GO delivery, encrypted tenant credentials and Stripe connected-account onboarding.
 - Staff operations panel with item-level order workflow.
 - Menu manager for categories and products.
 - Inventory manager for location-scoped product stock levels.
@@ -55,15 +56,19 @@ AUTH_FACEBOOK_ID="facebook-app-id"
 AUTH_FACEBOOK_SECRET="facebook-app-secret"
 SMTP2GO_API_KEY="api-..."
 EMAIL_FROM="Foodie Orders <orders@example.com>"
+TENANT_CREDENTIALS_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
+STRIPE_CONNECT_WEBHOOK_SECRET="whsec_..."
 PLATFORM_OWNER_USERNAME="owner"
 PLATFORM_OWNER_EMAIL="owner@example.com"
 PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
-OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP requires an SMTP2GO API key and a verified sender address or domain. Codes expire after 10 minutes and are stored only as keyed hashes. The Stripe webhook endpoint is `/api/stripe/webhook` and should receive Checkout session completed, async payment succeeded/failed and session expired events.
+OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on each ordering origin. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address. Customer email OTP resolves restaurant, company and platform SMTP2GO settings in that order. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
+
+`/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, Checkout session completed, async payment succeeded/failed and session expired events, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 

@@ -28,7 +28,7 @@ Choose the next track:
 Notes:
 
 - Current invite flow generates copyable links.
-- SMTP/email provider is not configured yet.
+- Customer OTP delivery supports platform, company and restaurant SMTP2GO settings; invitation emails still need to be wired to the shared delivery service.
 - Until email is added, admins can manually copy and share invite links.
 
 ## Phase 5 Pending: Reporting
