@@ -4,6 +4,7 @@ import {
 import {
   boolean,
   AnyPgColumn,
+  check,
   date,
   index,
   integer,
@@ -101,6 +102,28 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "REFUNDED",
 ]);
 
+export const integrationModeEnum = pgEnum("integration_mode", [
+  "INHERIT",
+  "CUSTOM",
+  "DISABLED",
+]);
+
+export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
+
+export const integrationVerificationStatusEnum = pgEnum(
+  "integration_verification_status",
+  ["NOT_CONFIGURED", "PENDING", "VERIFIED", "FAILED"],
+);
+
+export const paymentProviderEnum = pgEnum("payment_provider", ["STRIPE"]);
+
+export const paymentOnboardingStatusEnum = pgEnum("payment_onboarding_status", [
+  "NOT_STARTED",
+  "PENDING",
+  "COMPLETE",
+  "RESTRICTED",
+]);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -194,6 +217,71 @@ export const organizations = pgTable(
   (table) => [
     index("organizations_parent_idx").on(table.parentOrganizationId),
     uniqueIndex("organizations_slug_unique").on(table.slug),
+  ],
+);
+
+export const organizationEmailSettings = pgTable(
+  "organization_email_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    provider: emailProviderEnum("provider").default("SMTP2GO").notNull(),
+    fromName: text("from_name"),
+    fromEmail: text("from_email"),
+    replyToEmail: text("reply_to_email"),
+    apiKeyEncrypted: text("api_key_encrypted"),
+    apiKeyHint: text("api_key_hint"),
+    verificationStatus: integrationVerificationStatusEnum("verification_status")
+      .default("NOT_CONFIGURED")
+      .notNull(),
+    lastTestedAt: timestamp("last_tested_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_email_settings_org_unique").on(table.organizationId),
+    index("organization_email_settings_mode_idx").on(table.mode),
+  ],
+);
+
+export const organizationPaymentAccounts = pgTable(
+  "organization_payment_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
+    stripeAccountId: text("stripe_account_id"),
+    onboardingStatus: paymentOnboardingStatusEnum("onboarding_status")
+      .default("NOT_STARTED")
+      .notNull(),
+    chargesEnabled: boolean("charges_enabled").default(false).notNull(),
+    payoutsEnabled: boolean("payouts_enabled").default(false).notNull(),
+    detailsSubmitted: boolean("details_submitted").default(false).notNull(),
+    applicationFeeBps: integer("application_fee_bps").default(0).notNull(),
+    lastSyncedAt: timestamp("last_synced_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_payment_accounts_org_unique").on(table.organizationId),
+    uniqueIndex("organization_payment_accounts_stripe_unique").on(table.stripeAccountId),
+    index("organization_payment_accounts_mode_idx").on(table.mode),
+    check(
+      "organization_payment_accounts_fee_bps_check",
+      sql`${table.applicationFeeBps} >= 0 AND ${table.applicationFeeBps} <= 10000`,
+    ),
   ],
 );
 
@@ -636,6 +724,11 @@ export const orders = pgTable("orders", {
     .notNull(),
   paymentAmount: numeric("payment_amount", { precision: 10, scale: 2 }),
   paymentCurrency: text("payment_currency"),
+  paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
+    () => organizations.id,
+    { onDelete: "set null" },
+  ),
+  stripeConnectedAccountId: text("stripe_connected_account_id"),
   stripeCheckoutSessionId: text("stripe_checkout_session_id"),
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   paymentExpiresAt: timestamp("payment_expires_at"),
@@ -666,6 +759,8 @@ export const orders = pgTable("orders", {
   index("orders_customer_created_idx").on(table.customerId, table.createdAt),
   index("orders_created_by_user_idx").on(table.createdByUserId),
   index("orders_payment_status_idx").on(table.paymentStatus),
+  index("orders_payment_account_org_idx").on(table.paymentAccountOrganizationId),
+  index("orders_stripe_connected_account_idx").on(table.stripeConnectedAccountId),
   uniqueIndex("orders_stripe_checkout_session_unique").on(
     table.stripeCheckoutSessionId,
   ),
