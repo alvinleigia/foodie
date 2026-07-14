@@ -1,11 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
+import { OAuthIntegrationForm } from "@/components/admin/OAuthIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
 import { requireRole } from "@/lib/auth";
 import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-settings";
+import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-settings";
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
+import { getRequestOrigin } from "@/lib/request-origin";
 import { companyAdminRoles } from "@/lib/role-access";
 import { getCompanyRestaurant } from "@/lib/saas-admin";
 
@@ -25,8 +28,10 @@ export default async function CompanyRestaurantIntegrationsPage(
     notFound();
   }
 
-  const [emailSnapshot, paymentSnapshot] = await Promise.all([
+  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot] = await Promise.all([
+    getRequestOrigin(),
     getOrganizationEmailSettingsSnapshot(restaurant.id),
+    getOrganizationOAuthSettingsSnapshots(restaurant.id),
     getOrganizationPaymentSettingsSnapshot(restaurant.id),
   ]);
 
@@ -45,6 +50,11 @@ export default async function CompanyRestaurantIntegrationsPage(
       <EmailIntegrationForm
         apiPath={`/api/company/restaurants/${restaurant.id}/integrations/email`}
         initialSnapshot={emailSnapshot}
+      />
+      <OAuthIntegrationForm
+        apiPath={`/api/company/restaurants/${restaurant.id}/integrations/oauth`}
+        callbackOrigin={callbackOrigin}
+        initialSnapshots={oauthSnapshots}
       />
       <StripeIntegrationForm
         apiPath={`/api/company/restaurants/${restaurant.id}/integrations/stripe`}
