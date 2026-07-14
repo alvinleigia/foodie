@@ -246,7 +246,9 @@ export function StripeIntegrationForm({
               {isConnecting
                 ? "Opening Stripe..."
                 : snapshot.settings.stripeAccountId
-                  ? "Continue Stripe onboarding"
+                  ? snapshot.settings.onboardingStatus === "COMPLETE"
+                    ? "Manage Stripe details"
+                    : "Continue Stripe onboarding"
                   : "Connect Stripe"}
             </ButtonLabel>
           </Button>
