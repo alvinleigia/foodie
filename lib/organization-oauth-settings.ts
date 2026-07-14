@@ -47,7 +47,7 @@ function getCredentialPurpose(provider: SocialAuthProvider) {
   return `oauth-${provider.toLowerCase()}-client-secret`;
 }
 
-function getPlatformCredentials(provider: SocialAuthProvider) {
+export function getPlatformOAuthCredentials(provider: SocialAuthProvider) {
   const environmentNames = {
     GOOGLE: ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET"],
     APPLE: ["AUTH_APPLE_ID", "AUTH_APPLE_SECRET"],
@@ -149,7 +149,7 @@ export async function resolveOrganizationOAuthIntegration(
     throw new Error("Organization hierarchy exceeds the supported depth.");
   }
 
-  const platformCredentials = getPlatformCredentials(provider);
+  const platformCredentials = getPlatformOAuthCredentials(provider);
 
   if (platformCredentials) {
     return {

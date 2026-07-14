@@ -899,9 +899,24 @@ export function OrderForm({
     setLoginError(null);
 
     try {
+      await requestJson(
+        withPublicContext("/api/customer/auth/oauth-context", {
+          locationQrSlug,
+          locationSlug,
+        }),
+        {
+          body: { provider },
+          fallbackError: `${providerLabel} sign-in is temporarily unavailable.`,
+        },
+      );
       await signIn(provider, { redirectTo: window.location.href });
-    } catch {
-      setLoginError(`${providerLabel} sign-in could not be started. Please try again.`);
+    } catch (loginStartError) {
+      setLoginError(
+        getCaughtErrorMessage(
+          loginStartError,
+          `${providerLabel} sign-in could not be started. Please try again.`,
+        ),
+      );
       setStartingLoginProvider(null);
     }
   }

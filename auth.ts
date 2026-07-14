@@ -6,6 +6,12 @@ import Google from "next-auth/providers/google";
 
 import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
 import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
+import { getCustomerOAuthContextFromRequest } from "@/lib/customer-oauth-context";
+import type { SocialAuthProvider } from "@/lib/organization-integration-types";
+import {
+  getPlatformOAuthCredentials,
+  resolveOrganizationOAuthIntegration,
+} from "@/lib/organization-oauth-settings";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
 import {
@@ -14,24 +20,52 @@ import {
 } from "@/lib/tenant-domains";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-const googleClientId = process.env.AUTH_GOOGLE_ID;
-const googleClientSecret = process.env.AUTH_GOOGLE_SECRET;
-const googleProvider =
-  googleClientId && googleClientSecret
-    ? Google({ clientId: googleClientId, clientSecret: googleClientSecret })
-    : null;
-const appleClientId = process.env.AUTH_APPLE_ID;
-const appleClientSecret = process.env.AUTH_APPLE_SECRET;
-const appleProvider =
-  appleClientId && appleClientSecret
-    ? Apple({ clientId: appleClientId, clientSecret: appleClientSecret })
-    : null;
-const facebookClientId = process.env.AUTH_FACEBOOK_ID;
-const facebookClientSecret = process.env.AUTH_FACEBOOK_SECRET;
-const facebookProvider =
-  facebookClientId && facebookClientSecret
-    ? Facebook({ clientId: facebookClientId, clientSecret: facebookClientSecret })
-    : null;
+const providerTypeMap = {
+  apple: "APPLE",
+  facebook: "FACEBOOK",
+  google: "GOOGLE",
+} as const satisfies Record<string, SocialAuthProvider>;
+
+async function getSocialProviders(request: Parameters<typeof getCustomerOAuthContextFromRequest>[0]) {
+  const credentials = {
+    apple: getPlatformOAuthCredentials("APPLE"),
+    facebook: getPlatformOAuthCredentials("FACEBOOK"),
+    google: getPlatformOAuthCredentials("GOOGLE"),
+  };
+  const context = getCustomerOAuthContextFromRequest(request);
+
+  if (context) {
+    const effective = await resolveOrganizationOAuthIntegration(
+      context.organizationId,
+      providerTypeMap[context.provider],
+    );
+    credentials[context.provider] =
+      effective.status === "CONFIGURED"
+        ? { clientId: effective.clientId, clientSecret: effective.clientSecret }
+        : null;
+  }
+
+  return {
+    appleProvider: credentials.apple
+      ? Apple({
+          clientId: credentials.apple.clientId,
+          clientSecret: credentials.apple.clientSecret,
+        })
+      : null,
+    facebookProvider: credentials.facebook
+      ? Facebook({
+          clientId: credentials.facebook.clientId,
+          clientSecret: credentials.facebook.clientSecret,
+        })
+      : null,
+    googleProvider: credentials.google
+      ? Google({
+          clientId: credentials.google.clientId,
+          clientSecret: credentials.google.clientSecret,
+        })
+      : null,
+  };
+}
 
 function hasTrustedOAuthEmail(
   provider: string,
@@ -48,7 +82,11 @@ function hasTrustedOAuthEmail(
   return provider === "facebook";
 }
 
-export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
+export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(async (request) => {
+  const { appleProvider, facebookProvider, googleProvider } =
+    await getSocialProviders(request);
+
+  return {
   session: {
     strategy: "jwt",
   },
@@ -247,4 +285,5 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       };
     },
   },
+  };
 });

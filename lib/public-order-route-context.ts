@@ -7,6 +7,7 @@ import {
   getTenantContextFromDomain,
 } from "@/lib/tenant-domains";
 import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
+import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getTenantContextFromQrSlug } from "@/lib/tenant-context";
 
@@ -60,18 +61,31 @@ export async function getPublicOrderRouteContext({
       : requestDomain
         ? await getTenantContextFromDomain(requestDomain, locationSlug).catch(() => null)
         : null;
-  const emailIntegration = tenantContext
-    ? await resolveOrganizationEmailIntegration(tenantContext.organizationId).catch(
-        () => null,
-      )
-    : null;
+  const [emailIntegration, googleIntegration, appleIntegration, facebookIntegration] =
+    tenantContext
+      ? await Promise.all([
+          resolveOrganizationEmailIntegration(tenantContext.organizationId).catch(
+            () => null,
+          ),
+          resolveOrganizationOAuthIntegration(
+            tenantContext.organizationId,
+            "GOOGLE",
+          ).catch(() => null),
+          resolveOrganizationOAuthIntegration(
+            tenantContext.organizationId,
+            "APPLE",
+          ).catch(() => null),
+          resolveOrganizationOAuthIntegration(
+            tenantContext.organizationId,
+            "FACEBOOK",
+          ).catch(() => null),
+        ])
+      : [null, null, null, null];
   const customerAuthProviders = {
-    apple: Boolean(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
+    apple: appleIntegration?.status === "CONFIGURED",
     email: Boolean(process.env.AUTH_SECRET && emailIntegration?.status === "CONFIGURED"),
-    facebook: Boolean(
-      process.env.AUTH_FACEBOOK_ID && process.env.AUTH_FACEBOOK_SECRET,
-    ),
-    google: Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET),
+    facebook: facebookIntegration?.status === "CONFIGURED",
+    google: googleIntegration?.status === "CONFIGURED",
   };
 
   if (tenantContext) {
