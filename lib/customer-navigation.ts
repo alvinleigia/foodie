@@ -35,7 +35,10 @@ export function getCustomerLoginHref({
   returnTo,
 }: PublicCustomerContextOptions & { returnTo: string }) {
   const loginHref = new URL("/customer/login", "https://foodie.local");
-  loginHref.searchParams.set("returnTo", returnTo);
+  loginHref.searchParams.set(
+    "returnTo",
+    withPublicCustomerContext(returnTo, { locationQrSlug, locationSlug }),
+  );
 
   return withPublicCustomerContext(
     `${loginHref.pathname}${loginHref.search}`,

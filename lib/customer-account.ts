@@ -6,6 +6,7 @@ import {
   locations,
   orderItems,
   orders,
+  organizationCustomers,
   organizations,
 } from "@/db/schema";
 import type { customerProfileUpdateSchema } from "@/lib/validations/customer";
@@ -14,21 +15,60 @@ import type { TenantContext } from "@/lib/tenant-context";
 
 export type CustomerProfileUpdate = z.infer<typeof customerProfileUpdateSchema>;
 
-export async function getCustomerProfile(customerId: string) {
-  const [customer] = await getDb()
+export async function getCustomerProfile(
+  customerId: string,
+  context: TenantContext,
+) {
+  const db = getDb();
+  const [identity] = await db
     .select({
-      dateOfBirth: customers.dateOfBirth,
       email: customers.email,
-      emailVerifiedAt: customers.emailVerifiedAt,
-      gender: customers.gender,
-      id: customers.id,
-      marketingOptIn: customers.marketingOptIn,
       name: customers.name,
-      phone: customers.phone,
-      phoneVerifiedAt: customers.phoneVerifiedAt,
     })
     .from(customers)
     .where(eq(customers.id, customerId))
+    .limit(1);
+
+  if (!identity) {
+    return null;
+  }
+
+  await db
+    .insert(organizationCustomers)
+    .values({
+      customerId,
+      name: identity.name,
+      organizationId: context.organizationId,
+    })
+    .onConflictDoNothing({
+      target: [
+        organizationCustomers.organizationId,
+        organizationCustomers.customerId,
+      ],
+    });
+
+  const [customer] = await getDb()
+    .select({
+      customerId: organizationCustomers.customerId,
+      dateOfBirth: organizationCustomers.dateOfBirth,
+      email: customers.email,
+      emailVerifiedAt: customers.emailVerifiedAt,
+      gender: organizationCustomers.gender,
+      id: organizationCustomers.id,
+      marketingOptIn: organizationCustomers.marketingOptIn,
+      name: organizationCustomers.name,
+      organizationId: organizationCustomers.organizationId,
+      phone: organizationCustomers.phone,
+      phoneVerifiedAt: organizationCustomers.phoneVerifiedAt,
+    })
+    .from(organizationCustomers)
+    .innerJoin(customers, eq(customers.id, organizationCustomers.customerId))
+    .where(
+      and(
+        eq(organizationCustomers.customerId, customerId),
+        eq(organizationCustomers.organizationId, context.organizationId),
+      ),
+    )
     .limit(1);
 
   return customer ?? null;
@@ -36,9 +76,16 @@ export async function getCustomerProfile(customerId: string) {
 
 export async function updateCustomerProfile(
   customerId: string,
+  context: TenantContext,
   input: CustomerProfileUpdate,
 ) {
-  const updates: Partial<typeof customers.$inferInsert> = {
+  const existingCustomer = await getCustomerProfile(customerId, context);
+
+  if (!existingCustomer) {
+    return null;
+  }
+
+  const updates: Partial<typeof organizationCustomers.$inferInsert> = {
     updatedAt: new Date(),
   };
 
@@ -64,16 +111,30 @@ export async function updateCustomerProfile(
   }
 
   const [customer] = await getDb()
-    .update(customers)
+    .update(organizationCustomers)
     .set(updates)
-    .where(eq(customers.id, customerId))
+    .where(
+      and(
+        eq(organizationCustomers.id, existingCustomer.id),
+        eq(organizationCustomers.organizationId, context.organizationId),
+      ),
+    )
     .returning();
 
-  return customer ?? null;
+  return customer ? getCustomerProfile(customerId, context) : null;
 }
 
-export async function getCustomerOrderHistory(customerId: string) {
+export async function getCustomerOrderHistory(
+  customerId: string,
+  context: TenantContext,
+) {
   const db = getDb();
+  const customer = await getCustomerProfile(customerId, context);
+
+  if (!customer) {
+    return [];
+  }
+
   const customerOrders = await db
     .select({
       createdAt: orders.createdAt,
@@ -88,7 +149,12 @@ export async function getCustomerOrderHistory(customerId: string) {
     .from(orders)
     .innerJoin(organizations, eq(organizations.id, orders.organizationId))
     .innerJoin(locations, eq(locations.id, orders.locationId))
-    .where(eq(orders.customerId, customerId))
+    .where(
+      and(
+        eq(orders.organizationId, context.organizationId),
+        eq(orders.organizationCustomerId, customer.id),
+      ),
+    )
     .orderBy(desc(orders.createdAt))
     .limit(100);
 
@@ -131,23 +197,23 @@ export async function searchCustomersForStaff(
   return getDb()
     .selectDistinct({
       email: customers.email,
-      id: customers.id,
-      name: customers.name,
-      phone: customers.phone,
+      id: organizationCustomers.id,
+      name: organizationCustomers.name,
+      phone: organizationCustomers.phone,
     })
-    .from(customers)
-    .innerJoin(orders, eq(orders.customerId, customers.id))
+    .from(organizationCustomers)
+    .innerJoin(customers, eq(customers.id, organizationCustomers.customerId))
     .where(
       and(
-        eq(orders.organizationId, context.organizationId),
+        eq(organizationCustomers.organizationId, context.organizationId),
         or(
-          ilike(customers.name, searchTerm),
+          ilike(organizationCustomers.name, searchTerm),
           ilike(customers.email, searchTerm),
-          ilike(customers.phone, searchTerm),
+          ilike(organizationCustomers.phone, searchTerm),
         ),
       ),
     )
-    .orderBy(asc(customers.name))
+    .orderBy(asc(organizationCustomers.name))
     .limit(10);
 }
 
@@ -157,17 +223,18 @@ export async function getStaffVisibleCustomer(
 ) {
   const [customer] = await getDb()
     .select({
+      customerId: organizationCustomers.customerId,
       email: customers.email,
-      id: customers.id,
-      name: customers.name,
-      phone: customers.phone,
+      id: organizationCustomers.id,
+      name: organizationCustomers.name,
+      phone: organizationCustomers.phone,
     })
-    .from(customers)
-    .innerJoin(orders, eq(orders.customerId, customers.id))
+    .from(organizationCustomers)
+    .innerJoin(customers, eq(customers.id, organizationCustomers.customerId))
     .where(
       and(
-        eq(customers.id, customerId),
-        eq(orders.organizationId, context.organizationId),
+        eq(organizationCustomers.id, customerId),
+        eq(organizationCustomers.organizationId, context.organizationId),
       ),
     )
     .limit(1);

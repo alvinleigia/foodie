@@ -24,6 +24,7 @@ import {
   requestJson,
   type FieldErrors,
 } from "@/lib/api-client";
+import { withPublicCustomerContext } from "@/lib/customer-navigation";
 
 type CustomerProfileField =
   | "dateOfBirth"
@@ -41,9 +42,15 @@ type CustomerProfileFormProps = {
     name: string;
     phone: string | null;
   };
+  locationQrSlug?: string;
+  locationSlug?: string;
 };
 
-export function CustomerProfileForm({ customer }: CustomerProfileFormProps) {
+export function CustomerProfileForm({
+  customer,
+  locationQrSlug,
+  locationSlug,
+}: CustomerProfileFormProps) {
   const router = useRouter();
   const [profile, setProfile] = useState({
     dateOfBirth: customer.dateOfBirth ?? "",
@@ -72,11 +79,17 @@ export function CustomerProfileForm({ customer }: CustomerProfileFormProps) {
     setFormError(null);
 
     try {
-      await requestJson("/api/customer/profile", {
-        body: profile,
-        fallbackError: "Profile could not be saved.",
-        method: "PATCH",
-      });
+      await requestJson(
+        withPublicCustomerContext("/api/customer/profile", {
+          locationQrSlug,
+          locationSlug,
+        }),
+        {
+          body: profile,
+          fallbackError: "Profile could not be saved.",
+          method: "PATCH",
+        },
+      );
       toast.success("Profile saved.");
       router.refresh();
     } catch (error) {

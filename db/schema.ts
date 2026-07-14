@@ -226,6 +226,38 @@ export const organizations = pgTable(
   ],
 );
 
+export const organizationCustomers = pgTable(
+  "organization_customers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    phoneVerifiedAt: timestamp("phone_verified_at"),
+    dateOfBirth: date("date_of_birth"),
+    gender: text("gender"),
+    marketingOptIn: boolean("marketing_opt_in").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_customers_org_customer_unique").on(
+      table.organizationId,
+      table.customerId,
+    ),
+    index("organization_customers_org_name_idx").on(
+      table.organizationId,
+      table.name,
+    ),
+    index("organization_customers_phone_idx").on(table.phone),
+  ],
+);
+
 export const organizationEmailSettings = pgTable(
   "organization_email_settings",
   {
@@ -748,6 +780,10 @@ export const orders = pgTable("orders", {
   customerId: uuid("customer_id").references(() => customers.id, {
     onDelete: "set null",
   }),
+  organizationCustomerId: uuid("organization_customer_id").references(
+    () => organizationCustomers.id,
+    { onDelete: "set null" },
+  ),
   createdByUserId: uuid("created_by_user_id").references(() => users.id, {
     onDelete: "set null",
   }),
@@ -790,6 +826,10 @@ export const orders = pgTable("orders", {
     table.createdAt,
   ),
   index("orders_customer_created_idx").on(table.customerId, table.createdAt),
+  index("orders_organization_customer_created_idx").on(
+    table.organizationCustomerId,
+    table.createdAt,
+  ),
   index("orders_created_by_user_idx").on(table.createdByUserId),
   index("orders_payment_status_idx").on(table.paymentStatus),
   index("orders_payment_account_org_idx").on(table.paymentAccountOrganizationId),

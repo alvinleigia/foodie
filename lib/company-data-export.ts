@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  customers,
   inventoryItems,
   locations,
   memberships,
@@ -9,6 +10,7 @@ import {
   menuItems,
   orderItems,
   orders,
+  organizationCustomers,
   organizationSubscriptions,
   organizations,
   saasPlans,
@@ -58,6 +60,7 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     categoryRows,
     itemRows,
     inventoryRows,
+    customerRows,
     orderRows,
   ] = await Promise.all([
     db
@@ -104,6 +107,20 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
           .where(inArray(inventoryItems.organizationId, restaurantIds))
       : Promise.resolve([]),
     restaurantIds.length
+      ? db
+          .select({
+            identity: {
+              email: customers.email,
+              emailVerifiedAt: customers.emailVerifiedAt,
+              id: customers.id,
+            },
+            profile: organizationCustomers,
+          })
+          .from(organizationCustomers)
+          .innerJoin(customers, eq(customers.id, organizationCustomers.customerId))
+          .where(inArray(organizationCustomers.organizationId, restaurantIds))
+      : Promise.resolve([]),
+    restaurantIds.length
       ? db.select().from(orders).where(inArray(orders.organizationId, restaurantIds))
       : Promise.resolve([]),
   ]);
@@ -141,6 +158,7 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     menuCategories: categoryRows,
     menuItems: itemRows,
     inventoryItems: inventoryRows,
+    customers: customerRows,
     orders: orderRows,
     orderItems: orderItemRows,
   };

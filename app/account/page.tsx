@@ -12,7 +12,12 @@ import {
   getCustomerOrderHistory,
   getCustomerProfile,
 } from "@/lib/customer-account";
-import { getCustomerLoginHref } from "@/lib/customer-navigation";
+import {
+  getCustomerLoginHref,
+  getCustomerOrderHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
+import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 function getOrderStatusTone(status: string) {
   if (status === "DELIVERED") {
@@ -26,31 +31,53 @@ function getOrderStatusTone(status: string) {
   return "warning" as const;
 }
 
-export default async function CustomerAccountPage() {
+export default async function CustomerAccountPage(props: PageProps<"/account">) {
+  const searchParams = await props.searchParams;
+  const locationQrSlug =
+    typeof searchParams.qr === "string" ? searchParams.qr : undefined;
+  const locationSlug =
+    typeof searchParams.location === "string" ? searchParams.location : undefined;
+  const customerContext = { locationQrSlug, locationSlug };
+  const routeContext = await getPublicOrderRouteContext(customerContext);
   const session = await requireCustomerSession();
 
   if (!session) {
-    redirect(getCustomerLoginHref({ returnTo: "/account" }));
+    redirect(
+      getCustomerLoginHref({
+        ...customerContext,
+        returnTo: "/account",
+      }),
+    );
+  }
+
+  if (!routeContext.hasTenantContext || !routeContext.tenantContext) {
+    redirect(getCustomerOrderHref("/order", customerContext));
   }
 
   const [customer, orderHistory] = await Promise.all([
-    getCustomerProfile(session.user.id),
-    getCustomerOrderHistory(session.user.id),
+    getCustomerProfile(session.user.id, routeContext.tenantContext),
+    getCustomerOrderHistory(session.user.id, routeContext.tenantContext),
   ]);
 
   if (!customer) {
-    redirect("/order");
+    redirect(getCustomerOrderHref("/order", customerContext));
   }
+
+  const accountHref = withPublicCustomerContext("/account", customerContext);
+  const ordersHref = withPublicCustomerContext(
+    "/account#orders",
+    customerContext,
+  );
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
       <AppHeader
         activePath="/account"
         customerMenu={{
-          accountHref: "/account",
+          accountHref,
           customerName: customer.name,
-          orderHref: "/order",
-          ordersHref: "/account#orders",
+          orderHref: getCustomerOrderHref("/order", customerContext),
+          ordersHref,
         }}
       />
 
@@ -65,7 +92,11 @@ export default async function CustomerAccountPage() {
             />
           </CardHeader>
           <CardContent className="px-6 pb-6">
-            <CustomerProfileForm customer={customer} />
+            <CustomerProfileForm
+              customer={customer}
+              locationQrSlug={locationQrSlug}
+              locationSlug={locationSlug}
+            />
           </CardContent>
         </Card>
 

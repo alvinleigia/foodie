@@ -23,10 +23,6 @@ export async function getPublicOrderRouteContext({
   locationSlug,
 }: PublicOrderRouteOptions) {
   const session = await auth().catch(() => null);
-  const customerProfile =
-    session?.user.kind === "customer"
-      ? await getCustomerProfile(session.user.id).catch(() => null)
-      : null;
   const user =
     session?.user.kind === "staff"
       ? {
@@ -34,12 +30,12 @@ export async function getPublicOrderRouteContext({
           role: session.user.role as MembershipRole,
         }
       : null;
-  const customer =
+  let customer =
     session?.user.kind === "customer"
       ? {
-          email: customerProfile?.email ?? session.user.email,
-          name: customerProfile?.name ?? session.user.name,
-          phone: customerProfile?.phone ?? null,
+          email: session.user.email,
+          name: session.user.name,
+          phone: null as string | null,
         }
       : null;
   const hasSignedLocationAccess = Boolean(
@@ -61,6 +57,20 @@ export async function getPublicOrderRouteContext({
       : requestDomain
         ? await getTenantContextFromDomain(requestDomain, locationSlug).catch(() => null)
         : null;
+
+  if (tenantContext && session?.user.kind === "customer") {
+    const customerProfile = await getCustomerProfile(
+      session.user.id,
+      tenantContext,
+    ).catch(() => null);
+
+    customer = {
+      email: customerProfile?.email ?? session.user.email,
+      name: customerProfile?.name ?? session.user.name,
+      phone: customerProfile?.phone ?? null,
+    };
+  }
+
   const [emailIntegration, googleIntegration, appleIntegration, facebookIntegration] =
     tenantContext
       ? await Promise.all([
@@ -93,6 +103,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: true,
       customer,
       customerAuthProviders,
+      tenantContext,
       user,
     };
   }
@@ -102,6 +113,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: false,
       customer,
       customerAuthProviders,
+      tenantContext: null,
       unavailableReason: "MISSING_CONTEXT" as const,
       user,
     };
@@ -111,6 +123,7 @@ export async function getPublicOrderRouteContext({
     hasTenantContext: false,
     customer,
     customerAuthProviders,
+    tenantContext: null,
     unavailableReason: (await getInactiveTenantDomain(requestDomain).catch(() => null))
       ? ("DOMAIN_DISABLED" as const)
       : ("MISSING_CONTEXT" as const),

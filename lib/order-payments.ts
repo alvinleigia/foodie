@@ -110,20 +110,21 @@ export function buildOrderPaymentPricing(
 export async function createOrderCheckoutSession(input: {
   amountTotalMinor: number;
   applicationFeeBps: number;
+  cancelUrl: string;
   customerEmail: string;
   customerId: string;
   expiresAt: Date;
   lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
   orderId: string;
-  origin: string;
   stripeAccountId: string;
+  successUrl: string;
 }) {
   const applicationFeeAmount = Math.round(
     (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
   );
   const session = await getStripe().checkout.sessions.create(
     {
-      cancel_url: `${input.origin}/account?payment=cancelled`,
+      cancel_url: input.cancelUrl,
       client_reference_id: input.orderId,
       customer_email: input.customerEmail,
       expires_at: Math.floor(input.expiresAt.getTime() / 1000),
@@ -142,7 +143,7 @@ export async function createOrderCheckoutSession(input: {
           orderId: input.orderId,
         },
       },
-      success_url: `${input.origin}/order/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: input.successUrl,
     },
     {
       idempotencyKey: `order-checkout-${input.orderId}`,

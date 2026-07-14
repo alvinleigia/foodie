@@ -8,6 +8,10 @@ import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireCustomerSession } from "@/lib/auth";
+import {
+  getCustomerOrderHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
 import { getCustomerPaymentResult } from "@/lib/order-payments";
 
 export default async function OrderPaymentSuccessPage(
@@ -15,23 +19,31 @@ export default async function OrderPaymentSuccessPage(
     searchParams: Promise<Record<string, string | string[] | undefined>>;
   },
 ) {
+  const searchParams = await props.searchParams;
+  const locationQrSlug =
+    typeof searchParams.qr === "string" ? searchParams.qr : undefined;
+  const locationSlug =
+    typeof searchParams.location === "string" ? searchParams.location : undefined;
+  const customerContext = { locationQrSlug, locationSlug };
+  const accountHref = withPublicCustomerContext("/account", customerContext);
+  const orderHref = getCustomerOrderHref("/order", customerContext);
+  const ordersHref = withPublicCustomerContext("/account#orders", customerContext);
   const session = await requireCustomerSession();
 
   if (!session) {
-    redirect("/order");
+    redirect(orderHref);
   }
 
-  const searchParams = await props.searchParams;
   const sessionId = searchParams.session_id;
 
   if (typeof sessionId !== "string") {
-    redirect("/account");
+    redirect(accountHref);
   }
 
   const order = await getCustomerPaymentResult(session.user.id, sessionId);
 
   if (!order) {
-    redirect("/account");
+    redirect(accountHref);
   }
 
   const isPaid = order.paymentStatus === "PAID";
@@ -43,10 +55,10 @@ export default async function OrderPaymentSuccessPage(
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-3xl space-y-6 pb-8">
       <AppHeader
         customerMenu={{
-          accountHref: "/account",
-          customerName: session.user.name,
-          orderHref: "/order",
-          ordersHref: "/account#orders",
+          accountHref,
+          customerName: order.customerName,
+          orderHref,
+          ordersHref,
         }}
       />
 
@@ -84,12 +96,12 @@ export default async function OrderPaymentSuccessPage(
           </div>
           <div className="flex flex-wrap justify-center gap-3">
             <Button asChild>
-              <Link href="/account#orders">
+              <Link href={ordersHref}>
                 <ButtonLabel icon={Clock3Icon}>View your orders</ButtonLabel>
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/order">Back to menu</Link>
+              <Link href={orderHref}>Back to menu</Link>
             </Button>
           </div>
         </CardContent>

@@ -47,6 +47,7 @@ import {
 import { getStripe } from "@/lib/stripe";
 import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
+import { withPublicCustomerContext } from "@/lib/customer-navigation";
 
 export async function GET() {
   try {
@@ -95,9 +96,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
+    const rateLimit = checkRateLimit({
+      key: getRequestRateLimitKey(request, "public:order-create"),
+      limit: 12,
+      windowMs: 60_000,
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
+    const body = await request.json();
+    const parsed = createOrderSchema.safeParse(body);
+    const tenantContext = await getPublicTenantContextFromRequest(request);
+
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
     const customerProfile =
       session.user.kind === "customer"
-        ? await getCustomerProfile(session.user.id)
+        ? await getCustomerProfile(session.user.id, tenantContext)
         : null;
 
     if (session.user.kind === "customer" && !customerProfile) {
@@ -129,20 +148,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rateLimit = checkRateLimit({
-      key: getRequestRateLimitKey(request, "public:order-create"),
-      limit: 12,
-      windowMs: 60_000,
-    });
-
-    if (!rateLimit.allowed) {
-      return rateLimitResponse(rateLimit);
-    }
-
-    const body = await request.json();
-    const parsed = createOrderSchema.safeParse(body);
-    const tenantContext = await getPublicTenantContextFromRequest(request);
-
     const paymentIntegration =
       session.user.kind === "customer"
         ? await resolveOrganizationPaymentIntegration(tenantContext.organizationId)
@@ -156,10 +161,6 @@ export async function POST(request: NextRequest) {
         { error: "Online payment is temporarily unavailable." },
         { status: 503 },
       );
-    }
-
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
     const orderCustomerName =
@@ -301,7 +302,11 @@ export async function POST(request: NextRequest) {
           customerToken,
           customerId:
             session.user.kind === "customer"
-              ? session.user.id
+              ? customerProfile?.customerId ?? null
+              : linkedStaffCustomer?.customerId ?? null,
+          organizationCustomerId:
+            session.user.kind === "customer"
+              ? customerProfile?.id ?? null
               : linkedStaffCustomer?.id ?? null,
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
@@ -380,18 +385,36 @@ export async function POST(request: NextRequest) {
       paymentIntegration?.status === "CONFIGURED"
     ) {
       let checkoutSessionId: string | null = null;
+      const customerContext = {
+        locationQrSlug: request.nextUrl.searchParams.get("qr") ?? undefined,
+        locationSlug: request.nextUrl.searchParams.get("location") ?? undefined,
+      };
+      const cancelPath = withPublicCustomerContext(
+        "/account?payment=cancelled",
+        customerContext,
+      );
+      const successPath = withPublicCustomerContext(
+        "/order/payment/success",
+        customerContext,
+      );
+      const successUrl = new URL(successPath, request.url);
+      successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
 
       try {
         const checkoutSession = await createOrderCheckoutSession({
           amountTotalMinor: paymentPricing.amountTotalMinor,
           applicationFeeBps: paymentIntegration.applicationFeeBps,
+          cancelUrl: new URL(cancelPath, request.url).toString(),
           customerEmail: customerProfile.email,
-          customerId: customerProfile.id,
+          customerId: customerProfile.customerId,
           expiresAt: paymentExpiresAt,
           lineItems: paymentPricing.lineItems,
           orderId: createdOrder.id,
-          origin: new URL(request.url).origin,
           stripeAccountId: paymentIntegration.stripeAccountId,
+          successUrl: successUrl.toString().replace(
+            "%7BCHECKOUT_SESSION_ID%7D",
+            "{CHECKOUT_SESSION_ID}",
+          ),
         });
         checkoutSessionId = checkoutSession.id;
         checkoutUrl = checkoutSession.url;
