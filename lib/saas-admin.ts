@@ -184,7 +184,7 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
       .values({
         domain: parsed.domain,
         scope: "COMPANY",
-        purpose: parsed.purpose,
+        purpose: "ORDERING",
         companyOrganizationId,
         isPrimary: parsed.isPrimary,
         isActive: parsed.isActive,
@@ -224,7 +224,6 @@ export async function updateCompanyDomain(
     const [domain] = await tx
       .update(tenantDomains)
       .set({
-        ...(parsed.purpose ? { purpose: parsed.purpose } : {}),
         ...(typeof parsed.isPrimary === "boolean" ? { isPrimary: parsed.isPrimary } : {}),
         ...(typeof parsed.isActive === "boolean" ? { isActive: parsed.isActive } : {}),
         updatedAt: new Date(),
@@ -278,7 +277,7 @@ export async function createCompanyOrganization(input: unknown) {
     await tx.insert(tenantDomains).values({
       domain: buildCompanySubdomain(company.slug),
       scope: "COMPANY",
-      purpose: "BOTH",
+      purpose: "ORDERING",
       companyOrganizationId: company.id,
       isPrimary: true,
       isActive: true,

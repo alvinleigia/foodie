@@ -173,6 +173,10 @@ export async function getTenantContextFromDomain(
       and(
         eq(tenantDomains.domain, normalizedDomain),
         eq(tenantDomains.isActive, true),
+        or(
+          eq(tenantDomains.purpose, "ORDERING"),
+          eq(tenantDomains.purpose, "BOTH"),
+        ),
       ),
     )
     .limit(1);

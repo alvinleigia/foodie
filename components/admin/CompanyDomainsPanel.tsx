@@ -21,13 +21,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type CompanyDomain = {
   id: string;
@@ -51,7 +44,7 @@ type CompanyDomainsResponse = {
   domains?: CompanyDomain[];
 };
 
-type CompanyDomainField = "domain" | "isPrimary" | "purpose";
+type CompanyDomainField = "domain" | "isPrimary";
 
 function normalizeDomainInput(value: string) {
   return value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
@@ -65,7 +58,6 @@ export function CompanyDomainsPanel({
 }: CompanyDomainsPanelProps) {
   const [domains, setDomains] = useState(initialDomains);
   const [domain, setDomain] = useState("");
-  const [purpose, setPurpose] = useState<"ORDERING" | "BOTH">("ORDERING");
   const [isPrimary, setIsPrimary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingDomainId, setPendingDomainId] = useState<string | null>(null);
@@ -83,7 +75,6 @@ export function CompanyDomainsPanel({
       payload = await requestJson(apiPath, {
         body: {
           domain: normalizeDomainInput(domain),
-          purpose,
           isPrimary,
           isActive: true,
         },
@@ -99,7 +90,6 @@ export function CompanyDomainsPanel({
 
     setDomains(payload.domains ?? []);
     setDomain("");
-    setPurpose("ORDERING");
     setIsPrimary(false);
     validation.clearErrors();
     setIsSubmitting(false);
@@ -108,7 +98,7 @@ export function CompanyDomainsPanel({
 
   async function updateDomain(
     domainRecord: CompanyDomain,
-    input: Partial<Pick<CompanyDomain, "isActive" | "isPrimary" | "purpose">>,
+    input: Partial<Pick<CompanyDomain, "isActive" | "isPrimary">>,
   ) {
     setPendingDomainId(domainRecord.id);
     setError(null);
@@ -139,7 +129,7 @@ export function CompanyDomainsPanel({
         <CardHeader className="px-5 pt-5">
           <h3 className="text-2xl font-semibold text-stone-950">Add domain</h3>
           <p className="text-sm text-stone-500">
-            Link a custom domain to {companyName}. Add the same domain in Vercel and point DNS there.
+            Link a customer-facing ordering domain to {companyName}. Staff and administration stay on the Foodie platform domain.
           </p>
         </CardHeader>
         <CardContent className="px-5 pb-5">
@@ -154,53 +144,29 @@ export function CompanyDomainsPanel({
               <p className="text-sm text-rose-600">{validation.formError}</p>
             ) : null}
 
-            <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-              <FormField
-                label="Domain"
-                htmlFor="company-domain"
-                error={validation.getError("domain")}
-                errorId="company-domain-error"
-              >
-                <Input
-                  id="company-domain"
-                  value={domain}
-                  aria-describedby={
-                    validation.getError("domain")
-                      ? "company-domain-error"
-                      : undefined
-                  }
-                  aria-invalid={Boolean(validation.getError("domain"))}
-                  onChange={(event) => {
-                    validation.clearFieldError("domain");
-                    setDomain(event.target.value);
-                  }}
-                  placeholder="foodie.allgoonline.co.uk"
-                  disabled={isSubmitting}
-                />
-              </FormField>
-
-              <FormField
-                label="Purpose"
-                error={validation.getError("purpose")}
-                errorId="company-domain-purpose-error"
-              >
-                <Select
-                  value={purpose}
-                  onValueChange={(nextPurpose) => {
-                    validation.clearFieldError("purpose");
-                    setPurpose(nextPurpose as "ORDERING" | "BOTH");
-                  }}
-                >
-                  <SelectTrigger className="bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ORDERING">Ordering only</SelectItem>
-                    <SelectItem value="BOTH">Admin and ordering</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormField>
-            </div>
+            <FormField
+              label="Domain"
+              htmlFor="company-domain"
+              error={validation.getError("domain")}
+              errorId="company-domain-error"
+            >
+              <Input
+                id="company-domain"
+                value={domain}
+                aria-describedby={
+                  validation.getError("domain")
+                    ? "company-domain-error"
+                    : undefined
+                }
+                aria-invalid={Boolean(validation.getError("domain"))}
+                onChange={(event) => {
+                  validation.clearFieldError("domain");
+                  setDomain(event.target.value);
+                }}
+                placeholder="foodie.allgoonline.co.uk"
+                disabled={isSubmitting}
+              />
+            </FormField>
 
             <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
               <Checkbox
@@ -255,7 +221,7 @@ export function CompanyDomainsPanel({
         <CardHeader className="px-5 pt-5">
           <h3 className="text-2xl font-semibold text-stone-950">Linked domains</h3>
           <p className="text-sm text-stone-500">
-            These domains can resolve {companyName} once Vercel and DNS are configured.
+            These domains serve {companyName} customer ordering and account views once Vercel and DNS are configured.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
@@ -280,9 +246,7 @@ export function CompanyDomainsPanel({
                   <StatusPill tone={domainRecord.isActive ? "success" : "warning"}>
                     {domainRecord.isActive ? "Active" : "Disabled"}
                   </StatusPill>
-                  <StatusPill>
-                    {domainRecord.purpose.toLowerCase()}
-                  </StatusPill>
+                  <StatusPill>Customer ordering</StatusPill>
                 </div>
                 {domainRecord.isActive ? (
                   <a
@@ -302,23 +266,6 @@ export function CompanyDomainsPanel({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <Select
-                  value={domainRecord.purpose}
-                  disabled={pendingDomainId === domainRecord.id}
-                  onValueChange={(nextPurpose) =>
-                    updateDomain(domainRecord, {
-                      purpose: nextPurpose as CompanyDomain["purpose"],
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-10 w-[190px] bg-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ORDERING">Ordering only</SelectItem>
-                    <SelectItem value="BOTH">Admin and ordering</SelectItem>
-                  </SelectContent>
-                </Select>
                 <Button
                   type="button"
                   variant="outline"

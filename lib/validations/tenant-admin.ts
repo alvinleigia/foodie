@@ -157,13 +157,11 @@ export const companyDomainSchema = z.object({
     .refine((value) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(value), {
       message: "Enter a valid domain such as foodie.allgoonline.co.uk",
     }),
-  purpose: z.enum(["ORDERING", "BOTH"]).default("ORDERING"),
   isPrimary: z.boolean().default(false),
   isActive: z.boolean().default(true),
 });
 
 export const updateCompanyDomainSchema = z.object({
-  purpose: z.enum(["ORDERING", "BOTH"]).optional(),
   isPrimary: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });

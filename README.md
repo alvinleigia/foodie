@@ -72,7 +72,19 @@ PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
-The `AUTH_GOOGLE_*`, `AUTH_APPLE_*` and `AUTH_FACEBOOK_*` values are the universal Foodie fallback. Company admins can replace them per provider, and restaurants can inherit the company setting, provide their own credentials or disable a provider. Tenant client secrets are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`. OAuth callbacks use `/api/auth/callback/google`, `/api/auth/callback/apple` and `/api/auth/callback/facebook` on every ordering origin that uses the credentials. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address.
+The `AUTH_GOOGLE_*`, `AUTH_APPLE_*` and `AUTH_FACEBOOK_*` values are the universal Foodie fallback. Company admins can replace them per provider, and restaurants can inherit the company setting, provide their own credentials or disable a provider. Tenant client secrets are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`.
+
+All social login apps use one callback origin, even when customers order on a tenant-owned domain:
+
+```text
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/google
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/apple
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/facebook
+```
+
+Foodie returns the customer to the ordering domain with a short-lived, single-use session handoff. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address.
+
+Staff login, operations and administration run only on `APP_ROOT_DOMAIN`. Company subdomains and custom tenant domains are customer-facing and serve ordering, customer account and payment views. Privileged paths opened on a tenant domain redirect to the platform domain.
 
 Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
 
@@ -111,7 +123,7 @@ Apply migrations from the committed SQL files:
 npm run db:migrate
 ```
 
-Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, tenant social login overrides require `0024_tenant_oauth_settings.sql`, and strict cell defaults require `0026_cell_deployment_defaults.sql`. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
+Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, tenant social login overrides require `0024_tenant_oauth_settings.sql`, strict cell defaults require `0026_cell_deployment_defaults.sql`, and centralized customer social login requires `0027_customer_auth_handoffs.sql`. Migration `0028_customer_facing_tenant_domains.sql` makes all non-platform domains customer-facing. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 
