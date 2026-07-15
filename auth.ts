@@ -14,10 +14,7 @@ import {
 } from "@/lib/organization-oauth-settings";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
-import {
-  getTenantDomainAccessScopeFromDomain,
-  isRootPlatformDomain,
-} from "@/lib/tenant-domains";
+import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 const providerTypeMap = {
@@ -102,11 +99,13 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(asy
       async authorize(credentials, request) {
         const requestHost =
           request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-        const accessScope = await getTenantDomainAccessScopeFromDomain(requestHost);
+
+        if (!isPlatformAdministrationDomain(requestHost)) {
+          return null;
+        }
 
         return authenticateStaff(credentials?.username, credentials?.password, {
-          platformOnly: isRootPlatformDomain(requestHost),
-          accessScope,
+          accessScope: { type: "PLATFORM" },
         });
       },
     }),

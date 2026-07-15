@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import type { Session } from "next-auth";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
 import {
   canAccessRole,
   operationalRoles,
@@ -26,6 +27,10 @@ function isCustomerSession(session: Session | null): session is CustomerSession 
 }
 
 export async function requireStaffSession() {
+  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
+    return null;
+  }
+
   const session = await auth();
 
   if (
@@ -45,6 +50,10 @@ export async function requireStaffSession() {
 }
 
 export async function requireRole(allowedRoles: MembershipRole[]) {
+  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
+    return null;
+  }
+
   const session = await auth();
 
   if (
@@ -66,6 +75,10 @@ export async function requireRole(allowedRoles: MembershipRole[]) {
 }
 
 export async function requireMenuManagerSession() {
+  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
+    return null;
+  }
+
   const session = await auth();
 
   if (

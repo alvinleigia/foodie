@@ -1,15 +1,23 @@
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
-import { auth, unstable_update } from "@/auth";
+import { unstable_update } from "@/auth";
+import { requireRole } from "@/lib/auth";
 import { resolveMembershipAccess } from "@/lib/location-access";
 import { getHomePathForRole } from "@/lib/role-access";
-import { getTenantDomainAccessScopeFromRequest } from "@/lib/tenant-domains";
+import type { MembershipRole } from "@/lib/staff-auth";
+
+const allStaffRoles: MembershipRole[] = [
+  "PLATFORM_ADMIN",
+  "COMPANY_OWNER",
+  "RESTAURANT_MANAGER",
+  "ORDER_OPERATOR",
+];
 
 export async function GET(request: Request) {
-  const session = await auth();
+  const session = await requireRole(allStaffRoles);
 
-  if (session?.user.kind !== "staff") {
+  if (!session) {
     redirect("/staff/login");
   }
 
@@ -19,11 +27,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Membership is required." }, { status: 400 });
   }
 
-  const accessScope = await getTenantDomainAccessScopeFromRequest(request);
   const access = await resolveMembershipAccess(
     session.user.id,
     membershipId,
-    accessScope,
+    { type: "PLATFORM" },
   );
 
   if (!access) {

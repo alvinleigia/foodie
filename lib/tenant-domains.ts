@@ -3,39 +3,13 @@ import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { locations, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import {
+  normalizeDomain,
+  ROOT_DOMAIN,
+} from "@/lib/deployment-domain";
 import type { TenantContext } from "@/lib/tenant-context";
 
-function resolveRootDomain(value: string | undefined) {
-  const domain = value?.trim().toLowerCase().replace(/\.$/, "");
-  const domainPattern = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-
-  if (!domain) {
-    throw new Error("APP_ROOT_DOMAIN is required for this deployment cell.");
-  }
-
-  if (!domainPattern.test(domain)) {
-    throw new Error("APP_ROOT_DOMAIN must be a hostname without a protocol, path or port.");
-  }
-
-  return domain;
-}
-
-export const ROOT_DOMAIN = resolveRootDomain(process.env.APP_ROOT_DOMAIN);
-
-export function normalizeDomain(value: string | null | undefined) {
-  const rawHost = value?.split(",")[0]?.trim().toLowerCase();
-
-  if (!rawHost) {
-    return null;
-  }
-
-  const withoutProtocol = rawHost.replace(/^https?:\/\//, "");
-  const withoutPath = withoutProtocol.split("/")[0];
-  const withoutPort = withoutPath.split(":")[0];
-  const normalized = withoutPort.replace(/\.$/, "");
-
-  return normalized || null;
-}
+export { normalizeDomain, ROOT_DOMAIN } from "@/lib/deployment-domain";
 
 export function buildCompanySubdomain(companySlug: string) {
   return `${companySlug}.${ROOT_DOMAIN}`.toLowerCase();

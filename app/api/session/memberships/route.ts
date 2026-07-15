@@ -1,26 +1,32 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { auth, unstable_update } from "@/auth";
+import { unstable_update } from "@/auth";
+import { requireRole } from "@/lib/auth";
 import {
   getMembershipAccessOptions,
   resolveMembershipAccess,
 } from "@/lib/location-access";
 import { getHomePathForRole } from "@/lib/role-access";
-import { getTenantDomainAccessScopeFromRequest } from "@/lib/tenant-domains";
+import type { MembershipRole } from "@/lib/staff-auth";
+
+const allStaffRoles: MembershipRole[] = [
+  "PLATFORM_ADMIN",
+  "COMPANY_OWNER",
+  "RESTAURANT_MANAGER",
+  "ORDER_OPERATOR",
+];
 
 const switchMembershipSchema = z.object({
   membershipId: z.string().uuid(),
 });
 
-export async function GET(request: Request) {
-  const session = await auth();
+export async function GET() {
+  const session = await requireRole(allStaffRoles);
 
-  if (session?.user.kind !== "staff") {
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  const accessScope = await getTenantDomainAccessScopeFromRequest(request);
 
   return NextResponse.json({
     active: {
@@ -28,14 +34,14 @@ export async function GET(request: Request) {
       locationId: session.user.locationId,
       role: session.user.role,
     },
-    memberships: await getMembershipAccessOptions(session.user.id, accessScope),
+    memberships: await getMembershipAccessOptions(session.user.id, { type: "PLATFORM" }),
   });
 }
 
 export async function PATCH(request: Request) {
-  const session = await auth();
+  const session = await requireRole(allStaffRoles);
 
-  if (session?.user.kind !== "staff") {
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -45,11 +51,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const accessScope = await getTenantDomainAccessScopeFromRequest(request);
   const access = await resolveMembershipAccess(
     session.user.id,
     parsed.data.membershipId,
-    accessScope,
+    { type: "PLATFORM" },
   );
 
   if (!access) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
 import { isUatDatabaseResetEnabled, resetUatDatabase } from "@/lib/uat-reset";
 
@@ -12,6 +13,10 @@ const resetSchema = z.object({
 export async function POST(request: Request) {
   if (!isUatDatabaseResetEnabled()) {
     return NextResponse.json({ error: "UAT database reset is disabled." }, { status: 404 });
+  }
+
+  if (!isPlatformAdministrationRequest(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const session = await auth();

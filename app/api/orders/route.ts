@@ -48,6 +48,7 @@ import { getStripe } from "@/lib/stripe";
 import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
+import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 
 export async function GET() {
   try {
@@ -91,7 +92,8 @@ export async function POST(request: NextRequest) {
 
     if (
       session.user.kind === "staff" &&
-      !canAccessRole(session.user.role, operationalRoles)
+      (!isPlatformAdministrationRequest(request) ||
+        !canAccessRole(session.user.role, operationalRoles))
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
