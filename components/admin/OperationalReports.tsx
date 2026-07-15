@@ -303,40 +303,40 @@ export function OperationalReports({
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
-          {report.locationBreakdown.length === 0 ? (
+          {report.restaurantBreakdown.length === 0 ? (
             <EmptyReportLine message="No restaurants to report yet." />
           ) : null}
 
-          {report.locationBreakdown.map((location) => (
+          {report.restaurantBreakdown.map((restaurant) => (
             <div
-              key={location.id}
+              key={restaurant.id}
               className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 md:grid-cols-[1.2fr_2fr]"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-stone-950">{location.name}</p>
+                  <p className="font-semibold text-stone-950">{restaurant.name}</p>
                   <span
                     className={
-                      location.isActive
+                      restaurant.isActive
                         ? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800"
                         : "rounded-full bg-stone-200 px-2 py-1 text-xs font-semibold text-stone-600"
                     }
                   >
-                    {location.isActive ? "Active" : "Disabled"}
+                    {restaurant.isActive ? "Active" : "Disabled"}
                   </span>
                 </div>
-                {location.label ? (
-                  <p className="mt-1 text-sm text-stone-500">{location.label}</p>
+                {restaurant.label ? (
+                  <p className="mt-1 text-sm text-stone-500">{restaurant.label}</p>
                 ) : null}
                 <p className="mt-2 text-xs uppercase tracking-[0.16em] text-stone-400">
-                  {formatLastOrder(location.lastOrderAt)}
+                  {formatLastOrder(restaurant.lastOrderAt)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <Metric label="Total" value={location.totalOrders} />
-                <Metric label="Active" value={location.activeOrders} />
-                <Metric label="Delivered" value={location.deliveredOrders} />
-                <Metric label="Cancelled" value={location.cancelledOrders} />
+                <Metric label="Total" value={restaurant.totalOrders} />
+                <Metric label="Active" value={restaurant.activeOrders} />
+                <Metric label="Delivered" value={restaurant.deliveredOrders} />
+                <Metric label="Cancelled" value={restaurant.cancelledOrders} />
               </div>
             </div>
           ))}

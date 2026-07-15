@@ -44,7 +44,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
+      locationId: null,
       action: "menu.item.availability.update",
       entityType: "menu_item",
       entityId: item.id,

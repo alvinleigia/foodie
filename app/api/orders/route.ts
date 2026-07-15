@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { generateCustomerToken } from "@/lib/order-token";
-import { getLocationBusinessDate, getNextOrderNumber } from "@/lib/order-number";
+import { getNextOrderNumber, getRestaurantBusinessDate } from "@/lib/order-number";
 import { createOrderSchema } from "@/lib/validations/order";
 import {
   buildOrderSummary,
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
     const cartItems: Array<{
       categoryId: string;
       organizationId: string;
-      locationId: string;
+      locationId: null;
       categoryName: string;
       drinkId: string;
       drinkName: string;
@@ -257,7 +257,7 @@ export async function POST(request: NextRequest) {
       cartItems.push({
         categoryId: category.id,
         organizationId: tenantContext.organizationId,
-        locationId: tenantContext.locationId,
+        locationId: null,
         categoryName: category.name,
         drinkId: item.id,
         drinkName: item.name,
@@ -291,13 +291,14 @@ export async function POST(request: NextRequest) {
     );
 
     const createdOrder = await db.transaction(async (tx) => {
-      const orderDate = await getLocationBusinessDate(tx, tenantContext);
+      const orderDate = await getRestaurantBusinessDate(tx, tenantContext);
       const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
       const [newOrder] = await tx
         .insert(orders)
         .values({
           organizationId: tenantContext.organizationId,
-          locationId: tenantContext.locationId,
+          locationId: null,
+          orderingPointId: tenantContext.orderingPointId,
           orderDate,
           orderNo,
           customerName: orderCustomerName,
@@ -344,7 +345,7 @@ export async function POST(request: NextRequest) {
           .insert(orderItems)
           .values({
             organizationId: tenantContext.organizationId,
-            locationId: tenantContext.locationId,
+            locationId: null,
             orderId: newOrder.id,
             categoryId: item.categoryId,
             categoryName: item.categoryName,
@@ -362,7 +363,7 @@ export async function POST(request: NextRequest) {
           await tx.insert(orderItemModifiers).values(
             item.modifiers.map((modifier) => ({
               organizationId: tenantContext.organizationId,
-              locationId: tenantContext.locationId,
+              locationId: null,
               orderItemId: newOrderItem.id,
               modifierGroupId: modifier.modifierGroupId,
               modifierGroupName: modifier.modifierGroupName,
@@ -455,7 +456,8 @@ export async function POST(request: NextRequest) {
         logError("order.checkout.create_failed", paymentError, {
           orderId: createdOrder.id,
           organizationId: tenantContext.organizationId,
-          locationId: tenantContext.locationId,
+          locationId: null,
+          orderingPointId: tenantContext.orderingPointId,
         });
         throw new Error("Payment could not be started. Please try again.");
       }

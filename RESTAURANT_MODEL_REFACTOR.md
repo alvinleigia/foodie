@@ -48,3 +48,12 @@ Ordering point
 - [x] Enforce restaurant and user limits from the company subscription.
 - [x] Hide legacy location administration behind compatibility redirects.
 - [x] Keep one internal compatibility location per restaurant until Phase 3.
+
+## Phase 3
+
+- [x] Make restaurant organizations the runtime scope for menus and modifiers.
+- [x] Make restaurant organizations the runtime scope for inventory.
+- [x] Make restaurant organizations the runtime scope for orders and daily numbers.
+- [x] Resolve QR links through restaurant-owned ordering points.
+- [x] Report operational activity by restaurant instead of compatibility location.
+- [x] Keep legacy operational location columns nullable until Phase 5 cleanup.

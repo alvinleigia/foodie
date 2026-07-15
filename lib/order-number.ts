@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, orders } from "@/db/schema";
+import { orders, organizations } from "@/db/schema";
 import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import { TenantContext } from "@/lib/tenant-context";
 
@@ -29,22 +29,17 @@ function formatDateForTimeZone(date: Date, timeZone: string) {
   return `${year}-${month}-${day}`;
 }
 
-export async function getLocationBusinessDate(
+export async function getRestaurantBusinessDate(
   db: OrderNumberClient,
   context: TenantContext,
 ) {
-  const [location] = await db
-    .select({ timezone: locations.timezone })
-    .from(locations)
-    .where(
-      and(
-        eq(locations.id, context.locationId),
-        eq(locations.organizationId, context.organizationId),
-      ),
-    )
+  const [restaurant] = await db
+    .select({ timezone: organizations.timezone })
+    .from(organizations)
+    .where(eq(organizations.id, context.organizationId))
     .limit(1);
 
-  return formatDateForTimeZone(new Date(), location?.timezone ?? DEFAULT_TIMEZONE);
+  return formatDateForTimeZone(new Date(), restaurant?.timezone ?? DEFAULT_TIMEZONE);
 }
 
 export async function getNextOrderNumber(
@@ -53,7 +48,7 @@ export async function getNextOrderNumber(
   orderDate: string,
 ) {
   await db.execute(
-    sql`select pg_advisory_xact_lock(hashtext(${context.organizationId}), hashtext(${`${context.locationId}:${orderDate}`}))`,
+    sql`select pg_advisory_xact_lock(hashtext(${context.organizationId}), hashtext(${orderDate}))`,
   );
 
   const [row] = await db
@@ -64,7 +59,6 @@ export async function getNextOrderNumber(
     .where(
       and(
         eq(orders.organizationId, context.organizationId),
-        eq(orders.locationId, context.locationId),
         eq(orders.orderDate, orderDate),
       ),
     );

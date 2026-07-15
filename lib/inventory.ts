@@ -46,7 +46,7 @@ function serializeInventoryRecord(input: {
   return {
     id: input.inventory?.id ?? null,
     organizationId: input.item.organizationId,
-    locationId: input.item.locationId ?? "",
+    locationId: input.item.locationId,
     menuItemId: input.item.id,
     categoryId: input.categoryId,
     categoryName: input.categoryName,
@@ -83,15 +83,12 @@ export async function getInventoryRecords(context: TenantContext) {
       and(
         eq(inventoryItems.menuItemId, menuItems.id),
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
       ),
     )
     .where(
       and(
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .orderBy(
@@ -121,20 +118,19 @@ export async function upsertInventoryItem(context: TenantContext, input: unknown
       and(
         eq(menuItems.id, parsed.menuItemId),
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     )
     .limit(1);
 
   if (!menuItem) {
-    throw new Error("Menu item not found for this location.");
+    throw new Error("Menu item not found for this restaurant.");
   }
 
   await db
     .insert(inventoryItems)
     .values({
       organizationId: context.organizationId,
-      locationId: context.locationId,
+      locationId: null,
       menuItemId: parsed.menuItemId,
       unit: parsed.unit,
       currentQuantity: parsed.currentQuantity,
@@ -146,7 +142,6 @@ export async function upsertInventoryItem(context: TenantContext, input: unknown
     .onConflictDoUpdate({
       target: [
         inventoryItems.organizationId,
-        inventoryItems.locationId,
         inventoryItems.menuItemId,
       ],
       set: {
@@ -188,7 +183,6 @@ export async function reserveInventoryForOrderItem(
     .where(
       and(
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
         eq(inventoryItems.menuItemId, item.drinkId),
       ),
     )
@@ -208,7 +202,6 @@ export async function reserveInventoryForOrderItem(
       and(
         eq(inventoryItems.id, inventory.id),
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
         eq(inventoryItems.menuItemId, item.drinkId),
         eq(inventoryItems.isTracked, true),
         sql`${inventoryItems.currentQuantity} >= ${item.quantity}`,
@@ -242,7 +235,6 @@ export async function restoreReservedInventoryForOrderItem(
     .where(
       and(
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
         eq(inventoryItems.menuItemId, item.drinkId),
       ),
     );

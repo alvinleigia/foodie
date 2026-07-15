@@ -96,19 +96,80 @@ try {
     );
   }
 
-  const tables = ["menu_categories", "menu_items", "orders", "order_items"];
+  const operationalTables = [
+    "menu_categories",
+    "menu_items",
+    "modifier_groups",
+    "modifier_options",
+    "inventory_items",
+    "orders",
+    "order_items",
+    "order_item_modifiers",
+  ];
 
-  for (const table of tables) {
+  for (const table of operationalTables) {
     const [result] = await sql.unsafe(`
       select count(*)::int as missing_count
       from ${table}
       where organization_id is null
-        or ${table === "menu_categories" || table === "menu_items" ? "false" : "location_id is null"}
     `);
 
     if (result.missing_count > 0) {
-      throw new Error(`${table} has ${result.missing_count} rows missing tenant scope.`);
+      throw new Error(`${table} has ${result.missing_count} rows missing restaurant scope.`);
     }
+
+    const [scope] = await sql.unsafe(`
+      select count(*)::int as invalid_count
+      from ${table} operational_record
+      inner join organizations organization
+        on organization.id = operational_record.organization_id
+      where organization.type <> 'RESTAURANT'
+    `);
+
+    if (scope.invalid_count > 0) {
+      throw new Error(`${table} has ${scope.invalid_count} rows outside restaurant scope.`);
+    }
+  }
+
+  const nullableOperationalLocationColumns = await sql`
+    select table_name, is_nullable
+    from information_schema.columns
+    where table_schema = 'public'
+      and column_name = 'location_id'
+      and table_name in (
+        'menu_categories',
+        'menu_items',
+        'modifier_groups',
+        'modifier_options',
+        'inventory_items',
+        'orders',
+        'order_items',
+        'order_item_modifiers'
+      )
+  `;
+  const requiredLocationColumn = nullableOperationalLocationColumns.find(
+    (column) => column.is_nullable !== "YES",
+  );
+
+  if (nullableOperationalLocationColumns.length !== 8 || requiredLocationColumn) {
+    throw new Error(
+      "Operational location columns are not in Phase 3 compatibility mode. Run migrations.",
+    );
+  }
+
+  const [orderOrderingPointScope] = await sql`
+    select count(*)::int as invalid_count
+    from orders order_record
+    inner join ordering_points ordering_point
+      on ordering_point.id = order_record.ordering_point_id
+    where order_record.ordering_point_id is not null
+      and ordering_point.organization_id <> order_record.organization_id
+  `;
+
+  if (orderOrderingPointScope.invalid_count > 0) {
+    throw new Error(
+      `orders has ${orderOrderingPointScope.invalid_count} cross-restaurant ordering-point links.`,
+    );
   }
 
   const [orderingPointScope] = await sql`

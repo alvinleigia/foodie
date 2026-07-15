@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
+      locationId: null,
       action: "menu.category.create",
       entityType: "menu_category",
       entityId: category.id,

@@ -3,7 +3,6 @@ import { and, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   inventoryItems,
-  locations,
   memberships,
   menuCategories,
   menuItems,
@@ -27,7 +26,7 @@ export type OrderStatusReportRow = {
   count: number;
 };
 
-export type LocationOrderReportRow = {
+export type RestaurantOrderReportRow = {
   id: string;
   name: string;
   label: string | null;
@@ -100,7 +99,7 @@ export type OperationalReport = {
   cancelledItems: CancelledItemReportRow[];
   revenue: RevenueReport;
   lowStock: LowStockReportRow[];
-  locationBreakdown: LocationOrderReportRow[];
+  restaurantBreakdown: RestaurantOrderReportRow[];
 };
 
 export type ReportRange = "today" | "7d" | "30d" | "all";
@@ -455,27 +454,27 @@ async function getLowStockReport(organizationIds: string[]): Promise<LowStockRep
   return rows;
 }
 
-async function getLocationOrderBreakdown(
+async function getRestaurantOrderBreakdown(
   organizationIds: string[],
   since?: Date,
-): Promise<LocationOrderReportRow[]> {
+): Promise<RestaurantOrderReportRow[]> {
   if (organizationIds.length === 0) {
     return [];
   }
 
   const db = getDb();
-  const locationRows = await db
+  const restaurantRows = await db
     .select()
-    .from(locations)
+    .from(organizations)
     .where(
       organizationIds.length === 1
-        ? eq(locations.organizationId, organizationIds[0])
-        : inArray(locations.organizationId, organizationIds),
+        ? eq(organizations.id, organizationIds[0])
+        : inArray(organizations.id, organizationIds),
     );
 
   return Promise.all(
-    locationRows.map(async (location) => {
-      const baseConditions = [eq(orders.locationId, location.id)];
+    restaurantRows.map(async (restaurant) => {
+      const baseConditions = [eq(orders.organizationId, restaurant.id)];
 
       if (since) {
         baseConditions.push(gte(orders.createdAt, since));
@@ -518,10 +517,10 @@ async function getLocationOrderBreakdown(
       ]);
 
       return {
-        id: location.id,
-        name: location.name,
-        label: location.label,
-        isActive: location.isActive,
+        id: restaurant.id,
+        name: restaurant.name,
+        label: null,
+        isActive: restaurant.isActive,
         activeOrders: firstCount(activeOrders),
         deliveredOrders: firstCount(deliveredOrders),
         cancelledOrders: firstCount(cancelledOrders),
@@ -548,7 +547,7 @@ async function getOperationalReportForOrganizations(
     cancelledItems,
     revenue,
     lowStock,
-    locationBreakdown,
+    restaurantBreakdown,
   ] = await Promise.all([
     getOrderStatusBreakdown(organizationIds, since),
     getOrderStatusBreakdown(organizationIds, startOfToday()),
@@ -559,7 +558,7 @@ async function getOperationalReportForOrganizations(
     getCancelledItemBreakdown(organizationIds, since),
     getRevenueReport(organizationIds, since),
     getLowStockReport(organizationIds),
-    getLocationOrderBreakdown(organizationIds, since),
+    getRestaurantOrderBreakdown(organizationIds, since),
   ]);
 
   return {
@@ -573,13 +572,13 @@ async function getOperationalReportForOrganizations(
     cancelledItems,
     revenue,
     lowStock,
-    locationBreakdown,
+    restaurantBreakdown,
   };
 }
 
 export async function getPlatformSummary() {
   const db = getDb();
-  const [companies, restaurants, activeLocations, staff, activeOrders, completedOrders] =
+  const [companies, restaurants, staff, activeOrders, completedOrders] =
     await Promise.all([
       db
         .select({ value: count() })
@@ -589,10 +588,6 @@ export async function getPlatformSummary() {
         .select({ value: count() })
         .from(organizations)
         .where(eq(organizations.type, "RESTAURANT")),
-      db
-        .select({ value: count() })
-        .from(locations)
-        .where(eq(locations.isActive, true)),
       db
         .select({ value: count() })
         .from(memberships)
@@ -610,7 +605,6 @@ export async function getPlatformSummary() {
   return {
     companyTenants: firstCount(companies),
     restaurantTenants: firstCount(restaurants),
-    activeLocations: firstCount(activeLocations),
     activeStaffMemberships: firstCount(staff),
     activeOrders: firstCount(activeOrders),
     completedOrders: firstCount(completedOrders),
@@ -652,7 +646,6 @@ export async function getPlatformCompanyBreakdown() {
           slug: company.slug,
           isActive: company.isActive,
           childRestaurants: 0,
-          activeLocations: 0,
           activeStaffMemberships: firstCount(staff),
           activeOrders: 0,
           completedOrders: 0,
@@ -662,22 +655,12 @@ export async function getPlatformCompanyBreakdown() {
       }
 
       const [
-        activeLocations,
         staff,
         activeOrders,
         completedOrders,
         cancelledOrders,
         lastOrder,
       ] = await Promise.all([
-        db
-          .select({ value: count() })
-          .from(locations)
-          .where(
-            and(
-              inArray(locations.organizationId, childRestaurantIds),
-              eq(locations.isActive, true),
-            ),
-          ),
         db
           .select({ value: count() })
           .from(memberships)
@@ -728,7 +711,6 @@ export async function getPlatformCompanyBreakdown() {
         slug: company.slug,
         isActive: company.isActive,
         childRestaurants: childRestaurantIds.length,
-        activeLocations: firstCount(activeLocations),
         activeStaffMemberships: firstCount(staff),
         activeOrders: firstCount(activeOrders),
         completedOrders: firstCount(completedOrders),
@@ -766,7 +748,6 @@ export async function getCompanySummary(companyOrganizationId: string) {
 
     return {
       childRestaurants: 0,
-      activeLocations: 0,
       activeStaffMemberships: firstCount(staff),
       activeMenuCategories: 0,
       activeMenuItems: 0,
@@ -776,22 +757,12 @@ export async function getCompanySummary(companyOrganizationId: string) {
   }
 
   const [
-    activeLocations,
     staff,
     activeCategories,
     activeItems,
     activeOrders,
     completedOrders,
   ] = await Promise.all([
-    db
-      .select({ value: count() })
-      .from(locations)
-      .where(
-        and(
-          inArray(locations.organizationId, childRestaurantIds),
-          eq(locations.isActive, true),
-        ),
-      ),
     db
       .select({ value: count() })
       .from(memberships)
@@ -841,7 +812,6 @@ export async function getCompanySummary(companyOrganizationId: string) {
 
   return {
     childRestaurants: childRestaurantIds.length,
-    activeLocations: firstCount(activeLocations),
     activeStaffMemberships: firstCount(staff),
     activeMenuCategories: firstCount(activeCategories),
     activeMenuItems: firstCount(activeItems),
@@ -885,22 +855,12 @@ export async function getCompanyRestaurantBreakdown(companyOrganizationId: strin
   return Promise.all(
     restaurants.map(async (restaurant) => {
       const [
-        activeLocations,
         staff,
         activeOrders,
         completedOrders,
         cancelledOrders,
         lastOrder,
       ] = await Promise.all([
-        db
-          .select({ value: count() })
-          .from(locations)
-          .where(
-            and(
-              eq(locations.organizationId, restaurant.id),
-              eq(locations.isActive, true),
-            ),
-          ),
         db
           .select({ value: count() })
           .from(memberships)
@@ -950,7 +910,6 @@ export async function getCompanyRestaurantBreakdown(companyOrganizationId: strin
         name: restaurant.name,
         slug: restaurant.slug,
         isActive: restaurant.isActive,
-        activeLocations: firstCount(activeLocations),
         activeStaffMemberships: firstCount(staff),
         activeOrders: firstCount(activeOrders),
         completedOrders: firstCount(completedOrders),
@@ -964,22 +923,12 @@ export async function getCompanyRestaurantBreakdown(companyOrganizationId: strin
 export async function getRestaurantSummary(restaurantOrganizationId: string) {
   const db = getDb();
   const [
-    activeLocations,
     staff,
     activeCategories,
     activeItems,
     activeOrders,
     completedOrders,
   ] = await Promise.all([
-    db
-      .select({ value: count() })
-      .from(locations)
-      .where(
-        and(
-          eq(locations.organizationId, restaurantOrganizationId),
-          eq(locations.isActive, true),
-        ),
-      ),
     db
       .select({ value: count() })
       .from(memberships)
@@ -1028,7 +977,6 @@ export async function getRestaurantSummary(restaurantOrganizationId: string) {
   ]);
 
   return {
-    activeLocations: firstCount(activeLocations),
     activeStaffMemberships: firstCount(staff),
     activeMenuCategories: firstCount(activeCategories),
     activeMenuItems: firstCount(activeItems),
@@ -1104,12 +1052,11 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
       csvRow([row.staffName, row.activeOrders, row.deliveredOrders, row.totalOrders]),
     ),
     "",
-    csvRow(["Location activity"]),
-    csvRow(["Location", "Label", "Active", "Total", "Active orders", "Delivered", "Cancelled", "Last order"]),
-    ...report.locationBreakdown.map((row) =>
+    csvRow(["Restaurant activity"]),
+    csvRow(["Restaurant", "Active", "Total", "Active orders", "Delivered", "Cancelled", "Last order"]),
+    ...report.restaurantBreakdown.map((row) =>
       csvRow([
         row.name,
-        row.label,
         row.isActive ? "Yes" : "No",
         row.totalOrders,
         row.activeOrders,

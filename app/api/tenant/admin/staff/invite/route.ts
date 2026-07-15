@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
+      locationId: null,
       action: "restaurant.staff.invite",
       entityType: "staff_invitation",
       entityId: invitation.invitation.id,

@@ -3,7 +3,6 @@ import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   customers,
-  locations,
   orderItems,
   orders,
   organizationCustomers,
@@ -139,7 +138,7 @@ export async function getCustomerOrderHistory(
     .select({
       createdAt: orders.createdAt,
       currency: organizations.currency,
-      locationName: locations.name,
+      locationName: organizations.name,
       orderId: orders.id,
       orderNo: orders.orderNo,
       organizationName: organizations.name,
@@ -148,7 +147,6 @@ export async function getCustomerOrderHistory(
     })
     .from(orders)
     .innerJoin(organizations, eq(organizations.id, orders.organizationId))
-    .innerJoin(locations, eq(locations.id, orders.locationId))
     .where(
       and(
         eq(orders.organizationId, context.organizationId),

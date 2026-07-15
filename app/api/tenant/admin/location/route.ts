@@ -30,15 +30,14 @@ export async function PATCH(request: NextRequest) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: location.id,
-      action: "restaurant.location.update",
-      entityType: "location",
+      locationId: null,
+      action: "restaurant.ordering_point.update",
+      entityType: "ordering_point",
       entityId: location.id,
       metadata: {
         name: location.name,
         label: location.label,
         qrSlug: location.qrSlug,
-        timezone: location.timezone,
         isActive: location.isActive,
       },
     });

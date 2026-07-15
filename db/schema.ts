@@ -650,14 +650,20 @@ export const menuCategories = pgTable("menu_categories", {
   locationId: uuid("location_id").references(() => locations.id, {
     onDelete: "cascade",
   }),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("menu_categories_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_categories_org_slug_unique").on(
+    table.organizationId,
+    table.slug,
+  ),
+]);
 
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -670,7 +676,7 @@ export const menuItems = pgTable("menu_items", {
   categoryId: uuid("category_id")
     .references(() => menuCategories.id, { onDelete: "cascade" })
     .notNull(),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   price: numeric("price", { precision: 10, scale: 2 }),
@@ -680,7 +686,13 @@ export const menuItems = pgTable("menu_items", {
   isSoldOut: boolean("is_sold_out").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("menu_items_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_items_org_slug_unique").on(
+    table.organizationId,
+    table.slug,
+  ),
+]);
 
 export const menuTags = pgTable(
   "menu_tags",
@@ -747,9 +759,8 @@ export const modifierGroups = pgTable(
   (table) => [
     index("modifier_groups_organization_idx").on(table.organizationId),
     index("modifier_groups_location_idx").on(table.locationId),
-    uniqueIndex("modifier_groups_tenant_slug_unique").on(
+    uniqueIndex("modifier_groups_org_slug_unique").on(
       table.organizationId,
-      table.locationId,
       table.slug,
     ),
   ],
@@ -816,9 +827,9 @@ export const inventoryItems = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id")
-      .references(() => locations.id, { onDelete: "cascade" })
-      .notNull(),
+    locationId: uuid("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
     menuItemId: uuid("menu_item_id")
       .references(() => menuItems.id, { onDelete: "cascade" })
       .notNull(),
@@ -837,9 +848,8 @@ export const inventoryItems = pgTable(
   (table) => [
     index("inventory_items_organization_idx").on(table.organizationId),
     index("inventory_items_location_idx").on(table.locationId),
-    uniqueIndex("inventory_items_menu_item_unique").on(
+    uniqueIndex("inventory_items_org_menu_item_unique").on(
       table.organizationId,
-      table.locationId,
       table.menuItemId,
     ),
   ],
@@ -850,9 +860,9 @@ export const orders = pgTable("orders", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id")
-    .references(() => locations.id, { onDelete: "cascade" })
-    .notNull(),
+  locationId: uuid("location_id").references(() => locations.id, {
+    onDelete: "cascade",
+  }),
   orderingPointId: uuid("ordering_point_id").references(() => orderingPoints.id, {
     onDelete: "set null",
   }),
@@ -902,9 +912,8 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  index("orders_tenant_status_created_idx").on(
+  index("orders_restaurant_status_created_idx").on(
     table.organizationId,
-    table.locationId,
     table.status,
     table.createdAt,
   ),
@@ -924,9 +933,8 @@ export const orders = pgTable("orders", {
   uniqueIndex("orders_stripe_payment_intent_unique").on(
     table.stripePaymentIntentId,
   ),
-  uniqueIndex("orders_location_order_date_no_unique").on(
+  uniqueIndex("orders_restaurant_order_date_no_unique").on(
     table.organizationId,
-    table.locationId,
     table.orderDate,
     table.orderNo,
   ),
@@ -937,9 +945,9 @@ export const orderItems = pgTable("order_items", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id")
-    .references(() => locations.id, { onDelete: "cascade" })
-    .notNull(),
+  locationId: uuid("location_id").references(() => locations.id, {
+    onDelete: "cascade",
+  }),
   orderId: uuid("order_id")
     .references(() => orders.id, { onDelete: "cascade" })
     .notNull(),
@@ -959,9 +967,8 @@ export const orderItems = pgTable("order_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  index("order_items_tenant_order_idx").on(
+  index("order_items_restaurant_order_idx").on(
     table.organizationId,
-    table.locationId,
     table.orderId,
   ),
 ]);
@@ -973,9 +980,9 @@ export const orderItemModifiers = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id")
-      .references(() => locations.id, { onDelete: "cascade" })
-      .notNull(),
+    locationId: uuid("location_id").references(() => locations.id, {
+      onDelete: "cascade",
+    }),
     orderItemId: uuid("order_item_id")
       .references(() => orderItems.id, { onDelete: "cascade" })
       .notNull(),

@@ -258,7 +258,7 @@ async function cancelPendingOrderPaymentRecord(
 
     const tenantContext = {
       organizationId: order.organizationId,
-      locationId: order.locationId,
+      orderingPointId: order.orderingPointId,
     };
     const items = await tx
       .select()
