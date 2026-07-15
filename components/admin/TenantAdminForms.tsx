@@ -482,7 +482,7 @@ export function TenantStaffInviteForm({ backHref }: { backHref: string }) {
       assignExistingHref="/restaurant/staff/reassign"
       backHref={backHref}
       defaultRole="ORDER_OPERATOR"
-      description="Create a one-time invite link for this restaurant location."
+      description="Create a one-time invite link for this restaurant."
       roles={[
         { label: "Restaurant Manager", value: "RESTAURANT_MANAGER" },
         { label: "Order Operator", value: "ORDER_OPERATOR" },

@@ -42,7 +42,6 @@ type CompanyOrganization = {
       slug: string;
       monthlyPrice: string;
       maxRestaurants: number;
-      maxLocations: number;
       maxUsers: number;
       maxMonthlyOrders: number;
       storageMb: number;
@@ -213,7 +212,7 @@ export function PlatformCompaniesPanel() {
               </div>
 
               {company.subscription?.plan ? (
-                <div className="grid gap-2 rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-600 md:grid-cols-5">
+                <div className="grid gap-2 rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-600 md:grid-cols-4">
                   <CommercialMetric
                     label="Plan"
                     value={`${company.subscription.plan.name} / ${company.subscription.plan.monthlyPrice}`}
@@ -221,10 +220,6 @@ export function PlatformCompaniesPanel() {
                   <CommercialMetric
                     label="Restaurants"
                     value={company.subscription.plan.maxRestaurants}
-                  />
-                  <CommercialMetric
-                    label="Locations"
-                    value={company.subscription.plan.maxLocations}
                   />
                   <CommercialMetric
                     label="Users"

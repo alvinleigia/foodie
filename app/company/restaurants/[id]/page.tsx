@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { MailIcon } from "lucide-react";
+import { MailIcon, UsersIcon } from "lucide-react";
 
 import { auth } from "@/auth";
 import { OrganizationEditPanel } from "@/components/admin/OrganizationEditPanel";
@@ -42,7 +42,12 @@ export default async function CompanyRestaurantEditPage(
         role: session.user.role,
       }}
     >
-      <div className="mb-5 flex justify-end">
+      <div className="mb-5 flex flex-wrap justify-end gap-3">
+        <Button asChild variant="outline">
+          <Link href={`/company/restaurants/${restaurant.id}/staff`}>
+            <ButtonLabel icon={UsersIcon}>Restaurant staff</ButtonLabel>
+          </Link>
+        </Button>
         <Button asChild variant="outline">
           <Link href={`/company/restaurants/${restaurant.id}/integrations`}>
             <ButtonLabel icon={MailIcon}>Email delivery</ButtonLabel>

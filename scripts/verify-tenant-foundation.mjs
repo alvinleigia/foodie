@@ -125,6 +125,22 @@ try {
     );
   }
 
+  const [restaurantStaffScope] = await sql`
+    select count(*)::int as invalid_count
+    from memberships membership
+    inner join organizations organization
+      on organization.id = membership.organization_id
+    where organization.type = 'RESTAURANT'
+      and membership.role in ('RESTAURANT_MANAGER', 'ORDER_OPERATOR')
+      and membership.location_id is not null
+  `;
+
+  if (restaurantStaffScope.invalid_count > 0) {
+    throw new Error(
+      `memberships has ${restaurantStaffScope.invalid_count} restaurant staff rows still scoped to locations. Run migrations.`,
+    );
+  }
+
   console.log("Tenant foundation verified.");
   console.log(`Platform organization: ${platform.name}`);
   console.log(`Deployment cell: ${deployment.cellId}`);

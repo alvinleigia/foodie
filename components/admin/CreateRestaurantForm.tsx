@@ -20,20 +20,13 @@ const emptyRestaurantDraft = {
   name: "",
   timezone: DEFAULT_TIMEZONE,
   currency: DEFAULT_CURRENCY,
-  locationName: "",
-  locationLabel: "",
 };
 
 type CreateRestaurantFormProps = {
   backHref: string;
 };
 
-type CreateRestaurantField =
-  | "currency"
-  | "locationLabel"
-  | "locationName"
-  | "name"
-  | "timezone";
+type CreateRestaurantField = "currency" | "name" | "timezone";
 
 export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
   const router = useRouter();
@@ -66,7 +59,7 @@ export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Add restaurant</h3>
         <p className="text-sm text-stone-500">
-          Create the restaurant and its first operational location.
+          Create an operational restaurant under this company.
         </p>
       </CardHeader>
       <CardContent className="px-5 pb-5">
@@ -97,52 +90,6 @@ export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
               }}
             />
           </FormField>
-          <div className="grid gap-4 md:grid-cols-2">
-            <FormField
-              label="First location name"
-              error={validation.getError("locationName")}
-              errorId="restaurant-location-name-error"
-            >
-              <Input
-                value={draft.locationName}
-                aria-describedby={
-                  validation.getError("locationName")
-                    ? "restaurant-location-name-error"
-                    : undefined
-                }
-                aria-invalid={Boolean(validation.getError("locationName"))}
-                onChange={(event) => {
-                  validation.clearFieldError("locationName");
-                  setDraft((current) => ({
-                    ...current,
-                    locationName: event.target.value,
-                  }));
-                }}
-              />
-            </FormField>
-            <FormField
-              label="First location label"
-              error={validation.getError("locationLabel")}
-              errorId="restaurant-location-label-error"
-            >
-              <Input
-                value={draft.locationLabel}
-                aria-describedby={
-                  validation.getError("locationLabel")
-                    ? "restaurant-location-label-error"
-                    : undefined
-                }
-                aria-invalid={Boolean(validation.getError("locationLabel"))}
-                onChange={(event) => {
-                  validation.clearFieldError("locationLabel");
-                  setDraft((current) => ({
-                    ...current,
-                    locationLabel: event.target.value,
-                  }));
-                }}
-              />
-            </FormField>
-          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
               label="Timezone"

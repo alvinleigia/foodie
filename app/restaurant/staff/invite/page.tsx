@@ -7,17 +7,17 @@ export default async function RestaurantStaffInvitePage() {
 
   return (
     <SaasAdminShell
-      activePath="/restaurant"
+      activePath="/restaurant/staff"
       eyebrow="Staff"
       title="Invite staff"
-      description="Create a one-time invitation link for this restaurant location."
+      description="Create a one-time invitation link for this restaurant."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
         role: session.user.role,
       }}
     >
-      <TenantStaffInviteForm backHref="/restaurant" />
+      <TenantStaffInviteForm backHref="/restaurant/staff" />
     </SaasAdminShell>
   );
 }

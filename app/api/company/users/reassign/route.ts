@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import { companyAdminRoles } from "@/lib/role-access";
 import { reassignExistingUserForCompany } from "@/lib/saas-admin";
 
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    }
+
+    if (error instanceof PlanLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
 
     return NextResponse.json(

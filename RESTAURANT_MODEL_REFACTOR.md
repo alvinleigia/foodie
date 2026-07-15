@@ -39,3 +39,12 @@ Ordering point
 - [x] Add an optional ordering-point reference to orders.
 - [x] Backfill existing location QR records as ordering points.
 - [x] Preserve the existing runtime until later phases move behavior.
+
+## Phase 2
+
+- [x] Make company onboarding create restaurants directly.
+- [x] Scope restaurant managers and operators to restaurants instead of locations.
+- [x] Manage staff directly from each restaurant.
+- [x] Enforce restaurant and user limits from the company subscription.
+- [x] Hide legacy location administration behind compatibility redirects.
+- [x] Keep one internal compatibility location per restaurant until Phase 3.

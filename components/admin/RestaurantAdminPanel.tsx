@@ -67,7 +67,6 @@ type TenantAdminSnapshot = {
 };
 
 type RestaurantSummary = {
-  activeLocations: number;
   activeStaffMemberships: number;
   activeMenuCategories: number;
   activeMenuItems: number;
@@ -81,7 +80,7 @@ type RestaurantSummaryResponse = {
 };
 
 function isMissingTenantAccess(error: string | null) {
-  return error?.toLowerCase().includes("missing tenant or location access") ?? false;
+  return error?.toLowerCase().includes("missing restaurant access") ?? false;
 }
 
 function RestaurantAccessEmptyState() {
@@ -91,11 +90,11 @@ function RestaurantAccessEmptyState() {
         Setup Required
       </p>
       <h3 className="mt-3 text-2xl font-semibold text-stone-950">
-        No restaurant location is assigned yet
+        No restaurant is assigned yet
       </h3>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600">
-        Restaurant settings need a specific restaurant and location membership.
-        Create a restaurant/location from Company, then invite a restaurant manager.
+        Restaurant settings need a restaurant membership. Create a restaurant from
+        Company, then invite a restaurant manager.
       </p>
       <div className="mt-5 flex flex-wrap gap-3">
         <Button asChild>
@@ -183,11 +182,6 @@ export function RestaurantAdminPanel({
             <SummaryCards
               cards={[
                 {
-                  label: "Locations",
-                  value: summary.activeLocations,
-                  helper: "Active locations under this restaurant.",
-                },
-                {
                   label: "Staff",
                   value: summary.activeStaffMemberships,
                   helper: "Active staff memberships.",
@@ -232,7 +226,7 @@ export function RestaurantAdminPanel({
                 <div>
                   <h3 className="text-xl font-semibold text-stone-950">Staff users</h3>
                   <p className="mt-1 text-sm text-stone-500">
-                    Existing users assigned to this location.
+                    Existing users assigned to this restaurant.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -301,7 +295,7 @@ export function RestaurantAdminPanel({
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              href={`/users/${staff.membershipId}/account?returnTo=/restaurant`}
+                              href={`/users/${staff.membershipId}/account?returnTo=/restaurant/staff`}
                             >
                               <ButtonLabel icon={UserPenIcon}>
                                 Edit account details
@@ -310,7 +304,7 @@ export function RestaurantAdminPanel({
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              href={`/users/${staff.membershipId}/reset-password?returnTo=/restaurant`}
+                              href={`/users/${staff.membershipId}/reset-password?returnTo=/restaurant/staff`}
                             >
                               Create reset link
                             </Link>

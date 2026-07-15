@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import {
   createChildRestaurantStaffInvitation,
   InvitationConflictError,
@@ -21,12 +22,11 @@ export async function POST(
   }
 
   try {
-    const { id, locationId } = await props.params;
+    const { id } = await props.params;
     const origin = new URL(request.url).origin;
     const invitation = await createChildRestaurantStaffInvitation(
       session.user.organizationId,
       id,
-      locationId,
       await request.json(),
       origin,
     );
@@ -34,7 +34,7 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: id,
-      locationId,
+      locationId: null,
       action: "company.location_staff.invite",
       entityType: "staff_invitation",
       entityId: invitation.invitation.id,
@@ -56,6 +56,10 @@ export async function POST(
     }
 
     if (error instanceof InvitationConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof PlanLimitError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

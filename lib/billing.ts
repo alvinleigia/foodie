@@ -1,4 +1,4 @@
-import { count, eq, gte } from "drizzle-orm";
+import { and, count, countDistinct, eq, gte, inArray, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -6,7 +6,11 @@ import {
   organizations,
   orders,
   saasPlans,
+  memberships,
+  users,
 } from "@/db/schema";
+
+export class PlanLimitError extends Error {}
 
 export function getTrialEndDate() {
   const trialEndsAt = new Date();
@@ -89,7 +93,6 @@ export async function listCompanyCommercialStatus() {
       trialEndsAt: organizationSubscriptions.trialEndsAt,
       currentPeriodEndsAt: organizationSubscriptions.currentPeriodEndsAt,
       maxRestaurants: saasPlans.maxRestaurants,
-      maxLocations: saasPlans.maxLocations,
       maxUsers: saasPlans.maxUsers,
       maxMonthlyOrders: saasPlans.maxMonthlyOrders,
       storageMb: saasPlans.storageMb,
@@ -101,6 +104,108 @@ export async function listCompanyCommercialStatus() {
     .where(
       eq(organizations.type, "COMPANY"),
     );
+}
+
+async function getCompanyPlanLimits(companyOrganizationId: string) {
+  const [limits] = await getDb()
+    .select({
+      maxRestaurants: saasPlans.maxRestaurants,
+      maxUsers: saasPlans.maxUsers,
+    })
+    .from(organizationSubscriptions)
+    .innerJoin(saasPlans, eq(saasPlans.id, organizationSubscriptions.planId))
+    .where(eq(organizationSubscriptions.organizationId, companyOrganizationId))
+    .limit(1);
+
+  if (!limits) {
+    throw new Error("Company subscription plan is not configured.");
+  }
+
+  return limits;
+}
+
+async function getCompanyOrganizationIds(companyOrganizationId: string) {
+  const restaurants = await getDb()
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.parentOrganizationId, companyOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+      ),
+    );
+
+  return [companyOrganizationId, ...restaurants.map((restaurant) => restaurant.id)];
+}
+
+export async function assertCompanyRestaurantCapacity(
+  companyOrganizationId: string,
+) {
+  const [limits, usage] = await Promise.all([
+    getCompanyPlanLimits(companyOrganizationId),
+    getDb()
+      .select({ value: count() })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.parentOrganizationId, companyOrganizationId),
+          eq(organizations.type, "RESTAURANT"),
+        ),
+      ),
+  ]);
+  const restaurantCount = Number(usage[0]?.value ?? 0);
+
+  if (restaurantCount >= limits.maxRestaurants) {
+    throw new PlanLimitError(
+      `This plan allows ${limits.maxRestaurants} restaurant${limits.maxRestaurants === 1 ? "" : "s"}. Upgrade the company plan before adding another restaurant.`,
+    );
+  }
+}
+
+export async function assertCompanyUserCapacity(
+  companyOrganizationId: string,
+  candidateUserId?: string,
+) {
+  const organizationIds = await getCompanyOrganizationIds(companyOrganizationId);
+
+  if (candidateUserId) {
+    const [existingAccess] = await getDb()
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.userId, candidateUserId),
+          eq(memberships.isActive, true),
+          inArray(memberships.organizationId, organizationIds),
+        ),
+      )
+      .limit(1);
+
+    if (existingAccess) {
+      return;
+    }
+  }
+
+  const [limits, usage] = await Promise.all([
+    getCompanyPlanLimits(companyOrganizationId),
+    getDb()
+      .select({ value: countDistinct(memberships.userId) })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          inArray(memberships.organizationId, organizationIds),
+          or(eq(memberships.isActive, true), eq(users.status, "INVITED")),
+        ),
+      ),
+  ]);
+  const userCount = Number(usage[0]?.value ?? 0);
+
+  if (userCount >= limits.maxUsers) {
+    throw new PlanLimitError(
+      `This plan allows ${limits.maxUsers} staff user${limits.maxUsers === 1 ? "" : "s"}. Upgrade the company plan before adding another user.`,
+    );
+  }
 }
 
 export async function updateCompanySubscriptionStatus(

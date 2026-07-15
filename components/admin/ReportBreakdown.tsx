@@ -6,7 +6,6 @@ export type ReportBreakdownRow = {
   name: string;
   slug: string;
   isActive: boolean;
-  activeLocations: number;
   activeStaffMemberships: number;
   activeOrders: number;
   completedOrders: number;
@@ -80,7 +79,6 @@ export function ReportBreakdown({
               {showChildRestaurants ? (
                 <Metric label="Restaurants" value={row.childRestaurants ?? 0} />
               ) : null}
-              <Metric label="Locations" value={row.activeLocations} />
               <Metric label="Staff" value={row.activeStaffMemberships} />
               <Metric label="Active orders" value={row.activeOrders} />
               <Metric label="Non-cancelled" value={row.completedOrders} />

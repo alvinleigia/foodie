@@ -134,9 +134,7 @@ export const updateOrganizationAdminSchema = z.object({
   isActive: z.boolean(),
 });
 
-export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema.extend({
-  location: locationSettingsSchema.optional(),
-});
+export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema;
 
 export const createRestaurantLocationSchema = locationSettingsSchema;
 
@@ -144,8 +142,6 @@ export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),
   timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
   currency: currencySchema.default(DEFAULT_CURRENCY),
-  locationName: z.string().trim().min(2, "Location name is required").max(120),
-  locationLabel: z.string().trim().max(160).optional().transform((value) => value || null),
 });
 
 export const companyDomainSchema = z.object({

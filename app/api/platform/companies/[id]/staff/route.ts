@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import {
   createCompanyStaffInvitation,
   InvitationConflictError,
@@ -50,6 +51,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     }
 
     if (error instanceof InvitationConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof PlanLimitError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

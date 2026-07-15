@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   BuildingIcon,
-  MapPinIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PlusIcon,
@@ -43,26 +42,10 @@ type CompanyRestaurant = {
   timezone: string;
   currency: string;
   isActive: boolean;
-  locations: {
-    id: string;
-    slug: string;
-    qrSlug: string | null;
-    name: string;
-    label: string | null;
-    timezone: string;
-    isActive: boolean;
-  }[];
-  locationsCount: number;
-  primaryLocation: {
-    name: string;
-    label: string | null;
-    slug: string;
-  } | null;
 };
 
 type CompanySummary = {
   childRestaurants: number;
-  activeLocations: number;
   activeStaffMemberships: number;
   activeMenuCategories: number;
   activeMenuItems: number;
@@ -222,11 +205,6 @@ export function CompanyRestaurantsPanel({
               helper: "Child restaurant tenants in this company.",
             },
             {
-              label: "Locations",
-              value: summary.activeLocations,
-              helper: "Active child restaurant locations.",
-            },
-            {
               label: "Active orders",
               value: summary.activeOrders,
               helper: "Pending, preparing or ready orders.",
@@ -259,7 +237,7 @@ export function CompanyRestaurantsPanel({
         <>
           <ReportBreakdown
             title="Restaurant activity"
-            description="Compare child restaurants by locations, staff and order activity."
+            description="Compare child restaurants by staff and order activity."
             emptyMessage="No restaurant activity to report yet."
             rows={breakdown}
           />
@@ -286,7 +264,7 @@ export function CompanyRestaurantsPanel({
           <div>
             <h3 className="text-xl font-semibold text-stone-950">Restaurants</h3>
             <p className="text-sm text-stone-500">
-              Create a restaurant only when you are ready to add its first location.
+              Each restaurant is an operational outlet with its own staff and settings.
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -334,13 +312,6 @@ export function CompanyRestaurantsPanel({
                   <p className="text-sm text-stone-500">
                     {restaurant.slug} - {restaurant.timezone} - {restaurant.currency}
                   </p>
-                  <p className="mt-1 text-xs text-stone-400">
-                    {restaurant.locationsCount} location
-                    {restaurant.locationsCount === 1 ? "" : "s"}
-                    {restaurant.primaryLocation
-                      ? ` - Primary: ${restaurant.primaryLocation.name}`
-                      : " - No location yet"}
-                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <StatusPill tone={restaurant.isActive ? "success" : "warning"}>
@@ -352,9 +323,9 @@ export function CompanyRestaurantsPanel({
                     label={`Edit ${restaurant.name} settings`}
                   />
                   <DesktopQuickAction
-                    href={`/company/restaurants/${restaurant.id}/locations`}
-                    icon={MapPinIcon}
-                    label={`Manage locations for ${restaurant.name}`}
+                    href={`/company/restaurants/${restaurant.id}/staff`}
+                    icon={UsersIcon}
+                    label={`Manage staff for ${restaurant.name}`}
                   />
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -377,8 +348,8 @@ export function CompanyRestaurantsPanel({
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`/company/restaurants/${restaurant.id}/locations`}>
-                          Manage locations
+                        <Link href={`/company/restaurants/${restaurant.id}/staff`}>
+                          Manage restaurant staff
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="bg-stone-200" />

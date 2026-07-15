@@ -33,20 +33,11 @@ import {
 } from "@/components/ui/select";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-type AssignableLocation = {
-  id: string;
-  name: string;
-  label: string | null;
-  slug: string;
-  isActive: boolean;
-};
-
 type AssignableRestaurant = {
   id: string;
   name: string;
   slug: string;
   isActive: boolean;
-  locations: AssignableLocation[];
 };
 
 type AssignableCompany = {
@@ -70,7 +61,6 @@ type ReassignExistingUserFormProps = {
   defaultDeactivateExisting?: boolean;
   initialCompanyId?: string;
   initialIdentifier?: string;
-  initialLocationId?: string;
   initialRestaurantId?: string;
   initialRole?: ReassignRole;
   roleOptions?: Array<{ label: string; value: ReassignRole }>;
@@ -92,7 +82,6 @@ const roles: Array<{ label: string; value: ReassignRole }> = [
 type ReassignField =
   | "deactivateExisting"
   | "identifier"
-  | "locationId"
   | "organizationId"
   | "role";
 
@@ -110,7 +99,6 @@ export function ReassignExistingUserForm({
   defaultDeactivateExisting = true,
   initialCompanyId,
   initialIdentifier,
-  initialLocationId,
   initialRestaurantId,
   initialRole,
   roleOptions = roles,
@@ -123,10 +111,6 @@ export function ReassignExistingUserForm({
   const defaultRestaurant =
     defaultCompany?.restaurants.find((restaurant) => restaurant.id === initialRestaurantId) ??
     defaultCompany?.restaurants[0];
-  const defaultLocation =
-    defaultRestaurant?.locations.find((location) => location.id === initialLocationId) ??
-    defaultRestaurant?.locations[0];
-
   const [identifier, setIdentifier] = useState(initialIdentifier ?? "");
   const [isIdentifierFocused, setIsIdentifierFocused] = useState(false);
   const [role, setRole] = useState<ReassignRole>(
@@ -134,7 +118,6 @@ export function ReassignExistingUserForm({
   );
   const [companyId, setCompanyId] = useState(defaultCompany?.id ?? "");
   const [restaurantId, setRestaurantId] = useState(defaultRestaurant?.id ?? "");
-  const [locationId, setLocationId] = useState(defaultLocation?.id ?? "");
   const [deactivateExisting, setDeactivateExisting] = useState(defaultDeactivateExisting);
   const validation = useFormValidation<ReassignField>();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -156,10 +139,6 @@ export function ReassignExistingUserForm({
     [restaurantId, restaurants],
   );
   const activeRestaurantId = selectedRestaurant?.id ?? "";
-  const locations = selectedRestaurant?.locations ?? [];
-  const selectedLocation =
-    locations.find((location) => location.id === locationId) ?? locations[0];
-  const activeLocationId = selectedLocation?.id ?? "";
   const userQuery = identifier.trim().toLowerCase();
   const userSuggestions = useMemo(() => {
     if (!userQuery) {
@@ -183,17 +162,11 @@ export function ReassignExistingUserForm({
     validation.clearFieldError("organizationId");
     setCompanyId(nextCompanyId);
     setRestaurantId(nextRestaurant?.id ?? "");
-    setLocationId(nextRestaurant?.locations[0]?.id ?? "");
   }
 
   function changeRestaurant(nextRestaurantId: string) {
-    const nextRestaurant = restaurants.find(
-      (restaurant) => restaurant.id === nextRestaurantId,
-    );
-
     validation.clearFieldError("organizationId");
     setRestaurantId(nextRestaurantId);
-    setLocationId(nextRestaurant?.locations[0]?.id ?? "");
   }
 
   function chooseUser(user: ReassignableUser) {
@@ -213,7 +186,7 @@ export function ReassignExistingUserForm({
           identifier,
           role,
           organizationId: companyRole ? activeCompanyId : activeRestaurantId,
-          locationId: companyRole ? null : activeLocationId,
+          locationId: null,
           deactivateExisting,
         },
       });
@@ -237,19 +210,17 @@ export function ReassignExistingUserForm({
   const companyRole = isCompanyRole(role);
   const targetLabel = companyRole
     ? selectedCompany?.name
-    : `${selectedRestaurant?.name ?? "Selected restaurant"} - ${
-        selectedLocation?.label || selectedLocation?.name || "selected location"
-      }`;
+    : selectedRestaurant?.name ?? "Selected restaurant";
   const deactivationLabel = deactivateExisting
     ? companyRole
       ? "Current active memberships in scope will be disabled before this access is enabled."
-      : "Other active location-level memberships in scope will be disabled. Company owner access will stay active."
+      : "Other active restaurant memberships in scope will be disabled. Company owner access will stay active."
     : "Existing memberships will stay active and this access will be added alongside them.";
   const canSubmit =
     identifier.trim().length >= 3 &&
     (companyRole
       ? Boolean(activeCompanyId)
-      : Boolean(activeRestaurantId && activeLocationId));
+      : Boolean(activeRestaurantId));
 
   return (
     <Card className="rounded-xl border-stone-200 bg-white">
@@ -258,7 +229,7 @@ export function ReassignExistingUserForm({
           Reassign existing user
         </h3>
         <p className="text-sm text-stone-500">
-          Move future access to a new company or location without moving old history.
+          Move future access to a new company or restaurant without moving old history.
         </p>
       </CardHeader>
       <CardContent className="px-5 pb-5">
@@ -385,51 +356,24 @@ export function ReassignExistingUserForm({
           </FormField>
 
           {!companyRole ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                label="Target restaurant"
-                error={validation.getError("organizationId")}
-                errorId="reassign-restaurant-error"
-              >
-                <Select value={activeRestaurantId} onValueChange={changeRestaurant}>
-                  <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Choose restaurant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {restaurants.map((restaurant) => (
-                      <SelectItem key={restaurant.id} value={restaurant.id}>
-                        {restaurant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-              <FormField
-                label="Target location"
-                error={validation.getError("locationId")}
-                errorId="reassign-location-error"
-              >
-                <Select
-                  value={activeLocationId}
-                  onValueChange={(nextLocationId) => {
-                    validation.clearFieldError("locationId");
-                    setLocationId(nextLocationId);
-                  }}
-                >
-                  <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Choose location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {locations.map((location) => (
-                      <SelectItem key={location.id} value={location.id}>
-                        {location.name}
-                        {location.label ? ` - ${location.label}` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormField>
-            </div>
+            <FormField
+              label="Target restaurant"
+              error={validation.getError("organizationId")}
+              errorId="reassign-restaurant-error"
+            >
+              <Select value={activeRestaurantId} onValueChange={changeRestaurant}>
+                <SelectTrigger className="bg-white">
+                  <SelectValue placeholder="Choose restaurant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {restaurants.map((restaurant) => (
+                    <SelectItem key={restaurant.id} value={restaurant.id}>
+                      {restaurant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
           ) : null}
 
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
@@ -455,7 +399,7 @@ export function ReassignExistingUserForm({
                 </span>
                 <span className="mt-1 block text-stone-500">
                   Keep this enabled when a user is moving from one company or
-                  location to another. Their old history remains unchanged.
+                  restaurant to another. Their old history remains unchanged.
                 </span>
               </span>
             </label>

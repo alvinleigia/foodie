@@ -39,8 +39,8 @@ type LocationStaffPanelProps = {
   assignHref: string;
   backHref: string;
   currentHref: string;
-  locationName: string;
   inviteHref: string;
+  restaurantName: string;
   staff: LocationStaffUser[];
 };
 
@@ -48,8 +48,8 @@ export function LocationStaffPanel({
   assignHref,
   backHref,
   currentHref,
-  locationName,
   inviteHref,
+  restaurantName,
   staff,
 }: LocationStaffPanelProps) {
   return (
@@ -61,7 +61,7 @@ export function LocationStaffPanel({
               Existing staff
             </h3>
             <p className="text-sm text-stone-500">
-              Review staff assigned to {locationName}, assign an accepted user, or
+              Review staff assigned to {restaurantName}, assign an accepted user, or
               invite someone new.
             </p>
           </div>
@@ -81,7 +81,7 @@ export function LocationStaffPanel({
         <CardContent className="grid gap-3 px-5 pb-5">
           {staff.length === 0 ? (
             <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
-              No staff users are assigned to this location yet.
+              No staff users are assigned to this restaurant yet.
             </p>
           ) : null}
 
@@ -162,7 +162,7 @@ export function LocationStaffPanel({
 
       <Button asChild variant="outline" className="w-fit rounded-lg">
         <Link href={backHref}>
-          <ButtonLabel icon={ArrowLeftIcon}>Back to locations</ButtonLabel>
+          <ButtonLabel icon={ArrowLeftIcon}>Back to restaurant</ButtonLabel>
         </Link>
       </Button>
     </div>

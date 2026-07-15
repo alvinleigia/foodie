@@ -297,14 +297,14 @@ export function OperationalReports({
 
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Location activity</h3>
+          <h3 className="text-xl font-semibold text-stone-950">Restaurant activity</h3>
           <p className="text-sm text-stone-500">
-            Order activity by operating location.
+            Order activity by restaurant.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
           {report.locationBreakdown.length === 0 ? (
-            <EmptyReportLine message="No locations to report yet." />
+            <EmptyReportLine message="No restaurants to report yet." />
           ) : null}
 
           {report.locationBreakdown.map((location) => (
@@ -325,9 +325,9 @@ export function OperationalReports({
                     {location.isActive ? "Active" : "Disabled"}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-stone-500">
-                  {location.label ?? "No label"}
-                </p>
+                {location.label ? (
+                  <p className="mt-1 text-sm text-stone-500">{location.label}</p>
+                ) : null}
                 <p className="mt-2 text-xs uppercase tracking-[0.16em] text-stone-400">
                   {formatLastOrder(location.lastOrderAt)}
                 </p>

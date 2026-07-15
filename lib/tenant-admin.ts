@@ -1,7 +1,17 @@
 import { and, eq, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, memberships, organizations, users } from "@/db/schema";
+import {
+  locations,
+  memberships,
+  orderingPoints,
+  organizations,
+  users,
+} from "@/db/schema";
+import {
+  assertCompanyUserCapacity,
+  getCommercialOwnerOrganizationId,
+} from "@/lib/billing";
 import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { TenantContext } from "@/lib/tenant-context";
@@ -63,20 +73,47 @@ export async function updateOrganizationSettings(
   const parsed = organizationSettingsSchema.parse(input);
   const db = getDb();
   const slug = await ensureUniqueOrganizationSlug(parsed.name, context.organizationId);
-  const [organization] = await db
-    .update(organizations)
-    .set({
-      slug,
-      name: parsed.name,
-      logoUrl: parsed.logoUrl,
-      timezone: parsed.timezone,
-      currency: parsed.currency.toUpperCase(),
-      updatedAt: new Date(),
-    })
-    .where(eq(organizations.id, context.organizationId))
-    .returning();
 
-  return organization ?? null;
+  return db.transaction(async (tx) => {
+    const [organization] = await tx
+      .update(organizations)
+      .set({
+        slug,
+        name: parsed.name,
+        logoUrl: parsed.logoUrl,
+        timezone: parsed.timezone,
+        currency: parsed.currency.toUpperCase(),
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, context.organizationId))
+      .returning();
+
+    if (!organization) {
+      return null;
+    }
+
+    await Promise.all([
+      tx
+        .update(locations)
+        .set({
+          name: parsed.name,
+          timezone: parsed.timezone,
+          updatedAt: new Date(),
+        })
+        .where(eq(locations.organizationId, context.organizationId)),
+      tx
+        .update(orderingPoints)
+        .set({ name: parsed.name, updatedAt: new Date() })
+        .where(
+          and(
+            eq(orderingPoints.organizationId, context.organizationId),
+            eq(orderingPoints.isDefault, true),
+          ),
+        ),
+    ]);
+
+    return organization;
+  });
 }
 
 export async function updateLocationSettings(context: TenantContext, input: unknown) {
@@ -145,6 +182,15 @@ export async function checkLocationQrSlugAvailability(
 export async function createStaffUser(context: TenantContext, input: unknown) {
   const parsed = createStaffUserSchema.parse(input);
   const db = getDb();
+  const companyOrganizationId = await getCommercialOwnerOrganizationId(
+    context.organizationId,
+  );
+
+  if (!companyOrganizationId) {
+    throw new Error("Restaurant company could not be resolved.");
+  }
+
+  await assertCompanyUserCapacity(companyOrganizationId);
   const passwordHash = await hashPassword(parsed.password);
   const [user] = await db
     .insert(users)
@@ -164,7 +210,7 @@ export async function createStaffUser(context: TenantContext, input: unknown) {
     .values({
       userId: user.id,
       organizationId: context.organizationId,
-      locationId: context.locationId,
+      locationId: null,
       role: parsed.role,
       isActive: true,
       updatedAt: new Date(),

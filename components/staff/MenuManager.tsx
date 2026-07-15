@@ -812,8 +812,8 @@ export function MenuManager() {
               Import merges rows by slug when available, or by matching section/item name.
             </p>
             <p className="mt-2 text-sm text-stone-600">
-              Use Seed Starter Menu only for a brand-new empty location. It creates the default
-              cocktails and mocktails under the current restaurant/location.
+              Use Seed Starter Menu only for a brand-new empty restaurant. It creates the default
+              cocktails and mocktails under the current restaurant.
             </p>
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-400">
               Required columns: category_name, item_name
@@ -1211,10 +1211,10 @@ export function MenuManager() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear this location menu?</AlertDialogTitle>
+            <AlertDialogTitle>Clear this restaurant menu?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes every category and product for the current
-              restaurant/location only. Existing orders are not deleted. To confirm, type{" "}
+              restaurant only. Existing orders are not deleted. To confirm, type{" "}
               <span className="font-semibold text-stone-900">delete</span> below.
             </AlertDialogDescription>
           </AlertDialogHeader>

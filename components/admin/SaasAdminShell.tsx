@@ -70,14 +70,9 @@ const adminRoutes: AdminRoute[] = [
     description: "Restaurant dashboard.",
   },
   {
-    href: "/restaurant/location",
-    label: "Locations",
-    description: "Manage active location.",
-  },
-  {
     href: "/restaurant/staff",
     label: "Restaurant Staff",
-    description: "Manage location staff.",
+    description: "Manage restaurant staff.",
   },
   {
     href: "/restaurant/integrations",

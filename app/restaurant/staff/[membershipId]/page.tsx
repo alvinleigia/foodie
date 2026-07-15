@@ -17,7 +17,7 @@ export default async function RestaurantStaffAccessPage(
 
   return (
     <SaasAdminShell
-      activePath="/restaurant"
+      activePath="/restaurant/staff"
       eyebrow="Staff"
       title="Edit staff access"
       description="Adjust this user's role or active access for the current restaurant."
@@ -27,7 +27,7 @@ export default async function RestaurantStaffAccessPage(
         role: session.user.role,
       }}
     >
-      <TenantStaffAccessForm backHref="/restaurant" staff={staff} />
+      <TenantStaffAccessForm backHref="/restaurant/staff" staff={staff} />
     </SaasAdminShell>
   );
 }

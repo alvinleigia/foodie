@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { CommercialAccessBlocked } from "@/components/admin/CommercialAccessBlocked";
-import { LocationSwitcher } from "@/components/admin/LocationSwitcher";
 import { MenuManager } from "@/components/staff/MenuManager";
 import { OperationsSetupRequired } from "@/components/staff/OperationsSetupRequired";
 import { AppHeader } from "@/components/shared/AppHeader";
@@ -10,6 +9,7 @@ import { AppShell } from "@/components/shared/AppShell";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
 import { isSessionAccessAllowedForCurrentDomain } from "@/lib/domain-session";
 import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
+import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export default async function OperationsMenuPage() {
   const session = await auth();
@@ -22,8 +22,8 @@ export default async function OperationsMenuPage() {
     redirect("/dashboard");
   }
 
-  const hasLocationAccess = Boolean(
-    session.user.organizationId && session.user.locationId,
+  const hasRestaurantAccess = Boolean(
+    await getCurrentTenantContext().catch(() => null),
   );
   const commercialAccess = session.user.organizationId
     ? await getTenantSubscriptionAccess(session.user.organizationId)
@@ -35,12 +35,9 @@ export default async function OperationsMenuPage() {
         activePath="/operations/menu"
         user={{ name: session.user.name, role: session.user.role }}
       />
-      <div className="mb-6 flex justify-end">
-        <LocationSwitcher />
-      </div>
       {!commercialAccess.allowed ? (
         <CommercialAccessBlocked status={commercialAccess.status} />
-      ) : hasLocationAccess ? (
+      ) : hasRestaurantAccess ? (
         <MenuManager />
       ) : (
         <OperationsSetupRequired />

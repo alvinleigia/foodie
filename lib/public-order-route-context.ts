@@ -9,7 +9,10 @@ import {
 import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
 import type { MembershipRole } from "@/lib/staff-auth";
-import { getTenantContextFromQrSlug } from "@/lib/tenant-context";
+import {
+  getCurrentTenantContext,
+  getTenantContextFromQrSlug,
+} from "@/lib/tenant-context";
 
 type PublicOrderRouteOptions = {
   locationQrSlug?: string;
@@ -38,10 +41,9 @@ export async function getPublicOrderRouteContext({
           phone: null as string | null,
         }
       : null;
-  const hasSignedLocationAccess = Boolean(
+  const hasSignedRestaurantAccess = Boolean(
     session?.user.kind === "staff" &&
-      session.user.organizationId &&
-      session.user.locationId,
+      session.user.organizationId,
   );
 
   const requestHeaders = await headers();
@@ -49,11 +51,8 @@ export async function getPublicOrderRouteContext({
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
   const tenantContext = locationQrSlug
     ? await getTenantContextFromQrSlug(locationQrSlug).catch(() => null)
-    : hasSignedLocationAccess && session?.user.kind === "staff"
-      ? {
-          organizationId: session.user.organizationId!,
-          locationId: session.user.locationId!,
-        }
+    : hasSignedRestaurantAccess && session?.user.kind === "staff"
+      ? await getCurrentTenantContext().catch(() => null)
       : requestDomain
         ? await getTenantContextFromDomain(requestDomain, locationSlug).catch(() => null)
         : null;

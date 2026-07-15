@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { reassignExistingUserForRestaurant } from "@/lib/saas-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
@@ -10,7 +11,7 @@ import { getCurrentTenantContext } from "@/lib/tenant-context";
 export async function POST(request: Request) {
   const session = await requireRole([...restaurantAdminRoles]);
 
-  if (!session?.user.organizationId || !session.user.locationId) {
+  if (!session?.user.organizationId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    }
+
+    if (error instanceof PlanLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
 
     return NextResponse.json(
