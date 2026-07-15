@@ -3,19 +3,18 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { organizationOAuthSettings, organizations } from "@/db/schema";
+import { organizationOAuthSettings } from "@/db/schema";
 import type {
   OrganizationOAuthSettingsSnapshot,
   SocialAuthProvider,
 } from "@/lib/organization-integration-types";
+import { getOrganizationIntegrationScope } from "@/lib/organization-integration-scope";
 import {
   decryptTenantCredential,
   encryptTenantCredential,
   getTenantCredentialHint,
 } from "@/lib/tenant-credential-encryption";
 import { organizationOAuthSettingsSchema } from "@/lib/validations/organization-integrations";
-
-const maximumOrganizationDepth = 8;
 
 export class OAuthIntegrationConfigurationError extends Error {
   constructor(message: string) {
@@ -61,38 +60,24 @@ export function getPlatformOAuthCredentials(provider: SocialAuthProvider) {
 }
 
 async function getOrganization(organizationId: string) {
-  const [organization] = await getDb()
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      type: organizations.type,
-      parentOrganizationId: organizations.parentOrganizationId,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+  const scope = await getOrganizationIntegrationScope(organizationId);
 
-  if (!organization) {
-    throw new OAuthIntegrationConfigurationError("Organization not found.");
+  if (!scope) {
+    throw new OAuthIntegrationConfigurationError(
+      "OAuth integrations are only available to companies and restaurants.",
+    );
   }
 
-  return organization;
+  return scope;
 }
 
 export async function resolveOrganizationOAuthIntegration(
   organizationId: string,
   provider: SocialAuthProvider,
 ): Promise<ResolvedOAuthIntegration> {
-  const visitedOrganizationIds = new Set<string>();
-  let currentOrganizationId: string | null = organizationId;
+  const scope = await getOrganization(organizationId);
 
-  for (let depth = 0; currentOrganizationId && depth < maximumOrganizationDepth; depth += 1) {
-    if (visitedOrganizationIds.has(currentOrganizationId)) {
-      throw new Error("Organization hierarchy contains a cycle.");
-    }
-
-    visitedOrganizationIds.add(currentOrganizationId);
-    const organization = await getOrganization(currentOrganizationId);
+  for (const organization of scope.lineage) {
     const [settings] = await getDb()
       .select()
       .from(organizationOAuthSettings)
@@ -141,12 +126,6 @@ export async function resolveOrganizationOAuthIntegration(
         organizationName: organization.name,
       };
     }
-
-    currentOrganizationId = organization.parentOrganizationId;
-  }
-
-  if (currentOrganizationId) {
-    throw new Error("Organization hierarchy exceeds the supported depth.");
   }
 
   const platformCredentials = getPlatformOAuthCredentials(provider);
@@ -176,11 +155,8 @@ export async function getOrganizationOAuthSettingsSnapshot(
   organizationId: string,
   provider: SocialAuthProvider,
 ): Promise<OrganizationOAuthSettingsSnapshot> {
-  const organization = await getOrganization(organizationId);
-  const [parent, settings, effective] = await Promise.all([
-    organization.parentOrganizationId
-      ? getOrganization(organization.parentOrganizationId)
-      : Promise.resolve(null),
+  const { organization, parent } = await getOrganization(organizationId);
+  const [settings, effective] = await Promise.all([
     getDb()
       .select()
       .from(organizationOAuthSettings)
@@ -235,7 +211,7 @@ export async function updateOrganizationOAuthSettings(
   updatedByUserId: string,
 ) {
   const parsed = organizationOAuthSettingsSchema.parse(input);
-  const organization = await getOrganization(organizationId);
+  const { organization } = await getOrganization(organizationId);
   const [existing] = await getDb()
     .select()
     .from(organizationOAuthSettings)

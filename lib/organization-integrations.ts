@@ -6,11 +6,10 @@ import { getDb } from "@/db";
 import {
   organizationEmailSettings,
   organizationPaymentAccounts,
-  organizations,
 } from "@/db/schema";
+import { getOrganizationIntegrationScope } from "@/lib/organization-integration-scope";
 import { decryptTenantCredential } from "@/lib/tenant-credential-encryption";
 
-const maximumOrganizationDepth = 8;
 const smtp2goCredentialPurpose = "smtp2go-api-key";
 
 type IntegrationSource = {
@@ -51,37 +50,16 @@ function formatSender(fromName: string | null, fromEmail: string) {
   return fromName?.trim() ? `${fromName.trim()} <${fromEmail.trim()}>` : fromEmail.trim();
 }
 
-async function getOrganizationNode(organizationId: string) {
-  const [organization] = await getDb()
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      parentOrganizationId: organizations.parentOrganizationId,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-
-  return organization ?? null;
-}
-
 export async function resolveOrganizationEmailIntegration(
   organizationId: string,
 ): Promise<ResolvedEmailIntegration> {
-  const visitedOrganizationIds = new Set<string>();
-  let currentOrganizationId: string | null = organizationId;
+  const scope = await getOrganizationIntegrationScope(organizationId);
 
-  for (let depth = 0; currentOrganizationId && depth < maximumOrganizationDepth; depth += 1) {
-    if (visitedOrganizationIds.has(currentOrganizationId)) {
-      throw new Error("Organization hierarchy contains a cycle.");
-    }
+  if (!scope) {
+    throw new Error("Email integrations are only available to companies and restaurants.");
+  }
 
-    visitedOrganizationIds.add(currentOrganizationId);
-    const organization = await getOrganizationNode(currentOrganizationId);
-
-    if (!organization) {
-      break;
-    }
+  for (const organization of scope.lineage) {
 
     const [settings] = await getDb()
       .select()
@@ -139,12 +117,6 @@ export async function resolveOrganizationEmailIntegration(
         organizationName: organization.name,
       };
     }
-
-    currentOrganizationId = organization.parentOrganizationId;
-  }
-
-  if (currentOrganizationId) {
-    throw new Error("Organization hierarchy exceeds the supported depth.");
   }
 
   const apiKey = process.env.SMTP2GO_API_KEY;
@@ -175,20 +147,13 @@ export async function resolveOrganizationEmailIntegration(
 export async function resolveOrganizationPaymentIntegration(
   organizationId: string,
 ): Promise<ResolvedPaymentIntegration> {
-  const visitedOrganizationIds = new Set<string>();
-  let currentOrganizationId: string | null = organizationId;
+  const scope = await getOrganizationIntegrationScope(organizationId);
 
-  for (let depth = 0; currentOrganizationId && depth < maximumOrganizationDepth; depth += 1) {
-    if (visitedOrganizationIds.has(currentOrganizationId)) {
-      throw new Error("Organization hierarchy contains a cycle.");
-    }
+  if (!scope) {
+    throw new Error("Payment integrations are only available to companies and restaurants.");
+  }
 
-    visitedOrganizationIds.add(currentOrganizationId);
-    const organization = await getOrganizationNode(currentOrganizationId);
-
-    if (!organization) {
-      break;
-    }
+  for (const organization of scope.lineage) {
 
     const [account] = await getDb()
       .select()
@@ -233,12 +198,6 @@ export async function resolveOrganizationPaymentIntegration(
         organizationName: organization.name,
       };
     }
-
-    currentOrganizationId = organization.parentOrganizationId;
-  }
-
-  if (currentOrganizationId) {
-    throw new Error("Organization hierarchy exceeds the supported depth.");
   }
 
   return {

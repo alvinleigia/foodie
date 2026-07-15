@@ -155,6 +155,7 @@ export const companyDomainSchema = z.object({
     }),
   isPrimary: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  restaurantOrganizationId: z.string().uuid().nullable().optional().default(null),
 });
 
 export const updateCompanyDomainSchema = z.object({

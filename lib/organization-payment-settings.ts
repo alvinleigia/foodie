@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { getDb } from "@/db";
-import { organizationPaymentAccounts, organizations } from "@/db/schema";
+import { organizationPaymentAccounts } from "@/db/schema";
 import type { OrganizationPaymentSettingsSnapshot } from "@/lib/organization-integration-types";
+import { getOrganizationIntegrationScope } from "@/lib/organization-integration-scope";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { getStripe } from "@/lib/stripe";
 import { organizationPaymentSettingsSchema } from "@/lib/validations/organization-integrations";
@@ -18,22 +19,15 @@ export class PaymentIntegrationConfigurationError extends Error {
 }
 
 async function getOrganization(organizationId: string) {
-  const [organization] = await getDb()
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      type: organizations.type,
-      parentOrganizationId: organizations.parentOrganizationId,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
+  const scope = await getOrganizationIntegrationScope(organizationId);
 
-  if (!organization) {
-    throw new PaymentIntegrationConfigurationError("Organization not found.");
+  if (!scope) {
+    throw new PaymentIntegrationConfigurationError(
+      "Payment integrations are only available to companies and restaurants.",
+    );
   }
 
-  return organization;
+  return scope;
 }
 
 function getOnboardingStatus(account: Stripe.Account) {
@@ -49,6 +43,7 @@ function getOnboardingStatus(account: Stripe.Account) {
 }
 
 export async function syncOrganizationStripeAccount(organizationId: string) {
+  await getOrganization(organizationId);
   const [settings] = await getDb()
     .select()
     .from(organizationPaymentAccounts)
@@ -109,11 +104,8 @@ export async function syncStripeAccountFromWebhook(account: Stripe.Account) {
 export async function getOrganizationPaymentSettingsSnapshot(
   organizationId: string,
 ): Promise<OrganizationPaymentSettingsSnapshot> {
-  const organization = await getOrganization(organizationId);
-  const [parent, settings, effective] = await Promise.all([
-    organization.parentOrganizationId
-      ? getOrganization(organization.parentOrganizationId)
-      : Promise.resolve(null),
+  const { organization, parent } = await getOrganization(organizationId);
+  const [settings, effective] = await Promise.all([
     getDb()
       .select()
       .from(organizationPaymentAccounts)
@@ -159,7 +151,7 @@ export async function updateOrganizationPaymentSettings(
   updatedByUserId: string,
 ) {
   const parsed = organizationPaymentSettingsSchema.parse(input);
-  const organization = await getOrganization(organizationId);
+  const { organization } = await getOrganization(organizationId);
   const now = new Date();
 
   await getDb()
@@ -190,7 +182,7 @@ export async function startOrganizationStripeOnboarding(input: {
   refreshPath: string;
   updatedByUserId: string;
 }) {
-  const organization = await getOrganization(input.organizationId);
+  const { organization } = await getOrganization(input.organizationId);
   const [existing] = await getDb()
     .select()
     .from(organizationPaymentAccounts)

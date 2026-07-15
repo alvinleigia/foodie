@@ -1,7 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, orderingPoints, organizations, tenantDomains } from "@/db/schema";
+import { orderingPoints, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
 import {
   normalizeDomain,
@@ -161,10 +161,7 @@ async function resolveCompanyRestaurant(
         eq(organizations.type, "RESTAURANT"),
         eq(organizations.isActive, true),
         eq(orderingPoints.isActive, true),
-        or(
-          eq(orderingPoints.slug, normalizedSlug),
-          eq(orderingPoints.qrSlug, normalizedSlug),
-        ),
+        eq(orderingPoints.qrSlug, normalizedSlug),
       ),
     )
     .limit(1);
@@ -172,6 +169,49 @@ async function resolveCompanyRestaurant(
   return orderingPoint
     ? resolveRestaurantOrderingPoint(orderingPoint.organizationId, normalizedSlug)
     : null;
+}
+
+export async function getCompanyDomainRestaurants(
+  domainValue: string | null | undefined,
+) {
+  const domain = normalizeDomain(domainValue);
+
+  if (!domain) {
+    return [];
+  }
+
+  const [domainRecord] = await getDb()
+    .select({ companyOrganizationId: tenantDomains.companyOrganizationId })
+    .from(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.domain, domain),
+        eq(tenantDomains.scope, "COMPANY"),
+        eq(tenantDomains.purpose, "ORDERING"),
+        eq(tenantDomains.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!domainRecord?.companyOrganizationId) {
+    return [];
+  }
+
+  return getDb()
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+    })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.parentOrganizationId, domainRecord.companyOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+      ),
+    )
+    .orderBy(organizations.name);
 }
 
 export async function getTenantContextFromDomain(
@@ -204,44 +244,6 @@ export async function getTenantContextFromDomain(
   }
 
   let context: TenantContext | null = null;
-
-  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
-    const [record] = await getDb()
-      .select({
-        organizationId: locations.organizationId,
-      })
-      .from(locations)
-      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
-      .where(
-        and(
-          eq(locations.id, domainRecord.locationId),
-          eq(locations.isActive, true),
-          eq(organizations.isActive, true),
-        ),
-      )
-      .limit(1);
-
-    if (record) {
-      const [orderingPoint] = await getDb()
-        .select({ id: orderingPoints.id })
-        .from(orderingPoints)
-        .where(
-          and(
-            eq(orderingPoints.id, domainRecord.locationId),
-            eq(orderingPoints.organizationId, record.organizationId),
-            eq(orderingPoints.isActive, true),
-          ),
-        )
-        .limit(1);
-
-      context = orderingPoint
-        ? {
-            organizationId: record.organizationId,
-            orderingPointId: orderingPoint.id,
-          }
-        : await resolveRestaurantContext(record.organizationId);
-    }
-  }
 
   if (!context && domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
     context = await resolveRestaurantOrderingPoint(
@@ -311,12 +313,6 @@ export type TenantDomainAccessScope =
       type: "RESTAURANT";
       companyOrganizationId: string | null;
       restaurantOrganizationId: string;
-    }
-  | {
-      type: "LOCATION";
-      companyOrganizationId: string | null;
-      restaurantOrganizationId: string;
-      locationId: string;
     };
 
 export async function getTenantDomainAccessScopeFromDomain(
@@ -333,7 +329,6 @@ export async function getTenantDomainAccessScopeFromDomain(
       scope: tenantDomains.scope,
       companyOrganizationId: tenantDomains.companyOrganizationId,
       restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
-      locationId: tenantDomains.locationId,
     })
     .from(tenantDomains)
     .where(and(eq(tenantDomains.domain, domain), eq(tenantDomains.isActive, true)))
@@ -364,27 +359,6 @@ export async function getTenantDomainAccessScopeFromDomain(
       companyOrganizationId: restaurant?.companyOrganizationId ?? null,
       restaurantOrganizationId: domainRecord.restaurantOrganizationId,
     };
-  }
-
-  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
-    const [location] = await getDb()
-      .select({
-        restaurantOrganizationId: locations.organizationId,
-        companyOrganizationId: organizations.parentOrganizationId,
-      })
-      .from(locations)
-      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
-      .where(eq(locations.id, domainRecord.locationId))
-      .limit(1);
-
-    if (location) {
-      return {
-        type: "LOCATION",
-        companyOrganizationId: location.companyOrganizationId,
-        restaurantOrganizationId: location.restaurantOrganizationId,
-        locationId: domainRecord.locationId,
-      };
-    }
   }
 
   return { type: "PLATFORM" };

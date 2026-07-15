@@ -526,8 +526,21 @@ export const tenantDomains = pgTable(
     uniqueIndex("tenant_domains_domain_unique").on(table.domain),
     index("tenant_domains_company_idx").on(table.companyOrganizationId),
     index("tenant_domains_restaurant_idx").on(table.restaurantOrganizationId),
-    index("tenant_domains_location_idx").on(table.locationId),
     index("tenant_domains_scope_idx").on(table.scope),
+    uniqueIndex("tenant_domains_company_primary_unique")
+      .on(table.companyOrganizationId)
+      .where(sql`${table.scope} = 'COMPANY' AND ${table.isPrimary} = true`),
+    uniqueIndex("tenant_domains_restaurant_primary_unique")
+      .on(table.restaurantOrganizationId)
+      .where(sql`${table.scope} = 'RESTAURANT' AND ${table.isPrimary} = true`),
+    check(
+      "tenant_domains_owner_scope_check",
+      sql`(
+        (${table.scope} = 'PLATFORM' AND ${table.companyOrganizationId} IS NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.locationId} IS NULL)
+        OR (${table.scope} = 'COMPANY' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.locationId} IS NULL AND ${table.purpose} = 'ORDERING')
+        OR (${table.scope} = 'RESTAURANT' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NOT NULL AND ${table.locationId} IS NULL AND ${table.purpose} = 'ORDERING')
+      )`,
+    ),
   ],
 );
 

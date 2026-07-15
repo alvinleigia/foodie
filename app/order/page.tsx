@@ -1,5 +1,6 @@
 import { CustomerOrderPage } from "@/components/order/CustomerOrderPage";
 import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
+import { RestaurantPicker } from "@/components/order/RestaurantPicker";
 import { AppShell } from "@/components/shared/AppShell";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
@@ -13,6 +14,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
     customer,
     customerAuthProviders,
     hasTenantContext,
+    restaurantChoices,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
@@ -27,6 +29,8 @@ export default async function OrderPage(props: PageProps<"/order">) {
           locationSlug={locationSlug}
           user={user}
         />
+      ) : restaurantChoices.length ? (
+        <RestaurantPicker restaurants={restaurantChoices} />
       ) : (
         <CustomerOrderUnavailable reason={unavailableReason} user={user} />
       )}

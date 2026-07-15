@@ -50,7 +50,7 @@ function getScopedAccessPriority(
     return record.organizationId === scope.restaurantOrganizationId ? 0 : 1;
   }
 
-  return record.locationId === scope.locationId ? 0 : 1;
+  return 1;
 }
 
 export async function authenticateStaff(

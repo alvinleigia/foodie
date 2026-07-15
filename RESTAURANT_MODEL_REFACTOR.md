@@ -57,3 +57,12 @@ Ordering point
 - [x] Resolve QR links through restaurant-owned ordering points.
 - [x] Report operational activity by restaurant instead of compatibility location.
 - [x] Keep legacy operational location columns nullable until Phase 5 cleanup.
+
+## Phase 4
+
+- [x] Restrict customer-facing domains to company or restaurant ownership.
+- [x] Route company domains to a restaurant directly or through a restaurant picker.
+- [x] Route restaurant domains directly to that restaurant and optional ordering points.
+- [x] Resolve restaurant integrations through restaurant, company and permitted platform defaults.
+- [x] Keep Stripe inheritance limited to restaurant and company connected accounts.
+- [x] Use the deployment root domain for universal and tenant OAuth callbacks.

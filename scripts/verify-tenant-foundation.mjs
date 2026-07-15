@@ -202,6 +202,62 @@ try {
     );
   }
 
+  const [tenantDomainScope] = await sql`
+    select count(*)::int as invalid_count
+    from tenant_domains domain_record
+    left join organizations company
+      on company.id = domain_record.company_organization_id
+    left join organizations restaurant
+      on restaurant.id = domain_record.restaurant_organization_id
+    where domain_record.scope = 'LOCATION'
+      or domain_record.location_id is not null
+      or (
+        domain_record.scope = 'COMPANY'
+        and (
+          domain_record.purpose is distinct from 'ORDERING'
+          or company.type is distinct from 'COMPANY'
+          or domain_record.restaurant_organization_id is not null
+        )
+      )
+      or (
+        domain_record.scope = 'RESTAURANT'
+        and (
+          domain_record.purpose is distinct from 'ORDERING'
+          or company.type is distinct from 'COMPANY'
+          or restaurant.type is distinct from 'RESTAURANT'
+          or restaurant.parent_organization_id is distinct from company.id
+        )
+      )
+  `;
+
+  if (tenantDomainScope.invalid_count > 0) {
+    throw new Error(
+      `tenant_domains has ${tenantDomainScope.invalid_count} rows outside company or restaurant customer scope. Run migrations.`,
+    );
+  }
+
+  const integrationTables = [
+    "organization_email_settings",
+    "organization_payment_accounts",
+    "organization_oauth_settings",
+  ];
+
+  for (const table of integrationTables) {
+    const [integrationScope] = await sql.unsafe(`
+      select count(*)::int as invalid_count
+      from ${table} settings
+      inner join organizations organization
+        on organization.id = settings.organization_id
+      where organization.type not in ('COMPANY', 'RESTAURANT')
+    `);
+
+    if (integrationScope.invalid_count > 0) {
+      throw new Error(
+        `${table} has ${integrationScope.invalid_count} rows outside company or restaurant scope.`,
+      );
+    }
+  }
+
   console.log("Tenant foundation verified.");
   console.log(`Platform organization: ${platform.name}`);
   console.log(`Deployment cell: ${deployment.cellId}`);

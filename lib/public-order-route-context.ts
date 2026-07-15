@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
 import {
+  getCompanyDomainRestaurants,
   getInactiveTenantDomain,
   getTenantContextFromDomain,
 } from "@/lib/tenant-domains";
@@ -102,6 +103,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: true,
       customer,
       customerAuthProviders,
+      restaurantChoices: [],
       tenantContext,
       user,
     };
@@ -112,16 +114,22 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: false,
       customer,
       customerAuthProviders,
+      restaurantChoices: [],
       tenantContext: null,
       unavailableReason: "MISSING_CONTEXT" as const,
       user,
     };
   }
 
+  const restaurantChoices = !locationQrSlug && !locationSlug
+    ? await getCompanyDomainRestaurants(requestDomain).catch(() => [])
+    : [];
+
   return {
     hasTenantContext: false,
     customer,
     customerAuthProviders,
+    restaurantChoices,
     tenantContext: null,
     unavailableReason: (await getInactiveTenantDomain(requestDomain).catch(() => null))
       ? ("DOMAIN_DISABLED" as const)

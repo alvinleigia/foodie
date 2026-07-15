@@ -140,10 +140,36 @@ export async function listCompanyDomains(companyOrganizationId: string) {
     return null;
   }
 
-  return getDb()
+  const domains = await getDb()
     .select()
     .from(tenantDomains)
     .where(eq(tenantDomains.companyOrganizationId, companyOrganizationId));
+  const restaurantIds = domains.flatMap((domain) =>
+    domain.restaurantOrganizationId ? [domain.restaurantOrganizationId] : [],
+  );
+  const restaurantRows = restaurantIds.length
+    ? await getDb()
+        .select({ id: organizations.id, name: organizations.name })
+        .from(organizations)
+        .where(inArray(organizations.id, restaurantIds))
+    : [];
+  const restaurantNames = new Map(
+    restaurantRows.map((restaurant) => [restaurant.id, restaurant.name]),
+  );
+
+  return domains
+    .filter(
+      (
+        domain,
+      ): domain is typeof domain & { scope: "COMPANY" | "RESTAURANT" } =>
+        domain.scope === "COMPANY" || domain.scope === "RESTAURANT",
+    )
+    .map((domain) => ({
+      ...domain,
+      restaurantName: domain.restaurantOrganizationId
+        ? restaurantNames.get(domain.restaurantOrganizationId) ?? null
+        : null,
+    }));
 }
 
 async function assertDomainIsAvailable(domain: string, currentDomainId?: string) {
@@ -171,6 +197,28 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
   const parsed = companyDomainSchema.parse(input);
   const db = getDb();
 
+  if (parsed.isPrimary && !parsed.isActive) {
+    throw new Error("A primary domain must be active.");
+  }
+
+  if (parsed.restaurantOrganizationId) {
+    const [restaurant] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.id, parsed.restaurantOrganizationId),
+          eq(organizations.parentOrganizationId, companyOrganizationId),
+          eq(organizations.type, "RESTAURANT"),
+        ),
+      )
+      .limit(1);
+
+    if (!restaurant) {
+      throw new Error("Restaurant not found for this company.");
+    }
+  }
+
   await assertDomainIsAvailable(parsed.domain);
 
   return db.transaction(async (tx) => {
@@ -181,16 +229,31 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
           isPrimary: false,
           updatedAt: new Date(),
         })
-        .where(eq(tenantDomains.companyOrganizationId, companyOrganizationId));
+        .where(
+          parsed.restaurantOrganizationId
+            ? and(
+                eq(tenantDomains.scope, "RESTAURANT"),
+                eq(
+                  tenantDomains.restaurantOrganizationId,
+                  parsed.restaurantOrganizationId,
+                ),
+              )
+            : and(
+                eq(tenantDomains.scope, "COMPANY"),
+                eq(tenantDomains.companyOrganizationId, companyOrganizationId),
+              ),
+        );
     }
 
     const [domain] = await tx
       .insert(tenantDomains)
       .values({
         domain: parsed.domain,
-        scope: "COMPANY",
+        scope: parsed.restaurantOrganizationId ? "RESTAURANT" : "COMPANY",
         purpose: "ORDERING",
         companyOrganizationId,
+        restaurantOrganizationId: parsed.restaurantOrganizationId,
+        locationId: null,
         isPrimary: parsed.isPrimary,
         isActive: parsed.isActive,
         updatedAt: new Date(),
@@ -214,23 +277,59 @@ export async function updateCompanyDomain(
 
   const parsed = updateCompanyDomainSchema.parse(input);
   const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.id, domainId),
+        eq(tenantDomains.companyOrganizationId, companyOrganizationId),
+      ),
+    )
+    .limit(1);
+
+  if (!existing || !["COMPANY", "RESTAURANT"].includes(existing.scope)) {
+    return null;
+  }
+
+  const nextIsActive = parsed.isActive ?? existing.isActive;
+  const nextIsPrimary = parsed.isActive === false
+    ? false
+    : parsed.isPrimary ?? existing.isPrimary;
+
+  if (nextIsPrimary && !nextIsActive) {
+    throw new Error("A primary domain must be active.");
+  }
 
   return db.transaction(async (tx) => {
-    if (parsed.isPrimary) {
+    if (nextIsPrimary) {
       await tx
         .update(tenantDomains)
         .set({
           isPrimary: false,
           updatedAt: new Date(),
         })
-        .where(eq(tenantDomains.companyOrganizationId, companyOrganizationId));
+        .where(
+          existing.scope === "RESTAURANT" && existing.restaurantOrganizationId
+            ? and(
+                eq(tenantDomains.scope, "RESTAURANT"),
+                eq(
+                  tenantDomains.restaurantOrganizationId,
+                  existing.restaurantOrganizationId,
+                ),
+              )
+            : and(
+                eq(tenantDomains.scope, "COMPANY"),
+                eq(tenantDomains.companyOrganizationId, companyOrganizationId),
+              ),
+        );
     }
 
     const [domain] = await tx
       .update(tenantDomains)
       .set({
-        ...(typeof parsed.isPrimary === "boolean" ? { isPrimary: parsed.isPrimary } : {}),
-        ...(typeof parsed.isActive === "boolean" ? { isActive: parsed.isActive } : {}),
+        isPrimary: nextIsPrimary,
+        isActive: nextIsActive,
         updatedAt: new Date(),
       })
       .where(

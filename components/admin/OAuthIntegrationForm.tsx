@@ -157,7 +157,7 @@ export function OAuthIntegrationForm({
   const providerDetails = providers.find(
     (provider) => provider.provider === selectedProvider,
   )!;
-  const callbackUrl = `${callbackOrigin}/api/auth/callback/${selectedProvider.toLowerCase()}`;
+  const callbackUrl = `${callbackOrigin}/api/customer-social-auth/callback/${selectedProvider.toLowerCase()}`;
   const inheritLabel = snapshot.parent
     ? `Inherit from ${snapshot.parent.name}`
     : "Use Foodie default";

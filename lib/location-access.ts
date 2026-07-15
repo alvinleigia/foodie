@@ -60,10 +60,7 @@ export function isMembershipAllowedInScope(
     return option.organizationId === scope.restaurantOrganizationId;
   }
 
-  return (
-    option.organizationId === scope.restaurantOrganizationId &&
-    option.locationId === scope.locationId
-  );
+  return false;
 }
 
 function stripScopeMetadata(option: MembershipAccessRow): MembershipAccessOption {

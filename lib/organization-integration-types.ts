@@ -6,12 +6,12 @@ export type OrganizationOAuthSettingsSnapshot = {
   organization: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY" | "RESTAURANT";
   };
   parent: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY";
   } | null;
   settings: {
     provider: SocialAuthProvider;
@@ -33,12 +33,12 @@ export type OrganizationEmailSettingsSnapshot = {
   organization: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY" | "RESTAURANT";
   };
   parent: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY";
   } | null;
   settings: {
     mode: IntegrationMode;
@@ -65,12 +65,12 @@ export type OrganizationPaymentSettingsSnapshot = {
   organization: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY" | "RESTAURANT";
   };
   parent: {
     id: string;
     name: string;
-    type: "PLATFORM" | "COMPANY" | "RESTAURANT";
+    type: "COMPANY";
   } | null;
   settings: {
     mode: IntegrationMode;
