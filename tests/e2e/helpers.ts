@@ -41,7 +41,7 @@ export function pathForBaseUrl(baseUrl: string | undefined, path: string) {
 }
 
 export function getManagerBaseUrl() {
-  return optionalEnv("E2E_MANAGER_BASE_URL") ?? optionalEnv("E2E_COMPANY_BASE_URL");
+  return optionalEnv("E2E_MANAGER_BASE_URL") ?? optionalEnv("PLAYWRIGHT_BASE_URL");
 }
 
 function normalizeContext(value: string) {
@@ -81,14 +81,6 @@ export async function getSessionMemberships(page: Page, baseUrl: string | undefi
 export function findAccessContext(payload: MembershipPayload, contextText: string) {
   return payload.memberships.find((option) =>
     hasMatchingContext(getMembershipSearchText(option), contextText),
-  );
-}
-
-export function isActiveMembershipInList(payload: MembershipPayload) {
-  return payload.memberships.some(
-    (membership) =>
-      membership.organizationId === payload.active.organizationId &&
-      membership.role === payload.active.role,
   );
 }
 

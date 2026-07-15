@@ -75,3 +75,11 @@ Ordering point
 - [x] Keep ordering points as optional restaurant-owned routing metadata.
 - [x] Rename customer route context away from legacy location terminology.
 - [x] Update bootstrap, verification and test helpers for restaurant scope.
+
+## Phase 6
+
+- [x] Audit runtime code, schema, scripts and tracked documentation for legacy location assumptions.
+- [x] Update tenant-isolation tests for root-domain staff sessions and active restaurant switching.
+- [x] Align current documentation with the company, restaurant and ordering-point hierarchy.
+- [x] Verify new restaurant navigation remains restricted to the correct staff roles.
+- [x] Complete type, lint, build and focused test verification.
