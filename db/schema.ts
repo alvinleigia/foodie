@@ -88,6 +88,12 @@ export const modifierSelectionTypeEnum = pgEnum("modifier_selection_type", [
   "MULTIPLE",
 ]);
 
+export const orderingPointTypeEnum = pgEnum("ordering_point_type", [
+  "GENERAL",
+  "TABLE",
+  "COUNTER",
+]);
+
 export const orderSourceEnum = pgEnum("order_source", [
   "CUSTOMER_SELF_SERVICE",
   "STAFF_CREATED",
@@ -463,6 +469,36 @@ export const locations = pgTable(
   ],
 );
 
+export const orderingPoints = pgTable(
+  "ordering_points",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    slug: text("slug").notNull(),
+    qrSlug: text("qr_slug"),
+    name: text("name").notNull(),
+    label: text("label"),
+    type: orderingPointTypeEnum("type").default("GENERAL").notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("ordering_points_organization_idx").on(table.organizationId),
+    uniqueIndex("ordering_points_org_slug_unique").on(
+      table.organizationId,
+      table.slug,
+    ),
+    uniqueIndex("ordering_points_qr_slug_unique").on(table.qrSlug),
+    uniqueIndex("ordering_points_org_default_unique")
+      .on(table.organizationId)
+      .where(sql`${table.isDefault} = true`),
+  ],
+);
+
 export const tenantDomains = pgTable(
   "tenant_domains",
   {
@@ -817,6 +853,9 @@ export const orders = pgTable("orders", {
   locationId: uuid("location_id")
     .references(() => locations.id, { onDelete: "cascade" })
     .notNull(),
+  orderingPointId: uuid("ordering_point_id").references(() => orderingPoints.id, {
+    onDelete: "set null",
+  }),
   orderDate: date("order_date").notNull(),
   orderNo: integer("order_no").notNull(),
   customerName: text("customer_name").notNull(),
@@ -875,6 +914,7 @@ export const orders = pgTable("orders", {
     table.createdAt,
   ),
   index("orders_created_by_user_idx").on(table.createdByUserId),
+  index("orders_ordering_point_idx").on(table.orderingPointId),
   index("orders_payment_status_idx").on(table.paymentStatus),
   index("orders_payment_account_org_idx").on(table.paymentAccountOrganizationId),
   index("orders_stripe_connected_account_idx").on(table.stripeConnectedAccountId),

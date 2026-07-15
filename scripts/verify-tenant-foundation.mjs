@@ -111,6 +111,20 @@ try {
     }
   }
 
+  const [orderingPointScope] = await sql`
+    select count(*)::int as invalid_count
+    from ordering_points ordering_point
+    inner join organizations organization
+      on organization.id = ordering_point.organization_id
+    where organization.type <> 'RESTAURANT'
+  `;
+
+  if (orderingPointScope.invalid_count > 0) {
+    throw new Error(
+      `ordering_points has ${orderingPointScope.invalid_count} rows outside restaurant scope.`,
+    );
+  }
+
   console.log("Tenant foundation verified.");
   console.log(`Platform organization: ${platform.name}`);
   console.log(`Deployment cell: ${deployment.cellId}`);
