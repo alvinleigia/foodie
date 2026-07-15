@@ -16,7 +16,7 @@ import { hashPassword } from "@/lib/passwords";
 import { TenantContext } from "@/lib/tenant-context";
 import {
   createStaffUserSchema,
-  locationSettingsSchema,
+  orderingPointSettingsSchema,
   organizationSettingsSchema,
   updateStaffMembershipSchema,
 } from "@/lib/validations/tenant-admin";
@@ -28,18 +28,16 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
     .from(organizations)
     .where(eq(organizations.id, context.organizationId))
     .limit(1);
-  const [location] = await db
+  const [orderingPoint] = await db
     .select({
       id: orderingPoints.id,
       name: orderingPoints.name,
       slug: orderingPoints.slug,
       qrSlug: orderingPoints.qrSlug,
       label: orderingPoints.label,
-      timezone: organizations.timezone,
       isActive: orderingPoints.isActive,
     })
     .from(orderingPoints)
-    .innerJoin(organizations, eq(organizations.id, orderingPoints.organizationId))
     .where(
       and(
         eq(orderingPoints.organizationId, context.organizationId),
@@ -57,7 +55,6 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
       status: users.status,
       role: memberships.role,
       isActive: memberships.isActive,
-      locationId: memberships.locationId,
       createdAt: memberships.createdAt,
     })
     .from(memberships)
@@ -66,7 +63,7 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
 
   return {
     organization,
-    location,
+    orderingPoint,
     staff: staff.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
@@ -116,12 +113,12 @@ export async function updateOrganizationSettings(
   });
 }
 
-export async function updateLocationSettings(context: TenantContext, input: unknown) {
-  const parsed = locationSettingsSchema.parse(input);
+export async function updateOrderingPointSettings(context: TenantContext, input: unknown) {
+  const parsed = orderingPointSettingsSchema.parse(input);
   const db = getDb();
 
   if (parsed.qrSlug) {
-    const [existingQrLocation] = await db
+    const [existingQrOrderingPoint] = await db
       .select({ id: orderingPoints.id })
       .from(orderingPoints)
       .where(
@@ -134,12 +131,12 @@ export async function updateLocationSettings(context: TenantContext, input: unkn
       )
       .limit(1);
 
-    if (existingQrLocation) {
-      throw new Error("QR slug is already used by another location.");
+    if (existingQrOrderingPoint) {
+      throw new Error("QR slug is already used by another ordering point.");
     }
   }
 
-  const [location] = await db
+  const [orderingPoint] = await db
     .update(orderingPoints)
     .set({
       name: parsed.name,
@@ -156,14 +153,14 @@ export async function updateLocationSettings(context: TenantContext, input: unkn
     )
     .returning();
 
-  return location ?? null;
+  return orderingPoint ?? null;
 }
 
-export async function checkLocationQrSlugAvailability(
+export async function checkOrderingPointQrSlugAvailability(
   context: TenantContext,
   qrSlug: string,
 ) {
-  const parsedQrSlug = locationSettingsSchema.shape.qrSlug.parse(qrSlug);
+  const parsedQrSlug = orderingPointSettingsSchema.shape.qrSlug.parse(qrSlug);
 
   if (!parsedQrSlug) {
     return {
@@ -173,7 +170,7 @@ export async function checkLocationQrSlugAvailability(
   }
 
   const db = getDb();
-  const [existingQrLocation] = await db
+  const [existingQrOrderingPoint] = await db
     .select({ id: orderingPoints.id })
     .from(orderingPoints)
     .where(
@@ -187,7 +184,7 @@ export async function checkLocationQrSlugAvailability(
     .limit(1);
 
   return {
-    available: !existingQrLocation,
+    available: !existingQrOrderingPoint,
     normalizedQrSlug: parsedQrSlug,
   };
 }
@@ -223,7 +220,6 @@ export async function createStaffUser(context: TenantContext, input: unknown) {
     .values({
       userId: user.id,
       organizationId: context.organizationId,
-      locationId: null,
       role: parsed.role,
       isActive: true,
       updatedAt: new Date(),

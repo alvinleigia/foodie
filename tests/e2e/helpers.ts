@@ -6,15 +6,11 @@ export type MembershipOption = {
   organizationId: string;
   organizationName: string;
   organizationType: string;
-  locationId: string | null;
-  locationName: string | null;
-  locationLabel: string | null;
 };
 
 export type MembershipPayload = {
   active: {
     organizationId: string;
-    locationId: string;
     role: string;
   };
   memberships: MembershipOption[];
@@ -61,8 +57,6 @@ export function getMembershipSearchText(membership: MembershipOption) {
   return normalizeContext(
     [
       membership.organizationName,
-      membership.locationName,
-      membership.locationLabel,
       membership.role,
     ]
       .filter(Boolean)
@@ -94,7 +88,6 @@ export function isActiveMembershipInList(payload: MembershipPayload) {
   return payload.memberships.some(
     (membership) =>
       membership.organizationId === payload.active.organizationId &&
-      (membership.locationId ?? "") === payload.active.locationId &&
       membership.role === payload.active.role,
   );
 }

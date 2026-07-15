@@ -96,13 +96,3 @@ export async function requireCustomerSession() {
 
   return isCustomerSession(session) ? session : null;
 }
-
-export async function requireLocationAccess() {
-  const session = await requireStaffSession();
-
-  if (!session?.user.organizationId || !session.user.locationId) {
-    return null;
-  }
-
-  return session;
-}

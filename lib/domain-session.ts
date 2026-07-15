@@ -1,13 +1,12 @@
 import { headers } from "next/headers";
 
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
-import { getMembershipAccessOptions } from "@/lib/location-access";
+import { getMembershipAccessOptions } from "@/lib/membership-access";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type SessionAccessUser = {
   id: string;
   organizationId: string;
-  locationId: string;
   role: MembershipRole;
 };
 
@@ -32,8 +31,6 @@ export async function isSessionAccessAllowedForCurrentDomain(
 
   return allowedMemberships.some(
     (membership) =>
-      membership.organizationId === user.organizationId &&
-      (membership.locationId ?? "") === user.locationId &&
-      membership.role === user.role,
+      membership.organizationId === user.organizationId && membership.role === user.role,
   );
 }

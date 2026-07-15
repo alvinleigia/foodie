@@ -6,7 +6,7 @@ import { requireRole } from "@/lib/auth";
 import {
   getMembershipAccessOptions,
   resolveMembershipAccess,
-} from "@/lib/location-access";
+} from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
 
@@ -31,7 +31,6 @@ export async function GET() {
   return NextResponse.json({
     active: {
       organizationId: session.user.organizationId,
-      locationId: session.user.locationId,
       role: session.user.role,
     },
     memberships: await getMembershipAccessOptions(session.user.id, { type: "PLATFORM" }),

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
-import { checkLocationQrSlugAvailability } from "@/lib/tenant-admin";
+import { checkOrderingPointQrSlugAvailability } from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 const tenantAdminRoles = [
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const tenantContext = await getCurrentTenantContext();
     const qrSlug = request.nextUrl.searchParams.get("value") ?? "";
-    const result = await checkLocationQrSlugAvailability(tenantContext, qrSlug);
+    const result = await checkOrderingPointQrSlugAvailability(tenantContext, qrSlug);
 
     return NextResponse.json(result);
   } catch (error) {

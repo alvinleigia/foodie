@@ -4,12 +4,12 @@ import { getDb } from "@/db";
 import {
   customers,
   inventoryItems,
-  locations,
   memberships,
   menuCategories,
   menuItems,
   orderItems,
   orders,
+  orderingPoints,
   organizationCustomers,
   organizationSubscriptions,
   organizations,
@@ -55,7 +55,7 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
   const [
     subscriptionRows,
     restaurants,
-    locationRows,
+    orderingPointRows,
     membershipRows,
     categoryRows,
     itemRows,
@@ -72,7 +72,10 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
       ? db.select().from(organizations).where(inArray(organizations.id, restaurantIds))
       : Promise.resolve([]),
     restaurantIds.length
-      ? db.select().from(locations).where(inArray(locations.organizationId, restaurantIds))
+      ? db
+          .select()
+          .from(orderingPoints)
+          .where(inArray(orderingPoints.organizationId, restaurantIds))
       : Promise.resolve([]),
     db
       .select({
@@ -152,7 +155,7 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     company,
     subscription: subscriptionRows[0] ?? null,
     restaurants,
-    locations: locationRows,
+    orderingPoints: orderingPointRows,
     memberships: membershipRows,
     invitations: invitationRows,
     menuCategories: categoryRows,

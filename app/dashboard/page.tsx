@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 
 import { auth } from "@/auth";
-import { getMembershipAccessOptions } from "@/lib/location-access";
+import { getMembershipAccessOptions } from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
 import { getTenantDomainAccessScopeFromDomain } from "@/lib/tenant-domains";
 
@@ -24,7 +24,6 @@ export default async function DashboardRedirectPage() {
   const activeMembershipIsAllowed = allowedMemberships.some(
     (membership) =>
       membership.organizationId === session.user.organizationId &&
-      (membership.locationId ?? "") === session.user.locationId &&
       membership.role === session.user.role,
   );
 

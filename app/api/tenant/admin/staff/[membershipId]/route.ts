@@ -41,7 +41,6 @@ export async function PATCH(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: membership.locationId,
       action: "restaurant.staff.update",
       entityType: "membership",
       entityId: membership.id,

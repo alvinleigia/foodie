@@ -15,7 +15,6 @@ type AuditLogRow = {
   actorUsername: string | null;
   actorRole: string | null;
   organizationId: string | null;
-  locationId: string | null;
   action: string;
   entityType: string;
   entityId: string | null;

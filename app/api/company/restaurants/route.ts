@@ -34,7 +34,6 @@ export async function POST(request: Request) {
     await writeAuditLog({
       actor: session.user,
       organizationId: restaurant.id,
-      locationId: restaurant.primaryLocation.id,
       action: "company.restaurant.create",
       entityType: "organization",
       entityId: restaurant.id,
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
         companyOrganizationId: session.user.organizationId,
         name: restaurant.name,
         slug: restaurant.slug,
-        primaryLocationId: restaurant.primaryLocation.id,
+        defaultOrderingPointId: restaurant.defaultOrderingPoint.id,
       },
     });
 

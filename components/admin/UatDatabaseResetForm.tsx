@@ -50,7 +50,7 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Reset UAT data</h3>
         <p className="text-sm leading-6 text-stone-500">
-          This clears companies, restaurants, locations, users, memberships, orders,
+          This clears companies, restaurants, ordering points, users, memberships, orders,
           menus, inventory, domains, invitations and audit logs. The current SaaS
           owner login and SaaS plans are preserved.
         </p>

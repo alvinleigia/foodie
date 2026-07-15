@@ -186,7 +186,6 @@ export function ReassignExistingUserForm({
           identifier,
           role,
           organizationId: companyRole ? activeCompanyId : activeRestaurantId,
-          locationId: null,
           deactivateExisting,
         },
       });

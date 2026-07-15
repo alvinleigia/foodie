@@ -85,13 +85,16 @@ export async function consumeCustomerAuthHandoff(
   }
 
   const returnUrl = new URL(safeReturnTo, handoff.destinationOrigin);
-  const locationSlug =
-    returnUrl.searchParams.get("location") ?? returnUrl.searchParams.get("qr");
+  const routeSlug = returnUrl.searchParams.get("route");
+  const orderingPointQrSlug = returnUrl.searchParams.get("qr");
   const tenantContext = isPlatformAdministrationDomain(requestDomain)
-    ? locationSlug
-      ? await getTenantContextFromQrSlug(locationSlug)
+    ? orderingPointQrSlug
+      ? await getTenantContextFromQrSlug(orderingPointQrSlug)
       : null
-    : await getTenantContextFromDomain(requestDomain, locationSlug);
+    : await getTenantContextFromDomain(
+        requestDomain,
+        routeSlug ?? orderingPointQrSlug,
+      );
 
   if (tenantContext?.organizationId !== handoff.organizationId) {
     return null;

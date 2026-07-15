@@ -1,9 +1,8 @@
-import { and, eq, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { ZodError } from "zod";
 
 import { getDb } from "@/db";
 import {
-  locations,
   memberships,
   orderingPoints,
   organizationSubscriptions,
@@ -29,7 +28,6 @@ import {
   createCompanyStaffUserSchema,
   createCompanyOrganizationSchema,
   companyDomainSchema,
-  createRestaurantLocationSchema,
   createRestaurantStaffUserSchema,
   reassignExistingUserSchema,
   updateChildRestaurantAdminSchema,
@@ -47,28 +45,6 @@ type ReassignExistingUserOptions = {
   deactivateOrganizationIds?: string[];
   userScopeOrganizationIds?: string[];
 };
-
-async function ensureUniqueLocationSlug(organizationId: string, baseName: string) {
-  const db = getDb();
-  const baseSlug = slugify(baseName) || "location";
-  let candidate = baseSlug;
-  let suffix = 2;
-
-  while (true) {
-    const [existing] = await db
-      .select({ id: locations.id })
-      .from(locations)
-      .where(and(eq(locations.organizationId, organizationId), eq(locations.slug, candidate)))
-      .limit(1);
-
-    if (!existing) {
-      return candidate;
-    }
-
-    candidate = `${baseSlug}-${suffix}`;
-    suffix += 1;
-  }
-}
 
 export async function listPlatformCompanies() {
   const rows = await getDb()
@@ -253,7 +229,6 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
         purpose: "ORDERING",
         companyOrganizationId,
         restaurantOrganizationId: parsed.restaurantOrganizationId,
-        locationId: null,
         isPrimary: parsed.isPrimary,
         isActive: parsed.isActive,
         updatedAt: new Date(),
@@ -458,151 +433,42 @@ export async function updateChildRestaurantAdmin(
       return null;
     }
 
-    await Promise.all([
-      tx
-        .update(locations)
-        .set({
-          name: parsed.name,
-          timezone: parsed.timezone,
-          isActive: parsed.isActive,
-          updatedAt: new Date(),
-        })
-        .where(eq(locations.organizationId, restaurantOrganizationId)),
-      tx
-        .update(orderingPoints)
-        .set({
-          name: parsed.name,
-          isActive: parsed.isActive,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(orderingPoints.organizationId, restaurantOrganizationId),
-            eq(orderingPoints.isDefault, true),
-          ),
+    await tx
+      .update(orderingPoints)
+      .set({
+        name: parsed.name,
+        isActive: parsed.isActive,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(orderingPoints.organizationId, restaurantOrganizationId),
+          eq(orderingPoints.isDefault, true),
         ),
-    ]);
+      );
 
     return organization;
   });
 }
 
 export async function listCompanyRestaurants(companyOrganizationId: string) {
-  const rows = await getDb()
-    .select({
-      organization: organizations,
-      location: locations,
-    })
+  return getDb()
+    .select()
     .from(organizations)
-    .leftJoin(locations, eq(locations.organizationId, organizations.id))
     .where(
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
       ),
     );
-
-  const restaurantMap = new Map<
-    string,
-    typeof organizations.$inferSelect & {
-      locations: (typeof locations.$inferSelect)[];
-      locationsCount: number;
-      primaryLocation: typeof locations.$inferSelect | null;
-    }
-  >();
-
-  for (const row of rows) {
-    const current = restaurantMap.get(row.organization.id);
-
-    if (!current) {
-      restaurantMap.set(row.organization.id, {
-        ...row.organization,
-        locations: row.location ? [row.location] : [],
-        locationsCount: row.location ? 1 : 0,
-        primaryLocation: row.location,
-      });
-      continue;
-    }
-
-    current.locationsCount += row.location ? 1 : 0;
-    if (row.location) {
-      current.locations.push(row.location);
-    }
-    current.primaryLocation ??= row.location;
-  }
-
-  return Array.from(restaurantMap.values());
 }
 
 export async function getCompanyRestaurant(
   companyOrganizationId: string,
   restaurantOrganizationId: string,
 ) {
-  const [row] = await getDb()
-    .select({
-      organization: organizations,
-      location: locations,
-    })
-    .from(organizations)
-    .leftJoin(locations, eq(locations.organizationId, organizations.id))
-    .where(
-      and(
-        eq(organizations.id, restaurantOrganizationId),
-        eq(organizations.parentOrganizationId, companyOrganizationId),
-        eq(organizations.type, "RESTAURANT"),
-      ),
-    )
-    .limit(1);
-
-  if (!row) {
-    return null;
-  }
-
-  return {
-    ...row.organization,
-    primaryLocation: row.location,
-    locations: await listRestaurantLocations(
-      companyOrganizationId,
-      restaurantOrganizationId,
-    ),
-  };
-}
-
-export async function listRestaurantLocations(
-  companyOrganizationId: string,
-  restaurantOrganizationId: string,
-) {
   const [restaurant] = await getDb()
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.id, restaurantOrganizationId),
-        eq(organizations.parentOrganizationId, companyOrganizationId),
-        eq(organizations.type, "RESTAURANT"),
-      ),
-    )
-    .limit(1);
-
-  if (!restaurant) {
-    return null;
-  }
-
-  return getDb()
     .select()
-    .from(locations)
-    .where(eq(locations.organizationId, restaurantOrganizationId));
-}
-
-export async function createRestaurantLocation(
-  companyOrganizationId: string,
-  restaurantOrganizationId: string,
-  input: unknown,
-) {
-  const parsed = createRestaurantLocationSchema.parse(input);
-  const db = getDb();
-  const [restaurant] = await db
-    .select({ id: organizations.id })
     .from(organizations)
     .where(
       and(
@@ -613,96 +479,7 @@ export async function createRestaurantLocation(
     )
     .limit(1);
 
-  if (!restaurant) {
-    throw new Error("Restaurant not found.");
-  }
-
-  if (parsed.qrSlug) {
-    const [existingQrLocation] = await db
-      .select({ id: locations.id })
-      .from(locations)
-      .where(eq(locations.qrSlug, parsed.qrSlug))
-      .limit(1);
-
-    if (existingQrLocation) {
-      throw new Error("QR slug is already used by another location.");
-    }
-  }
-
-  const slug = await ensureUniqueLocationSlug(restaurantOrganizationId, parsed.name);
-  const [location] = await db
-    .insert(locations)
-    .values({
-      organizationId: restaurantOrganizationId,
-      slug,
-      name: parsed.name,
-      label: parsed.label,
-      qrSlug: parsed.qrSlug,
-      timezone: parsed.timezone,
-      isActive: parsed.isActive,
-      updatedAt: new Date(),
-    })
-    .returning();
-
-  return location;
-}
-
-export async function updateRestaurantLocation(
-  companyOrganizationId: string,
-  restaurantOrganizationId: string,
-  locationId: string,
-  input: unknown,
-) {
-  const parsed = createRestaurantLocationSchema.parse(input);
-  const db = getDb();
-
-  if (parsed.qrSlug) {
-    const [existingQrLocation] = await db
-      .select({ id: locations.id })
-      .from(locations)
-      .where(and(eq(locations.qrSlug, parsed.qrSlug), ne(locations.id, locationId)))
-      .limit(1);
-
-    if (existingQrLocation) {
-      throw new Error("QR slug is already used by another location.");
-    }
-  }
-
-  const [location] = await db
-    .update(locations)
-    .set({
-      name: parsed.name,
-      label: parsed.label,
-      qrSlug: parsed.qrSlug,
-      timezone: parsed.timezone,
-      isActive: parsed.isActive,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(locations.id, locationId),
-        eq(locations.organizationId, restaurantOrganizationId),
-      ),
-    )
-    .returning();
-
-  if (!location) {
-    return null;
-  }
-
-  const [restaurant] = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.id, restaurantOrganizationId),
-        eq(organizations.parentOrganizationId, companyOrganizationId),
-        eq(organizations.type, "RESTAURANT"),
-      ),
-    )
-    .limit(1);
-
-  return restaurant ? location : null;
+  return restaurant ?? null;
 }
 
 export async function createChildRestaurant(
@@ -728,31 +505,20 @@ export async function createChildRestaurant(
         updatedAt: new Date(),
       })
       .returning();
-    const locationSlug = slugify(parsed.name) || "restaurant";
-    const [location] = await tx
-      .insert(locations)
+    const [defaultOrderingPoint] = await tx
+      .insert(orderingPoints)
       .values({
         organizationId: restaurant.id,
-        slug: locationSlug,
+        slug: slugify(parsed.name) || "restaurant",
         name: parsed.name,
-        label: null,
-        timezone: parsed.timezone,
+        type: "GENERAL",
+        isDefault: true,
         isActive: true,
         updatedAt: new Date(),
       })
       .returning();
-    await tx.insert(orderingPoints).values({
-      id: location.id,
-      organizationId: restaurant.id,
-      slug: locationSlug,
-      name: parsed.name,
-      type: "GENERAL",
-      isDefault: true,
-      isActive: true,
-      updatedAt: new Date(),
-    });
 
-    return { ...restaurant, primaryLocation: location };
+    return { ...restaurant, defaultOrderingPoint };
   });
 }
 
@@ -796,7 +562,6 @@ export async function createCompanyStaffUser(companyOrganizationId: string, inpu
       .values({
         userId: user.id,
         organizationId: companyOrganizationId,
-        locationId: null,
         role: parsed.role,
         isActive: true,
         updatedAt: new Date(),
@@ -821,7 +586,6 @@ export async function listCompanyStaffMemberships(companyOrganizationId: string)
     .where(
       and(
         eq(memberships.organizationId, companyOrganizationId),
-        isNull(memberships.locationId),
         inArray(memberships.role, [...companyMembershipRoles]),
       ),
     );
@@ -867,7 +631,6 @@ export async function updateCompanyStaffMembership(
       and(
         eq(memberships.id, membershipId),
         eq(memberships.organizationId, companyOrganizationId),
-        isNull(memberships.locationId),
         inArray(memberships.role, [...companyMembershipRoles]),
       ),
     )
@@ -896,18 +659,15 @@ export async function listCompanyUserMemberships(companyOrganizationId: string) 
       membership: memberships,
       user: users,
       organization: organizations,
-      location: locations,
     })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .leftJoin(locations, eq(locations.id, memberships.locationId))
     .where(
       or(
         and(
           eq(organizations.id, companyOrganizationId),
           eq(organizations.type, "COMPANY"),
-          isNull(memberships.locationId),
           inArray(memberships.role, [...companyMembershipRoles]),
         ),
         and(
@@ -933,9 +693,6 @@ export async function listCompanyUserMemberships(companyOrganizationId: string) 
       organizationId: row.organization.id,
       organizationName: row.organization.name,
       organizationType: row.organization.type,
-      locationId: row.location?.id ?? null,
-      locationName: row.location?.name ?? null,
-      locationLabel: row.location?.label ?? null,
       accessScope: isCompanyAccess ? "COMPANY" : "RESTAURANT",
       accessLabel: isCompanyAccess
         ? "Company access"
@@ -998,7 +755,6 @@ export async function updateCompanyUserMembership(
   const isCompanyMembership =
     current.organization.id === companyOrganizationId &&
     current.organization.type === "COMPANY" &&
-    !current.membership.locationId &&
     companyMembershipRoles.includes(
       current.membership.role as (typeof companyMembershipRoles)[number],
     );
@@ -1269,10 +1025,6 @@ export async function reassignExistingUser(
     throw new Error("Operational roles must be assigned to a restaurant.");
   }
 
-  if (parsed.locationId) {
-    throw new Error("Staff access is assigned to restaurants, not locations.");
-  }
-
   const [user] = await db
     .select({
       id: users.id,
@@ -1319,8 +1071,6 @@ export async function reassignExistingUser(
     await assertCompanyUserCapacity(companyOrganizationId, user.id);
   }
 
-  const locationCondition = isNull(memberships.locationId);
-
   return db.transaction(async (tx) => {
     const deactivateRestaurantOnly = parsed.deactivateExisting && isRestaurantRole;
     const deactivatedMemberships = parsed.deactivateExisting
@@ -1349,7 +1099,6 @@ export async function reassignExistingUser(
         and(
           eq(memberships.userId, user.id),
           eq(memberships.organizationId, parsed.organizationId),
-          locationCondition,
         ),
       )
       .limit(1);
@@ -1369,7 +1118,6 @@ export async function reassignExistingUser(
           .values({
             userId: user.id,
             organizationId: parsed.organizationId,
-            locationId: null,
             role: parsed.role,
             isActive: true,
             updatedAt: new Date(),
@@ -1428,15 +1176,10 @@ export async function listPlatformUserMemberships() {
       organizationName: organizations.name,
       organizationType: organizations.type,
       organizationActive: organizations.isActive,
-      locationId: locations.id,
-      locationName: locations.name,
-      locationLabel: locations.label,
-      locationActive: locations.isActive,
     })
     .from(users)
     .innerJoin(memberships, eq(memberships.userId, users.id))
-    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .leftJoin(locations, eq(locations.id, memberships.locationId));
+    .innerJoin(organizations, eq(organizations.id, memberships.organizationId));
 
   const usersById = new Map<
     string,
@@ -1454,10 +1197,6 @@ export async function listPlatformUserMemberships() {
         organizationName: string;
         organizationType: (typeof rows)[number]["organizationType"];
         organizationActive: boolean;
-        locationId: string | null;
-        locationName: string | null;
-        locationLabel: string | null;
-        locationActive: boolean | null;
         createdAt: string;
         updatedAt: string;
       }[];
@@ -1482,10 +1221,6 @@ export async function listPlatformUserMemberships() {
       organizationName: row.organizationName,
       organizationType: row.organizationType,
       organizationActive: row.organizationActive,
-      locationId: row.locationId,
-      locationName: row.locationName,
-      locationLabel: row.locationLabel,
-      locationActive: row.locationActive,
       createdAt: row.membershipCreatedAt.toISOString(),
       updatedAt: row.membershipUpdatedAt.toISOString(),
     });
@@ -1543,7 +1278,6 @@ export async function createRestaurantStaffUser(
       .values({
         userId: user.id,
         organizationId: restaurantOrganizationId,
-        locationId: null,
         role: parsed.role,
         isActive: true,
         updatedAt: new Date(),

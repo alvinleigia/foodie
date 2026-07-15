@@ -13,19 +13,19 @@ import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 type CustomerOrderStatusPageProps = {
   searchParams: PageProps<"/order/status">["searchParams"];
-  locationSlug?: string;
+  routeSlug?: string;
 };
 
 export default async function CustomerOrderStatusPage(props: CustomerOrderStatusPageProps) {
   const searchParams = await props.searchParams;
   const qrValue = searchParams.qr;
-  const locationValue = searchParams.location;
-  const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
-  const locationSlug =
-    props.locationSlug ?? (typeof locationValue === "string" ? locationValue : undefined);
+  const routeValue = searchParams.route;
+  const orderingPointQrSlug = typeof qrValue === "string" ? qrValue : undefined;
+  const routeSlug =
+    props.routeSlug ?? (typeof routeValue === "string" ? routeValue : undefined);
   const { customer, hasTenantContext, unavailableReason, user } =
-    await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
-  const customerContext = { locationQrSlug, locationSlug };
+    await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
+  const customerContext = { orderingPointQrSlug, routeSlug };
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
   if (hasTenantContext && user) {
@@ -67,8 +67,8 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
             />
           )}
           <CustomerOrderStatus
-            locationQrSlug={locationQrSlug}
-            locationSlug={locationSlug}
+            orderingPointQrSlug={orderingPointQrSlug}
+            routeSlug={routeSlug}
             refreshKey={0}
           />
         </>

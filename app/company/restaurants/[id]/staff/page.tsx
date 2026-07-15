@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { LocationStaffPanel } from "@/components/admin/LocationStaffPanel";
+import { RestaurantStaffPanel } from "@/components/admin/RestaurantStaffPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { canAccessRole, companyAdminRoles } from "@/lib/role-access";
 import {
@@ -47,7 +47,7 @@ export default async function CompanyRestaurantStaffPage(
         role: session.user.role,
       }}
     >
-      <LocationStaffPanel
+      <RestaurantStaffPanel
         assignHref={`/company/users/reassign?restaurantId=${restaurant.id}&role=ORDER_OPERATOR&returnTo=${encodeURIComponent(currentHref)}`}
         backHref={`/company/restaurants/${restaurant.id}`}
         currentHref={currentHref}

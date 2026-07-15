@@ -16,11 +16,11 @@ import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 export default async function CustomerAccountPage(props: PageProps<"/account">) {
   const searchParams = await props.searchParams;
-  const locationQrSlug =
+  const orderingPointQrSlug =
     typeof searchParams.qr === "string" ? searchParams.qr : undefined;
-  const locationSlug =
-    typeof searchParams.location === "string" ? searchParams.location : undefined;
-  const customerContext = { locationQrSlug, locationSlug };
+  const routeSlug =
+    typeof searchParams.route === "string" ? searchParams.route : undefined;
+  const customerContext = { orderingPointQrSlug, routeSlug };
   const routeContext = await getPublicOrderRouteContext(customerContext);
   const session = await requireCustomerSession();
 
@@ -73,8 +73,8 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
         <CardContent className="px-6 pb-6">
           <CustomerProfileForm
             customer={customer}
-            locationQrSlug={locationQrSlug}
-            locationSlug={locationSlug}
+            orderingPointQrSlug={orderingPointQrSlug}
+            routeSlug={routeSlug}
           />
         </CardContent>
       </Card>

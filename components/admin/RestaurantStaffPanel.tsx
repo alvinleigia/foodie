@@ -23,7 +23,7 @@ import {
 import { formatAppDate } from "@/lib/date-format";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-type LocationStaffUser = {
+type RestaurantStaffUser = {
   membershipId: string;
   username: string;
   name: string;
@@ -35,23 +35,23 @@ type LocationStaffUser = {
   updatedAt: string;
 };
 
-type LocationStaffPanelProps = {
+type RestaurantStaffPanelProps = {
   assignHref: string;
   backHref: string;
   currentHref: string;
   inviteHref: string;
   restaurantName: string;
-  staff: LocationStaffUser[];
+  staff: RestaurantStaffUser[];
 };
 
-export function LocationStaffPanel({
+export function RestaurantStaffPanel({
   assignHref,
   backHref,
   currentHref,
   inviteHref,
   restaurantName,
   staff,
-}: LocationStaffPanelProps) {
+}: RestaurantStaffPanelProps) {
   return (
     <div className="grid gap-6">
       <Card className="rounded-xl border-stone-200 bg-white">

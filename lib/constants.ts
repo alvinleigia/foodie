@@ -25,7 +25,6 @@ export type OrderItemStatus = (typeof orderItemStatuses)[number];
 export type OrderLineItem = {
   id?: string;
   organizationId?: string;
-  locationId?: string | null;
   categoryId: string;
   categoryName: string;
   drinkId: string;
@@ -56,7 +55,6 @@ export type LocalCustomerOrder = {
   orderNo: number;
   orderDate?: string;
   organizationId?: string;
-  locationId?: string | null;
   customerToken: string;
   customerName: string;
   categoryName: string;

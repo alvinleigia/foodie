@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { getTenantAdminSnapshot, updateLocationSettings } from "@/lib/tenant-admin";
+import { requireRole } from "@/lib/auth";
+import {
+  getTenantAdminSnapshot,
+  updateOrderingPointSettings,
+} from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 const tenantAdminRoles = [
@@ -21,24 +24,26 @@ export async function PATCH(request: NextRequest) {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const location = await updateLocationSettings(tenantContext, await request.json());
+    const orderingPoint = await updateOrderingPointSettings(
+      tenantContext,
+      await request.json(),
+    );
 
-    if (!location) {
-      return NextResponse.json({ error: "Location not found." }, { status: 404 });
+    if (!orderingPoint) {
+      return NextResponse.json({ error: "Ordering point not found." }, { status: 404 });
     }
 
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: null,
       action: "restaurant.ordering_point.update",
       entityType: "ordering_point",
-      entityId: location.id,
+      entityId: orderingPoint.id,
       metadata: {
-        name: location.name,
-        label: location.label,
-        qrSlug: location.qrSlug,
-        isActive: location.isActive,
+        name: orderingPoint.name,
+        label: orderingPoint.label,
+        qrSlug: orderingPoint.qrSlug,
+        isActive: orderingPoint.isActive,
       },
     });
 
@@ -49,7 +54,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to update location." },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to update ordering point.",
+      },
       { status: 500 },
     );
   }

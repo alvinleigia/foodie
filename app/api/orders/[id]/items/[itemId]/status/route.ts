@@ -130,7 +130,6 @@ export async function POST(
       await writeAuditLog({
         actor: session.user,
         organizationId: tenantContext.organizationId,
-        locationId: null,
         action: "order.item.announce",
         entityType: "order_item",
         entityId: item.id,
@@ -259,7 +258,6 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: null,
       action: `order.item.${body.action}`,
       entityType: "order_item",
       entityId: result.updatedItem.id,

@@ -254,7 +254,6 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: null,
       action: "order.item.status.correct",
       entityType: "order_item",
       entityId: result.updatedItem.id,

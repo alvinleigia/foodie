@@ -42,14 +42,14 @@ type CustomerProfileFormProps = {
     name: string;
     phone: string | null;
   };
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
 };
 
 export function CustomerProfileForm({
   customer,
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
 }: CustomerProfileFormProps) {
   const router = useRouter();
   const [profile, setProfile] = useState({
@@ -81,8 +81,8 @@ export function CustomerProfileForm({
     try {
       await requestJson(
         withPublicCustomerContext("/api/customer/profile", {
-          locationQrSlug,
-          locationSlug,
+          orderingPointQrSlug,
+          routeSlug,
         }),
         {
           body: profile,

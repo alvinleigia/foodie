@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
       summary,
       message:
         summary.deletedCategories || summary.deletedItems
-          ? `Cleared ${summary.deletedCategories} categories and ${summary.deletedItems} products from this location.`
-          : "There were no menu records to clear for this location.",
+          ? `Cleared ${summary.deletedCategories} categories and ${summary.deletedItems} products from this restaurant.`
+          : "There were no menu records to clear for this restaurant.",
     });
   } catch (error) {
     return NextResponse.json(

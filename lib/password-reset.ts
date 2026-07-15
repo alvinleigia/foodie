@@ -3,7 +3,6 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
-  locations,
   memberships,
   organizations,
   passwordResetTokens,
@@ -26,7 +25,6 @@ type PasswordResetViewer = {
   username?: string;
   role: MembershipRole;
   organizationId?: string | null;
-  locationId?: string | null;
 };
 
 type PasswordResetTarget = {
@@ -43,8 +41,6 @@ type PasswordResetTarget = {
   organizationName: string;
   parentOrganizationId: string | null;
   organizationType: "PLATFORM" | "COMPANY" | "RESTAURANT";
-  locationId: string | null;
-  locationName: string | null;
 };
 
 function hashResetToken(token: string) {
@@ -77,13 +73,9 @@ function canResetPasswordForTarget(
   if (
     canAccessRole(viewer.role, restaurantAdminRoles) &&
     viewer.organizationId &&
-    viewer.locationId &&
     target.role !== "PLATFORM_ADMIN"
   ) {
-    return (
-      target.organizationId === viewer.organizationId &&
-      target.locationId === viewer.locationId
-    );
+    return target.organizationId === viewer.organizationId;
   }
 
   return false;
@@ -105,13 +97,10 @@ async function getPasswordResetTarget(membershipId: string) {
       organizationName: organizations.name,
       parentOrganizationId: organizations.parentOrganizationId,
       organizationType: organizations.type,
-      locationId: locations.id,
-      locationName: locations.name,
     })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .leftJoin(locations, eq(locations.id, memberships.locationId))
     .where(eq(memberships.id, membershipId))
     .limit(1);
 
@@ -137,7 +126,6 @@ export async function getPasswordResetTargetForViewer(
     role: target.role,
     isActive: target.isActive,
     organizationName: target.organizationName,
-    locationName: target.locationName,
   };
 }
 

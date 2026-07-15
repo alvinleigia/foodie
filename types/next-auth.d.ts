@@ -8,7 +8,6 @@ type StaffSessionUser = DefaultSession["user"] & {
   role: MembershipRole;
   membershipId?: string;
   organizationId: string;
-  locationId: string;
   username?: string;
 };
 
@@ -18,7 +17,6 @@ type CustomerSessionUser = DefaultSession["user"] & {
   role?: never;
   membershipId?: never;
   organizationId?: never;
-  locationId?: never;
   username?: never;
 };
 
@@ -32,7 +30,6 @@ declare module "next-auth" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
-    locationId?: string;
     username?: string;
   }
 }
@@ -43,7 +40,6 @@ declare module "next-auth/jwt" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
-    locationId?: string;
     username?: string;
   }
 }

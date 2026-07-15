@@ -191,7 +191,6 @@ try {
       purpose,
       company_organization_id,
       restaurant_organization_id,
-      location_id,
       is_primary,
       is_active,
       updated_at
@@ -200,7 +199,6 @@ try {
       ${deployment.rootDomain},
       'PLATFORM',
       'ADMIN',
-      null,
       null,
       null,
       true,
@@ -213,7 +211,6 @@ try {
       purpose = 'ADMIN',
       company_organization_id = null,
       restaurant_organization_id = null,
-      location_id = null,
       is_primary = true,
       is_active = true,
       updated_at = now()
@@ -224,7 +221,6 @@ try {
     from memberships
     where user_id = ${userId}
       and organization_id = ${platformOrganizationId}
-      and location_id is null
     order by updated_at desc
     limit 1
   `;
@@ -243,7 +239,6 @@ try {
     insert into memberships (
       user_id,
       organization_id,
-      location_id,
       role,
       is_active,
       updated_at
@@ -251,7 +246,6 @@ try {
     values (
       ${userId},
       ${platformOrganizationId},
-      null,
       'PLATFORM_ADMIN',
       true,
       now()

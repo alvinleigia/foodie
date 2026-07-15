@@ -58,13 +58,11 @@ async function createScopedStaffInvitation({
   input,
   origin,
   organizationId,
-  locationId,
   allowedRoles,
 }: {
   input: unknown;
   origin: string;
   organizationId: string;
-  locationId: string | null;
   allowedRoles: readonly MembershipRole[];
 }) {
   const parsed = createStaffInvitationSchema.parse(input);
@@ -120,9 +118,6 @@ async function createScopedStaffInvitation({
           })
           .returning();
 
-    const locationCondition = locationId
-      ? eq(memberships.locationId, locationId)
-      : isNull(memberships.locationId);
     const [existingMembership] = await tx
       .select()
       .from(memberships)
@@ -130,7 +125,6 @@ async function createScopedStaffInvitation({
         and(
           eq(memberships.userId, user.id),
           eq(memberships.organizationId, organizationId),
-          locationCondition,
         ),
       )
       .limit(1);
@@ -163,7 +157,6 @@ async function createScopedStaffInvitation({
           .values({
             userId: user.id,
             organizationId,
-            locationId,
             role: parsed.role,
             isActive: false,
             updatedAt: new Date(),
@@ -208,7 +201,6 @@ export async function createRestaurantAdminStaffInvitation(
     input,
     origin,
     organizationId: context.organizationId,
-    locationId: null,
     allowedRoles: ["RESTAURANT_MANAGER", "ORDER_OPERATOR"],
   });
 }
@@ -241,7 +233,6 @@ export async function createCompanyStaffInvitation(
     input: parsed,
     origin,
     organizationId: company.id,
-    locationId: null,
     allowedRoles: ["COMPANY_OWNER"],
   });
 }
@@ -276,7 +267,6 @@ export async function createChildRestaurantStaffInvitation(
     input: parsed,
     origin,
     organizationId: restaurant.id,
-    locationId: null,
     allowedRoles: ["RESTAURANT_MANAGER", "ORDER_OPERATOR"],
   });
 }

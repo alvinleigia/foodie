@@ -88,8 +88,8 @@ type OrderFormProps = {
   } | null;
   customerAuthProviders: CustomerAuthProviders;
   isStaffOrder?: boolean;
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -125,20 +125,20 @@ type OrderDraft = {
   customerName: string;
 };
 
-function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
-  const { locationQrSlug, locationSlug } = options;
+function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
+  const { orderingPointQrSlug, routeSlug } = options;
 
-  if (locationQrSlug) {
+  if (orderingPointQrSlug) {
     const separator = path.includes("?") ? "&" : "?";
-    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+    return `${path}${separator}qr=${encodeURIComponent(orderingPointQrSlug)}`;
   }
 
-  if (!locationSlug) {
+  if (!routeSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
+  return `${path}${separator}route=${encodeURIComponent(routeSlug)}`;
 }
 
 function getStockLimit(drink: MenuItemRecord) {
@@ -226,8 +226,8 @@ export function OrderForm({
   customer,
   customerAuthProviders,
   isStaffOrder = false,
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
@@ -310,7 +310,7 @@ export function OrderForm({
 
     async function loadMenu() {
       setIsLoadingMenu(true);
-      const response = await fetch(withPublicContext("/api/menu", { locationQrSlug, locationSlug }));
+      const response = await fetch(withPublicContext("/api/menu", { orderingPointQrSlug, routeSlug }));
       const payload = await response.json();
 
       if (!response.ok) {
@@ -336,7 +336,7 @@ export function OrderForm({
     return () => {
       isMounted = false;
     };
-  }, [locationQrSlug, locationSlug]);
+  }, [orderingPointQrSlug, routeSlug]);
 
   useEffect(() => {
     if (visibleMenuCategories.length === 0) {
@@ -797,7 +797,7 @@ export function OrderForm({
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch(withPublicContext("/api/orders", { locationQrSlug, locationSlug }), {
+    const response = await fetch(withPublicContext("/api/orders", { orderingPointQrSlug, routeSlug }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -859,9 +859,9 @@ export function OrderForm({
     setIsSubmitting(false);
     setScreen("menu");
     router.push(
-      locationSlug
-        ? `/order/status/${encodeURIComponent(locationSlug)}`
-        : withPublicContext("/order/status", { locationQrSlug }),
+      routeSlug
+        ? `/order/status/${encodeURIComponent(routeSlug)}`
+        : withPublicContext("/order/status", { orderingPointQrSlug }),
     );
   }
 
@@ -1321,8 +1321,8 @@ export function OrderForm({
             {!isStaffOrder && !customer ? (
               <CustomerLoginForm
                 providers={customerAuthProviders}
-                locationQrSlug={locationQrSlug}
-                locationSlug={locationSlug}
+                orderingPointQrSlug={orderingPointQrSlug}
+                routeSlug={routeSlug}
                 onSignedIn={() => router.refresh()}
                 className="rounded-lg border border-stone-200 bg-stone-50 p-4"
               />

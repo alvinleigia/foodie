@@ -3,8 +3,8 @@ import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavai
 import { AppShell } from "@/components/shared/AppShell";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
-export default async function LocationOrderPage(
-  props: PageProps<"/order/[locationSlug]">,
+export default async function RestaurantOrderPage(
+  props: PageProps<"/order/[routeSlug]">,
 ) {
   const params = await props.params;
   const {
@@ -13,7 +13,7 @@ export default async function LocationOrderPage(
     hasTenantContext,
     unavailableReason,
     user,
-  } = await getPublicOrderRouteContext({ locationSlug: params.locationSlug });
+  } = await getPublicOrderRouteContext({ routeSlug: params.routeSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -21,7 +21,7 @@ export default async function LocationOrderPage(
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
-          locationSlug={params.locationSlug}
+          routeSlug={params.routeSlug}
           user={user}
         />
       ) : (

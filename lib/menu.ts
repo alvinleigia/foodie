@@ -116,7 +116,6 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
       .insert(menuCategories)
       .values({
         organizationId: context.organizationId,
-        locationId: null,
         slug: categorySlug,
         name: category.name,
         description: category.description,
@@ -137,7 +136,6 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
       for (const item of category.items) {
         seededItems.push({
           organizationId: context.organizationId,
-          locationId: null,
           categoryId: createdCategory.id,
           slug: await ensureUniqueSlug(
             menuItems,
@@ -209,7 +207,6 @@ function groupMenuData(
     categoryMap.set(category.id, {
       id: category.id,
       organizationId: category.organizationId,
-      locationId: category.locationId,
       slug: category.slug,
       name: category.name,
       description: category.description,
@@ -233,7 +230,6 @@ function groupMenuData(
     category.items.push({
       id: item.id,
       organizationId: item.organizationId,
-      locationId: item.locationId,
       categoryId: item.categoryId,
       slug: item.slug,
       name: item.name,
@@ -403,7 +399,6 @@ function serializeModifierGroup(
   return {
     id: group.id,
     organizationId: group.organizationId,
-    locationId: group.locationId,
     slug: group.slug,
     name: group.name,
     description: group.description,
@@ -816,7 +811,6 @@ export async function createMenuModifierGroup(input: {
     .insert(modifierGroups)
     .values({
       organizationId: context.organizationId,
-      locationId: null,
       slug,
       name: input.name,
       description: input.description ?? null,
@@ -866,7 +860,6 @@ export async function createMenuModifierOption(input: {
     .insert(modifierOptions)
     .values({
       organizationId: context.organizationId,
-      locationId: null,
       groupId: input.groupId,
       slug,
       name: input.name,
@@ -898,7 +891,6 @@ export async function createMenuCategory(input: {
     .insert(menuCategories)
     .values({
       organizationId: context.organizationId,
-      locationId: null,
       slug,
       name: input.name,
       description: input.description ?? null,
@@ -993,7 +985,6 @@ export async function createMenuItem(input: {
       .insert(menuItems)
       .values({
         organizationId: context.organizationId,
-        locationId: null,
         categoryId: input.categoryId,
         slug,
         name: input.name,
@@ -1080,7 +1071,6 @@ export async function updateMenuItem(
       .update(menuItems)
       .set({
         organizationId: context.organizationId,
-        locationId: null,
         categoryId: input.categoryId,
         slug,
         name: input.name,

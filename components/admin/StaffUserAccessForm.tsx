@@ -162,7 +162,7 @@ export function StaffUserAccessForm({
                   Staff access is active
                 </span>
                 <span className="mt-1 block text-stone-500">
-                  Turn this off to remove this user from active location access.
+                  Turn this off to remove this user from active restaurant access.
                   Any pending invite link for this membership will be expired.
                 </span>
               </span>

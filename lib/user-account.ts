@@ -1,7 +1,7 @@
 import { and, eq, ne, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, memberships, organizations, users } from "@/db/schema";
+import { memberships, organizations, users } from "@/db/schema";
 import {
   canAccessRole,
   companyAdminRoles,
@@ -16,7 +16,6 @@ type AccountEditor = {
   username?: string;
   role: MembershipRole;
   organizationId?: string | null;
-  locationId?: string | null;
 };
 
 type UserAccountTarget = {
@@ -31,8 +30,6 @@ type UserAccountTarget = {
   organizationId: string;
   organizationName: string;
   parentOrganizationId: string | null;
-  locationId: string | null;
-  locationName: string | null;
 };
 
 function canEditAccountForTarget(
@@ -57,13 +54,9 @@ function canEditAccountForTarget(
   if (
     canAccessRole(editor.role, restaurantAdminRoles) &&
     editor.organizationId &&
-    editor.locationId &&
     target.role !== "PLATFORM_ADMIN"
   ) {
-    return (
-      target.organizationId === editor.organizationId &&
-      target.locationId === editor.locationId
-    );
+    return target.organizationId === editor.organizationId;
   }
 
   return false;
@@ -83,13 +76,10 @@ async function getUserAccountTarget(membershipId: string) {
       organizationId: organizations.id,
       organizationName: organizations.name,
       parentOrganizationId: organizations.parentOrganizationId,
-      locationId: locations.id,
-      locationName: locations.name,
     })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .leftJoin(locations, eq(locations.id, memberships.locationId))
     .where(eq(memberships.id, membershipId))
     .limit(1);
 
@@ -115,7 +105,6 @@ export async function getUserAccountForEditor(
     role: target.role,
     isActive: target.isActive,
     organizationName: target.organizationName,
-    locationName: target.locationName,
   };
 }
 

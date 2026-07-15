@@ -138,7 +138,6 @@ export async function getCustomerOrderHistory(
     .select({
       createdAt: orders.createdAt,
       currency: organizations.currency,
-      locationName: organizations.name,
       orderId: orders.id,
       orderNo: orders.orderNo,
       organizationName: organizations.name,

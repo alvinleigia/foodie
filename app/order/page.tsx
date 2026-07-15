@@ -7,9 +7,9 @@ import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 export default async function OrderPage(props: PageProps<"/order">) {
   const searchParams = await props.searchParams;
   const qrValue = searchParams.qr;
-  const locationValue = searchParams.location;
-  const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
-  const locationSlug = typeof locationValue === "string" ? locationValue : undefined;
+  const routeValue = searchParams.route;
+  const orderingPointQrSlug = typeof qrValue === "string" ? qrValue : undefined;
+  const routeSlug = typeof routeValue === "string" ? routeValue : undefined;
   const {
     customer,
     customerAuthProviders,
@@ -17,7 +17,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
     restaurantChoices,
     unavailableReason,
     user,
-  } = await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
+  } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -25,8 +25,8 @@ export default async function OrderPage(props: PageProps<"/order">) {
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
-          locationQrSlug={locationQrSlug}
-          locationSlug={locationSlug}
+          orderingPointQrSlug={orderingPointQrSlug}
+          routeSlug={routeSlug}
           user={user}
         />
       ) : restaurantChoices.length ? (

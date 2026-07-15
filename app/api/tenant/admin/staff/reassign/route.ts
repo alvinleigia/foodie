@@ -25,7 +25,6 @@ export async function POST(request: Request) {
     await writeAuditLog({
       actor: session.user,
       organizationId: result.membership.organizationId,
-      locationId: result.membership.locationId,
       action: "restaurant.staff.reassign",
       entityType: "membership",
       entityId: result.membership.id,

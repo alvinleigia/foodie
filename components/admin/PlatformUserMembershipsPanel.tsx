@@ -17,10 +17,6 @@ type UserMembership = {
   organizationName: string;
   organizationType: "PLATFORM" | "COMPANY" | "RESTAURANT";
   organizationActive: boolean;
-  locationId: string | null;
-  locationName: string | null;
-  locationLabel: string | null;
-  locationActive: boolean | null;
   updatedAt: string;
 };
 
@@ -40,10 +36,6 @@ type PlatformUserMembershipsPanelProps = {
 function getScopeLabel(membership: UserMembership) {
   if (membership.role === "PLATFORM_ADMIN") {
     return "SaaS owner access";
-  }
-
-  if (membership.locationId) {
-    return membership.locationLabel || membership.locationName || "Location";
   }
 
   return membership.organizationType === "COMPANY"
@@ -156,12 +148,6 @@ export function PlatformUserMembershipsPanel({
                         : membership.organizationType.toLowerCase()}{" "}
                       {membership.organizationActive ? "active" : "disabled"}
                     </span>
-                    {membership.locationId ? (
-                      <span>
-                        Location{" "}
-                        {membership.locationActive ? "active" : "disabled"}
-                      </span>
-                    ) : null}
                     <span>Updated {formatAppDate(membership.updatedAt)}</span>
                   </div>
                 </div>

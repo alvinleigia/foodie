@@ -74,7 +74,6 @@ export const tenantDomainScopeEnum = pgEnum("tenant_domain_scope", [
   "PLATFORM",
   "COMPANY",
   "RESTAURANT",
-  "LOCATION",
 ]);
 
 export const tenantDomainPurposeEnum = pgEnum("tenant_domain_purpose", [
@@ -410,7 +409,6 @@ export const saasPlans = pgTable(
       .default("0")
       .notNull(),
     maxRestaurants: integer("max_restaurants").default(1).notNull(),
-    maxLocations: integer("max_locations").default(1).notNull(),
     maxUsers: integer("max_users").default(5).notNull(),
     maxMonthlyOrders: integer("max_monthly_orders").default(500).notNull(),
     storageMb: integer("storage_mb").default(256).notNull(),
@@ -443,29 +441,6 @@ export const organizationSubscriptions = pgTable(
     uniqueIndex("organization_subscriptions_org_unique").on(table.organizationId),
     index("organization_subscriptions_plan_idx").on(table.planId),
     index("organization_subscriptions_status_idx").on(table.status),
-  ],
-);
-
-export const locations = pgTable(
-  "locations",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    organizationId: uuid("organization_id")
-      .references(() => organizations.id, { onDelete: "cascade" })
-      .notNull(),
-    slug: text("slug").notNull(),
-    qrSlug: text("qr_slug"),
-    name: text("name").notNull(),
-    label: text("label"),
-    timezone: text("timezone").notNull(),
-    isActive: boolean("is_active").default(true).notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (table) => [
-    index("locations_organization_idx").on(table.organizationId),
-    uniqueIndex("locations_org_slug_unique").on(table.organizationId, table.slug),
-    uniqueIndex("locations_qr_slug_unique").on(table.qrSlug),
   ],
 );
 
@@ -514,9 +489,6 @@ export const tenantDomains = pgTable(
       () => organizations.id,
       { onDelete: "cascade" },
     ),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     isPrimary: boolean("is_primary").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -536,9 +508,9 @@ export const tenantDomains = pgTable(
     check(
       "tenant_domains_owner_scope_check",
       sql`(
-        (${table.scope} = 'PLATFORM' AND ${table.companyOrganizationId} IS NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.locationId} IS NULL)
-        OR (${table.scope} = 'COMPANY' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.locationId} IS NULL AND ${table.purpose} = 'ORDERING')
-        OR (${table.scope} = 'RESTAURANT' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NOT NULL AND ${table.locationId} IS NULL AND ${table.purpose} = 'ORDERING')
+        (${table.scope} = 'PLATFORM' AND ${table.companyOrganizationId} IS NULL AND ${table.restaurantOrganizationId} IS NULL)
+        OR (${table.scope} = 'COMPANY' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.purpose} = 'ORDERING')
+        OR (${table.scope} = 'RESTAURANT' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NOT NULL AND ${table.purpose} = 'ORDERING')
       )`,
     ),
   ],
@@ -556,9 +528,6 @@ export const auditLogs = pgTable(
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "set null",
-    }),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id"),
@@ -568,7 +537,6 @@ export const auditLogs = pgTable(
   (table) => [
     index("audit_logs_actor_user_idx").on(table.actorUserId),
     index("audit_logs_organization_idx").on(table.organizationId),
-    index("audit_logs_location_idx").on(table.locationId),
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_at_idx").on(table.createdAt),
   ],
@@ -584,9 +552,6 @@ export const memberships = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     role: membershipRoleEnum("role").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -594,11 +559,9 @@ export const memberships = pgTable(
   },
   (table) => [
     index("memberships_organization_idx").on(table.organizationId),
-    index("memberships_location_idx").on(table.locationId),
-    uniqueIndex("memberships_user_org_location_unique").on(
+    uniqueIndex("memberships_user_org_unique").on(
       table.userId,
       table.organizationId,
-      sql`coalesce(${table.locationId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
     ),
   ],
 );
@@ -660,9 +623,6 @@ export const menuCategories = pgTable("menu_categories", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
@@ -683,9 +643,6 @@ export const menuItems = pgTable("menu_items", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
   categoryId: uuid("category_id")
     .references(() => menuCategories.id, { onDelete: "cascade" })
     .notNull(),
@@ -752,9 +709,6 @@ export const modifierGroups = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -771,7 +725,6 @@ export const modifierGroups = pgTable(
   },
   (table) => [
     index("modifier_groups_organization_idx").on(table.organizationId),
-    index("modifier_groups_location_idx").on(table.locationId),
     uniqueIndex("modifier_groups_org_slug_unique").on(
       table.organizationId,
       table.slug,
@@ -786,9 +739,6 @@ export const modifierOptions = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     groupId: uuid("group_id")
       .references(() => modifierGroups.id, { onDelete: "cascade" })
       .notNull(),
@@ -840,9 +790,6 @@ export const inventoryItems = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     menuItemId: uuid("menu_item_id")
       .references(() => menuItems.id, { onDelete: "cascade" })
       .notNull(),
@@ -860,7 +807,6 @@ export const inventoryItems = pgTable(
   },
   (table) => [
     index("inventory_items_organization_idx").on(table.organizationId),
-    index("inventory_items_location_idx").on(table.locationId),
     uniqueIndex("inventory_items_org_menu_item_unique").on(
       table.organizationId,
       table.menuItemId,
@@ -873,9 +819,6 @@ export const orders = pgTable("orders", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
   orderingPointId: uuid("ordering_point_id").references(() => orderingPoints.id, {
     onDelete: "set null",
   }),
@@ -958,9 +901,6 @@ export const orderItems = pgTable("order_items", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
   orderId: uuid("order_id")
     .references(() => orders.id, { onDelete: "cascade" })
     .notNull(),
@@ -993,9 +933,6 @@ export const orderItemModifiers = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     orderItemId: uuid("order_item_id")
       .references(() => orderItems.id, { onDelete: "cascade" })
       .notNull(),
@@ -1012,6 +949,5 @@ export const orderItemModifiers = pgTable(
   (table) => [
     index("order_item_modifiers_order_item_idx").on(table.orderItemId),
     index("order_item_modifiers_organization_idx").on(table.organizationId),
-    index("order_item_modifiers_location_idx").on(table.locationId),
   ],
 );

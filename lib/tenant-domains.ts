@@ -216,7 +216,7 @@ export async function getCompanyDomainRestaurants(
 
 export async function getTenantContextFromDomain(
   domain: string | null | undefined,
-  locationSlug?: string | null,
+  routeSlug?: string | null,
 ): Promise<TenantContext | null> {
   const normalizedDomain = normalizeDomain(domain);
 
@@ -248,14 +248,14 @@ export async function getTenantContextFromDomain(
   if (!context && domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
     context = await resolveRestaurantOrderingPoint(
       domainRecord.restaurantOrganizationId,
-      locationSlug,
+      routeSlug,
     );
   }
 
   if (!context && domainRecord.scope === "COMPANY" && domainRecord.companyOrganizationId) {
     context = await resolveCompanyRestaurant(
       domainRecord.companyOrganizationId,
-      locationSlug,
+      routeSlug,
     );
   }
 
@@ -298,9 +298,9 @@ export async function getInactiveTenantDomain(domain: string | null | undefined)
 
 export async function getTenantContextFromRequestDomain(
   request: Request,
-  locationSlug?: string | null,
+  routeSlug?: string | null,
 ) {
-  return getTenantContextFromDomain(getRequestDomain(request), locationSlug);
+  return getTenantContextFromDomain(getRequestDomain(request), routeSlug);
 }
 
 export type TenantDomainAccessScope =

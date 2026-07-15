@@ -22,7 +22,7 @@ Ordering point
 - Customer profiles remain restaurant-scoped.
 - Staff and administration remain on the deployment root domain.
 - Customer domains may resolve to a company restaurant picker or directly to a restaurant.
-- Legacy location columns remain until all runtime reads and writes have moved away from them.
+- Legacy location data is removed after all runtime reads and writes move to restaurant scope.
 
 ## Implementation Phases
 
@@ -66,3 +66,12 @@ Ordering point
 - [x] Resolve restaurant integrations through restaurant, company and permitted platform defaults.
 - [x] Keep Stripe inheritance limited to restaurant and company connected accounts.
 - [x] Use the deployment root domain for universal and tenant OAuth callbacks.
+
+## Phase 5
+
+- [x] Remove the legacy locations table and location columns.
+- [x] Remove location-scoped staff sessions and memberships.
+- [x] Remove company and restaurant location administration routes.
+- [x] Keep ordering points as optional restaurant-owned routing metadata.
+- [x] Rename customer route context away from legacy location terminology.
+- [x] Update bootstrap, verification and test helpers for restaurant scope.

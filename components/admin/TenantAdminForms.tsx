@@ -35,11 +35,10 @@ type RestaurantSettings = {
   currency: string;
 };
 
-type LocationSettings = {
+type OrderingPointSettings = {
   name: string;
   label: string | null;
   qrSlug: string | null;
-  timezone: string;
   isActive: boolean;
 };
 
@@ -51,7 +50,7 @@ type StaffAccess = {
 };
 
 type TenantRestaurantField = "currency" | "logoUrl" | "name" | "timezone";
-type TenantLocationField = "isActive" | "label" | "name" | "qrSlug" | "timezone";
+type TenantOrderingPointField = "isActive" | "label" | "name" | "qrSlug";
 type TenantStaffAccessField = "isActive" | "role";
 
 async function submitJson(path: string, method: "POST" | "PATCH", body: unknown) {
@@ -239,23 +238,22 @@ export function TenantRestaurantSettingsForm({
   );
 }
 
-export function TenantLocationSettingsForm({
+export function TenantOrderingPointSettingsForm({
   backHref,
-  location,
+  orderingPoint,
 }: {
   backHref: string;
-  location: LocationSettings;
+  orderingPoint: OrderingPointSettings;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState({
-    name: location.name,
-    label: location.label ?? "",
-    qrSlug: location.qrSlug ?? "",
-    timezone: location.timezone,
-    isActive: location.isActive,
+    name: orderingPoint.name,
+    label: orderingPoint.label ?? "",
+    qrSlug: orderingPoint.qrSlug ?? "",
+    isActive: orderingPoint.isActive,
   });
   const [isSaving, setIsSaving] = useState(false);
-  const validation = useFormValidation<TenantLocationField>();
+  const validation = useFormValidation<TenantOrderingPointField>();
   const [qrSlugStatus, setQrSlugStatus] = useState<{
     available: boolean | null;
     error: string | null;
@@ -277,7 +275,7 @@ export function TenantLocationSettingsForm({
     const timeout = window.setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/tenant/admin/location/qr-slug?value=${encodeURIComponent(qrSlug)}`,
+          `/api/tenant/admin/ordering-point/qr-slug?value=${encodeURIComponent(qrSlug)}`,
           { signal: controller.signal },
         );
         const payload = await response.json();
@@ -290,7 +288,9 @@ export function TenantLocationSettingsForm({
 
         setQrSlugStatus({
           available: Boolean(payload.available),
-          error: payload.available ? null : "This QR slug is already used by another location.",
+          error: payload.available
+            ? null
+            : "This QR slug is already used by another ordering point.",
           isChecking: false,
         });
       } catch (err) {
@@ -326,8 +326,8 @@ export function TenantLocationSettingsForm({
     setIsSaving(true);
     validation.clearErrors();
     try {
-      await submitJson("/api/tenant/admin/location", "PATCH", draft);
-      toast.success("Location settings updated.");
+      await submitJson("/api/tenant/admin/ordering-point", "PATCH", draft);
+      toast.success("Ordering point settings updated.");
       router.push(backHref);
       router.refresh();
     } catch (err) {
@@ -352,9 +352,9 @@ export function TenantLocationSettingsForm({
   return (
     <Card className="rounded-xl border-stone-200 bg-white">
       <CardHeader className="px-5 pt-5">
-        <h3 className="text-2xl font-semibold text-stone-950">Edit location</h3>
+        <h3 className="text-2xl font-semibold text-stone-950">Edit ordering point</h3>
         <p className="text-sm text-stone-500">
-          Update the live operating location for this restaurant.
+          Update the default customer ordering point for this restaurant.
         </p>
       </CardHeader>
       <CardContent className="px-5 pb-5">
@@ -371,12 +371,14 @@ export function TenantLocationSettingsForm({
           <FormField
             label="Name"
             error={validation.getError("name")}
-            errorId="tenant-location-name-error"
+            errorId="tenant-ordering-point-name-error"
           >
             <Input
               value={draft.name}
               aria-describedby={
-                validation.getError("name") ? "tenant-location-name-error" : undefined
+                validation.getError("name")
+                  ? "tenant-ordering-point-name-error"
+                  : undefined
               }
               aria-invalid={Boolean(validation.getError("name"))}
               onChange={(event) => {
@@ -389,12 +391,14 @@ export function TenantLocationSettingsForm({
             <FormField
               label="Label"
               error={validation.getError("label")}
-              errorId="tenant-location-label-error"
+              errorId="tenant-ordering-point-label-error"
             >
               <Input
                 value={draft.label}
                 aria-describedby={
-                  validation.getError("label") ? "tenant-location-label-error" : undefined
+                  validation.getError("label")
+                    ? "tenant-ordering-point-label-error"
+                    : undefined
                 }
                 aria-invalid={Boolean(validation.getError("label"))}
                 onChange={(event) => {
@@ -436,19 +440,6 @@ export function TenantLocationSettingsForm({
               </p>
             </FormField>
           </div>
-          <FormField
-            label="Timezone"
-            error={validation.getError("timezone")}
-            errorId="tenant-location-timezone-error"
-          >
-            <TimezoneSelect
-              value={draft.timezone}
-              onValueChange={(timezone) => {
-                validation.clearFieldError("timezone");
-                setDraft((current) => ({ ...current, timezone }))
-              }}
-            />
-          </FormField>
           <label className="flex items-center gap-2 text-sm text-stone-700">
             <input
               type="checkbox"
@@ -461,7 +452,7 @@ export function TenantLocationSettingsForm({
               }
               className="size-4 rounded border-stone-300"
             />
-            Location is active
+            Ordering point is active
           </label>
           <FormActions
             backHref={backHref}

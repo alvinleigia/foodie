@@ -42,8 +42,8 @@ type ApiOrder = LocalCustomerOrder & {
 };
 
 type CustomerOrderStatusProps = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   refreshKey: number;
 };
 
@@ -62,25 +62,25 @@ function sortOrdersByNewest(ordersToSort: ApiOrder[]) {
   );
 }
 
-function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
-  const { locationQrSlug, locationSlug } = options;
+function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
+  const { orderingPointQrSlug, routeSlug } = options;
 
-  if (locationQrSlug) {
+  if (orderingPointQrSlug) {
     const separator = path.includes("?") ? "&" : "?";
-    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+    return `${path}${separator}qr=${encodeURIComponent(orderingPointQrSlug)}`;
   }
 
-  if (!locationSlug) {
+  if (!routeSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
+  return `${path}${separator}route=${encodeURIComponent(routeSlug)}`;
 }
 
 export function CustomerOrderStatus({
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   refreshKey,
 }: CustomerOrderStatusProps) {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
@@ -98,7 +98,7 @@ export function CustomerOrderStatus({
   useEffect(() => {
     let isMounted = true;
     let refreshTimeout: number | undefined;
-    const ordersContext = `${locationQrSlug ?? ""}:${locationSlug ?? ""}:${refreshKey}`;
+    const ordersContext = `${orderingPointQrSlug ?? ""}:${routeSlug ?? ""}:${refreshKey}`;
 
     if (ordersContextRef.current !== ordersContext) {
       ordersContextRef.current = ordersContext;
@@ -138,7 +138,7 @@ export function CustomerOrderStatus({
         }
 
         const response = await fetch(
-          withPublicContext("/api/orders/status", { locationQrSlug, locationSlug }),
+          withPublicContext("/api/orders/status", { orderingPointQrSlug, routeSlug }),
           {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -235,14 +235,14 @@ export function CustomerOrderStatus({
         window.clearTimeout(refreshTimeout);
       }
     };
-  }, [locationQrSlug, locationSlug, refreshKey, selectedView]);
+  }, [orderingPointQrSlug, routeSlug, refreshKey, selectedView]);
 
   async function cancelOrder(order: ApiOrder) {
     setPendingCancelId(order.orderId);
     const response = await fetch(
       withPublicContext(`/api/orders/${order.orderId}/cancel`, {
-        locationQrSlug,
-        locationSlug,
+        orderingPointQrSlug,
+        routeSlug,
       }),
       {
         method: "POST",

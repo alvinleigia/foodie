@@ -114,8 +114,8 @@ export async function getPublicTenantContextFromRequest(request: Request) {
     return getTenantContextFromQrSlug(qrSlug);
   }
 
-  const locationSlug = url.searchParams.get("location");
-  const domainContext = await getTenantContextFromRequestDomain(request, locationSlug);
+  const routeSlug = url.searchParams.get("route");
+  const domainContext = await getTenantContextFromRequestDomain(request, routeSlug);
 
   if (domainContext) {
     return domainContext;

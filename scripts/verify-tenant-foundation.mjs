@@ -85,7 +85,6 @@ try {
     where table_schema = 'public'
       and (
         (table_name = 'organizations' and column_name in ('timezone', 'currency'))
-        or (table_name = 'locations' and column_name = 'timezone')
       )
   `;
   const defaultedColumn = localeColumns.find((column) => column.column_default !== null);
@@ -131,30 +130,39 @@ try {
     }
   }
 
-  const nullableOperationalLocationColumns = await sql`
-    select table_name, is_nullable
+  const [legacyLocationTable] = await sql`
+    select to_regclass('public.locations') as table_name
+  `;
+
+  if (legacyLocationTable.table_name !== null) {
+    throw new Error("Legacy locations table still exists. Run migrations.");
+  }
+
+  const legacyLocationColumns = await sql`
+    select table_name
     from information_schema.columns
     where table_schema = 'public'
       and column_name = 'location_id'
-      and table_name in (
-        'menu_categories',
-        'menu_items',
-        'modifier_groups',
-        'modifier_options',
-        'inventory_items',
-        'orders',
-        'order_items',
-        'order_item_modifiers'
-      )
   `;
-  const requiredLocationColumn = nullableOperationalLocationColumns.find(
-    (column) => column.is_nullable !== "YES",
-  );
 
-  if (nullableOperationalLocationColumns.length !== 8 || requiredLocationColumn) {
+  if (legacyLocationColumns.length > 0) {
     throw new Error(
-      "Operational location columns are not in Phase 3 compatibility mode. Run migrations.",
+      `Legacy location_id columns still exist on: ${legacyLocationColumns
+        .map((column) => column.table_name)
+        .join(", ")}. Run migrations.`,
     );
+  }
+
+  const legacyDomainScopes = await sql`
+    select enumlabel
+    from pg_enum
+    inner join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'tenant_domain_scope'
+      and enumlabel = 'LOCATION'
+  `;
+
+  if (legacyDomainScopes.length > 0) {
+    throw new Error("Legacy LOCATION domain scope still exists. Run migrations.");
   }
 
   const [orderOrderingPointScope] = await sql`
@@ -186,22 +194,6 @@ try {
     );
   }
 
-  const [restaurantStaffScope] = await sql`
-    select count(*)::int as invalid_count
-    from memberships membership
-    inner join organizations organization
-      on organization.id = membership.organization_id
-    where organization.type = 'RESTAURANT'
-      and membership.role in ('RESTAURANT_MANAGER', 'ORDER_OPERATOR')
-      and membership.location_id is not null
-  `;
-
-  if (restaurantStaffScope.invalid_count > 0) {
-    throw new Error(
-      `memberships has ${restaurantStaffScope.invalid_count} restaurant staff rows still scoped to locations. Run migrations.`,
-    );
-  }
-
   const [tenantDomainScope] = await sql`
     select count(*)::int as invalid_count
     from tenant_domains domain_record
@@ -209,9 +201,7 @@ try {
       on company.id = domain_record.company_organization_id
     left join organizations restaurant
       on restaurant.id = domain_record.restaurant_organization_id
-    where domain_record.scope = 'LOCATION'
-      or domain_record.location_id is not null
-      or (
+    where (
         domain_record.scope = 'COMPANY'
         and (
           domain_record.purpose is distinct from 'ORDERING'

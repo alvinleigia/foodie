@@ -14,8 +14,8 @@ import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 type CustomerLoginPageProps = {
   searchParams: Promise<{
-    location?: string | string[];
     qr?: string | string[];
+    route?: string | string[];
     returnTo?: string | string[];
   }>;
 };
@@ -24,15 +24,14 @@ export default async function CustomerLoginPage({
   searchParams,
 }: CustomerLoginPageProps) {
   const params = await searchParams;
-  const locationQrSlug = typeof params.qr === "string" ? params.qr : undefined;
-  const locationSlug =
-    typeof params.location === "string" ? params.location : undefined;
-  const customerContext = { locationQrSlug, locationSlug };
+  const orderingPointQrSlug = typeof params.qr === "string" ? params.qr : undefined;
+  const routeSlug = typeof params.route === "string" ? params.route : undefined;
+  const customerContext = { orderingPointQrSlug, routeSlug };
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
   const returnTo = getSafeCustomerReturnTo(params.returnTo, ordersHref);
   const context = await getPublicOrderRouteContext({
-    locationQrSlug,
-    locationSlug,
+    orderingPointQrSlug,
+    routeSlug,
   });
   const orderHref = getCustomerOrderHref("/order", customerContext);
 
@@ -74,8 +73,8 @@ export default async function CustomerLoginPage({
             <CardContent className="px-6 pb-6">
               <CustomerLoginForm
                 providers={context.customerAuthProviders}
-                locationQrSlug={locationQrSlug}
-                locationSlug={locationSlug}
+                orderingPointQrSlug={orderingPointQrSlug}
+                routeSlug={routeSlug}
                 redirectTo={returnTo}
                 title="Choose a sign-in method"
               />

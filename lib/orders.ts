@@ -40,7 +40,6 @@ function groupItemsByOrder(
     list.push({
       id: item.id,
       organizationId: item.organizationId,
-      locationId: item.locationId,
       categoryId: item.categoryId,
       categoryName: item.categoryName,
       drinkId: item.drinkId,
@@ -126,7 +125,6 @@ export function serializeOrder(
     orderNo: order.orderNo,
     orderDate: order.orderDate,
     organizationId: order.organizationId,
-    locationId: order.locationId,
     customerName: order.customerName,
     categoryName: order.categoryName,
     drinkName: order.drinkName,

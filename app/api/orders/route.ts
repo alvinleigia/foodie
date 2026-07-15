@@ -205,7 +205,6 @@ export async function POST(request: NextRequest) {
     const cartItems: Array<{
       categoryId: string;
       organizationId: string;
-      locationId: null;
       categoryName: string;
       drinkId: string;
       drinkName: string;
@@ -257,7 +256,6 @@ export async function POST(request: NextRequest) {
       cartItems.push({
         categoryId: category.id,
         organizationId: tenantContext.organizationId,
-        locationId: null,
         categoryName: category.name,
         drinkId: item.id,
         drinkName: item.name,
@@ -297,7 +295,6 @@ export async function POST(request: NextRequest) {
         .insert(orders)
         .values({
           organizationId: tenantContext.organizationId,
-          locationId: null,
           orderingPointId: tenantContext.orderingPointId,
           orderDate,
           orderNo,
@@ -345,7 +342,6 @@ export async function POST(request: NextRequest) {
           .insert(orderItems)
           .values({
             organizationId: tenantContext.organizationId,
-            locationId: null,
             orderId: newOrder.id,
             categoryId: item.categoryId,
             categoryName: item.categoryName,
@@ -363,7 +359,6 @@ export async function POST(request: NextRequest) {
           await tx.insert(orderItemModifiers).values(
             item.modifiers.map((modifier) => ({
               organizationId: tenantContext.organizationId,
-              locationId: null,
               orderItemId: newOrderItem.id,
               modifierGroupId: modifier.modifierGroupId,
               modifierGroupName: modifier.modifierGroupName,
@@ -389,8 +384,8 @@ export async function POST(request: NextRequest) {
     ) {
       let checkoutSessionId: string | null = null;
       const customerContext = {
-        locationQrSlug: request.nextUrl.searchParams.get("qr") ?? undefined,
-        locationSlug: request.nextUrl.searchParams.get("location") ?? undefined,
+        orderingPointQrSlug: request.nextUrl.searchParams.get("qr") ?? undefined,
+        routeSlug: request.nextUrl.searchParams.get("route") ?? undefined,
       };
       const cancelPath = withPublicCustomerContext(
         "/account?payment=cancelled",
@@ -456,7 +451,6 @@ export async function POST(request: NextRequest) {
         logError("order.checkout.create_failed", paymentError, {
           orderId: createdOrder.id,
           organizationId: tenantContext.organizationId,
-          locationId: null,
           orderingPointId: tenantContext.orderingPointId,
         });
         throw new Error("Payment could not be started. Please try again.");

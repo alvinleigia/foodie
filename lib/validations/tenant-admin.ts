@@ -41,8 +41,8 @@ export const organizationSettingsSchema = z.object({
   currency: currencySchema,
 });
 
-export const locationSettingsSchema = z.object({
-  name: z.string().trim().min(2, "Location name is required").max(120),
+export const orderingPointSettingsSchema = z.object({
+  name: z.string().trim().min(2, "Ordering point name is required").max(120),
   label: z.string().trim().max(160).optional().transform((value) => value || null),
   qrSlug: z
     .string()
@@ -54,7 +54,6 @@ export const locationSettingsSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((value) => value || null),
-  timezone: timezoneSchema,
   isActive: z.boolean().default(true),
 });
 
@@ -95,13 +94,6 @@ export const reassignExistingUserSchema = z.object({
   identifier: z.string().trim().min(3, "Enter an email or username").max(160),
   role: z.enum(staffRoles),
   organizationId: z.string().uuid("Choose a target organization"),
-  locationId: z
-    .string()
-    .uuid("Choose a target location")
-    .nullable()
-    .optional()
-    .or(z.literal(""))
-    .transform((value) => value || null),
   deactivateExisting: z.boolean().default(true),
 });
 
@@ -135,8 +127,6 @@ export const updateOrganizationAdminSchema = z.object({
 });
 
 export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema;
-
-export const createRestaurantLocationSchema = locationSettingsSchema;
 
 export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),

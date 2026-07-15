@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 import { unstable_update } from "@/auth";
 import { requireRole } from "@/lib/auth";
-import { resolveMembershipAccess } from "@/lib/location-access";
+import { resolveMembershipAccess } from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
 

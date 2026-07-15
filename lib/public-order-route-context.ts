@@ -16,15 +16,15 @@ import {
 } from "@/lib/tenant-context";
 
 type PublicOrderRouteOptions = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
 };
 
 export type PublicOrderUnavailableReason = "MISSING_CONTEXT" | "DOMAIN_DISABLED";
 
 export async function getPublicOrderRouteContext({
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
 }: PublicOrderRouteOptions) {
   const session = await auth().catch(() => null);
   const user =
@@ -50,12 +50,12 @@ export async function getPublicOrderRouteContext({
   const requestHeaders = await headers();
   const requestDomain =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-  const tenantContext = locationQrSlug
-    ? await getTenantContextFromQrSlug(locationQrSlug).catch(() => null)
+  const tenantContext = orderingPointQrSlug
+    ? await getTenantContextFromQrSlug(orderingPointQrSlug).catch(() => null)
     : hasSignedRestaurantAccess && session?.user.kind === "staff"
       ? await getCurrentTenantContext().catch(() => null)
       : requestDomain
-        ? await getTenantContextFromDomain(requestDomain, locationSlug).catch(() => null)
+        ? await getTenantContextFromDomain(requestDomain, routeSlug).catch(() => null)
         : null;
 
   if (tenantContext && session?.user.kind === "customer") {
@@ -121,7 +121,7 @@ export async function getPublicOrderRouteContext({
     };
   }
 
-  const restaurantChoices = !locationQrSlug && !locationSlug
+  const restaurantChoices = !orderingPointQrSlug && !routeSlug
     ? await getCompanyDomainRestaurants(requestDomain).catch(() => [])
     : [];
 

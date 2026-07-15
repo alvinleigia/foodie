@@ -23,7 +23,6 @@ type UserAccount = {
   userStatus: string;
   role: MembershipRole;
   organizationName: string;
-  locationName: string | null;
 };
 
 type UserAccountDetailsFormProps = {
@@ -96,7 +95,6 @@ export function UserAccountDetailsForm({
             <p className="font-semibold text-stone-950">{user.name}</p>
             <p className="mt-1 text-sm text-stone-500">
               {user.role.replaceAll("_", " ")} - {user.organizationName}
-              {user.locationName ? ` - ${user.locationName}` : ""}
             </p>
             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-400">
               Account {user.userStatus.toLowerCase()}

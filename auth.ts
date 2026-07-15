@@ -4,7 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
 import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
-import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
+import { resolveMembershipAccess } from "@/lib/membership-access";
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
 import type { MembershipRole } from "@/lib/staff-auth";
 
@@ -107,7 +107,6 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           delete token.role;
           delete token.membershipId;
           delete token.organizationId;
-          delete token.locationId;
           delete token.username;
 
           return token;
@@ -117,7 +116,6 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           id: string;
           role?: MembershipRole;
           organizationId?: string;
-          locationId?: string;
           username?: string;
         };
 
@@ -125,7 +123,6 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
         token.kind = "staff";
         token.role = staffUser.role ?? "ORDER_OPERATOR";
         token.organizationId = staffUser.organizationId;
-        token.locationId = staffUser.locationId;
         token.username = staffUser.username;
       }
 
@@ -138,33 +135,16 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           | {
               membershipId?: unknown;
               organizationId?: unknown;
-              locationId?: unknown;
             }
           | undefined;
         const membershipId =
           typeof nextUser?.membershipId === "string" ? nextUser.membershipId : "";
-        const organizationId =
-          typeof nextUser?.organizationId === "string" ? nextUser.organizationId : "";
-        const locationId =
-          typeof nextUser?.locationId === "string" ? nextUser.locationId : "";
-
         if (membershipId) {
           const access = await resolveMembershipAccess(token.sub, membershipId);
 
           if (access) {
             token.role = access.role;
             token.organizationId = access.organizationId;
-            token.locationId = access.locationId ?? "";
-          }
-        }
-
-        if (organizationId && locationId) {
-          const access = await resolveLocationAccess(token.sub, organizationId, locationId);
-
-          if (access) {
-            token.role = access.role;
-            token.organizationId = access.organizationId;
-            token.locationId = access.locationId;
           }
         }
       }
@@ -201,7 +181,6 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
             : "ORDER_OPERATOR") as MembershipRole,
           organizationId:
             typeof token.organizationId === "string" ? token.organizationId : "",
-          locationId: typeof token.locationId === "string" ? token.locationId : "",
           username: typeof token.username === "string" ? token.username : undefined,
         },
       };

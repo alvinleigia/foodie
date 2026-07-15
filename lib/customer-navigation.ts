@@ -1,18 +1,18 @@
 type PublicCustomerContextOptions = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
 };
 
 export function withPublicCustomerContext(
   path: string,
-  { locationQrSlug, locationSlug }: PublicCustomerContextOptions,
+  { orderingPointQrSlug, routeSlug }: PublicCustomerContextOptions,
 ) {
   const url = new URL(path, "https://foodie.local");
 
-  if (locationQrSlug) {
-    url.searchParams.set("qr", locationQrSlug);
-  } else if (locationSlug) {
-    url.searchParams.set("location", locationSlug);
+  if (orderingPointQrSlug) {
+    url.searchParams.set("qr", orderingPointQrSlug);
+  } else if (routeSlug) {
+    url.searchParams.set("route", routeSlug);
   }
 
   return `${url.pathname}${url.search}${url.hash}`;
@@ -20,29 +20,29 @@ export function withPublicCustomerContext(
 
 export function getCustomerOrderHref(
   path: "/order" | "/order/status",
-  { locationQrSlug, locationSlug }: PublicCustomerContextOptions,
+  { orderingPointQrSlug, routeSlug }: PublicCustomerContextOptions,
 ) {
-  if (locationSlug) {
-    return `${path}/${encodeURIComponent(locationSlug)}`;
+  if (routeSlug) {
+    return `${path}/${encodeURIComponent(routeSlug)}`;
   }
 
-  return withPublicCustomerContext(path, { locationQrSlug });
+  return withPublicCustomerContext(path, { orderingPointQrSlug });
 }
 
 export function getCustomerLoginHref({
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   returnTo,
 }: PublicCustomerContextOptions & { returnTo: string }) {
   const loginHref = new URL("/customer/login", "https://foodie.local");
   loginHref.searchParams.set(
     "returnTo",
-    withPublicCustomerContext(returnTo, { locationQrSlug, locationSlug }),
+    withPublicCustomerContext(returnTo, { orderingPointQrSlug, routeSlug }),
   );
 
   return withPublicCustomerContext(
     `${loginHref.pathname}${loginHref.search}`,
-    { locationQrSlug, locationSlug },
+    { orderingPointQrSlug, routeSlug },
   );
 }
 

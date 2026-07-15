@@ -87,7 +87,6 @@ export default async function UserPasswordResetLinkPage(
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
-        locationId: session.user.locationId,
         role: session.user.role,
       }}
     >

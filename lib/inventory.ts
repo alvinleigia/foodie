@@ -46,7 +46,6 @@ function serializeInventoryRecord(input: {
   return {
     id: input.inventory?.id ?? null,
     organizationId: input.item.organizationId,
-    locationId: input.item.locationId,
     menuItemId: input.item.id,
     categoryId: input.categoryId,
     categoryName: input.categoryName,
@@ -130,7 +129,6 @@ export async function upsertInventoryItem(context: TenantContext, input: unknown
     .insert(inventoryItems)
     .values({
       organizationId: context.organizationId,
-      locationId: null,
       menuItemId: parsed.menuItemId,
       unit: parsed.unit,
       currentQuantity: parsed.currentQuantity,

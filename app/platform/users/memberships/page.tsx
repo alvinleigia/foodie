@@ -20,9 +20,8 @@ export default async function PlatformUserMembershipsPage() {
       activePath="/platform/users/memberships"
       eyebrow="Platform"
       title="User memberships"
-      description="Review every user access assignment across companies, restaurants, and locations."
+      description="Review every user access assignment across companies and restaurants."
       user={{
-        locationId: session.user.locationId,
         name: session.user.name,
         organizationId: session.user.organizationId,
         role: session.user.role,

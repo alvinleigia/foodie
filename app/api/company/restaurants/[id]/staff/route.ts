@@ -33,7 +33,6 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
     await writeAuditLog({
       actor: session.user,
       organizationId: id,
-      locationId: null,
       action: "company.restaurant_staff.invite",
       entityType: "staff_invitation",
       entityId: invitation.invitation.id,

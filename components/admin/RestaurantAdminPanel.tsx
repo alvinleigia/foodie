@@ -43,13 +43,12 @@ type TenantAdminSnapshot = {
     currency: string;
     isActive: boolean;
   } | null;
-  location: {
+  orderingPoint: {
     id: string;
     name: string;
     slug: string;
     qrSlug: string | null;
     label: string | null;
-    timezone: string;
     isActive: boolean;
   } | null;
   staff: Array<{
@@ -61,7 +60,6 @@ type TenantAdminSnapshot = {
     status: "INVITED" | "ACTIVE" | "DISABLED";
     role: StaffRole | "PLATFORM_ADMIN";
     isActive: boolean;
-    locationId: string | null;
     createdAt: string;
   }>;
 };

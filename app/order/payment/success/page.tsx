@@ -20,11 +20,11 @@ export default async function OrderPaymentSuccessPage(
   },
 ) {
   const searchParams = await props.searchParams;
-  const locationQrSlug =
+  const orderingPointQrSlug =
     typeof searchParams.qr === "string" ? searchParams.qr : undefined;
-  const locationSlug =
-    typeof searchParams.location === "string" ? searchParams.location : undefined;
-  const customerContext = { locationQrSlug, locationSlug };
+  const routeSlug =
+    typeof searchParams.route === "string" ? searchParams.route : undefined;
+  const customerContext = { orderingPointQrSlug, routeSlug };
   const accountHref = withPublicCustomerContext("/account", customerContext);
   const orderHref = getCustomerOrderHref("/order", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);

@@ -25,8 +25,8 @@ export type CustomerAuthProviders = {
 type CustomerLoginFormProps = {
   className?: string;
   description?: string;
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   onSignedIn?: () => void;
   providers: CustomerAuthProviders;
   redirectTo?: string;
@@ -36,8 +36,8 @@ type CustomerLoginFormProps = {
 export function CustomerLoginForm({
   className,
   description = "Your orders will be saved to your account for easy tracking and reordering.",
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   onSignedIn,
   providers,
   redirectTo,
@@ -82,8 +82,8 @@ export function CustomerLoginForm({
     try {
       const response = await requestJson<{ authorizationUrl: string }>(
         withPublicCustomerContext("/api/customer/auth/oauth-context", {
-          locationQrSlug,
-          locationSlug,
+          orderingPointQrSlug,
+          routeSlug,
         }),
         {
           body: { provider, returnTo: getRedirectTarget() },
@@ -116,8 +116,8 @@ export function CustomerLoginForm({
     try {
       await requestJson(
         withPublicCustomerContext("/api/customer/auth/request-code", {
-          locationQrSlug,
-          locationSlug,
+          orderingPointQrSlug,
+          routeSlug,
         }),
         {
           body: { email: normalizedEmail },

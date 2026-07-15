@@ -69,7 +69,7 @@ export default async function ReassignPlatformUserPage(
       activePath="/platform/users/reassign"
       eyebrow="Platform"
       title="Reassign user"
-      description="Move an existing user's future access to another company or location."
+      description="Move an existing user's future access to another company or restaurant."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,

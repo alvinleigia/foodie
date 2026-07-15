@@ -17,8 +17,8 @@ type CustomerOrderPageProps = {
     phone?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   user?: {
     name?: string | null;
     role: MembershipRole;
@@ -28,11 +28,11 @@ type CustomerOrderPageProps = {
 export function CustomerOrderPage({
   customer,
   customerAuthProviders,
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   user,
 }: CustomerOrderPageProps) {
-  const customerContext = { locationQrSlug, locationSlug };
+  const customerContext = { orderingPointQrSlug, routeSlug };
   const orderHref = getCustomerOrderHref("/order", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
@@ -64,8 +64,8 @@ export function CustomerOrderPage({
         customer={customer}
         customerAuthProviders={customerAuthProviders}
         isStaffOrder={Boolean(user)}
-        locationQrSlug={locationQrSlug}
-        locationSlug={locationSlug}
+        orderingPointQrSlug={orderingPointQrSlug}
+        routeSlug={routeSlug}
       />
     </>
   );
