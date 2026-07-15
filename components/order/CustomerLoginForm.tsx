@@ -80,17 +80,17 @@ export function CustomerLoginForm({
     setError(null);
 
     try {
-      await requestJson(
+      const response = await requestJson<{ authorizationUrl: string }>(
         withPublicCustomerContext("/api/customer/auth/oauth-context", {
           locationQrSlug,
           locationSlug,
         }),
         {
-          body: { provider },
+          body: { provider, returnTo: getRedirectTarget() },
           fallbackError: `${providerLabel} sign-in is temporarily unavailable.`,
         },
       );
-      await signIn(provider, { redirectTo: getRedirectTarget() });
+      window.location.assign(response.authorizationUrl);
     } catch (loginError) {
       setError(
         getCaughtErrorMessage(

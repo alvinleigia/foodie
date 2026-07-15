@@ -57,6 +57,29 @@ export function isPlatformAdministrationRequest(request: Request) {
   return isPlatformAdministrationDomain(getRequestHost(request));
 }
 
-export function getPlatformAdministrationOrigin() {
+export function getPlatformAdministrationOrigin(request?: Request) {
+  if (request && isPlatformAdministrationRequest(request)) {
+    return new URL(request.url).origin;
+  }
+
   return `https://${ROOT_DOMAIN}`;
+}
+
+export function getPublicRequestOrigin(request: Request) {
+  const requestUrl = new URL(request.url);
+  const forwardedHost = request.headers
+    .get("x-forwarded-host")
+    ?.split(",")[0]
+    ?.trim();
+  const forwardedProtocol = request.headers
+    .get("x-forwarded-proto")
+    ?.split(",")[0]
+    ?.trim()
+    .toLowerCase();
+  const protocol =
+    forwardedProtocol === "http" || forwardedProtocol === "https"
+      ? forwardedProtocol
+      : requestUrl.protocol.replace(":", "");
+
+  return new URL(`${protocol}://${forwardedHost || requestUrl.host}`).origin;
 }

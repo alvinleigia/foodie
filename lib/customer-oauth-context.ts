@@ -8,10 +8,12 @@ export const customerOAuthContextMaxAgeSeconds = 10 * 60;
 
 export type CustomerOAuthProvider = "apple" | "facebook" | "google";
 
-type CustomerOAuthContext = {
+export type CustomerOAuthContext = {
+  destinationOrigin: string;
   expiresAt: number;
   organizationId: string;
   provider: CustomerOAuthProvider;
+  returnTo: string;
 };
 
 function getSigningSecret() {
@@ -36,13 +38,11 @@ function hasValidSignature(payload: string, signature: string) {
 }
 
 export function createCustomerOAuthContextValue(
-  organizationId: string,
-  provider: CustomerOAuthProvider,
+  context: Omit<CustomerOAuthContext, "expiresAt">,
 ) {
   const payload = Buffer.from(
     JSON.stringify({
-      organizationId,
-      provider,
+      ...context,
       expiresAt: Date.now() + customerOAuthContextMaxAgeSeconds * 1000,
     } satisfies CustomerOAuthContext),
   ).toString("base64url");
@@ -50,11 +50,7 @@ export function createCustomerOAuthContextValue(
   return `${payload}.${signPayload(payload)}`;
 }
 
-export function getCustomerOAuthContextFromRequest(
-  request: NextRequest | undefined,
-): CustomerOAuthContext | null {
-  const value = request?.cookies.get(customerOAuthContextCookieName)?.value;
-
+export function parseCustomerOAuthContextValue(value: string | undefined) {
   if (!value) {
     return null;
   }
@@ -71,10 +67,24 @@ export function getCustomerOAuthContextFromRequest(
     ) as Partial<CustomerOAuthContext>;
 
     if (
+      typeof parsed.destinationOrigin !== "string" ||
       typeof parsed.organizationId !== "string" ||
       !["apple", "facebook", "google"].includes(parsed.provider ?? "") ||
+      typeof parsed.returnTo !== "string" ||
+      !parsed.returnTo.startsWith("/") ||
       typeof parsed.expiresAt !== "number" ||
       parsed.expiresAt <= Date.now()
+    ) {
+      return null;
+    }
+
+    const destination = new URL(parsed.destinationOrigin);
+
+    if (
+      !["http:", "https:"].includes(destination.protocol) ||
+      destination.origin !== parsed.destinationOrigin ||
+      destination.username ||
+      destination.password
     ) {
       return null;
     }
@@ -83,4 +93,12 @@ export function getCustomerOAuthContextFromRequest(
   } catch {
     return null;
   }
+}
+
+export function getCustomerOAuthContextFromRequest(
+  request: NextRequest | undefined,
+): CustomerOAuthContext | null {
+  return parseCustomerOAuthContextValue(
+    request?.cookies.get(customerOAuthContextCookieName)?.value,
+  );
 }

@@ -3,9 +3,12 @@ import { z } from "zod";
 
 import {
   createCustomerOAuthContextValue,
-  customerOAuthContextCookieName,
-  customerOAuthContextMaxAgeSeconds,
 } from "@/lib/customer-oauth-context";
+import {
+  getPlatformAdministrationOrigin,
+  getPublicRequestOrigin,
+} from "@/lib/deployment-domain";
+import { getSafeCustomerReturnTo } from "@/lib/customer-navigation";
 import type { SocialAuthProvider } from "@/lib/organization-integration-types";
 import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
 import {
@@ -17,6 +20,7 @@ import { getPublicTenantContextFromRequest } from "@/lib/tenant-context";
 
 const requestSchema = z.object({
   provider: z.enum(["apple", "facebook", "google"]),
+  returnTo: z.string().max(2_048).optional(),
 });
 
 const providerMap: Record<string, SocialAuthProvider> = {
@@ -63,23 +67,28 @@ export async function POST(request: Request) {
       );
     }
 
-    const response = NextResponse.json({ ready: true });
-    const isSecure = new URL(request.url).protocol === "https:";
-
-    response.cookies.set({
-      name: customerOAuthContextCookieName,
-      value: createCustomerOAuthContextValue(
-        tenantContext.organizationId,
-        parsed.data.provider,
-      ),
-      httpOnly: true,
-      maxAge: customerOAuthContextMaxAgeSeconds,
-      path: "/",
-      sameSite: parsed.data.provider === "apple" ? "none" : "lax",
-      secure: isSecure,
+    const destinationOrigin = getPublicRequestOrigin(request);
+    const submittedReturnTo = parsed.data.returnTo
+      ? new URL(parsed.data.returnTo, destinationOrigin)
+      : new URL("/order/status", destinationOrigin);
+    const returnTo = getSafeCustomerReturnTo(
+      submittedReturnTo.origin === destinationOrigin
+        ? `${submittedReturnTo.pathname}${submittedReturnTo.search}${submittedReturnTo.hash}`
+        : undefined,
+    );
+    const state = createCustomerOAuthContextValue({
+      destinationOrigin,
+      organizationId: tenantContext.organizationId,
+      provider: parsed.data.provider,
+      returnTo,
     });
+    const authorizationUrl = new URL(
+      "/api/customer/auth/oauth-start",
+      getPlatformAdministrationOrigin(request),
+    );
+    authorizationUrl.searchParams.set("state", state);
 
-    return response;
+    return NextResponse.json({ authorizationUrl: authorizationUrl.toString() });
   } catch {
     return NextResponse.json(
       { error: "This sign-in option could not be started." },

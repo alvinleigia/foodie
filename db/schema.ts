@@ -277,6 +277,31 @@ export const organizationCustomers = pgTable(
   ],
 );
 
+export const customerAuthHandoffs = pgTable(
+  "customer_auth_handoffs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    tokenHash: text("token_hash").notNull(),
+    destinationOrigin: text("destination_origin").notNull(),
+    returnTo: text("return_to").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_auth_handoffs_token_hash_unique").on(table.tokenHash),
+    index("customer_auth_handoffs_customer_idx").on(table.customerId),
+    index("customer_auth_handoffs_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const organizationEmailSettings = pgTable(
   "organization_email_settings",
   {

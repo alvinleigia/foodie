@@ -1,88 +1,14 @@
 import NextAuth from "next-auth";
-import Apple from "next-auth/providers/apple";
 import Credentials from "next-auth/providers/credentials";
-import Facebook from "next-auth/providers/facebook";
-import Google from "next-auth/providers/google";
 
 import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
-import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
-import { getCustomerOAuthContextFromRequest } from "@/lib/customer-oauth-context";
-import type { SocialAuthProvider } from "@/lib/organization-integration-types";
-import {
-  getPlatformOAuthCredentials,
-  resolveOrganizationOAuthIntegration,
-} from "@/lib/organization-oauth-settings";
+import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-const providerTypeMap = {
-  apple: "APPLE",
-  facebook: "FACEBOOK",
-  google: "GOOGLE",
-} as const satisfies Record<string, SocialAuthProvider>;
-
-async function getSocialProviders(request: Parameters<typeof getCustomerOAuthContextFromRequest>[0]) {
-  const credentials = {
-    apple: getPlatformOAuthCredentials("APPLE"),
-    facebook: getPlatformOAuthCredentials("FACEBOOK"),
-    google: getPlatformOAuthCredentials("GOOGLE"),
-  };
-  const context = getCustomerOAuthContextFromRequest(request);
-
-  if (context) {
-    const effective = await resolveOrganizationOAuthIntegration(
-      context.organizationId,
-      providerTypeMap[context.provider],
-    );
-    credentials[context.provider] =
-      effective.status === "CONFIGURED"
-        ? { clientId: effective.clientId, clientSecret: effective.clientSecret }
-        : null;
-  }
-
-  return {
-    appleProvider: credentials.apple
-      ? Apple({
-          clientId: credentials.apple.clientId,
-          clientSecret: credentials.apple.clientSecret,
-        })
-      : null,
-    facebookProvider: credentials.facebook
-      ? Facebook({
-          clientId: credentials.facebook.clientId,
-          clientSecret: credentials.facebook.clientSecret,
-        })
-      : null,
-    googleProvider: credentials.google
-      ? Google({
-          clientId: credentials.google.clientId,
-          clientSecret: credentials.google.clientSecret,
-        })
-      : null,
-  };
-}
-
-function hasTrustedOAuthEmail(
-  provider: string,
-  profile: Record<string, unknown> | undefined,
-) {
-  if (provider === "google") {
-    return profile?.email_verified === true;
-  }
-
-  if (provider === "apple") {
-    return profile?.email_verified === true || profile?.email_verified === "true";
-  }
-
-  return provider === "facebook";
-}
-
-export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(async (request) => {
-  const { appleProvider, facebookProvider, googleProvider } =
-    await getSocialProviders(request);
-
+export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() => {
   return {
   session: {
     strategy: "jwt",
@@ -129,12 +55,31 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(asy
           : null;
       },
     }),
-    ...(googleProvider ? [googleProvider] : []),
-    ...(appleProvider ? [appleProvider] : []),
-    ...(facebookProvider ? [facebookProvider] : []),
+    Credentials({
+      id: "customer-auth-handoff",
+      name: "Customer session handoff",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials, request) {
+        const customer = await consumeCustomerAuthHandoff(
+          credentials?.token,
+          request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+        );
+
+        return customer
+          ? {
+              id: customer.id,
+              email: customer.email,
+              kind: "customer" as const,
+              name: customer.name,
+            }
+          : null;
+      },
+    }),
   ],
   callbacks: {
-    async signIn({ account, profile, user }) {
+    async signIn({ account, user }) {
       if (!account) {
         return false;
       }
@@ -148,33 +93,11 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(asy
         return user.kind === "customer" && Boolean(user.email);
       }
 
-      if (!["apple", "facebook", "google"].includes(account.provider)) {
-        return false;
+      if (account.provider === "customer-auth-handoff") {
+        return user.kind === "customer" && Boolean(user.email);
       }
 
-      if (
-        !user.email ||
-        !hasTrustedOAuthEmail(
-          account.provider,
-          profile as Record<string, unknown> | undefined,
-        )
-      ) {
-        return false;
-      }
-
-      const customer = await getOrCreateOAuthCustomer({
-        email: user.email,
-        name: user.name ?? "",
-        provider: account.provider,
-        providerAccountId: account.providerAccountId,
-      });
-
-      user.id = customer.id;
-      user.kind = "customer";
-      user.email = customer.email;
-      user.name = customer.name;
-
-      return true;
+      return false;
     },
     async jwt({ token, user, trigger, session }) {
       if (user) {
