@@ -1,5 +1,3 @@
-BEGIN;
-
 WITH ranked_memberships AS (
   SELECT
     membership."id",
@@ -98,5 +96,3 @@ ALTER TABLE "tenant_domains"
       AND "purpose" = 'ORDERING'
     )
   );
-
-COMMIT;

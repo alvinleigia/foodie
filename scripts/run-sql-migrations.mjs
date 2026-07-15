@@ -243,11 +243,17 @@ async function main() {
       }
 
       console.log(`Applying ${fileName}`);
-      await runSqlFile(sql, path.join(migrationsDir, fileName), fileName);
-      await sql`
-        INSERT INTO "app_migrations" ("name")
-        VALUES (${fileName})
-      `;
+      await sql.begin(async (transaction) => {
+        await runSqlFile(
+          transaction,
+          path.join(migrationsDir, fileName),
+          fileName,
+        );
+        await transaction`
+          INSERT INTO "app_migrations" ("name")
+          VALUES (${fileName})
+        `;
+      });
     }
 
     console.log("Database migrations complete.");
