@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { canAccessNavigationPath, formatRole } from "@/lib/role-access";
+import { clearStoredCustomerOrders } from "@/lib/customer-orders";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { cn } from "@/lib/utils";
 
@@ -268,17 +269,19 @@ export function AppHeader({
                 Order menu
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link
-                href={customerMenu.ordersHref ?? "/order/status"}
-                className={cn(
-                  activePath === "/order/status" && "bg-white/10 text-white",
-                )}
-              >
-                <ClipboardListIcon />
-                Your orders
-              </Link>
-            </DropdownMenuItem>
+            {customerMenu.accountHref ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={customerMenu.ordersHref ?? "/order/status"}
+                  className={cn(
+                    activePath === "/order/status" && "bg-white/10 text-white",
+                  )}
+                >
+                  <ClipboardListIcon />
+                  Your orders
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
             {customerMenu.loginHref ? (
               <DropdownMenuItem asChild>
                 <Link href={customerMenu.loginHref}>
@@ -305,6 +308,7 @@ export function AppHeader({
                   variant="destructive"
                   onSelect={(event) => {
                     event.preventDefault();
+                    clearStoredCustomerOrders();
                     void signOut({ callbackUrl: customerMenu.orderHref ?? "/order" });
                   }}
                 >

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
@@ -25,6 +27,19 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
     await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
   const customerContext = { locationQrSlug, locationSlug };
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
+
+  if (hasTenantContext && user) {
+    redirect("/operations/orders");
+  }
+
+  if (hasTenantContext && !customer) {
+    redirect(
+      getCustomerLoginHref({
+        ...customerContext,
+        returnTo: ordersHref,
+      }),
+    );
+  }
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">

@@ -5,11 +5,10 @@ import { getCustomerProfile } from "@/lib/customer-account";
 import { getTenantMenuCurrency } from "@/lib/menu";
 import {
   getCustomerAccountOrders,
-  getCustomerOrders,
+  getCustomerAccountOrdersByIds,
   getOrderItemsForOrders,
   serializeOrder,
 } from "@/lib/orders";
-import { getOrdersResetAt } from "@/lib/order-reset";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
@@ -42,17 +41,35 @@ export async function POST(request: NextRequest) {
       auth().catch(() => null),
       getTenantMenuCurrency(tenantContext),
     ]);
-    const customerProfile =
-      session?.user.kind === "customer" && parsed.data.view !== "ACTIVE"
-        ? await getCustomerProfile(session.user.id, tenantContext)
-        : null;
-    const matchingOrders = customerProfile
-      ? await getCustomerAccountOrders(
-          customerProfile.id,
-          parsed.data.view === "COMPLETED" ? "COMPLETED" : "ALL",
-          tenantContext,
-        )
-      : await getCustomerOrders(parsed.data.orders, tenantContext);
+
+    if (session?.user.kind !== "customer") {
+      return NextResponse.json(
+        { error: "Customer sign in is required." },
+        { status: 401 },
+      );
+    }
+
+    const customerProfile = await getCustomerProfile(
+      session.user.id,
+      tenantContext,
+    );
+
+    if (!customerProfile) {
+      return NextResponse.json({ error: "Customer profile not found." }, { status: 404 });
+    }
+
+    const matchingOrders =
+      parsed.data.view === "ACTIVE"
+        ? await getCustomerAccountOrdersByIds(
+            customerProfile.id,
+            parsed.data.orders.map((order) => order.orderId),
+            tenantContext,
+          )
+        : await getCustomerAccountOrders(
+            customerProfile.id,
+            parsed.data.view === "COMPLETED" ? "COMPLETED" : "ALL",
+            tenantContext,
+          );
     const itemMap = await getOrderItemsForOrders(
       matchingOrders.map((order) => order.id),
       tenantContext,
@@ -60,7 +77,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       orders: matchingOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
       currency,
-      ordersResetAt: await getOrdersResetAt(),
     });
   } catch (error) {
     return NextResponse.json(

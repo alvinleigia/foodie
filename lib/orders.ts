@@ -193,32 +193,6 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
 }
 
 
-export async function getCustomerOrders(
-  input: Array<{ orderId: string; customerToken: string }>,
-  context: TenantContext = getDefaultTenantContext(),
-) {
-  if (input.length === 0) {
-    return [];
-  }
-
-  const db = getDb();
-
-  const foundOrders = await db
-    .select()
-    .from(orders)
-    .where(
-      and(
-        inArray(orders.id, input.map((item) => item.orderId)),
-        eq(orders.organizationId, context.organizationId),
-        eq(orders.locationId, context.locationId),
-      ),
-    );
-
-  const allowedMap = new Map(input.map((item) => [item.orderId, item.customerToken]));
-
-  return foundOrders.filter((order) => allowedMap.get(order.id) === order.customerToken);
-}
-
 export async function getCustomerAccountOrders(
   organizationCustomerId: string,
   view: "ALL" | "COMPLETED",
@@ -240,6 +214,29 @@ export async function getCustomerAccountOrders(
     .where(and(...filters))
     .orderBy(desc(orders.createdAt))
     .limit(100);
+}
+
+export async function getCustomerAccountOrdersByIds(
+  organizationCustomerId: string,
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (orderIds.length === 0) {
+    return [];
+  }
+
+  return getDb()
+    .select()
+    .from(orders)
+    .where(
+      and(
+        inArray(orders.id, orderIds),
+        eq(orders.organizationId, context.organizationId),
+        eq(orders.locationId, context.locationId),
+        eq(orders.organizationCustomerId, organizationCustomerId),
+      ),
+    )
+    .orderBy(desc(orders.createdAt));
 }
 
 export async function getOrderItemsForOrders(

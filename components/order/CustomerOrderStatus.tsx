@@ -5,11 +5,6 @@ import { XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
-import {
-  readStoredCustomerOrders,
-  syncCustomerOrdersResetMarker,
-  writeStoredCustomerOrders,
-} from "@/lib/customer-orders";
 import { formatOrderDisplay } from "@/lib/order-display";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -119,18 +114,10 @@ export function CustomerOrderStatus({
       statusRequestRef.current = controller;
 
       try {
-        const prunedStoredOrders = readStoredCustomerOrders();
-        const existingOrders = hasLoadedOrdersRef.current
-          ? ordersRef.current
-          : prunedStoredOrders;
+        const existingOrders = ordersRef.current;
 
         if (!isMounted) {
           return false;
-        }
-
-        if (!hasLoadedOrdersRef.current) {
-          ordersRef.current = prunedStoredOrders;
-          setOrders(prunedStoredOrders);
         }
 
         const view = !hasLoadedOrdersRef.current
@@ -159,7 +146,6 @@ export function CustomerOrderStatus({
           body: JSON.stringify({
             orders: requestedOrders.map((order) => ({
               orderId: order.orderId,
-              customerToken: order.customerToken,
             })),
             view,
           }),
@@ -184,21 +170,10 @@ export function CustomerOrderStatus({
 
         setCurrency(payload.currency ?? DEFAULT_CURRENCY);
 
-        const wasReset = syncCustomerOrdersResetMarker(payload.ordersResetAt ?? null);
-        const retainedOrders = wasReset ? [] : existingOrders;
-
-        if (wasReset) {
-          ordersRef.current = [];
-          setOrders([]);
-          if (existingOrders.length > 0) {
-            toast.success("Orders were cleared from the restaurant system.");
-          }
-        }
-
         const refreshedOrders = payload.orders.map((order: ApiOrder) => ({
           ...order,
           customerToken:
-            retainedOrders.find((storedOrder) => storedOrder.orderId === order.orderId)
+            existingOrders.find((storedOrder) => storedOrder.orderId === order.orderId)
               ?.customerToken ?? order.customerToken,
         }));
         let nextOrders: ApiOrder[];
@@ -207,11 +182,11 @@ export function CustomerOrderStatus({
           const requestedIds = new Set(requestedOrders.map((order) => order.orderId));
           nextOrders = [
             ...refreshedOrders,
-            ...retainedOrders.filter((order) => !requestedIds.has(order.orderId)),
+            ...existingOrders.filter((order) => !requestedIds.has(order.orderId)),
           ];
         } else if (view === "COMPLETED") {
           nextOrders = [
-            ...retainedOrders.filter(isActiveOrder),
+            ...existingOrders.filter(isActiveOrder),
             ...refreshedOrders,
           ];
         } else {
@@ -220,7 +195,6 @@ export function CustomerOrderStatus({
 
         nextOrders = sortOrdersByNewest(nextOrders);
 
-        writeStoredCustomerOrders(nextOrders);
         ordersRef.current = nextOrders;
         setOrders(nextOrders);
         setError(null);
@@ -291,7 +265,6 @@ export function CustomerOrderStatus({
     );
     ordersRef.current = nextOrders;
     setOrders(nextOrders);
-    writeStoredCustomerOrders(nextOrders);
     toast.success("Order cancelled.");
     setPendingCancelId(null);
     setConfirmingCancelOrder(null);

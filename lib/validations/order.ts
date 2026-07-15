@@ -43,7 +43,6 @@ export const orderStatusRequestSchema = z.object({
   orders: z.array(
     z.object({
       orderId: z.string().uuid(),
-      customerToken: z.string().min(20),
     }),
   ),
   view: z.enum(["ALL", "ACTIVE", "COMPLETED"]).default("ALL"),
