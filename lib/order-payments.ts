@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
+import type { TenantContext } from "@/lib/tenant-context";
 
 const zeroDecimalCurrencies = new Set([
   "BIF",
@@ -304,6 +305,7 @@ export function cancelPendingOrderPaymentByOrderId(
 export async function getCustomerPaymentResult(
   customerId: string,
   checkoutSessionId: string,
+  context: TenantContext,
 ) {
   const [order] = await getDb()
     .select({
@@ -318,6 +320,7 @@ export async function getCustomerPaymentResult(
       and(
         eq(orders.customerId, customerId),
         eq(orders.stripeCheckoutSessionId, checkoutSessionId),
+        eq(orders.organizationId, context.organizationId),
       ),
     )
     .limit(1);

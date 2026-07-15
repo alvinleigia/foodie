@@ -13,6 +13,7 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getCustomerPaymentResult } from "@/lib/order-payments";
+import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 export default async function OrderPaymentSuccessPage(
   props: {
@@ -28,9 +29,12 @@ export default async function OrderPaymentSuccessPage(
   const accountHref = withPublicCustomerContext("/account", customerContext);
   const orderHref = getCustomerOrderHref("/order", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
-  const session = await requireCustomerSession();
+  const [session, routeContext] = await Promise.all([
+    requireCustomerSession(),
+    getPublicOrderRouteContext(customerContext),
+  ]);
 
-  if (!session) {
+  if (!session || !routeContext.hasTenantContext || !routeContext.tenantContext) {
     redirect(orderHref);
   }
 
@@ -40,7 +44,11 @@ export default async function OrderPaymentSuccessPage(
     redirect(accountHref);
   }
 
-  const order = await getCustomerPaymentResult(session.user.id, sessionId);
+  const order = await getCustomerPaymentResult(
+    session.user.id,
+    sessionId,
+    routeContext.tenantContext,
+  );
 
   if (!order) {
     redirect(accountHref);

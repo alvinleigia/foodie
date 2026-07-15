@@ -5,7 +5,10 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { customerAuthHandoffs, customers } from "@/db/schema";
-import { getSafeCustomerReturnTo } from "@/lib/customer-navigation";
+import {
+  getCustomerRouteSlugFromUrl,
+  getSafeCustomerReturnTo,
+} from "@/lib/customer-navigation";
 import {
   isPlatformAdministrationDomain,
   normalizeDomain,
@@ -85,7 +88,7 @@ export async function consumeCustomerAuthHandoff(
   }
 
   const returnUrl = new URL(safeReturnTo, handoff.destinationOrigin);
-  const routeSlug = returnUrl.searchParams.get("route");
+  const routeSlug = getCustomerRouteSlugFromUrl(returnUrl);
   const orderingPointQrSlug = returnUrl.searchParams.get("qr");
   const tenantContext = isPlatformAdministrationDomain(requestDomain)
     ? orderingPointQrSlug

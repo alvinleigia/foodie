@@ -3,6 +3,36 @@ type PublicCustomerContextOptions = {
   routeSlug?: string;
 };
 
+export function getCustomerRouteSlugFromUrl(url: URL) {
+  const explicitRouteSlug = url.searchParams.get("route");
+
+  if (explicitRouteSlug) {
+    return explicitRouteSlug;
+  }
+
+  const segments = url.pathname.split("/").filter(Boolean);
+  const encodedRouteSlug =
+    segments.length === 2 &&
+    segments[0] === "order" &&
+    !["payment", "status"].includes(segments[1])
+      ? segments[1]
+      : segments.length === 3 &&
+          segments[0] === "order" &&
+          segments[1] === "status"
+        ? segments[2]
+        : null;
+
+  if (!encodedRouteSlug) {
+    return null;
+  }
+
+  try {
+    return decodeURIComponent(encodedRouteSlug);
+  } catch {
+    return null;
+  }
+}
+
 export function withPublicCustomerContext(
   path: string,
   { orderingPointQrSlug, routeSlug }: PublicCustomerContextOptions,
