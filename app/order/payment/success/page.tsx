@@ -27,7 +27,7 @@ export default async function OrderPaymentSuccessPage(
   const customerContext = { locationQrSlug, locationSlug };
   const accountHref = withPublicCustomerContext("/account", customerContext);
   const orderHref = getCustomerOrderHref("/order", customerContext);
-  const ordersHref = withPublicCustomerContext("/account#orders", customerContext);
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
   const session = await requireCustomerSession();
 
   if (!session) {

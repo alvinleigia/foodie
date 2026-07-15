@@ -27,12 +27,13 @@ export default async function CustomerLoginPage({
   const locationQrSlug = typeof params.qr === "string" ? params.qr : undefined;
   const locationSlug =
     typeof params.location === "string" ? params.location : undefined;
-  const returnTo = getSafeCustomerReturnTo(params.returnTo);
+  const customerContext = { locationQrSlug, locationSlug };
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
+  const returnTo = getSafeCustomerReturnTo(params.returnTo, ordersHref);
   const context = await getPublicOrderRouteContext({
     locationQrSlug,
     locationSlug,
   });
-  const customerContext = { locationQrSlug, locationSlug };
   const orderHref = getCustomerOrderHref("/order", customerContext);
 
   if (context.customer) {

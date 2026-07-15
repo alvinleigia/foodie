@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
@@ -43,13 +44,15 @@ export function CustomerOrderPage({
         <AppHeader
           activePath="/order"
           customerMenu={{
-            accountHref: customer ? "/account" : undefined,
+            accountHref: customer
+              ? withPublicCustomerContext("/account", customerContext)
+              : undefined,
             customerName: customer?.name,
             loginHref: customer
               ? undefined
               : getCustomerLoginHref({
                   ...customerContext,
-                  returnTo: "/account",
+                  returnTo: ordersHref,
                 }),
             orderHref,
             ordersHref,

@@ -46,6 +46,7 @@ export const orderStatusRequestSchema = z.object({
       customerToken: z.string().min(20),
     }),
   ),
+  view: z.enum(["ALL", "ACTIVE", "COMPLETED"]).default("ALL"),
 });
 
 export const staffAccessSchema = z.object({

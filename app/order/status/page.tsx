@@ -5,6 +5,7 @@ import { CustomerOrderStatus } from "@/components/order/CustomerOrderStatus";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
@@ -23,6 +24,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   const { customer, hasTenantContext, unavailableReason, user } =
     await getPublicOrderRouteContext({ locationQrSlug, locationSlug });
   const customerContext = { locationQrSlug, locationSlug };
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -34,16 +36,18 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
             <AppHeader
               activePath="/order/status"
               customerMenu={{
-                accountHref: customer ? "/account" : undefined,
+                accountHref: customer
+                  ? withPublicCustomerContext("/account", customerContext)
+                  : undefined,
                 customerName: customer?.name,
                 loginHref: customer
                   ? undefined
                   : getCustomerLoginHref({
                       ...customerContext,
-                      returnTo: "/account",
+                      returnTo: ordersHref,
                     }),
                 orderHref: getCustomerOrderHref("/order", customerContext),
-                ordersHref: getCustomerOrderHref("/order/status", customerContext),
+                ordersHref,
               }}
             />
           )}

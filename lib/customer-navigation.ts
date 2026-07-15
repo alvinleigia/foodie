@@ -48,7 +48,7 @@ export function getCustomerLoginHref({
 
 export function getSafeCustomerReturnTo(
   value: string | string[] | undefined,
-  fallback = "/account",
+  fallback = "/order/status",
 ) {
   if (typeof value !== "string" || value.length > 2_048 || !value.startsWith("/")) {
     return fallback;

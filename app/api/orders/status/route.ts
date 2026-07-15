@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { auth } from "@/auth";
+import { getCustomerProfile } from "@/lib/customer-account";
 import { getTenantMenuCurrency } from "@/lib/menu";
-import { getCustomerOrders, getOrderItemsForOrders, serializeOrder } from "@/lib/orders";
+import {
+  getCustomerAccountOrders,
+  getCustomerOrders,
+  getOrderItemsForOrders,
+  serializeOrder,
+} from "@/lib/orders";
 import { getOrdersResetAt } from "@/lib/order-reset";
 import {
   checkRateLimit,
@@ -31,10 +38,21 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantContext = await getPublicTenantContextFromRequest(request);
-    const [matchingOrders, currency] = await Promise.all([
-      getCustomerOrders(parsed.data.orders, tenantContext),
+    const [session, currency] = await Promise.all([
+      auth().catch(() => null),
       getTenantMenuCurrency(tenantContext),
     ]);
+    const customerProfile =
+      session?.user.kind === "customer" && parsed.data.view !== "ACTIVE"
+        ? await getCustomerProfile(session.user.id, tenantContext)
+        : null;
+    const matchingOrders = customerProfile
+      ? await getCustomerAccountOrders(
+          customerProfile.id,
+          parsed.data.view === "COMPLETED" ? "COMPLETED" : "ALL",
+          tenantContext,
+        )
+      : await getCustomerOrders(parsed.data.orders, tenantContext);
     const itemMap = await getOrderItemsForOrders(
       matchingOrders.map((order) => order.id),
       tenantContext,

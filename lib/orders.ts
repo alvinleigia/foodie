@@ -219,6 +219,29 @@ export async function getCustomerOrders(
   return foundOrders.filter((order) => allowedMap.get(order.id) === order.customerToken);
 }
 
+export async function getCustomerAccountOrders(
+  organizationCustomerId: string,
+  view: "ALL" | "COMPLETED",
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const filters = [
+    eq(orders.organizationId, context.organizationId),
+    eq(orders.locationId, context.locationId),
+    eq(orders.organizationCustomerId, organizationCustomerId),
+  ];
+
+  if (view === "COMPLETED") {
+    filters.push(inArray(orders.status, pastOrderStatuses));
+  }
+
+  return getDb()
+    .select()
+    .from(orders)
+    .where(and(...filters))
+    .orderBy(desc(orders.createdAt))
+    .limit(100);
+}
+
 export async function getOrderItemsForOrders(
   orderIds: string[],
   context: TenantContext = getDefaultTenantContext(),
