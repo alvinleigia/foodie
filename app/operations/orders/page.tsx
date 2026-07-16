@@ -1,12 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { CommercialAccessBlocked } from "@/components/admin/CommercialAccessBlocked";
+import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { OperationsSetupRequired } from "@/components/staff/OperationsSetupRequired";
 import { StaffOrderBoard } from "@/components/staff/StaffOrderBoard";
-import { AppHeader } from "@/components/shared/AppHeader";
-import { AppShell } from "@/components/shared/AppShell";
-import { getTenantSubscriptionAccess } from "@/lib/billing";
 import { isSessionAccessAllowedForCurrentDomain } from "@/lib/domain-session";
 import { canAccessRole, operationalRoles } from "@/lib/role-access";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
@@ -25,23 +22,25 @@ export default async function OperationsOrdersPage() {
   const hasRestaurantAccess = Boolean(
     await getCurrentTenantContext().catch(() => null),
   );
-  const commercialAccess = session.user.organizationId
-    ? await getTenantSubscriptionAccess(session.user.organizationId)
-    : { allowed: true, status: null };
 
   return (
-    <AppShell variant="dark">
-      <AppHeader
-        activePath="/operations/orders"
-        user={{ name: session.user.name, role: session.user.role }}
-      />
-      {!commercialAccess.allowed ? (
-        <CommercialAccessBlocked status={commercialAccess.status} />
-      ) : hasRestaurantAccess ? (
+    <SaasAdminShell
+      activePath="/operations/orders"
+      contentMode="plain"
+      eyebrow="Operations"
+      title="Orders panel"
+      description="Manage active and past restaurant orders."
+      user={{
+        name: session.user.name,
+        organizationId: session.user.organizationId,
+        role: session.user.role,
+      }}
+    >
+      {hasRestaurantAccess ? (
         <StaffOrderBoard />
       ) : (
         <OperationsSetupRequired />
       )}
-    </AppShell>
+    </SaasAdminShell>
   );
 }

@@ -1,22 +1,25 @@
+import { eq } from "drizzle-orm";
+
 import { AppHeader } from "@/components/shared/AppHeader";
 import { CommercialAccessBlocked } from "@/components/admin/CommercialAccessBlocked";
 import { MembershipSwitcher } from "@/components/admin/MembershipSwitcher";
 import { AppShell } from "@/components/shared/AppShell";
 import { SectionHeader } from "@/components/shared/SectionHeader";
+import { getDb } from "@/db";
+import { organizations } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
+import {
+  staffNavigationItems,
+  uatResetNavigationItem,
+} from "@/lib/staff-navigation";
 import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 import type { MembershipRole } from "@/lib/staff-auth";
-
-type AdminRoute = {
-  href: string;
-  label: string;
-  description: string;
-};
 
 type SaasAdminShellProps = {
   activePath: string;
   children: React.ReactNode;
+  contentMode?: "panel" | "plain";
   eyebrow: string;
   title: string;
   description: string;
@@ -27,112 +30,50 @@ type SaasAdminShellProps = {
   };
 };
 
-const adminRoutes: AdminRoute[] = [
-  {
-    href: "/platform",
-    label: "Platform",
-    description: "SaaS dashboard.",
-  },
-  {
-    href: "/platform/companies",
-    label: "Companies",
-    description: "Parent company tenants.",
-  },
-  {
-    href: "/platform/users/memberships",
-    label: "User Memberships",
-    description: "Review cross-tenant access.",
-  },
-  {
-    href: "/company",
-    label: "Company",
-    description: "Company dashboard.",
-  },
-  {
-    href: "/company/restaurants",
-    label: "Company Restaurants",
-    description: "Manage company restaurants.",
-  },
-  {
-    href: "/company/users",
-    label: "Company Users",
-    description: "Manage user access.",
-  },
-  {
-    href: "/company/integrations",
-    label: "Company Integrations",
-    description: "Email and payment services.",
-  },
-  {
-    href: "/restaurant",
-    label: "Restaurant",
-    description: "Restaurant dashboard.",
-  },
-  {
-    href: "/restaurant/staff",
-    label: "Restaurant Staff",
-    description: "Manage restaurant staff.",
-  },
-  {
-    href: "/restaurant/ordering-point",
-    label: "Ordering Point",
-    description: "Manage the restaurant QR entry point.",
-  },
-  {
-    href: "/restaurant/integrations",
-    label: "Restaurant Integrations",
-    description: "Inherited and custom services.",
-  },
-  {
-    href: "/operations/orders",
-    label: "Orders",
-    description: "Live order operations.",
-  },
-  {
-    href: "/operations/menu",
-    label: "Menu Manager",
-    description: "Categories and products.",
-  },
-  {
-    href: "/operations/inventory",
-    label: "Inventory",
-    description: "Stock control.",
-  },
-  {
-    href: "/audit-logs",
-    label: "Audit logs",
-    description: "Security and change history.",
-  },
-];
+async function getOrganizationContextName(organizationId?: string | null) {
+  if (!organizationId) {
+    return null;
+  }
 
-const uatResetRoute: AdminRoute = {
-  href: "/platform/uat-reset",
-  label: "UAT Reset",
-  description: "Clear testing data.",
-};
+  const [organization] = await getDb()
+    .select({ name: organizations.name })
+    .from(organizations)
+    .where(eq(organizations.id, organizationId))
+    .limit(1);
+
+  return organization?.name ?? null;
+}
 
 export async function SaasAdminShell({
   activePath,
   children,
+  contentMode = "panel",
   description,
   eyebrow,
   title,
   user,
 }: SaasAdminShellProps) {
-  const commercialAccess =
+  const [commercialAccess, contextName] = await Promise.all([
     user.organizationId && !canAccessRole(user.role, platformAdminRoles)
-      ? await getTenantSubscriptionAccess(user.organizationId)
-      : { allowed: true, status: null };
+      ? getTenantSubscriptionAccess(user.organizationId)
+      : Promise.resolve({ allowed: true, status: null }),
+    getOrganizationContextName(user.organizationId),
+  ]);
   const navigationItems = isUatDatabaseResetEnabled()
-    ? [...adminRoutes, uatResetRoute]
-    : adminRoutes;
+    ? [...staffNavigationItems, uatResetNavigationItem]
+    : staffNavigationItems;
+  const content = commercialAccess.allowed ? (
+    children
+  ) : (
+    <CommercialAccessBlocked status={commercialAccess.status} />
+  );
 
   return (
     <AppShell variant="dark" contentClassName="max-w-7xl">
       <AppHeader
         activePath={activePath}
         navigationItems={navigationItems}
-        user={{ name: user.name, role: user.role }}
+        user={{ contextName, name: user.name, role: user.role }}
       />
       <div className="mb-6 flex justify-end">
         <MembershipSwitcher
@@ -141,19 +82,19 @@ export async function SaasAdminShell({
         />
       </div>
 
-      <section className="rounded-xl border border-white/10 bg-white/90 p-6 text-stone-950 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
-        <SectionHeader
-          eyebrow={eyebrow}
-          title={title}
-          description={description}
-          className="mb-6"
-        />
-        {commercialAccess.allowed ? (
-          children
-        ) : (
-          <CommercialAccessBlocked status={commercialAccess.status} />
-        )}
-      </section>
+      {contentMode === "plain" ? (
+        content
+      ) : (
+        <section className="rounded-xl border border-white/10 bg-white/90 p-6 text-stone-950 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+          <SectionHeader
+            eyebrow={eyebrow}
+            title={title}
+            description={description}
+            className="mb-6"
+          />
+          {content}
+        </section>
+      )}
     </AppShell>
   );
 }
