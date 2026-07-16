@@ -24,6 +24,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { canAccessNavigationPath, formatRole } from "@/lib/role-access";
 import { clearStoredCustomerOrders } from "@/lib/customer-orders";
+import {
+  staffNavigationItems,
+  type StaffNavigationItem,
+} from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { cn } from "@/lib/utils";
 
@@ -31,12 +35,6 @@ type AppHeaderUser = {
   contextName?: string | null;
   name?: string | null;
   role: MembershipRole;
-};
-
-type NavigationItem = {
-  href: string;
-  label: string;
-  description?: string;
 };
 
 type AppHeaderProps = {
@@ -49,68 +47,10 @@ type AppHeaderProps = {
     orderHref?: string;
     ordersHref?: string;
   };
-  navigationItems?: NavigationItem[];
+  navigationItems?: StaffNavigationItem[];
   staffOrderHref?: string;
   user?: AppHeaderUser | null;
 };
-
-const defaultNavigationItems: NavigationItem[] = [
-  {
-    href: "/platform",
-    label: "Platform",
-    description: "SaaS owner console",
-  },
-  {
-    href: "/platform/companies",
-    label: "Companies",
-    description: "Parent company tenants",
-  },
-  {
-    href: "/platform/users/memberships",
-    label: "User Memberships",
-    description: "Review cross-tenant access",
-  },
-  {
-    href: "/company",
-    label: "Company",
-    description: "Restaurants and reporting",
-  },
-  {
-    href: "/company/users",
-    label: "Company Users",
-    description: "Manage user access",
-  },
-  {
-    href: "/restaurant",
-    label: "Restaurant",
-    description: "Restaurant setup",
-  },
-  {
-    href: "/operations/orders",
-    label: "Orders",
-    description: "Live order operations",
-  },
-  {
-    href: "/operations/menu",
-    label: "Menu Manager",
-    description: "Categories and products",
-  },
-  {
-    href: "/operations/inventory",
-    label: "Inventory",
-    description: "Stock control",
-  },
-  {
-    href: "/audit-logs",
-    label: "Audit logs",
-    description: "Security and change history",
-  },
-  {
-    href: "/order",
-    label: "Take order",
-    description: "Create a restaurant order",
-  },
-];
 
 function BrandLogo() {
   return (
@@ -134,13 +74,15 @@ export function AppHeader({
   activePath,
   className,
   customerMenu,
-  navigationItems = defaultNavigationItems,
+  navigationItems = staffNavigationItems,
   staffOrderHref,
   user,
 }: AppHeaderProps) {
   const visibleNavigationItems = user
     ? navigationItems
-        .filter((item) => canAccessNavigationPath(user.role, item.href))
+        .filter((item) =>
+          canAccessNavigationPath(user.role, item.accessPath ?? item.href),
+        )
         .map((item) =>
           item.href === "/order" && staffOrderHref
             ? { ...item, href: staffOrderHref }

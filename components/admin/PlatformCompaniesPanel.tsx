@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatAppDate } from "@/lib/date-format";
+import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
 
 type CompanyOrganization = {
   id: string;
@@ -160,12 +161,12 @@ export function PlatformCompaniesPanel() {
                     {company.subscription?.status ?? "No subscription"}
                   </StatusPill>
                   <DesktopQuickAction
-                    href={`/platform/companies/${company.id}`}
+                    href={getPlatformCompanyWorkspaceHref(company.slug, "details")}
                     icon={PencilIcon}
                     label={`Edit ${company.name} details`}
                   />
                   <DesktopQuickAction
-                    href={`/platform/companies/${company.id}/users`}
+                    href={getPlatformCompanyWorkspaceHref(company.slug, "users")}
                     icon={UsersIcon}
                     label={`Manage users for ${company.name}`}
                   />
@@ -184,15 +185,23 @@ export function PlatformCompaniesPanel() {
                     <DropdownMenuContent align="end" className="bg-white text-stone-950">
                       <DropdownMenuLabel>Company actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
-                        <Link href={`/platform/companies/${company.id}`}>Edit details</Link>
+                        <Link
+                          href={getPlatformCompanyWorkspaceHref(company.slug, "details")}
+                        >
+                          Edit details
+                        </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`/platform/companies/${company.id}/users`}>
+                        <Link
+                          href={getPlatformCompanyWorkspaceHref(company.slug, "users")}
+                        >
                           Manage users
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`/platform/companies/${company.id}/domains`}>
+                        <Link
+                          href={getPlatformCompanyWorkspaceHref(company.slug, "domains")}
+                        >
                           Domains
                         </Link>
                       </DropdownMenuItem>
@@ -202,7 +211,12 @@ export function PlatformCompaniesPanel() {
                         </a>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`/platform/companies/${company.id}/subscription`}>
+                        <Link
+                          href={getPlatformCompanyWorkspaceHref(
+                            company.slug,
+                            "subscription",
+                          )}
+                        >
                           Subscription settings
                         </Link>
                       </DropdownMenuItem>

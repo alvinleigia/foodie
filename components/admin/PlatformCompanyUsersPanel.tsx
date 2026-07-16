@@ -37,9 +37,8 @@ type CompanyUser = {
 
 type PlatformCompanyUsersPanelProps = {
   assignHref?: string | null;
-  companyId: string;
   description?: string;
-  editHrefBase?: string;
+  editHrefBase: string;
   emptyMessage?: string;
   inviteHref?: string | null;
   inviteLabel?: string;
@@ -65,11 +64,10 @@ function getAccountHref(membershipId: string, returnTo: string) {
 
 export function PlatformCompanyUsersPanel({
   assignHref,
-  companyId,
   description = "Manage company owner memberships for this tenant.",
-  editHrefBase = `/platform/companies/${companyId}/users`,
+  editHrefBase,
   emptyMessage = "No company users yet.",
-  inviteHref = `/platform/companies/${companyId}/staff/invite`,
+  inviteHref,
   inviteLabel = "Invite Company User",
   title = "Company users",
   users,

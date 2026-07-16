@@ -1,33 +1,17 @@
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
-import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { TenantStaffAccessForm } from "@/components/admin/TenantAdminForms";
-import { requireRestaurantAdminPage } from "@/lib/restaurant-admin-page";
+import { restaurantAdminRoles } from "@/lib/role-access";
+import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
+import { getRestaurantStaffMemberHref } from "@/lib/restaurant-workspace";
 
 export default async function RestaurantStaffAccessPage(
   props: PageProps<"/restaurant/staff/[membershipId]">,
 ) {
   const { membershipId } = await props.params;
-  const { session, snapshot } = await requireRestaurantAdminPage();
-  const staff = snapshot.staff.find((item) => item.membershipId === membershipId);
+  const { access } = await requireRestaurantWorkspaceAccess({
+    allowedRoles: restaurantAdminRoles,
+    destination: "staff",
+  });
 
-  if (!staff) {
-    notFound();
-  }
-
-  return (
-    <SaasAdminShell
-      activePath="/restaurant/staff"
-      eyebrow="Staff"
-      title="Edit staff access"
-      description="Adjust this user's role or active access for the current restaurant."
-      user={{
-        name: session.user.name,
-        organizationId: session.user.organizationId,
-        role: session.user.role,
-      }}
-    >
-      <TenantStaffAccessForm backHref="/restaurant/staff" staff={staff} />
-    </SaasAdminShell>
-  );
+  redirect(getRestaurantStaffMemberHref(access.restaurant.slug, membershipId));
 }

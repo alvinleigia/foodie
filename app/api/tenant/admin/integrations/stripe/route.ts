@@ -10,7 +10,8 @@ import {
   updateOrganizationPaymentSettings,
 } from "@/lib/organization-payment-settings";
 import { restaurantAdminRoles } from "@/lib/role-access";
-import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
+import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
 import { organizationPaymentActionSchema } from "@/lib/validations/organization-integrations";
 
 async function getRestaurantSessionAndContext() {
@@ -20,7 +21,13 @@ async function getRestaurantSessionAndContext() {
     return null;
   }
 
-  return { session, tenantContext: await getCurrentTenantContext() };
+  const access = await getCurrentStaffRestaurantAccess();
+
+  if (!access) {
+    return null;
+  }
+
+  return { access, session, tenantContext: access.tenantContext };
 }
 
 export async function PATCH(request: Request) {
@@ -89,7 +96,10 @@ export async function POST(request: Request) {
         contactEmail: authorized.session.user.email!,
         origin: new URL(request.url).origin,
         returnPath: "/api/tenant/admin/integrations/stripe/return",
-        refreshPath: "/restaurant/integrations?stripe=refresh",
+        refreshPath: `${getRestaurantWorkspaceHref(
+          authorized.access.restaurant.slug,
+          "integrations",
+        )}?stripe=refresh`,
         updatedByUserId: authorized.session.user.id,
       });
     await writeAuditLog({

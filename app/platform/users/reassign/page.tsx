@@ -19,7 +19,7 @@ function getSafeReturnTo(value: string | string[] | undefined) {
   if (
     returnTo === "/platform/companies" ||
     returnTo === "/platform/users/memberships" ||
-    /^\/platform\/companies\/[0-9a-f-]{36}\/users$/i.test(returnTo)
+    /^\/platform\/companies\/[a-z0-9]+(?:-[a-z0-9]+)*\/users$/i.test(returnTo)
   ) {
     return returnTo;
   }
@@ -60,7 +60,10 @@ export default async function ReassignPlatformUserPage(
   ]);
   const searchParams = await props.searchParams;
   const backHref = getSafeReturnTo(searchParams.returnTo);
-  const initialCompanyId = getSearchParam(searchParams.companyId);
+  const initialCompanySlug = getSearchParam(searchParams.companySlug);
+  const initialCompanyId = targets.find(
+    (company) => company.slug === initialCompanySlug?.trim().toLowerCase(),
+  )?.id;
   const initialIdentifier = getSearchParam(searchParams.identifier);
   const initialRole = getInitialRole(searchParams.role);
 

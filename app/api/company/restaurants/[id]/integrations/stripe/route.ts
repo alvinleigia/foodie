@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { getCompanyRestaurantHref } from "@/lib/company-workspace";
 import {
   PaymentIntegrationConfigurationError,
   startOrganizationStripeOnboarding,
@@ -10,7 +11,7 @@ import {
   updateOrganizationPaymentSettings,
 } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
-import { getCompanyRestaurant } from "@/lib/saas-admin";
+import { getCompanyRestaurant, getPlatformCompany } from "@/lib/saas-admin";
 import { organizationPaymentActionSchema } from "@/lib/validations/organization-integrations";
 
 async function getAuthorizedRestaurant(id: string) {
@@ -20,8 +21,12 @@ async function getAuthorizedRestaurant(id: string) {
     return null;
   }
 
-  const restaurant = await getCompanyRestaurant(session.user.organizationId, id);
-  return restaurant ? { restaurant, session } : null;
+  const [company, restaurant] = await Promise.all([
+    getPlatformCompany(session.user.organizationId),
+    getCompanyRestaurant(session.user.organizationId, id),
+  ]);
+
+  return company && restaurant ? { company, restaurant, session } : null;
 }
 
 export async function PATCH(
@@ -92,13 +97,17 @@ export async function POST(
     }
 
     const onboarding = await startOrganizationStripeOnboarding({
-        organizationId: authorized.restaurant.id,
-        contactEmail: authorized.session.user.email!,
-        origin: new URL(request.url).origin,
-        returnPath: `/api/company/restaurants/${authorized.restaurant.id}/integrations/stripe/return`,
-        refreshPath: `/company/restaurants/${authorized.restaurant.id}/integrations?stripe=refresh`,
-        updatedByUserId: authorized.session.user.id,
-      });
+      organizationId: authorized.restaurant.id,
+      contactEmail: authorized.session.user.email!,
+      origin: new URL(request.url).origin,
+      returnPath: `/api/company/restaurants/${authorized.restaurant.id}/integrations/stripe/return`,
+      refreshPath: `${getCompanyRestaurantHref(
+        authorized.company.slug,
+        authorized.restaurant.slug,
+        "integrations",
+      )}?stripe=refresh`,
+      updatedByUserId: authorized.session.user.id,
+    });
     await writeAuditLog({
       actor: authorized.session.user,
       organizationId: authorized.restaurant.id,

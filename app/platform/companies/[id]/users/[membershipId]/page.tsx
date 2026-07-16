@@ -1,29 +1,20 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-import { auth } from "@/auth";
 import { CompanyUserAccessForm } from "@/components/admin/CompanyUserAccessForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
-import {
-  getCompanyStaffMembership,
-  getPlatformCompany,
-} from "@/lib/saas-admin";
+import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
+import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
+import { getCompanyStaffMembership } from "@/lib/saas-admin";
 
 export default async function PlatformCompanyUserAccessPage(
   props: PageProps<"/platform/companies/[id]/users/[membershipId]">,
 ) {
-  const session = await auth();
-
-  if (!session?.user?.role || !canAccessRole(session.user.role, platformAdminRoles)) {
-    redirect("/staff/login");
-  }
-
   const { id, membershipId } = await props.params;
-  const company = await getPlatformCompany(id);
-
-  if (!company) {
-    notFound();
-  }
+  const { company, session } = await requirePlatformCompanyWorkspaceAccess({
+    destination: "users",
+    identifier: id,
+    membershipId,
+  });
 
   const companyUser = await getCompanyStaffMembership(company.id, membershipId);
 
@@ -31,7 +22,7 @@ export default async function PlatformCompanyUserAccessPage(
     notFound();
   }
 
-  const usersHref = `/platform/companies/${company.id}/users`;
+  const usersHref = getPlatformCompanyWorkspaceHref(company.slug, "users");
 
   return (
     <SaasAdminShell

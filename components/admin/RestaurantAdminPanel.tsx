@@ -28,6 +28,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
+import {
+  getRestaurantStaffMemberHref,
+  getRestaurantWorkspaceHref,
+} from "@/lib/restaurant-workspace";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type StaffRole = Exclude<MembershipRole, "PLATFORM_ADMIN">;
@@ -106,10 +110,21 @@ function RestaurantAccessEmptyState() {
 }
 
 export function RestaurantAdminPanel({
+  restaurantSlug,
   view = "dashboard",
 }: {
+  restaurantSlug?: string;
   view?: "dashboard" | "staff";
 }) {
+  const staffHref = restaurantSlug
+    ? getRestaurantWorkspaceHref(restaurantSlug, "staff")
+    : "/restaurant/staff";
+  const staffInviteHref = restaurantSlug
+    ? getRestaurantWorkspaceHref(restaurantSlug, "staffInvite")
+    : "/restaurant/staff/invite";
+  const staffReassignHref = restaurantSlug
+    ? getRestaurantWorkspaceHref(restaurantSlug, "staffReassign")
+    : "/restaurant/staff/reassign";
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
   const [summary, setSummary] = useState<RestaurantSummary | null>(null);
   const [report, setReport] = useState<OperationalReport | null>(null);
@@ -229,12 +244,12 @@ export function RestaurantAdminPanel({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button asChild variant="outline" className="rounded-lg">
-                    <Link href="/restaurant/staff/reassign">
+                    <Link href={staffReassignHref}>
                       <ButtonLabel icon={UserCheckIcon}>Assign existing staff</ButtonLabel>
                     </Link>
                   </Button>
                   <Button asChild className="rounded-lg">
-                    <Link href="/restaurant/staff/invite">
+                    <Link href={staffInviteHref}>
                       <ButtonLabel icon={UserPlusIcon}>Invite staff</ButtonLabel>
                     </Link>
                   </Button>
@@ -268,7 +283,14 @@ export function RestaurantAdminPanel({
                     </div>
                     <div className="flex items-center gap-2">
                       <DesktopQuickAction
-                        href={`/restaurant/staff/${staff.membershipId}`}
+                        href={
+                          restaurantSlug
+                            ? getRestaurantStaffMemberHref(
+                                restaurantSlug,
+                                staff.membershipId,
+                              )
+                            : `/restaurant/staff/${staff.membershipId}`
+                        }
                         icon={PencilIcon}
                         label={`Edit access for ${staff.name}`}
                       />
@@ -287,13 +309,22 @@ export function RestaurantAdminPanel({
                         <DropdownMenuContent align="end" className="bg-white text-stone-950">
                           <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                            <Link href={`/restaurant/staff/${staff.membershipId}`}>
+                            <Link
+                              href={
+                                restaurantSlug
+                                  ? getRestaurantStaffMemberHref(
+                                      restaurantSlug,
+                                      staff.membershipId,
+                                    )
+                                  : `/restaurant/staff/${staff.membershipId}`
+                              }
+                            >
                               Edit access
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              href={`/users/${staff.membershipId}/account?returnTo=/restaurant/staff`}
+                              href={`/users/${staff.membershipId}/account?returnTo=${encodeURIComponent(staffHref)}`}
                             >
                               <ButtonLabel icon={UserPenIcon}>
                                 Edit account details
@@ -302,7 +333,7 @@ export function RestaurantAdminPanel({
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              href={`/users/${staff.membershipId}/reset-password?returnTo=/restaurant/staff`}
+                              href={`/users/${staff.membershipId}/reset-password?returnTo=${encodeURIComponent(staffHref)}`}
                             >
                               Create reset link
                             </Link>

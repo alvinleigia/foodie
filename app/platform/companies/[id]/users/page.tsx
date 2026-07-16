@@ -1,30 +1,21 @@
-import { notFound, redirect } from "next/navigation";
-
-import { auth } from "@/auth";
 import { PlatformCompanyUsersPanel } from "@/components/admin/PlatformCompanyUsersPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
-import { getPlatformCompany, listCompanyStaffMemberships } from "@/lib/saas-admin";
+import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
+import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
+import { listCompanyStaffMemberships } from "@/lib/saas-admin";
 
 export default async function PlatformCompanyUsersPage(
   props: PageProps<"/platform/companies/[id]/users">,
 ) {
-  const session = await auth();
-
-  if (!session?.user?.role || !canAccessRole(session.user.role, platformAdminRoles)) {
-    redirect("/staff/login");
-  }
-
   const { id } = await props.params;
-  const company = await getPlatformCompany(id);
-
-  if (!company) {
-    notFound();
-  }
+  const { company, session } = await requirePlatformCompanyWorkspaceAccess({
+    destination: "users",
+    identifier: id,
+  });
 
   const users = await listCompanyStaffMemberships(company.id);
-  const companyUsersPath = `/platform/companies/${company.id}/users`;
-  const assignHref = `/platform/users/reassign?companyId=${company.id}&role=COMPANY_OWNER&returnTo=${encodeURIComponent(companyUsersPath)}`;
+  const companyUsersPath = getPlatformCompanyWorkspaceHref(company.slug, "users");
+  const assignHref = `/platform/users/reassign?companySlug=${encodeURIComponent(company.slug)}&role=COMPANY_OWNER&returnTo=${encodeURIComponent(companyUsersPath)}`;
 
   return (
     <SaasAdminShell
@@ -40,7 +31,8 @@ export default async function PlatformCompanyUsersPage(
     >
       <PlatformCompanyUsersPanel
         assignHref={assignHref}
-        companyId={company.id}
+        editHrefBase={companyUsersPath}
+        inviteHref={getPlatformCompanyWorkspaceHref(company.slug, "staffInvite")}
         users={users}
       />
     </SaasAdminShell>

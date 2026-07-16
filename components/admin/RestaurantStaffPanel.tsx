@@ -39,6 +39,7 @@ type RestaurantStaffPanelProps = {
   assignHref: string;
   backHref: string;
   currentHref: string;
+  editHrefBase: string;
   inviteHref: string;
   restaurantName: string;
   staff: RestaurantStaffUser[];
@@ -48,6 +49,7 @@ export function RestaurantStaffPanel({
   assignHref,
   backHref,
   currentHref,
+  editHrefBase,
   inviteHref,
   restaurantName,
   staff,
@@ -113,7 +115,7 @@ export function RestaurantStaffPanel({
               </div>
               <div className="flex items-center gap-2">
                 <DesktopQuickAction
-                  href={`/company/users/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
+                  href={`${editHrefBase}/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
                   icon={PencilIcon}
                   label={`Edit access for ${user.name}`}
                 />
@@ -133,7 +135,7 @@ export function RestaurantStaffPanel({
                     <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                     <DropdownMenuItem asChild>
                       <Link
-                        href={`/company/users/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
+                        href={`${editHrefBase}/${user.membershipId}?returnTo=${encodeURIComponent(currentHref)}`}
                       >
                         Edit access
                       </Link>

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { requireRole } from "@/lib/auth";
+import {
+  getCompanyRestaurantHref,
+} from "@/lib/company-workspace";
 import { syncOrganizationStripeAccount } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
-import { getCompanyRestaurant } from "@/lib/saas-admin";
+import { getCompanyRestaurant, getPlatformCompany } from "@/lib/saas-admin";
 
 export async function GET(
   request: Request,
@@ -16,14 +19,24 @@ export async function GET(
     return NextResponse.redirect(new URL("/staff/login", request.url));
   }
 
-  const restaurant = await getCompanyRestaurant(session.user.organizationId, id);
+  const [company, restaurant] = await Promise.all([
+    getPlatformCompany(session.user.organizationId),
+    getCompanyRestaurant(session.user.organizationId, id),
+  ]);
 
-  if (!restaurant) {
-    return NextResponse.redirect(new URL("/company/restaurants", request.url));
+  if (!company || !restaurant) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   await syncOrganizationStripeAccount(restaurant.id).catch(() => null);
   return NextResponse.redirect(
-    new URL(`/company/restaurants/${restaurant.id}/integrations?stripe=connected`, request.url),
+    new URL(
+      `${getCompanyRestaurantHref(
+        company.slug,
+        restaurant.slug,
+        "integrations",
+      )}?stripe=connected`,
+      request.url,
+    ),
   );
 }

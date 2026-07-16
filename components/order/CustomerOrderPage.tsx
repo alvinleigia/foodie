@@ -10,6 +10,7 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
+import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
@@ -53,6 +54,11 @@ export function CustomerOrderPage({
         <>
           <AppHeader
             activePath={staffOrderHref ?? "/order"}
+            navigationItems={
+              staffRestaurant
+                ? getStaffNavigationItemsForRestaurant(staffRestaurant.slug)
+                : undefined
+            }
             staffOrderHref={staffOrderHref}
             user={{ ...user, contextName: staffRestaurant?.name }}
           />

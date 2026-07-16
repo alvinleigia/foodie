@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import { restaurantAdminRoles } from "@/lib/role-access";
+import { redirectToActiveRestaurantWorkspace } from "@/lib/restaurant-workspace-access";
 
 export default async function RestaurantStaffNewPage() {
-  redirect("/restaurant/staff/invite");
+  await redirectToActiveRestaurantWorkspace("staffInvite", restaurantAdminRoles);
 }

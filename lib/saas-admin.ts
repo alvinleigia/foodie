@@ -101,6 +101,28 @@ export async function getPlatformCompany(companyOrganizationId: string) {
   return company ?? null;
 }
 
+export async function getPlatformCompanyBySlugOrId(identifier: string) {
+  const normalizedIdentifier = identifier.trim().toLowerCase();
+  const isUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      identifier,
+    );
+  const [company] = await getDb()
+    .select()
+    .from(organizations)
+    .where(
+      and(
+        isUuid
+          ? eq(organizations.id, identifier)
+          : eq(organizations.slug, normalizedIdentifier),
+        eq(organizations.type, "COMPANY"),
+      ),
+    )
+    .limit(1);
+
+  return company ?? null;
+}
+
 export async function getPlatformCompanyWithSubscription(
   companyOrganizationId: string,
 ) {
@@ -475,6 +497,25 @@ export async function getCompanyRestaurant(
         eq(organizations.id, restaurantOrganizationId),
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
+      ),
+    )
+    .limit(1);
+
+  return restaurant ?? null;
+}
+
+export async function getCompanyRestaurantBySlug(
+  companyOrganizationId: string,
+  restaurantSlug: string,
+) {
+  const [restaurant] = await getDb()
+    .select()
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.slug, restaurantSlug),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.parentOrganizationId, companyOrganizationId),
       ),
     )
     .limit(1);

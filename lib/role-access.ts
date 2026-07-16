@@ -79,6 +79,10 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
     return role === "RESTAURANT_MANAGER" || role === "ORDER_OPERATOR";
   }
 
+  if (href === "/order") {
+    return canAccessRole(role, operationalRoles);
+  }
+
   if (href === "/operations/menu") {
     return role === "RESTAURANT_MANAGER";
   }

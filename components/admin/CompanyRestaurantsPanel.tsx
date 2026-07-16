@@ -34,6 +34,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
+import {
+  getCompanyRestaurantHref,
+  getCompanyWorkspaceHref,
+} from "@/lib/company-workspace";
 
 type CompanyRestaurant = {
   id: string;
@@ -68,6 +72,7 @@ type CompanySummaryResponse = {
 };
 
 type CompanyRestaurantsPanelProps = {
+  companySlug: string;
   hasRealCompanyContext: boolean;
   view?: "dashboard" | "management";
 };
@@ -104,6 +109,7 @@ function CompanySetupRequired() {
 }
 
 export function CompanyRestaurantsPanel({
+  companySlug,
   hasRealCompanyContext,
   view = "dashboard",
 }: CompanyRestaurantsPanelProps) {
@@ -269,12 +275,12 @@ export function CompanyRestaurantsPanel({
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button asChild variant="outline" className="rounded-lg">
-              <Link href="/company/users">
+              <Link href={getCompanyWorkspaceHref(companySlug, "users")}>
                 <ButtonLabel icon={UsersIcon}>Manage users</ButtonLabel>
               </Link>
             </Button>
             <Button asChild className="rounded-lg">
-              <Link href="/company/restaurants/new">
+              <Link href={getCompanyWorkspaceHref(companySlug, "restaurantNew")}>
                 <ButtonLabel icon={PlusIcon}>Add restaurant</ButtonLabel>
               </Link>
             </Button>
@@ -318,12 +324,20 @@ export function CompanyRestaurantsPanel({
                     {restaurant.isActive ? "Active" : "Disabled"}
                   </StatusPill>
                   <DesktopQuickAction
-                    href={`/company/restaurants/${restaurant.id}`}
+                    href={getCompanyRestaurantHref(
+                      companySlug,
+                      restaurant.slug,
+                      "settings",
+                    )}
                     icon={PencilIcon}
                     label={`Edit ${restaurant.name} settings`}
                   />
                   <DesktopQuickAction
-                    href={`/company/restaurants/${restaurant.id}/staff`}
+                    href={getCompanyRestaurantHref(
+                      companySlug,
+                      restaurant.slug,
+                      "staff",
+                    )}
                     icon={UsersIcon}
                     label={`Manage staff for ${restaurant.name}`}
                   />
@@ -343,12 +357,24 @@ export function CompanyRestaurantsPanel({
                     <DropdownMenuContent align="end" className="bg-white text-stone-950">
                       <DropdownMenuLabel>Restaurant actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
-                        <Link href={`/company/restaurants/${restaurant.id}`}>
+                        <Link
+                          href={getCompanyRestaurantHref(
+                            companySlug,
+                            restaurant.slug,
+                            "settings",
+                          )}
+                        >
                           Edit restaurant settings
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link href={`/company/restaurants/${restaurant.id}/staff`}>
+                        <Link
+                          href={getCompanyRestaurantHref(
+                            companySlug,
+                            restaurant.slug,
+                            "staff",
+                          )}
+                        >
                           Manage restaurant staff
                         </Link>
                       </DropdownMenuItem>
