@@ -482,6 +482,25 @@ export async function getCompanyRestaurant(
   return restaurant ?? null;
 }
 
+export async function getCompanyRestaurantBySlug(
+  companyOrganizationId: string,
+  restaurantSlug: string,
+) {
+  const [restaurant] = await getDb()
+    .select()
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.slug, restaurantSlug),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.parentOrganizationId, companyOrganizationId),
+      ),
+    )
+    .limit(1);
+
+  return restaurant ?? null;
+}
+
 export async function createChildRestaurant(
   companyOrganizationId: string,
   input: unknown,

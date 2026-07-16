@@ -10,6 +10,7 @@ import { organizations } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
 import {
+  getStaffNavigationItemsForCompany,
   getStaffNavigationItemsForRestaurant,
   staffNavigationItems,
   uatResetNavigationItem,
@@ -67,6 +68,8 @@ export async function SaasAdminShell({
   const scopedNavigationItems =
     organizationContext?.type === "RESTAURANT"
       ? getStaffNavigationItemsForRestaurant(organizationContext.slug)
+      : organizationContext?.type === "COMPANY"
+        ? getStaffNavigationItemsForCompany(organizationContext.slug)
       : staffNavigationItems;
   const navigationItems = isUatDatabaseResetEnabled()
     ? [...scopedNavigationItems, uatResetNavigationItem]

@@ -1,4 +1,8 @@
 import {
+  getCompanyWorkspaceHref,
+  type CompanyWorkspaceDestination,
+} from "@/lib/company-workspace";
+import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspaceDestination,
 } from "@/lib/restaurant-workspace";
@@ -112,6 +116,30 @@ const restaurantDestinationByPath: Partial<
   "/restaurant/ordering-point": "orderingPoint",
   "/restaurant/staff": "staff",
 };
+
+const companyDestinationByPath: Partial<
+  Record<string, CompanyWorkspaceDestination>
+> = {
+  "/audit-logs": "auditLogs",
+  "/company": "dashboard",
+  "/company/integrations": "integrations",
+  "/company/restaurants": "restaurants",
+  "/company/users": "users",
+};
+
+export function getStaffNavigationItemsForCompany(companySlug: string) {
+  return staffNavigationItems.map((item) => {
+    const destination = companyDestinationByPath[item.href];
+
+    return destination
+      ? {
+          ...item,
+          accessPath: item.href,
+          href: getCompanyWorkspaceHref(companySlug, destination),
+        }
+      : item;
+  });
+}
 
 export function getStaffNavigationItemsForRestaurant(restaurantSlug: string) {
   return staffNavigationItems.map((item) => {

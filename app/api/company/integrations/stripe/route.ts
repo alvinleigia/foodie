@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { getCompanyWorkspaceHref } from "@/lib/company-workspace";
 import {
   PaymentIntegrationConfigurationError,
   startOrganizationStripeOnboarding,
@@ -10,6 +11,7 @@ import {
   updateOrganizationPaymentSettings,
 } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
+import { getPlatformCompany } from "@/lib/saas-admin";
 import { organizationPaymentActionSchema } from "@/lib/validations/organization-integrations";
 
 async function getCompanySession() {
@@ -76,14 +78,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ snapshot });
     }
 
+    const company = await getPlatformCompany(session.user.organizationId);
+
+    if (!company) {
+      return NextResponse.json({ error: "Company not found." }, { status: 404 });
+    }
+
     const onboarding = await startOrganizationStripeOnboarding({
-        organizationId: session.user.organizationId,
-        contactEmail: session.user.email!,
-        origin: new URL(request.url).origin,
-        returnPath: "/api/company/integrations/stripe/return",
-        refreshPath: "/company/integrations?stripe=refresh",
-        updatedByUserId: session.user.id,
-      });
+      organizationId: session.user.organizationId,
+      contactEmail: session.user.email!,
+      origin: new URL(request.url).origin,
+      returnPath: "/api/company/integrations/stripe/return",
+      refreshPath: `${getCompanyWorkspaceHref(company.slug, "integrations")}?stripe=refresh`,
+      updatedByUserId: session.user.id,
+    });
     await writeAuditLog({
       actor: session.user,
       organizationId: session.user.organizationId,

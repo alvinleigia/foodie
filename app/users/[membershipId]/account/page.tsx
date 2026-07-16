@@ -32,6 +32,22 @@ function getSafeReturnTo(value: string | string[] | undefined, role: MembershipR
 }
 
 function getActivePath(returnTo: string, role: MembershipRole) {
+  const companyRestaurantStaffMatch = returnTo.match(
+    /^(\/companies\/[^/]+\/restaurants\/[^/]+\/staff)(?:\/|$)/,
+  );
+
+  if (companyRestaurantStaffMatch) {
+    return companyRestaurantStaffMatch[1];
+  }
+
+  const companyUsersMatch = returnTo.match(
+    /^(\/companies\/[^/]+\/users)(?:\/|$)/,
+  );
+
+  if (companyUsersMatch) {
+    return companyUsersMatch[1];
+  }
+
   const restaurantStaffMatch = returnTo.match(
     /^(\/restaurants\/[^/]+\/staff)(?:\/|$)/,
   );
