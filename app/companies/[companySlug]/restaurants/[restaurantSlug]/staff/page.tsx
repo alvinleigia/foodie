@@ -45,7 +45,7 @@ export default async function CompanyWorkspaceRestaurantStaffPage({
       }}
     >
       <RestaurantStaffPanel
-        assignHref={`${getCompanyWorkspaceHref(company.slug, "userReassign")}?restaurantId=${restaurant.id}&role=ORDER_OPERATOR&returnTo=${encodeURIComponent(currentHref)}`}
+        assignHref={`${getCompanyWorkspaceHref(company.slug, "userReassign")}?restaurantSlug=${encodeURIComponent(restaurant.slug)}&role=ORDER_OPERATOR&returnTo=${encodeURIComponent(currentHref)}`}
         backHref={getCompanyRestaurantHref(
           company.slug,
           restaurant.slug,

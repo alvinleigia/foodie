@@ -62,6 +62,12 @@ export default async function CompanyWorkspaceUserReassignPage({
     searchParams,
   ]);
   const usersHref = getCompanyWorkspaceHref(company.slug, "users");
+  const initialRestaurantSlug = getSearchParam(query.restaurantSlug)
+    ?.trim()
+    .toLowerCase();
+  const initialRestaurantId = targets
+    .flatMap((target) => target.restaurants)
+    .find((restaurant) => restaurant.slug === initialRestaurantSlug)?.id;
 
   return (
     <SaasAdminShell
@@ -81,7 +87,7 @@ export default async function CompanyWorkspaceUserReassignPage({
         defaultDeactivateExisting
         initialCompanyId={company.id}
         initialIdentifier={getSearchParam(query.identifier)}
-        initialRestaurantId={getSearchParam(query.restaurantId)}
+        initialRestaurantId={initialRestaurantId}
         initialRole={getInitialRole(query.role) ?? "ORDER_OPERATOR"}
         targets={targets}
         users={users}
