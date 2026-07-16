@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
-import { getPublicTenantContextFromRequest } from "@/lib/tenant-context";
+import {
+  getPublicTenantContextFromRequest,
+  StaffRestaurantContextError,
+} from "@/lib/tenant-context";
 
 export async function GET(request: Request) {
   try {
@@ -14,7 +17,7 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch menu." },
-      { status: 500 },
+      { status: error instanceof StaffRestaurantContextError ? error.status : 500 },
     );
   }
 }

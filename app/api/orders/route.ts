@@ -37,7 +37,11 @@ import {
   getRequestRateLimitKey,
   rateLimitResponse,
 } from "@/lib/rate-limit";
-import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
+import {
+  getCurrentTenantContext,
+  getPublicTenantContextFromRequest,
+  StaffRestaurantContextError,
+} from "@/lib/tenant-context";
 import { isValidCustomerPhone } from "@/lib/validations/customer";
 import {
   buildOrderPaymentPricing,
@@ -470,7 +474,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to create order." },
-      { status: 500 },
+      { status: error instanceof StaffRestaurantContextError ? error.status : 500 },
     );
   }
 }

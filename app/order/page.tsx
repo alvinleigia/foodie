@@ -1,10 +1,23 @@
+import { redirect } from "next/navigation";
+
 import { CustomerOrderPage } from "@/components/order/CustomerOrderPage";
 import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
 import { RestaurantPicker } from "@/components/order/RestaurantPicker";
 import { AppShell } from "@/components/shared/AppShell";
+import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
+import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
+import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
 
 export default async function OrderPage(props: PageProps<"/order">) {
+  if (await isCurrentRequestPlatformAdministrationDomain()) {
+    const staffAccess = await getCurrentStaffRestaurantAccess().catch(() => null);
+
+    if (staffAccess) {
+      redirect(getStaffRestaurantOrderHref(staffAccess.restaurant.slug));
+    }
+  }
+
   const searchParams = await props.searchParams;
   const qrValue = searchParams.qr;
   const routeValue = searchParams.route;
