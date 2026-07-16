@@ -4,12 +4,22 @@ import { auth } from "@/auth";
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { auditLogRoles, canAccessRole } from "@/lib/role-access";
+import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
+import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
 
 export default async function AuditLogsPage() {
   const session = await auth();
 
   if (!session?.user?.role || !canAccessRole(session.user.role, auditLogRoles)) {
     redirect("/staff/login");
+  }
+
+  if (session.user.role === "RESTAURANT_MANAGER") {
+    const access = await getCurrentStaffRestaurantAccess().catch(() => null);
+
+    if (access) {
+      redirect(getRestaurantWorkspaceHref(access.restaurant.slug, "auditLogs"));
+    }
   }
 
   return (

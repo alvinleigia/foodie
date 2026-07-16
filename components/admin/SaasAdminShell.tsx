@@ -10,6 +10,7 @@ import { organizations } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
 import {
+  getStaffNavigationItemsForRestaurant,
   staffNavigationItems,
   uatResetNavigationItem,
 } from "@/lib/staff-navigation";
@@ -30,18 +31,22 @@ type SaasAdminShellProps = {
   };
 };
 
-async function getOrganizationContextName(organizationId?: string | null) {
+async function getOrganizationContext(organizationId?: string | null) {
   if (!organizationId) {
     return null;
   }
 
   const [organization] = await getDb()
-    .select({ name: organizations.name })
+    .select({
+      name: organizations.name,
+      slug: organizations.slug,
+      type: organizations.type,
+    })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
-  return organization?.name ?? null;
+  return organization ?? null;
 }
 
 export async function SaasAdminShell({
@@ -53,15 +58,19 @@ export async function SaasAdminShell({
   title,
   user,
 }: SaasAdminShellProps) {
-  const [commercialAccess, contextName] = await Promise.all([
+  const [commercialAccess, organizationContext] = await Promise.all([
     user.organizationId && !canAccessRole(user.role, platformAdminRoles)
       ? getTenantSubscriptionAccess(user.organizationId)
       : Promise.resolve({ allowed: true, status: null }),
-    getOrganizationContextName(user.organizationId),
+    getOrganizationContext(user.organizationId),
   ]);
+  const scopedNavigationItems =
+    organizationContext?.type === "RESTAURANT"
+      ? getStaffNavigationItemsForRestaurant(organizationContext.slug)
+      : staffNavigationItems;
   const navigationItems = isUatDatabaseResetEnabled()
-    ? [...staffNavigationItems, uatResetNavigationItem]
-    : staffNavigationItems;
+    ? [...scopedNavigationItems, uatResetNavigationItem]
+    : scopedNavigationItems;
   const content = commercialAccess.allowed ? (
     children
   ) : (
@@ -73,7 +82,11 @@ export async function SaasAdminShell({
       <AppHeader
         activePath={activePath}
         navigationItems={navigationItems}
-        user={{ contextName, name: user.name, role: user.role }}
+        user={{
+          contextName: organizationContext?.name,
+          name: user.name,
+          role: user.role,
+        }}
       />
       <div className="mb-6 flex justify-end">
         <MembershipSwitcher

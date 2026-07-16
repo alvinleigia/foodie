@@ -466,11 +466,17 @@ export function TenantOrderingPointSettingsForm({
   );
 }
 
-export function TenantStaffInviteForm({ backHref }: { backHref: string }) {
+export function TenantStaffInviteForm({
+  assignExistingHref = "/restaurant/staff/reassign",
+  backHref,
+}: {
+  assignExistingHref?: string;
+  backHref: string;
+}) {
   return (
     <StaffInviteForm
       apiPath="/api/tenant/admin/staff/invite"
-      assignExistingHref="/restaurant/staff/reassign"
+      assignExistingHref={assignExistingHref}
       backHref={backHref}
       defaultRole="ORDER_OPERATOR"
       description="Create a one-time invite link for this restaurant."

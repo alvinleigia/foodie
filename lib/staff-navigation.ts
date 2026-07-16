@@ -1,4 +1,10 @@
+import {
+  getRestaurantWorkspaceHref,
+  type RestaurantWorkspaceDestination,
+} from "@/lib/restaurant-workspace";
+
 export type StaffNavigationItem = {
+  accessPath?: string;
   href: string;
   label: string;
   description: string;
@@ -92,3 +98,31 @@ export const uatResetNavigationItem: StaffNavigationItem = {
   label: "UAT Reset",
   description: "Clear testing data.",
 };
+
+const restaurantDestinationByPath: Partial<
+  Record<string, RestaurantWorkspaceDestination>
+> = {
+  "/audit-logs": "auditLogs",
+  "/operations/inventory": "inventory",
+  "/operations/menu": "menu",
+  "/operations/orders": "orders",
+  "/order": "order",
+  "/restaurant": "dashboard",
+  "/restaurant/integrations": "integrations",
+  "/restaurant/ordering-point": "orderingPoint",
+  "/restaurant/staff": "staff",
+};
+
+export function getStaffNavigationItemsForRestaurant(restaurantSlug: string) {
+  return staffNavigationItems.map((item) => {
+    const destination = restaurantDestinationByPath[item.href];
+
+    return destination
+      ? {
+          ...item,
+          accessPath: item.href,
+          href: getRestaurantWorkspaceHref(restaurantSlug, destination),
+        }
+      : item;
+  });
+}

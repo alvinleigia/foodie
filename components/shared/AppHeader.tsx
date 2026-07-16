@@ -80,7 +80,9 @@ export function AppHeader({
 }: AppHeaderProps) {
   const visibleNavigationItems = user
     ? navigationItems
-        .filter((item) => canAccessNavigationPath(user.role, item.href))
+        .filter((item) =>
+          canAccessNavigationPath(user.role, item.accessPath ?? item.href),
+        )
         .map((item) =>
           item.href === "/order" && staffOrderHref
             ? { ...item, href: staffOrderHref }

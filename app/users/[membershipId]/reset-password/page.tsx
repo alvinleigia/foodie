@@ -32,6 +32,14 @@ function getSafeReturnTo(value: string | string[] | undefined, role: MembershipR
 }
 
 function getActivePath(returnTo: string, role: MembershipRole) {
+  const restaurantStaffMatch = returnTo.match(
+    /^(\/restaurants\/[^/]+\/staff)(?:\/|$)/,
+  );
+
+  if (restaurantStaffMatch) {
+    return restaurantStaffMatch[1];
+  }
+
   if (returnTo.startsWith("/platform/companies")) {
     return "/platform/companies";
   }
