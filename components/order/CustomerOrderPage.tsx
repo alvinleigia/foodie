@@ -1,34 +1,41 @@
 "use client";
 
+import type { CustomerAuthProviders } from "@/components/order/CustomerLoginForm";
 import { OrderForm } from "@/components/order/OrderForm";
 import { AppHeader } from "@/components/shared/AppHeader";
+import {
+  getCustomerLoginHref,
+  getCustomerOrderHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  customer?: {
+    email?: string | null;
+    name?: string | null;
+    phone?: string | null;
+  } | null;
+  customerAuthProviders: CustomerAuthProviders;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   user?: {
     name?: string | null;
     role: MembershipRole;
   } | null;
 };
 
-function getCustomerHref(path: "/order" | "/order/status", options: {
-  locationQrSlug?: string;
-  locationSlug?: string;
-}) {
-  if (options.locationSlug) {
-    return `${path}/${encodeURIComponent(options.locationSlug)}`;
-  }
+export function CustomerOrderPage({
+  customer,
+  customerAuthProviders,
+  orderingPointQrSlug,
+  routeSlug,
+  user,
+}: CustomerOrderPageProps) {
+  const customerContext = { orderingPointQrSlug, routeSlug };
+  const orderHref = getCustomerOrderHref("/order", customerContext);
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
-  if (options.locationQrSlug) {
-    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
-  }
-
-  return path;
-}
-
-export function CustomerOrderPage({ locationQrSlug, locationSlug, user }: CustomerOrderPageProps) {
   return (
     <>
       {user ? (
@@ -37,13 +44,29 @@ export function CustomerOrderPage({ locationQrSlug, locationSlug, user }: Custom
         <AppHeader
           activePath="/order"
           customerMenu={{
-            orderHref: getCustomerHref("/order", { locationQrSlug, locationSlug }),
-            ordersHref: getCustomerHref("/order/status", { locationQrSlug, locationSlug }),
+            accountHref: customer
+              ? withPublicCustomerContext("/account", customerContext)
+              : undefined,
+            customerName: customer?.name,
+            loginHref: customer
+              ? undefined
+              : getCustomerLoginHref({
+                  ...customerContext,
+                  returnTo: ordersHref,
+                }),
+            orderHref,
+            ordersHref,
           }}
         />
       )}
 
-      <OrderForm locationQrSlug={locationQrSlug} locationSlug={locationSlug} />
+      <OrderForm
+        customer={customer}
+        customerAuthProviders={customerAuthProviders}
+        isStaffOrder={Boolean(user)}
+        orderingPointQrSlug={orderingPointQrSlug}
+        routeSlug={routeSlug}
+      />
     </>
   );
 }

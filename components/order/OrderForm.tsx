@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
   CheckIcon,
+  CreditCardIcon,
   ImageIcon,
   MinusIcon,
   PlusIcon,
+  PhoneIcon,
   SendIcon,
   ShoppingCartIcon,
   TagsIcon,
@@ -21,9 +23,22 @@ import {
   syncCustomerOrdersResetMarker,
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  isValidCustomerPhone,
+  normalizeCustomerPhone,
+} from "@/lib/validations/customer";
 import { FormField } from "@/components/shared/FormField";
+import {
+  StaffCustomerSearch,
+  type StaffCustomerSummary,
+} from "@/components/order/StaffCustomerSearch";
+import {
+  CustomerLoginForm,
+  type CustomerAuthProviders,
+} from "@/components/order/CustomerLoginForm";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -66,8 +81,15 @@ import {
 } from "@/types/menu";
 
 type OrderFormProps = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  customer?: {
+    email?: string | null;
+    name?: string | null;
+    phone?: string | null;
+  } | null;
+  customerAuthProviders: CustomerAuthProviders;
+  isStaffOrder?: boolean;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -103,20 +125,20 @@ type OrderDraft = {
   customerName: string;
 };
 
-function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
-  const { locationQrSlug, locationSlug } = options;
+function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
+  const { orderingPointQrSlug, routeSlug } = options;
 
-  if (locationQrSlug) {
+  if (orderingPointQrSlug) {
     const separator = path.includes("?") ? "&" : "?";
-    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+    return `${path}${separator}qr=${encodeURIComponent(orderingPointQrSlug)}`;
   }
 
-  if (!locationSlug) {
+  if (!routeSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
+  return `${path}${separator}route=${encodeURIComponent(routeSlug)}`;
 }
 
 function getStockLimit(drink: MenuItemRecord) {
@@ -200,18 +222,32 @@ function hasSameCartConfiguration(left: CartItem, right: CartItem) {
   );
 }
 
-export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: OrderFormProps) {
+export function OrderForm({
+  customer,
+  customerAuthProviders,
+  isStaffOrder = false,
+  orderingPointQrSlug,
+  routeSlug,
+  onOrderCreated,
+}: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [draft, setDraft] = useState<OrderDraft>({
-    customerName: "",
+    customerName: customer?.name ?? "",
   });
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [customerName, setCustomerName] = useState<string | null>(null);
+  const [savedCustomerName, setSavedCustomerName] = useState<string | null>(null);
+  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
+  const [savedCustomerPhone, setSavedCustomerPhone] = useState<string | null>(null);
+  const [selectedStaffCustomer, setSelectedStaffCustomer] =
+    useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
   const [customizerError, setCustomizerError] = useState<string | null>(null);
@@ -222,6 +258,17 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+  const customerNameValue = customerName ?? customer?.name ?? "";
+  const savedCustomerNameValue = savedCustomerName ?? customer?.name ?? null;
+  const customerPhoneValue = customerPhone ?? customer?.phone ?? "";
+  const savedCustomerPhoneValue = savedCustomerPhone ?? customer?.phone ?? null;
+  const hasCompleteCustomerProfile = Boolean(
+    customer &&
+      savedCustomerNameValue &&
+      savedCustomerNameValue.trim().length >= 2 &&
+      isValidCustomerPhone(savedCustomerPhoneValue),
+  );
+  const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -263,7 +310,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
 
     async function loadMenu() {
       setIsLoadingMenu(true);
-      const response = await fetch(withPublicContext("/api/menu", { locationQrSlug, locationSlug }));
+      const response = await fetch(withPublicContext("/api/menu", { orderingPointQrSlug, routeSlug }));
       const payload = await response.json();
 
       if (!response.ok) {
@@ -277,7 +324,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
 
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
-        setCurrency(payload.currency ?? "INR");
+        setCurrency(payload.currency ?? DEFAULT_CURRENCY);
         setMenuError(null);
         setIsLoadingMenu(false);
         setActiveCategoryId(payload.categories?.[0]?.id);
@@ -289,7 +336,7 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     return () => {
       isMounted = false;
     };
-  }, [locationQrSlug, locationSlug]);
+  }, [orderingPointQrSlug, routeSlug]);
 
   useEffect(() => {
     if (visibleMenuCategories.length === 0) {
@@ -381,7 +428,9 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   }, [cartItems]);
 
   const customerNameError =
-    screen === "review" && error === "Please enter the customer's name." ? error : null;
+    isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
+      ? error
+      : null;
   const reviewError = screen === "review" && error !== customerNameError ? error : null;
 
   function updateDraft<K extends keyof OrderDraft>(key: K, value: OrderDraft[K]) {
@@ -721,8 +770,18 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
   }
 
   async function confirmOrder() {
-    if (draft.customerName.trim().length < 2) {
-      setError("Please enter the customer's name.");
+    if (!isStaffOrder && !customer) {
+      setError("Sign in before placing your order.");
+      return;
+    }
+
+    if (!canPlaceOrder) {
+      setError("Add a valid phone number before placing your order.");
+      return;
+    }
+
+    if (isStaffOrder && draft.customerName.trim().length < 2) {
+      setError("Enter a customer name or table number.");
       return;
     }
 
@@ -738,11 +797,12 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch(withPublicContext("/api/orders", { locationQrSlug, locationSlug }), {
+    const response = await fetch(withPublicContext("/api/orders", { orderingPointQrSlug, routeSlug }), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        customerName: draft.customerName.trim(),
+        customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
+        customerName: isStaffOrder ? draft.customerName.trim() : undefined,
         items: cartItems.map((item) => ({
           categoryId: item.categoryId,
           drinkId: item.drinkId,
@@ -784,17 +844,65 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
     writeStoredCustomerOrders([nextOrder, ...existingOrders]);
 
     onOrderCreated?.(nextOrder);
+
+    if (typeof payload.checkoutUrl === "string" && payload.checkoutUrl) {
+      toast.success("Order saved. Opening secure payment...");
+      window.location.assign(payload.checkoutUrl);
+      return;
+    }
+
     toast.success(`Order #${payload.orderNo} placed successfully.`);
     setDraft({ customerName: "" });
+    setSelectedStaffCustomer(null);
     setCartItems([]);
     setIsCartOpen(false);
     setIsSubmitting(false);
     setScreen("menu");
     router.push(
-      locationSlug
-        ? `/order/status/${encodeURIComponent(locationSlug)}`
-        : withPublicContext("/order/status", { locationQrSlug }),
+      routeSlug
+        ? `/order/status/${encodeURIComponent(routeSlug)}`
+        : withPublicContext("/order/status", { orderingPointQrSlug }),
     );
+  }
+
+  async function saveCustomerProfile() {
+    if (customerNameValue.trim().length < 2) {
+      setError("Enter your name before continuing.");
+      return;
+    }
+
+    if (!isValidCustomerPhone(customerPhoneValue)) {
+      setError("Enter a valid phone number with country code.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setError(null);
+
+    try {
+      const payload = await requestJson<{
+        customer: { name: string; phone: string | null };
+      }>(
+        "/api/customer/profile",
+        {
+          body: { name: customerNameValue, phone: customerPhoneValue },
+          fallbackError: "Profile could not be saved.",
+          method: "PATCH",
+        },
+      );
+      const name = payload.customer.name.trim();
+      const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhoneValue);
+      setCustomerName(name);
+      setSavedCustomerName(name);
+      setCustomerPhone(phone);
+      setSavedCustomerPhone(phone);
+      toast.success("Profile saved.");
+      router.refresh();
+    } catch (profileError) {
+      setError(getCaughtErrorMessage(profileError, "Profile could not be saved."));
+    } finally {
+      setIsSavingProfile(false);
+    }
   }
 
   return (
@@ -1184,10 +1292,12 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           <CardHeader className="px-6 pt-6">
             <SectionHeader
               eyebrow="Review order"
-              title="Confirm order"
+              title={isStaffOrder ? "Confirm order" : "Review and pay"}
               meta={
                 <p className="text-sm text-stone-600">
-                  Add the customer name or table number and double-check the cart before sending it to the bar queue.
+                  {isStaffOrder
+                    ? "Add a customer name or table number and double-check the cart before sending it to the bar queue."
+                    : "Double-check your cart and contact details before continuing to payment."}
                 </p>
               }
               className="mb-0"
@@ -1195,29 +1305,127 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
           </CardHeader>
 
           <CardContent className="grid gap-4 px-6 pb-6">
-            <FormField label="Customer name or table number" htmlFor="review-customer-name">
-              <Input
-                id="review-customer-name"
-                value={draft.customerName}
-                onChange={(event) => {
-                  updateDraft("customerName", event.target.value);
+            {isStaffOrder ? (
+              <StaffCustomerSearch
+                selectedCustomer={selectedStaffCustomer}
+                onChange={(nextCustomer) => {
+                  setSelectedStaffCustomer(nextCustomer);
 
-                  if (customerNameError && event.target.value.trim().length >= 2) {
-                    setError(null);
+                  if (nextCustomer) {
+                    setDraft({ customerName: nextCustomer.name });
                   }
                 }}
-                placeholder="Enter customer name or table number"
-                disabled={isSubmitting}
-                aria-invalid={Boolean(customerNameError)}
-                aria-describedby={customerNameError ? "review-customer-name-error" : undefined}
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
               />
-              {customerNameError ? (
-                <p id="review-customer-name-error" className="text-sm text-rose-600">
-                  {customerNameError}
-                </p>
-              ) : null}
-            </FormField>
+            ) : null}
+
+            {!isStaffOrder && !customer ? (
+              <CustomerLoginForm
+                providers={customerAuthProviders}
+                orderingPointQrSlug={orderingPointQrSlug}
+                routeSlug={routeSlug}
+                onSignedIn={() => router.refresh()}
+                className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+              />
+            ) : customer ? (
+              <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-950">
+                    {hasCompleteCustomerProfile
+                      ? `Signed in as ${savedCustomerNameValue}`
+                      : "Complete your profile"}
+                  </p>
+                  {customer.email ? (
+                    <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
+                  ) : null}
+                  {!hasCompleteCustomerProfile ? (
+                    <p className="mt-2 text-sm text-emerald-800">
+                      A phone number is required for order fulfilment. Include the country code.
+                    </p>
+                  ) : null}
+                </div>
+                {hasCompleteCustomerProfile ? (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-emerald-900">
+                    <span>{savedCustomerNameValue}</span>
+                    <span className="flex items-center gap-2">
+                      <PhoneIcon className="size-4" />
+                      {savedCustomerPhoneValue}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <FormField label="Name" htmlFor="review-customer-profile-name">
+                      <Input
+                        id="review-customer-profile-name"
+                        value={customerNameValue}
+                        onChange={(event) => {
+                          setCustomerName(event.target.value);
+                          setError(null);
+                        }}
+                        autoComplete="name"
+                        disabled={isSavingProfile}
+                        className="h-11 border-emerald-200 bg-white"
+                      />
+                    </FormField>
+                    <FormField label="Phone number" htmlFor="review-customer-phone">
+                      <Input
+                        id="review-customer-phone"
+                        type="tel"
+                        value={customerPhoneValue}
+                        onChange={(event) => {
+                          setCustomerPhone(event.target.value);
+                          setError(null);
+                        }}
+                        placeholder="+91 98765 43210"
+                        autoComplete="tel"
+                        disabled={isSavingProfile}
+                        className="h-11 border-emerald-200 bg-white"
+                      />
+                    </FormField>
+                    <Button
+                      type="button"
+                      onClick={saveCustomerProfile}
+                      disabled={isSavingProfile}
+                      className="min-h-11 sm:col-span-2 sm:w-fit"
+                    >
+                      {isSavingProfile ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="text-white" />
+                          Saving...
+                        </span>
+                      ) : (
+                        <ButtonLabel icon={CheckIcon}>Save and continue</ButtonLabel>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {isStaffOrder ? (
+              <FormField label="Customer name or table number" htmlFor="review-customer-name">
+                <Input
+                  id="review-customer-name"
+                  value={draft.customerName}
+                  onChange={(event) => {
+                    updateDraft("customerName", event.target.value);
+
+                    if (customerNameError && event.target.value.trim().length >= 2) {
+                      setError(null);
+                    }
+                  }}
+                  placeholder="Enter customer name or table number"
+                  disabled={isSubmitting}
+                  aria-invalid={Boolean(customerNameError)}
+                  aria-describedby={customerNameError ? "review-customer-name-error" : undefined}
+                  className="h-12 rounded-lg border-stone-200 bg-white px-4 text-base aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
+                />
+                {customerNameError ? (
+                  <p id="review-customer-name-error" className="text-sm text-rose-600">
+                    {customerNameError}
+                  </p>
+                ) : null}
+              </FormField>
+            ) : null}
 
             {reviewError ? <p className="text-sm text-rose-600">{reviewError}</p> : null}
 
@@ -1327,16 +1535,18 @@ export function OrderForm({ locationQrSlug, locationSlug, onOrderCreated }: Orde
               <Button
                 type="button"
                 onClick={confirmOrder}
-                disabled={isSubmitting || cartItems.length === 0}
+                disabled={isSubmitting || cartItems.length === 0 || !canPlaceOrder}
                 className="min-h-12 rounded-lg bg-stone-950 py-3 text-white hover:bg-stone-800"
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
                     <Spinner className="text-white" />
-                    Placing Order...
+                    {isStaffOrder ? "Placing Order..." : "Opening Payment..."}
                   </span>
                 ) : (
-                  <ButtonLabel icon={SendIcon}>Confirm Order</ButtonLabel>
+                  <ButtonLabel icon={isStaffOrder ? SendIcon : CreditCardIcon}>
+                    {isStaffOrder ? "Confirm Order" : "Proceed to Payment"}
+                  </ButtonLabel>
                 )}
               </Button>
             </div>

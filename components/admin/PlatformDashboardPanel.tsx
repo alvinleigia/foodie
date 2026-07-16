@@ -14,7 +14,6 @@ import { Card, CardContent } from "@/components/ui/card";
 type PlatformSummary = {
   companyTenants: number;
   restaurantTenants: number;
-  activeLocations: number;
   activeStaffMemberships: number;
   activeOrders: number;
   completedOrders: number;
@@ -94,11 +93,6 @@ export function PlatformDashboardPanel() {
               helper: "Pending, preparing or ready orders.",
             },
             {
-              label: "Locations",
-              value: summary.activeLocations,
-              helper: "Active restaurant locations.",
-            },
-            {
               label: "Staff memberships",
               value: summary.activeStaffMemberships,
               helper: "Active user assignments.",
@@ -139,7 +133,7 @@ export function PlatformDashboardPanel() {
 
       <ReportBreakdown
         title="Company activity"
-        description="Compare parent companies by restaurants, locations, staff and order activity."
+        description="Compare parent companies by restaurants, staff and order activity."
         emptyMessage="No company activity to report yet."
         rows={breakdown}
         showChildRestaurants

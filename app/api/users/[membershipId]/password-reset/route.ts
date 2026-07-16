@@ -35,7 +35,6 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: session.user.organizationId,
-      locationId: session.user.locationId,
       action: "user.password_reset.create",
       entityType: "membership",
       entityId: membershipId,

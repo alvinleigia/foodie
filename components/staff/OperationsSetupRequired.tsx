@@ -12,8 +12,8 @@ export function OperationsSetupRequired() {
       <CardHeader className="px-6 pt-6">
         <SectionHeader
           eyebrow="Operations"
-          title="Location access required"
-          meta="Orders and menu operations need a restaurant location before this panel can load."
+          title="Restaurant access required"
+          meta="Orders and menu operations need a configured restaurant before this panel can load."
           className="mb-0"
         />
       </CardHeader>
@@ -21,7 +21,7 @@ export function OperationsSetupRequired() {
         <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50/80 p-6">
           <p className="text-sm leading-6 text-stone-600">
             You are signed in at a higher admin level. Create a company, create a
-            restaurant/location, then invite or switch to a restaurant manager or
+            restaurant, then invite or switch to a restaurant manager or
             order operator account for live operations.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">

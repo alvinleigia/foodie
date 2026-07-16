@@ -1,9 +1,12 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, memberships, organizations, users } from "@/db/schema";
+import { memberships, organizations, users } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
-import { isMembershipAllowedInScope, type ScopedMembershipAccess } from "@/lib/location-access";
+import {
+  isMembershipAllowedInScope,
+  type ScopedMembershipAccess,
+} from "@/lib/membership-access";
 import { verifyPassword } from "@/lib/passwords";
 import { checkRateLimit } from "@/lib/rate-limit";
 import type { TenantDomainAccessScope } from "@/lib/tenant-domains";
@@ -22,7 +25,6 @@ export type StaffPrincipal = {
   username: string;
   role: MembershipRole;
   organizationId: string;
-  locationId: string;
 };
 
 type AuthenticateStaffOptions = {
@@ -50,7 +52,7 @@ function getScopedAccessPriority(
     return record.organizationId === scope.restaurantOrganizationId ? 0 : 1;
   }
 
-  return record.locationId === scope.locationId ? 0 : 1;
+  return 1;
 }
 
 export async function authenticateStaff(
@@ -81,7 +83,6 @@ export async function authenticateStaff(
     eq(users.status, "ACTIVE"),
     eq(memberships.isActive, true),
     eq(organizations.isActive, true),
-    or(isNull(memberships.locationId), eq(locations.isActive, true)),
   );
   const records = await db
     .select({
@@ -95,15 +96,12 @@ export async function authenticateStaff(
       organizationId: memberships.organizationId,
       organizationType: organizations.type,
       parentOrganizationId: organizations.parentOrganizationId,
-      locationId: memberships.locationId,
       membershipActive: memberships.isActive,
       organizationActive: organizations.isActive,
-      locationActive: locations.isActive,
     })
     .from(users)
     .innerJoin(memberships, eq(memberships.userId, users.id))
     .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .leftJoin(locations, eq(locations.id, memberships.locationId))
     .where(
       options.platformOnly
         ? and(
@@ -150,6 +148,5 @@ export async function authenticateStaff(
     username: record.username,
     role: record.membershipRole,
     organizationId: record.organizationId,
-    locationId: record.locationId ?? "",
   } satisfies StaffPrincipal;
 }

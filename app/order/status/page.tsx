@@ -1,40 +1,45 @@
+import { redirect } from "next/navigation";
+
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
 import { CustomerOrderStatus } from "@/components/order/CustomerOrderStatus";
+import {
+  getCustomerLoginHref,
+  getCustomerOrderHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
-
-function getCustomerHref(path: "/order" | "/order/status", options: {
-  locationQrSlug?: string;
-  locationSlug?: string;
-}) {
-  if (options.locationSlug) {
-    return `${path}/${encodeURIComponent(options.locationSlug)}`;
-  }
-
-  if (options.locationQrSlug) {
-    return `${path}?qr=${encodeURIComponent(options.locationQrSlug)}`;
-  }
-
-  return path;
-}
 
 type CustomerOrderStatusPageProps = {
   searchParams: PageProps<"/order/status">["searchParams"];
-  locationSlug?: string;
+  routeSlug?: string;
 };
 
 export default async function CustomerOrderStatusPage(props: CustomerOrderStatusPageProps) {
   const searchParams = await props.searchParams;
   const qrValue = searchParams.qr;
-  const locationValue = searchParams.location;
-  const locationQrSlug = typeof qrValue === "string" ? qrValue : undefined;
-  const locationSlug =
-    props.locationSlug ?? (typeof locationValue === "string" ? locationValue : undefined);
-  const { hasTenantContext, unavailableReason, user } = await getPublicOrderRouteContext({
-    locationQrSlug,
-    locationSlug,
-  });
+  const routeValue = searchParams.route;
+  const orderingPointQrSlug = typeof qrValue === "string" ? qrValue : undefined;
+  const routeSlug =
+    props.routeSlug ?? (typeof routeValue === "string" ? routeValue : undefined);
+  const { customer, hasTenantContext, unavailableReason, user } =
+    await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
+  const customerContext = { orderingPointQrSlug, routeSlug };
+  const ordersHref = getCustomerOrderHref("/order/status", customerContext);
+
+  if (hasTenantContext && user) {
+    redirect("/operations/orders");
+  }
+
+  if (hasTenantContext && !customer) {
+    redirect(
+      getCustomerLoginHref({
+        ...customerContext,
+        returnTo: ordersHref,
+      }),
+    );
+  }
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
@@ -46,20 +51,24 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
             <AppHeader
               activePath="/order/status"
               customerMenu={{
-                orderHref: getCustomerHref("/order", {
-                  locationQrSlug,
-                  locationSlug,
-                }),
-                ordersHref: getCustomerHref("/order/status", {
-                  locationQrSlug,
-                  locationSlug,
-                }),
+                accountHref: customer
+                  ? withPublicCustomerContext("/account", customerContext)
+                  : undefined,
+                customerName: customer?.name,
+                loginHref: customer
+                  ? undefined
+                  : getCustomerLoginHref({
+                      ...customerContext,
+                      returnTo: ordersHref,
+                    }),
+                orderHref: getCustomerOrderHref("/order", customerContext),
+                ordersHref,
               }}
             />
           )}
           <CustomerOrderStatus
-            locationQrSlug={locationQrSlug}
-            locationSlug={locationSlug}
+            orderingPointQrSlug={orderingPointQrSlug}
+            routeSlug={routeSlug}
             refreshKey={0}
           />
         </>

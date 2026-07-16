@@ -5,6 +5,7 @@ import { DownloadIcon } from "lucide-react";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
 
 type OperationalReportsProps = {
@@ -31,9 +32,10 @@ function formatLastOrder(value: string | null) {
     return "No orders yet";
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(DEFAULT_LOCALE, {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: DEFAULT_TIMEZONE,
   }).format(new Date(value));
 }
 
@@ -54,7 +56,7 @@ function formatMoney(value: number | null) {
     return "-";
   }
 
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(DEFAULT_LOCALE, {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
   }).format(value);
@@ -295,46 +297,46 @@ export function OperationalReports({
 
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Location activity</h3>
+          <h3 className="text-xl font-semibold text-stone-950">Restaurant activity</h3>
           <p className="text-sm text-stone-500">
-            Order activity by operating location.
+            Order activity by restaurant.
           </p>
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
-          {report.locationBreakdown.length === 0 ? (
-            <EmptyReportLine message="No locations to report yet." />
+          {report.restaurantBreakdown.length === 0 ? (
+            <EmptyReportLine message="No restaurants to report yet." />
           ) : null}
 
-          {report.locationBreakdown.map((location) => (
+          {report.restaurantBreakdown.map((restaurant) => (
             <div
-              key={location.id}
+              key={restaurant.id}
               className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 md:grid-cols-[1.2fr_2fr]"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-stone-950">{location.name}</p>
+                  <p className="font-semibold text-stone-950">{restaurant.name}</p>
                   <span
                     className={
-                      location.isActive
+                      restaurant.isActive
                         ? "rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800"
                         : "rounded-full bg-stone-200 px-2 py-1 text-xs font-semibold text-stone-600"
                     }
                   >
-                    {location.isActive ? "Active" : "Disabled"}
+                    {restaurant.isActive ? "Active" : "Disabled"}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-stone-500">
-                  {location.label ?? "No label"}
-                </p>
+                {restaurant.label ? (
+                  <p className="mt-1 text-sm text-stone-500">{restaurant.label}</p>
+                ) : null}
                 <p className="mt-2 text-xs uppercase tracking-[0.16em] text-stone-400">
-                  {formatLastOrder(location.lastOrderAt)}
+                  {formatLastOrder(restaurant.lastOrderAt)}
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                <Metric label="Total" value={location.totalOrders} />
-                <Metric label="Active" value={location.activeOrders} />
-                <Metric label="Delivered" value={location.deliveredOrders} />
-                <Metric label="Cancelled" value={location.cancelledOrders} />
+                <Metric label="Total" value={restaurant.totalOrders} />
+                <Metric label="Active" value={restaurant.activeOrders} />
+                <Metric label="Delivered" value={restaurant.deliveredOrders} />
+                <Metric label="Cancelled" value={restaurant.cancelledOrders} />
               </div>
             </div>
           ))}

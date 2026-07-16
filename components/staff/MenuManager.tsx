@@ -26,6 +26,7 @@ import {
   hasFieldErrors,
 } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
@@ -155,7 +156,7 @@ export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
   const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -207,7 +208,7 @@ export function MenuManager() {
       setCategories(payload.categories ?? []);
       setModifierGroups(payload.modifierGroups ?? []);
       setTags(payload.tags ?? []);
-      setCurrency(payload.currency ?? "INR");
+      setCurrency(payload.currency ?? DEFAULT_CURRENCY);
       setError(null);
       setIsLoading(false);
     }
@@ -811,8 +812,8 @@ export function MenuManager() {
               Import merges rows by slug when available, or by matching section/item name.
             </p>
             <p className="mt-2 text-sm text-stone-600">
-              Use Seed Starter Menu only for a brand-new empty location. It creates the default
-              cocktails and mocktails under the current restaurant/location.
+              Use Seed Starter Menu only for a brand-new empty restaurant. It creates the default
+              cocktails and mocktails under the current restaurant.
             </p>
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-400">
               Required columns: category_name, item_name
@@ -1210,10 +1211,10 @@ export function MenuManager() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear this location menu?</AlertDialogTitle>
+            <AlertDialogTitle>Clear this restaurant menu?</AlertDialogTitle>
             <AlertDialogDescription>
               This permanently removes every category and product for the current
-              restaurant/location only. Existing orders are not deleted. To confirm, type{" "}
+              restaurant only. Existing orders are not deleted. To confirm, type{" "}
               <span className="font-semibold text-stone-900">delete</span> below.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -29,7 +29,6 @@ export async function POST(
         and(
           eq(orders.id, id),
           eq(orders.organizationId, tenantContext.organizationId),
-          eq(orders.locationId, tenantContext.locationId),
         ),
       );
 
@@ -54,7 +53,6 @@ export async function POST(
         and(
           eq(orders.id, id),
           eq(orders.organizationId, tenantContext.organizationId),
-          eq(orders.locationId, tenantContext.locationId),
         ),
       )
       .returning();
@@ -62,7 +60,6 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "order.announce",
       entityType: "order",
       entityId: updatedOrder.id,

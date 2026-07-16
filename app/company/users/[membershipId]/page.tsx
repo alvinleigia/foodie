@@ -20,7 +20,7 @@ function getSafeReturnTo(value: string | string[] | undefined) {
 
   if (
     returnTo === "/company/users" ||
-    /^\/company\/restaurants\/[0-9a-f-]{36}\/locations\/[0-9a-f-]{36}\/staff$/i.test(returnTo)
+    /^\/company\/restaurants\/[0-9a-f-]{36}\/staff$/i.test(returnTo)
   ) {
     return returnTo;
   }

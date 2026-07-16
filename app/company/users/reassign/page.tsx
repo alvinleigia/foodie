@@ -36,9 +36,7 @@ function getSafeReturnTo(value: string | string[] | undefined) {
 
   if (
     returnTo === "/company/users" ||
-    /^\/company\/restaurants\/[0-9a-f-]{36}\/locations\/[0-9a-f-]{36}\/staff$/i.test(
-      returnTo,
-    )
+    /^\/company\/restaurants\/[0-9a-f-]{36}\/staff$/i.test(returnTo)
   ) {
     return returnTo;
   }
@@ -67,9 +65,7 @@ export default async function CompanyUserReassignPage(
   const backHref = getSafeReturnTo(searchParams.returnTo);
   const initialIdentifier = getSearchParam(searchParams.identifier);
   const initialRestaurantId = getSearchParam(searchParams.restaurantId);
-  const initialLocationId = getSearchParam(searchParams.locationId);
   const initialRole = getInitialRole(searchParams.role);
-  const defaultDeactivateExisting = !initialLocationId;
 
   return (
     <SaasAdminShell
@@ -86,10 +82,9 @@ export default async function CompanyUserReassignPage(
       <ReassignExistingUserForm
         apiPath="/api/company/users/reassign"
         backHref={backHref}
-        defaultDeactivateExisting={defaultDeactivateExisting}
+        defaultDeactivateExisting
         initialCompanyId={session.user.organizationId}
         initialIdentifier={initialIdentifier}
-        initialLocationId={initialLocationId}
         initialRestaurantId={initialRestaurantId}
         initialRole={initialRole ?? "ORDER_OPERATOR"}
         targets={targets}

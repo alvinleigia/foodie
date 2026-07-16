@@ -21,7 +21,6 @@ type SaasAdminShellProps = {
   title: string;
   description: string;
   user: {
-    locationId?: string | null;
     name?: string | null;
     organizationId?: string | null;
     role: MembershipRole;
@@ -60,19 +59,29 @@ const adminRoutes: AdminRoute[] = [
     description: "Manage user access.",
   },
   {
+    href: "/company/integrations",
+    label: "Company Integrations",
+    description: "Email and payment services.",
+  },
+  {
     href: "/restaurant",
     label: "Restaurant",
     description: "Restaurant dashboard.",
   },
   {
-    href: "/restaurant/location",
-    label: "Locations",
-    description: "Manage active location.",
-  },
-  {
     href: "/restaurant/staff",
     label: "Restaurant Staff",
-    description: "Manage location staff.",
+    description: "Manage restaurant staff.",
+  },
+  {
+    href: "/restaurant/ordering-point",
+    label: "Ordering Point",
+    description: "Manage the restaurant QR entry point.",
+  },
+  {
+    href: "/restaurant/integrations",
+    label: "Restaurant Integrations",
+    description: "Inherited and custom services.",
   },
   {
     href: "/operations/orders",
@@ -127,7 +136,6 @@ export async function SaasAdminShell({
       />
       <div className="mb-6 flex justify-end">
         <MembershipSwitcher
-          currentLocationId={user.locationId}
           currentOrganizationId={user.organizationId}
           currentRole={user.role}
         />

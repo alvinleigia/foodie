@@ -6,15 +6,11 @@ export type MembershipOption = {
   organizationId: string;
   organizationName: string;
   organizationType: string;
-  locationId: string | null;
-  locationName: string | null;
-  locationLabel: string | null;
 };
 
 export type MembershipPayload = {
   active: {
     organizationId: string;
-    locationId: string;
     role: string;
   };
   memberships: MembershipOption[];
@@ -45,7 +41,7 @@ export function pathForBaseUrl(baseUrl: string | undefined, path: string) {
 }
 
 export function getManagerBaseUrl() {
-  return optionalEnv("E2E_MANAGER_BASE_URL") ?? optionalEnv("E2E_COMPANY_BASE_URL");
+  return optionalEnv("E2E_MANAGER_BASE_URL") ?? optionalEnv("PLAYWRIGHT_BASE_URL");
 }
 
 function normalizeContext(value: string) {
@@ -61,8 +57,6 @@ export function getMembershipSearchText(membership: MembershipOption) {
   return normalizeContext(
     [
       membership.organizationName,
-      membership.locationName,
-      membership.locationLabel,
       membership.role,
     ]
       .filter(Boolean)
@@ -87,15 +81,6 @@ export async function getSessionMemberships(page: Page, baseUrl: string | undefi
 export function findAccessContext(payload: MembershipPayload, contextText: string) {
   return payload.memberships.find((option) =>
     hasMatchingContext(getMembershipSearchText(option), contextText),
-  );
-}
-
-export function isActiveMembershipInList(payload: MembershipPayload) {
-  return payload.memberships.some(
-    (membership) =>
-      membership.organizationId === payload.active.organizationId &&
-      (membership.locationId ?? "") === payload.active.locationId &&
-      membership.role === payload.active.role,
   );
 }
 

@@ -60,6 +60,7 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
   if (
     href === "/company" ||
     href === "/company/restaurants" ||
+    href === "/company/integrations" ||
     href === "/company/users"
   ) {
     return role === "COMPANY_OWNER";
@@ -67,8 +68,8 @@ export function canAccessNavigationPath(role: MembershipRole, href: string) {
 
   if (
     href === "/restaurant" ||
-    href === "/restaurant/location" ||
-    href === "/restaurant/location/edit" ||
+    href === "/restaurant/integrations" ||
+    href === "/restaurant/ordering-point" ||
     href === "/restaurant/staff"
   ) {
     return role === "RESTAURANT_MANAGER";

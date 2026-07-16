@@ -14,6 +14,7 @@ import {
   organizations,
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
@@ -53,6 +54,7 @@ function slugify(value: string) {
 async function ensureUniqueSlug(
   table: typeof menuCategories | typeof menuItems | typeof modifierGroups | typeof modifierOptions,
   baseName: string,
+  organizationId: string,
   excludeId?: string,
 ) {
   const db = getDb();
@@ -64,7 +66,12 @@ async function ensureUniqueSlug(
     const [existing] = await db
       .select({ id: table.id })
       .from(table)
-      .where(eq(table.slug, candidate))
+      .where(
+        and(
+          eq(table.organizationId, organizationId),
+          eq(table.slug, candidate),
+        ),
+      )
       .limit(1);
 
     if (!existing || existing.id === excludeId) {
@@ -84,7 +91,6 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
     .where(
       and(
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .limit(1);
@@ -101,12 +107,15 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
   let createdItems = 0;
 
   for (const category of defaultMenuSeed) {
-    const categorySlug = await ensureUniqueSlug(menuCategories, category.slug);
+    const categorySlug = await ensureUniqueSlug(
+      menuCategories,
+      category.slug,
+      context.organizationId,
+    );
     const [createdCategory] = await db
       .insert(menuCategories)
       .values({
         organizationId: context.organizationId,
-        locationId: context.locationId,
         slug: categorySlug,
         name: category.name,
         description: category.description,
@@ -127,9 +136,12 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
       for (const item of category.items) {
         seededItems.push({
           organizationId: context.organizationId,
-          locationId: context.locationId,
           categoryId: createdCategory.id,
-          slug: await ensureUniqueSlug(menuItems, item.slug),
+          slug: await ensureUniqueSlug(
+            menuItems,
+            item.slug,
+            context.organizationId,
+          ),
           name: item.name,
           description: item.description,
           price: item.price,
@@ -159,7 +171,6 @@ export async function clearMenu(context: TenantContext = getDefaultTenantContext
     .where(
       and(
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     )
     .returning({ id: menuItems.id });
@@ -168,7 +179,6 @@ export async function clearMenu(context: TenantContext = getDefaultTenantContext
     .where(
       and(
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .returning({ id: menuCategories.id });
@@ -197,7 +207,6 @@ function groupMenuData(
     categoryMap.set(category.id, {
       id: category.id,
       organizationId: category.organizationId,
-      locationId: category.locationId,
       slug: category.slug,
       name: category.name,
       description: category.description,
@@ -221,7 +230,6 @@ function groupMenuData(
     category.items.push({
       id: item.id,
       organizationId: item.organizationId,
-      locationId: item.locationId,
       categoryId: item.categoryId,
       slug: item.slug,
       name: item.name,
@@ -299,7 +307,6 @@ async function getInventoryByMenuItemId(
       and(
         inArray(inventoryItems.menuItemId, itemIds),
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
       ),
     );
 
@@ -392,7 +399,6 @@ function serializeModifierGroup(
   return {
     id: group.id,
     organizationId: group.organizationId,
-    locationId: group.locationId,
     slug: group.slug,
     name: group.name,
     description: group.description,
@@ -417,7 +423,6 @@ export async function getMenuModifierGroups(
     .where(
       and(
         eq(modifierGroups.organizationId, context.organizationId),
-        eq(modifierGroups.locationId, context.locationId),
       ),
     )
     .orderBy(asc(modifierGroups.sortOrder), asc(modifierGroups.name));
@@ -478,7 +483,6 @@ async function getMenuModifierGroupsByItemId(
         inArray(menuItemModifierGroups.menuItemId, itemIds),
         eq(menuItemModifierGroups.isActive, true),
         eq(modifierGroups.organizationId, context.organizationId),
-        eq(modifierGroups.locationId, context.locationId),
       ),
     )
     .orderBy(asc(menuItemModifierGroups.sortOrder), asc(modifierGroups.sortOrder), asc(modifierGroups.name));
@@ -571,7 +575,6 @@ async function assertMenuModifierGroupsExist(groupIds: string[], context: Tenant
       and(
         inArray(modifierGroups.id, groupIds),
         eq(modifierGroups.organizationId, context.organizationId),
-        eq(modifierGroups.locationId, context.locationId),
       ),
     );
 
@@ -588,7 +591,6 @@ export async function getPublicMenu(context: TenantContext = getDefaultTenantCon
     .where(
       and(
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
@@ -598,7 +600,6 @@ export async function getPublicMenu(context: TenantContext = getDefaultTenantCon
     .where(
       and(
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
@@ -631,7 +632,6 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     .where(
       and(
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
@@ -641,7 +641,6 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     .where(
       and(
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
@@ -671,7 +670,7 @@ export async function getTenantMenuCurrency(
     .where(eq(organizations.id, context.organizationId))
     .limit(1);
 
-  return organization?.currency ?? "INR";
+  return organization?.currency ?? DEFAULT_CURRENCY;
 }
 
 export async function getMenuSelectionSnapshot(
@@ -688,7 +687,6 @@ export async function getMenuSelectionSnapshot(
       and(
         eq(menuCategories.id, categoryId),
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
         eq(menuCategories.isActive, true),
       ),
     )
@@ -705,7 +703,6 @@ export async function getMenuSelectionSnapshot(
       and(
         eq(menuItems.id, itemId),
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
         eq(menuItems.categoryId, category.id),
         eq(menuItems.isActive, true),
         eq(menuItems.isSoldOut, false),
@@ -724,7 +721,6 @@ export async function getMenuSelectionSnapshot(
       and(
         eq(inventoryItems.menuItemId, item.id),
         eq(inventoryItems.organizationId, context.organizationId),
-        eq(inventoryItems.locationId, context.locationId),
       ),
     )
     .limit(1);
@@ -806,12 +802,15 @@ export async function createMenuModifierGroup(input: {
   isActive: boolean;
 }, context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
-  const slug = await ensureUniqueSlug(modifierGroups, input.name);
+  const slug = await ensureUniqueSlug(
+    modifierGroups,
+    input.name,
+    context.organizationId,
+  );
   const [createdGroup] = await db
     .insert(modifierGroups)
     .values({
       organizationId: context.organizationId,
-      locationId: context.locationId,
       slug,
       name: input.name,
       description: input.description ?? null,
@@ -844,7 +843,6 @@ export async function createMenuModifierOption(input: {
       and(
         eq(modifierGroups.id, input.groupId),
         eq(modifierGroups.organizationId, context.organizationId),
-        eq(modifierGroups.locationId, context.locationId),
       ),
     )
     .limit(1);
@@ -853,12 +851,15 @@ export async function createMenuModifierOption(input: {
     throw new Error("Add-on group not found.");
   }
 
-  const slug = await ensureUniqueSlug(modifierOptions, input.name);
+  const slug = await ensureUniqueSlug(
+    modifierOptions,
+    input.name,
+    context.organizationId,
+  );
   const [createdOption] = await db
     .insert(modifierOptions)
     .values({
       organizationId: context.organizationId,
-      locationId: context.locationId,
       groupId: input.groupId,
       slug,
       name: input.name,
@@ -880,13 +881,16 @@ export async function createMenuCategory(input: {
   isActive: boolean;
 }, context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
-  const slug = await ensureUniqueSlug(menuCategories, input.name);
+  const slug = await ensureUniqueSlug(
+    menuCategories,
+    input.name,
+    context.organizationId,
+  );
 
   const [createdCategory] = await db
     .insert(menuCategories)
     .values({
       organizationId: context.organizationId,
-      locationId: context.locationId,
       slug,
       name: input.name,
       description: input.description ?? null,
@@ -910,7 +914,12 @@ export async function updateMenuCategory(
   context: TenantContext = getDefaultTenantContext(),
 ) {
   const db = getDb();
-  const slug = await ensureUniqueSlug(menuCategories, input.name, categoryId);
+  const slug = await ensureUniqueSlug(
+    menuCategories,
+    input.name,
+    context.organizationId,
+    categoryId,
+  );
 
   const [updatedCategory] = await db
     .update(menuCategories)
@@ -926,7 +935,6 @@ export async function updateMenuCategory(
       and(
         eq(menuCategories.id, categoryId),
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .returning();
@@ -954,7 +962,6 @@ export async function createMenuItem(input: {
       and(
         eq(menuCategories.id, input.categoryId),
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .limit(1);
@@ -963,7 +970,11 @@ export async function createMenuItem(input: {
     throw new Error("Category not found.");
   }
 
-  const slug = await ensureUniqueSlug(menuItems, input.name);
+  const slug = await ensureUniqueSlug(
+    menuItems,
+    input.name,
+    context.organizationId,
+  );
   const tagIds = normalizeMenuTagIds(input.tagIds);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
@@ -974,7 +985,6 @@ export async function createMenuItem(input: {
       .insert(menuItems)
       .values({
         organizationId: context.organizationId,
-        locationId: context.locationId,
         categoryId: input.categoryId,
         slug,
         name: input.name,
@@ -1037,7 +1047,6 @@ export async function updateMenuItem(
       and(
         eq(menuCategories.id, input.categoryId),
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     )
     .limit(1);
@@ -1046,7 +1055,12 @@ export async function updateMenuItem(
     throw new Error("Category not found.");
   }
 
-  const slug = await ensureUniqueSlug(menuItems, input.name, itemId);
+  const slug = await ensureUniqueSlug(
+    menuItems,
+    input.name,
+    context.organizationId,
+    itemId,
+  );
   const tagIds = normalizeMenuTagIds(input.tagIds);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
@@ -1057,7 +1071,6 @@ export async function updateMenuItem(
       .update(menuItems)
       .set({
         organizationId: context.organizationId,
-        locationId: context.locationId,
         categoryId: input.categoryId,
         slug,
         name: input.name,
@@ -1073,7 +1086,6 @@ export async function updateMenuItem(
         and(
           eq(menuItems.id, itemId),
           eq(menuItems.organizationId, context.organizationId),
-          eq(menuItems.locationId, context.locationId),
         ),
       )
       .returning();
@@ -1129,7 +1141,6 @@ export async function updateMenuItemSoldOut(
       and(
         eq(menuItems.id, itemId),
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     )
     .returning();
@@ -1364,7 +1375,6 @@ export async function importMenuCsv(
     .where(
       and(
         eq(menuCategories.organizationId, context.organizationId),
-        eq(menuCategories.locationId, context.locationId),
       ),
     );
   const existingItems = await db
@@ -1373,7 +1383,6 @@ export async function importMenuCsv(
     .where(
       and(
         eq(menuItems.organizationId, context.organizationId),
-        eq(menuItems.locationId, context.locationId),
       ),
     );
 

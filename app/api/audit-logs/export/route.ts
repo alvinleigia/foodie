@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
     {
       role: session.user.role,
       organizationId: session.user.organizationId,
-      locationId: session.user.locationId,
     },
     Number.isFinite(limit) ? limit : 250,
   );

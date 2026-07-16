@@ -5,6 +5,7 @@ import {
   listRestaurantReassignableUsers,
   listRestaurantReassignmentTargets,
 } from "@/lib/saas-admin";
+import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 function getSearchParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -15,14 +16,11 @@ export default async function RestaurantStaffReassignPage(
 ) {
   const { session, snapshot } = await requireRestaurantAdminPage();
 
-  if (!snapshot.organization || !snapshot.location) {
+  if (!snapshot.organization) {
     return null;
   }
 
-  const context = {
-    organizationId: snapshot.organization.id,
-    locationId: snapshot.location.id,
-  };
+  const context = await getCurrentTenantContext();
   const [targets, users] = await Promise.all([
     listRestaurantReassignmentTargets(context),
     listRestaurantReassignableUsers(context),
@@ -32,10 +30,10 @@ export default async function RestaurantStaffReassignPage(
 
   return (
     <SaasAdminShell
-      activePath="/restaurant"
+      activePath="/restaurant/staff"
       eyebrow="Staff"
       title="Assign existing staff"
-      description="Move or add access for an accepted user inside this restaurant location."
+      description="Move or add access for an accepted user inside this restaurant."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
@@ -44,11 +42,10 @@ export default async function RestaurantStaffReassignPage(
     >
       <ReassignExistingUserForm
         apiPath="/api/tenant/admin/staff/reassign"
-        backHref="/restaurant"
+        backHref="/restaurant/staff"
         defaultDeactivateExisting={false}
         initialCompanyId={targets[0]?.id}
         initialIdentifier={initialIdentifier}
-        initialLocationId={snapshot.location.id}
         initialRestaurantId={snapshot.organization.id}
         initialRole="ORDER_OPERATOR"
         roleOptions={[

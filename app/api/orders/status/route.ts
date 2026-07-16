@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { auth } from "@/auth";
+import { getCustomerProfile } from "@/lib/customer-account";
 import { getTenantMenuCurrency } from "@/lib/menu";
-import { getCustomerOrders, getOrderItemsForOrders, serializeOrder } from "@/lib/orders";
-import { getOrdersResetAt } from "@/lib/order-reset";
+import {
+  getCustomerAccountOrders,
+  getCustomerAccountOrdersByIds,
+  getOrderItemsForOrders,
+  serializeOrder,
+} from "@/lib/orders";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
@@ -31,10 +37,39 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantContext = await getPublicTenantContextFromRequest(request);
-    const [matchingOrders, currency] = await Promise.all([
-      getCustomerOrders(parsed.data.orders, tenantContext),
+    const [session, currency] = await Promise.all([
+      auth().catch(() => null),
       getTenantMenuCurrency(tenantContext),
     ]);
+
+    if (session?.user.kind !== "customer") {
+      return NextResponse.json(
+        { error: "Customer sign in is required." },
+        { status: 401 },
+      );
+    }
+
+    const customerProfile = await getCustomerProfile(
+      session.user.id,
+      tenantContext,
+    );
+
+    if (!customerProfile) {
+      return NextResponse.json({ error: "Customer profile not found." }, { status: 404 });
+    }
+
+    const matchingOrders =
+      parsed.data.view === "ACTIVE"
+        ? await getCustomerAccountOrdersByIds(
+            customerProfile.id,
+            parsed.data.orders.map((order) => order.orderId),
+            tenantContext,
+          )
+        : await getCustomerAccountOrders(
+            customerProfile.id,
+            parsed.data.view === "COMPLETED" ? "COMPLETED" : "ALL",
+            tenantContext,
+          );
     const itemMap = await getOrderItemsForOrders(
       matchingOrders.map((order) => order.id),
       tenantContext,
@@ -42,7 +77,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       orders: matchingOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
       currency,
-      ordersResetAt: await getOrdersResetAt(),
     });
   } catch (error) {
     return NextResponse.json(

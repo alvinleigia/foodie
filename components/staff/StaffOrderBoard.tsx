@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderItemStatus, OrderStatus } from "@/lib/constants";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
   orderCorrectionTargets,
   orderItemCorrectionTargets,
@@ -116,7 +117,7 @@ export function StaffOrderBoard() {
   const [orders, setOrders] = useState<OrdersPayload>({
     activeOrders: [],
     canCorrectStatuses: false,
-    currency: "INR",
+    currency: DEFAULT_CURRENCY,
     pastOrders: [],
   });
   const [activeTab, setActiveTab] = useState<StaffTab>("active");
@@ -159,7 +160,7 @@ export function StaffOrderBoard() {
       setOrders({
         activeOrders: payload.activeOrders ?? [],
         canCorrectStatuses: Boolean(payload.canCorrectStatuses),
-        currency: payload.currency ?? "INR",
+        currency: payload.currency ?? DEFAULT_CURRENCY,
         pastOrders: payload.pastOrders ?? [],
       });
       setError(null);

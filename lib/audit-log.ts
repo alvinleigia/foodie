@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { auditLogs, organizations } from "@/db/schema";
@@ -10,13 +10,11 @@ type AuditActor = {
   username?: string;
   role?: MembershipRole;
   organizationId?: string;
-  locationId?: string;
 };
 
 type AuditLogInput = {
   actor?: AuditActor | null;
   organizationId?: string | null;
-  locationId?: string | null;
   action: string;
   entityType: string;
   entityId?: string | null;
@@ -26,7 +24,6 @@ type AuditLogInput = {
 type AuditViewer = {
   role: MembershipRole;
   organizationId?: string | null;
-  locationId?: string | null;
 };
 
 function nullableId(value: string | null | undefined) {
@@ -39,17 +36,11 @@ export async function writeAuditLog(input: AuditLogInput) {
       "organizationId" in input
         ? nullableId(input.organizationId)
         : nullableId(input.actor?.organizationId);
-    const locationId =
-      "locationId" in input
-        ? nullableId(input.locationId)
-        : nullableId(input.actor?.locationId);
-
     await getDb().insert(auditLogs).values({
       actorUserId: nullableId(input.actor?.id),
       actorUsername: input.actor?.username || null,
       actorRole: input.actor?.role || null,
       organizationId,
-      locationId,
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId ?? null,
@@ -89,12 +80,7 @@ async function getAuditWhere(viewer: AuditViewer) {
     return inArray(auditLogs.organizationId, organizationIds);
   }
 
-  const locationId = nullableId(viewer.locationId);
-
-  return and(
-    eq(auditLogs.organizationId, organizationId),
-    locationId ? or(eq(auditLogs.locationId, locationId), isNull(auditLogs.locationId)) : undefined,
-  );
+  return eq(auditLogs.organizationId, organizationId);
 }
 
 export type AuditLogRow = {
@@ -102,7 +88,6 @@ export type AuditLogRow = {
   actorUsername: string | null;
   actorRole: MembershipRole | null;
   organizationId: string | null;
-  locationId: string | null;
   action: string;
   entityType: string;
   entityId: string | null;
@@ -142,7 +127,6 @@ export function auditLogsToCsv(rows: AuditLogRow[]) {
     "actor_username",
     "actor_role",
     "organization_id",
-    "location_id",
     "action",
     "entity_type",
     "entity_id",
@@ -154,7 +138,6 @@ export function auditLogsToCsv(rows: AuditLogRow[]) {
       row.actorUsername,
       row.actorRole,
       row.organizationId,
-      row.locationId,
       row.action,
       row.entityType,
       row.entityId,

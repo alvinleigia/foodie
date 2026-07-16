@@ -36,7 +36,6 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(orderItems.organizationId, tenantContext.organizationId),
-            eq(orderItems.locationId, tenantContext.locationId),
           ),
         );
 
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(orders.organizationId, tenantContext.organizationId),
-            eq(orders.locationId, tenantContext.locationId),
           ),
         )
         .returning({ id: orders.id });

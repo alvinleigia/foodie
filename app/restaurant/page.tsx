@@ -24,7 +24,6 @@ export default async function RestaurantPage() {
       title="Restaurant dashboard"
       description="Review restaurant operations, reports and setup health from one overview."
       user={{
-        locationId: session.user.locationId,
         name: session.user.name,
         organizationId: session.user.organizationId,
         role: session.user.role,

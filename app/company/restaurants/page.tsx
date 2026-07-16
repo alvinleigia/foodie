@@ -21,7 +21,7 @@ export default async function CompanyRestaurantsPage() {
       activePath="/company/restaurants"
       eyebrow="Company"
       title="Restaurants"
-      description="Manage restaurants and drill into their location setup."
+      description="Manage restaurants, staff access and operational settings."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,

@@ -15,8 +15,8 @@ The first test suite covers:
 - Inline validation on the platform company form.
 - Optional company creation on staging, disabled by default.
 - Optional menu-manager validation checks when manager credentials are provided.
-- Optional tenant-isolation checks for users with access to more than one
-  company/domain.
+- Optional tenant-isolation checks for restaurant managers with access to more
+  than one restaurant.
 
 The tests live in:
 
@@ -98,25 +98,24 @@ Only use this on staging.
 
 ## Menu Manager Tests
 
-Menu-manager tests need a manager user with access to a restaurant/location.
-Because tenant staff log in on the company domain, set a separate manager base
-URL before running:
+Menu-manager tests need a manager user with access to a restaurant. Staff and
+administration always use the platform root domain, so the manager base URL
+must point to that domain:
 
 ```powershell
 $env:PLAYWRIGHT_BASE_URL="https://foodie-staging.leigia.com"
-$env:E2E_MANAGER_BASE_URL="https://all-go-online.foodie-staging.leigia.com"
+$env:E2E_MANAGER_BASE_URL="https://foodie-staging.leigia.com"
 $env:E2E_MANAGER_USERNAME="manager-username"
 $env:E2E_MANAGER_PASSWORD="manager-password"
 npm run test:e2e
 ```
 
-If these variables are not set, menu-manager tests are skipped. You can also
-use `E2E_COMPANY_BASE_URL` instead of `E2E_MANAGER_BASE_URL` if you prefer one
-shared tenant-domain variable for company-scoped tests.
+If `E2E_MANAGER_BASE_URL` is not set, the tests use `PLAYWRIGHT_BASE_URL`. If
+the credentials are not set, menu-manager tests are skipped.
 
 If the same login has multiple access contexts, the test will switch to a
 `RESTAURANT MANAGER` context automatically. To target a specific
-restaurant/location, set:
+restaurant, set:
 
 ```powershell
 $env:E2E_MANAGER_CONTEXT="Snack Shack - Webmly Fast food"
@@ -128,16 +127,16 @@ the add-on controls are not available there.
 
 ## Tenant Isolation Tests
 
-Tenant-isolation tests need one accepted user who has access to two different
-tenant domains. The test confirms that each domain only exposes memberships for
-that tenant and rejects switching to a membership from the other tenant.
+Tenant-isolation tests need one restaurant manager who has access to two
+restaurants. They run on the platform root domain and confirm that switching
+the active membership changes the tenant-admin snapshot to the selected
+restaurant. They also reject a membership the user does not own.
 
 ```powershell
 $env:PLAYWRIGHT_BASE_URL="https://foodie-staging.leigia.com"
-$env:E2E_ISOLATION_ALLOWED_BASE_URL="https://all-go-online.foodie-staging.leigia.com"
-$env:E2E_ISOLATION_FORBIDDEN_BASE_URL="https://dominos.foodie-staging.leigia.com"
-$env:E2E_ISOLATION_ALLOWED_CONTEXT="All Go Online"
-$env:E2E_ISOLATION_FORBIDDEN_CONTEXT="Dominos"
+$env:E2E_ISOLATION_BASE_URL="https://foodie-staging.leigia.com"
+$env:E2E_ISOLATION_FIRST_CONTEXT="All Go Online"
+$env:E2E_ISOLATION_SECOND_CONTEXT="Dominos"
 $env:E2E_ISOLATION_USERNAME="user-with-both-access"
 $env:E2E_ISOLATION_PASSWORD="user-password"
 npm run test:e2e -- tests/e2e/tenant-isolation.spec.ts

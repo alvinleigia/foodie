@@ -262,10 +262,10 @@ export function InventoryManager() {
         <SectionHeader
           eyebrow="Inventory"
           title="Track product stock"
-          description="Manage stock levels for this restaurant location. Inventory records are linked to menu products."
+          description="Manage stock levels for this restaurant. Inventory records are linked to menu products."
           meta={
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-400">
-              Location-scoped stock control
+              Restaurant stock control
             </p>
           }
           className="mb-0"

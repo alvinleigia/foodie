@@ -2,11 +2,13 @@ import { z } from "zod";
 
 export const createOrderSchema = z
   .object({
+    customerId: z.string().uuid("Choose a valid customer").nullable().optional(),
     customerName: z
       .string()
       .trim()
       .min(2, "Name is required")
-      .max(80, "Name is too long"),
+      .max(80, "Name is too long")
+      .optional(),
     items: z
       .array(
         z.object({
@@ -41,9 +43,9 @@ export const orderStatusRequestSchema = z.object({
   orders: z.array(
     z.object({
       orderId: z.string().uuid(),
-      customerToken: z.string().min(20),
     }),
   ),
+  view: z.enum(["ALL", "ACTIVE", "COMPLETED"]).default("ALL"),
 });
 
 export const staffAccessSchema = z.object({

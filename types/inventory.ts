@@ -3,7 +3,6 @@ export type InventoryStatus = "not_tracked" | "out" | "low" | "ok";
 export type InventoryRecord = {
   id: string | null;
   organizationId: string;
-  locationId: string;
   menuItemId: string;
   categoryId: string;
   categoryName: string;

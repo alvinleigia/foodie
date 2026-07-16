@@ -21,15 +21,11 @@ type MembershipOption = {
   organizationId: string;
   organizationName: string;
   organizationType: "PLATFORM" | "COMPANY" | "RESTAURANT";
-  locationId: string | null;
-  locationName: string | null;
-  locationLabel: string | null;
 };
 
 type MembershipPayload = {
   active: {
     organizationId: string;
-    locationId: string;
     role: MembershipRole;
   };
   memberships: MembershipOption[];
@@ -41,7 +37,6 @@ type MembershipSwitchResponse = {
 };
 
 type MembershipSwitcherProps = {
-  currentLocationId?: string | null;
   currentOrganizationId?: string | null;
   currentRole?: MembershipRole | null;
 };
@@ -51,11 +46,8 @@ function getMembershipLabel(option: MembershipOption) {
     return "Foodie Platform - Platform access";
   }
 
-  const scope = option.locationId
-    ? option.locationLabel || option.locationName || "Location"
-    : option.organizationType === "COMPANY"
-      ? "Company access"
-      : "Restaurant access";
+  const scope =
+    option.organizationType === "COMPANY" ? "Company access" : "Restaurant access";
 
   return `${option.organizationName} - ${scope}`;
 }
@@ -65,11 +57,7 @@ function getContextKey(option: MembershipOption) {
     return "PLATFORM_ADMIN:platform";
   }
 
-  return [
-    option.role,
-    option.organizationId,
-    option.locationId ?? "organization",
-  ].join(":");
+  return [option.role, option.organizationId].join(":");
 }
 
 function getUniqueMemberships(memberships: MembershipOption[]) {
@@ -90,20 +78,15 @@ function findActiveMembership(
     memberships.find(
       (membership) =>
         membership.organizationId === active.organizationId &&
-        (membership.locationId ?? "") === active.locationId &&
         membership.role === active.role,
     ) ??
     memberships.find(
-      (membership) =>
-        membership.organizationId === active.organizationId &&
-        (membership.locationId ?? "") === active.locationId,
-    ) ??
-    memberships.find((membership) => membership.organizationId === active.organizationId)
+      (membership) => membership.organizationId === active.organizationId,
+    )
   );
 }
 
 export function MembershipSwitcher({
-  currentLocationId,
   currentOrganizationId,
   currentRole,
 }: MembershipSwitcherProps) {
@@ -124,7 +107,6 @@ export function MembershipSwitcher({
 
       const active = findActiveMembership(nextPayload.memberships, {
         organizationId: currentOrganizationId || nextPayload.active.organizationId,
-        locationId: currentLocationId ?? nextPayload.active.locationId,
         role: currentRole || nextPayload.active.role,
       });
 
@@ -133,7 +115,7 @@ export function MembershipSwitcher({
     }
 
     void loadMemberships();
-  }, [currentLocationId, currentOrganizationId, currentRole]);
+  }, [currentOrganizationId, currentRole]);
 
   const selectedMembership = useMemo(() => {
     return payload?.memberships.find(

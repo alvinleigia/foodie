@@ -8,6 +8,7 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  UserRoundIcon,
   UtensilsIcon,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { canAccessNavigationPath, formatRole } from "@/lib/role-access";
+import { clearStoredCustomerOrders } from "@/lib/customer-orders";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +42,9 @@ type AppHeaderProps = {
   activePath?: string;
   className?: string;
   customerMenu?: {
+    accountHref?: string;
+    customerName?: string | null;
+    loginHref?: string;
     orderHref?: string;
     ordersHref?: string;
   };
@@ -213,33 +218,105 @@ export function AppHeader({
             <Button
               type="button"
               variant="outline"
-              className="rounded-lg border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+              className={cn(
+                "rounded-lg border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white",
+                customerMenu.accountHref && "h-auto px-3 py-2 text-left",
+              )}
             >
-              <MenuIcon className="size-4" />
-              Menu
-              <ChevronDownIcon className="size-4" />
+              {customerMenu.accountHref ? (
+                <span className="flex items-center gap-3">
+                  <span className="hidden text-right sm:block">
+                    <span className="block text-sm font-semibold leading-none">
+                      {customerMenu.customerName ?? "Account"}
+                    </span>
+                    <span className="mt-1 block text-xs text-stone-400">
+                      Customer
+                    </span>
+                  </span>
+                  <span className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
+                    {(customerMenu.customerName ?? "C").trim().slice(0, 1).toUpperCase()}
+                  </span>
+                  <ChevronDownIcon className="size-4 text-stone-400" />
+                </span>
+              ) : (
+                <>
+                  <MenuIcon className="size-4" />
+                  Menu
+                  <ChevronDownIcon className="size-4" />
+                </>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64" tone="dark">
             <DropdownMenuLabel>
-              <span className="block text-stone-500">Customer</span>
-              <span className="mt-1 block text-sm font-semibold text-stone-100">
-                Order menu
+              <span className="block text-stone-500">
+                {customerMenu.accountHref ? "My Account" : "Customer"}
               </span>
+              <span className="mt-1 block text-sm font-semibold text-stone-100">
+                {customerMenu.customerName ?? "Order menu"}
+              </span>
+              {customerMenu.accountHref ? (
+                <span className="mt-0.5 block text-xs text-stone-400">Customer</span>
+              ) : null}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href={customerMenu.orderHref ?? "/order"}>
+              <Link
+                href={customerMenu.orderHref ?? "/order"}
+                className={cn(activePath === "/order" && "bg-white/10 text-white")}
+              >
                 <UtensilsIcon />
                 Order menu
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={customerMenu.ordersHref ?? "/order/status"}>
-                <ClipboardListIcon />
-                Your orders
-              </Link>
-            </DropdownMenuItem>
+            {customerMenu.accountHref ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={customerMenu.ordersHref ?? "/order/status"}
+                  className={cn(
+                    activePath === "/order/status" && "bg-white/10 text-white",
+                  )}
+                >
+                  <ClipboardListIcon />
+                  Your orders
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {customerMenu.loginHref ? (
+              <DropdownMenuItem asChild>
+                <Link href={customerMenu.loginHref}>
+                  <LogInIcon />
+                  Customer sign in
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {customerMenu.accountHref ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={customerMenu.accountHref}
+                  className={cn(activePath === "/account" && "bg-white/10 text-white")}
+                >
+                  <UserRoundIcon />
+                  My account
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {customerMenu.accountHref ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  variant="destructive"
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    clearStoredCustomerOrders();
+                    void signOut({ callbackUrl: customerMenu.orderHref ?? "/order" });
+                  }}
+                >
+                  <LogOutIcon />
+                  Sign out
+                </DropdownMenuItem>
+              </>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (

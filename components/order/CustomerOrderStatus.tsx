@@ -5,12 +5,8 @@ import { XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
-import {
-  readStoredCustomerOrders,
-  syncCustomerOrdersResetMarker,
-  writeStoredCustomerOrders,
-} from "@/lib/customer-orders";
 import { formatOrderDisplay } from "@/lib/order-display";
+import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
@@ -34,6 +30,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ApiOrder = LocalCustomerOrder & {
   items?: OrderLineItem[];
@@ -45,43 +42,71 @@ type ApiOrder = LocalCustomerOrder & {
 };
 
 type CustomerOrderStatusProps = {
-  locationQrSlug?: string;
-  locationSlug?: string;
+  orderingPointQrSlug?: string;
+  routeSlug?: string;
   refreshKey: number;
 };
 
-function withPublicContext(path: string, options: { locationQrSlug?: string; locationSlug?: string }) {
-  const { locationQrSlug, locationSlug } = options;
+type OrderView = "active" | "completed";
 
-  if (locationQrSlug) {
+const activeOrderStatuses = new Set(["PENDING", "PREPARING", "READY"]);
+
+function isActiveOrder(order: ApiOrder) {
+  return activeOrderStatuses.has(order.status);
+}
+
+function sortOrdersByNewest(ordersToSort: ApiOrder[]) {
+  return [...ordersToSort].sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
+  const { orderingPointQrSlug, routeSlug } = options;
+
+  if (orderingPointQrSlug) {
     const separator = path.includes("?") ? "&" : "?";
-    return `${path}${separator}qr=${encodeURIComponent(locationQrSlug)}`;
+    return `${path}${separator}qr=${encodeURIComponent(orderingPointQrSlug)}`;
   }
 
-  if (!locationSlug) {
+  if (!routeSlug) {
     return path;
   }
 
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}location=${encodeURIComponent(locationSlug)}`;
+  return `${path}${separator}route=${encodeURIComponent(routeSlug)}`;
 }
 
 export function CustomerOrderStatus({
-  locationQrSlug,
-  locationSlug,
+  orderingPointQrSlug,
+  routeSlug,
   refreshKey,
 }: CustomerOrderStatusProps) {
   const [orders, setOrders] = useState<ApiOrder[]>([]);
-  const [currency, setCurrency] = useState("INR");
+  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedView, setSelectedView] = useState<OrderView>("active");
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
   const [confirmingCancelOrder, setConfirmingCancelOrder] = useState<ApiOrder | null>(null);
+  const hasLoadedOrdersRef = useRef(false);
+  const ordersContextRef = useRef<string | null>(null);
+  const ordersRef = useRef<ApiOrder[]>([]);
   const statusRequestRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    let hasHydratedStoredOrders = false;
+    let refreshTimeout: number | undefined;
+    const ordersContext = `${orderingPointQrSlug ?? ""}:${routeSlug ?? ""}:${refreshKey}`;
+
+    if (ordersContextRef.current !== ordersContext) {
+      ordersContextRef.current = ordersContext;
+      hasLoadedOrdersRef.current = false;
+      ordersRef.current = [];
+      setOrders([]);
+      setIsLoading(true);
+    }
 
     async function loadOrders() {
       statusRequestRef.current?.abort();
@@ -89,76 +114,93 @@ export function CustomerOrderStatus({
       statusRequestRef.current = controller;
 
       try {
-        const prunedStoredOrders = readStoredCustomerOrders();
+        const existingOrders = ordersRef.current;
 
         if (!isMounted) {
-          return;
+          return false;
         }
 
-        if (!hasHydratedStoredOrders) {
-          setOrders(prunedStoredOrders);
-          hasHydratedStoredOrders = true;
-        }
+        const view = !hasLoadedOrdersRef.current
+          ? "ALL"
+          : selectedView === "active"
+            ? "ACTIVE"
+            : "COMPLETED";
+        const requestedOrders =
+          view === "ACTIVE"
+            ? existingOrders.filter(isActiveOrder)
+            : view === "COMPLETED"
+              ? existingOrders.filter((order) => !isActiveOrder(order))
+              : existingOrders;
 
-        if (prunedStoredOrders.length === 0) {
+        if (view === "ACTIVE" && requestedOrders.length === 0) {
           setIsLoading(false);
-          return;
+          return false;
         }
 
         const response = await fetch(
-          withPublicContext("/api/orders/status", { locationQrSlug, locationSlug }),
+          withPublicContext("/api/orders/status", { orderingPointQrSlug, routeSlug }),
           {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            orders: prunedStoredOrders.map((order) => ({
+            orders: requestedOrders.map((order) => ({
               orderId: order.orderId,
-              customerToken: order.customerToken,
             })),
+            view,
           }),
           },
         );
 
         if (!isMounted || controller.signal.aborted) {
-          return;
+          return false;
         }
 
         const payload = await response.json();
 
         if (!isMounted || controller.signal.aborted) {
-          return;
+          return false;
         }
 
         if (!response.ok) {
           setError(payload.error ?? "Failed to refresh orders.");
           setIsLoading(false);
-          return;
+          return existingOrders.some(isActiveOrder);
         }
 
-        setCurrency(payload.currency ?? "INR");
+        setCurrency(payload.currency ?? DEFAULT_CURRENCY);
 
-        const wasReset = syncCustomerOrdersResetMarker(payload.ordersResetAt ?? null);
-
-        if (wasReset) {
-          setOrders([]);
-          setError(null);
-          setIsLoading(false);
-          toast.success("Order history was cleared from the bar system.");
-          return;
-        }
-
-        const nextOrders = payload.orders.map((order: ApiOrder) => ({
+        const refreshedOrders = payload.orders.map((order: ApiOrder) => ({
           ...order,
           customerToken:
-            prunedStoredOrders.find((storedOrder) => storedOrder.orderId === order.orderId)
+            existingOrders.find((storedOrder) => storedOrder.orderId === order.orderId)
               ?.customerToken ?? order.customerToken,
         }));
+        let nextOrders: ApiOrder[];
 
-        writeStoredCustomerOrders(nextOrders);
+        if (view === "ACTIVE") {
+          const requestedIds = new Set(requestedOrders.map((order) => order.orderId));
+          nextOrders = [
+            ...refreshedOrders,
+            ...existingOrders.filter((order) => !requestedIds.has(order.orderId)),
+          ];
+        } else if (view === "COMPLETED") {
+          nextOrders = [
+            ...existingOrders.filter(isActiveOrder),
+            ...refreshedOrders,
+          ];
+        } else {
+          nextOrders = refreshedOrders;
+        }
+
+        nextOrders = sortOrdersByNewest(nextOrders);
+
+        ordersRef.current = nextOrders;
         setOrders(nextOrders);
         setError(null);
         setIsLoading(false);
+        hasLoadedOrdersRef.current = true;
+        return nextOrders.some(isActiveOrder);
       } catch (fetchError) {
         if (!controller.signal.aborted && isMounted) {
           setError(
@@ -168,6 +210,7 @@ export function CustomerOrderStatus({
           );
           setIsLoading(false);
         }
+        return ordersRef.current.some(isActiveOrder);
       } finally {
         if (statusRequestRef.current === controller) {
           statusRequestRef.current = null;
@@ -175,22 +218,31 @@ export function CustomerOrderStatus({
       }
     }
 
-    loadOrders();
-    const interval = window.setInterval(loadOrders, 5000);
+    async function refreshOrders() {
+      const shouldContinuePolling = await loadOrders();
+
+      if (isMounted && selectedView === "active" && shouldContinuePolling) {
+        refreshTimeout = window.setTimeout(refreshOrders, 5000);
+      }
+    }
+
+    void refreshOrders();
 
     return () => {
       isMounted = false;
       statusRequestRef.current?.abort();
-      window.clearInterval(interval);
+      if (refreshTimeout !== undefined) {
+        window.clearTimeout(refreshTimeout);
+      }
     };
-  }, [locationQrSlug, locationSlug, refreshKey]);
+  }, [orderingPointQrSlug, routeSlug, refreshKey, selectedView]);
 
   async function cancelOrder(order: ApiOrder) {
     setPendingCancelId(order.orderId);
     const response = await fetch(
       withPublicContext(`/api/orders/${order.orderId}/cancel`, {
-        locationQrSlug,
-        locationSlug,
+        orderingPointQrSlug,
+        routeSlug,
       }),
       {
         method: "POST",
@@ -208,26 +260,45 @@ export function CustomerOrderStatus({
       return;
     }
 
-    const nextOrders = orders.map((item) =>
+    const nextOrders = ordersRef.current.map((item) =>
       item.orderId === order.orderId ? payload : item,
     );
+    ordersRef.current = nextOrders;
     setOrders(nextOrders);
-    writeStoredCustomerOrders(nextOrders);
     toast.success("Order cancelled.");
     setPendingCancelId(null);
     setConfirmingCancelOrder(null);
   }
+
+  const activeOrders = orders.filter(isActiveOrder);
+  const completedOrders = orders.filter((order) => !isActiveOrder(order));
+  const visibleOrders = selectedView === "active" ? activeOrders : completedOrders;
 
   return (
     <Card className="rounded-xl border-stone-200/70 bg-white/80 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
       <CardHeader className="px-6 pt-6">
         <SectionHeader
           eyebrow="Order status"
-          title="Your recent orders"
+          title="Your orders"
+          description="Track orders in progress or review completed orders."
           className="mb-0"
         />
       </CardHeader>
       <CardContent className="px-6 pb-6">
+      <Tabs
+        value={selectedView}
+        onValueChange={(value) => setSelectedView(value as OrderView)}
+      >
+        <TabsList className="grid grid-cols-2 gap-1 rounded-lg bg-stone-100 p-1">
+          <TabsTrigger value="active" className="w-full border-0">
+            Active ({activeOrders.length})
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="w-full border-0">
+            Completed ({completedOrders.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={selectedView}>
 
       {error ? <p className="mb-4 text-sm text-rose-600">{error}</p> : null}
 
@@ -253,14 +324,18 @@ export function CustomerOrderStatus({
             </Card>
           ))}
         </div>
-      ) : orders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <EmptyState
-          title="No orders on this device yet"
-          description="Orders placed here will appear automatically and keep syncing with the bar."
+          title={selectedView === "active" ? "No active orders" : "No completed orders"}
+          description={
+            selectedView === "active"
+              ? "Orders in progress will appear here after payment."
+              : "Delivered and cancelled orders will appear here."
+          }
         />
       ) : (
         <div className="grid gap-4">
-          {orders.map((order) => {
+          {visibleOrders.map((order) => {
             const orderDisplay = formatOrderDisplay(order);
 
             return (
@@ -336,6 +411,8 @@ export function CustomerOrderStatus({
           })}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
       </CardContent>
       <AlertDialog
         open={Boolean(confirmingCancelOrder)}

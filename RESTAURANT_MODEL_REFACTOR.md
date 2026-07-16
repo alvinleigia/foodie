@@ -1,0 +1,85 @@
+# Restaurant Model Refactor
+
+## Target Hierarchy
+
+```text
+Platform
+Company
+Restaurant
+Ordering point
+```
+
+- A company is the commercial tenant and owns the subscription and inherited defaults.
+- A restaurant is an operational outlet and owns staff access, customers, menus, inventory, orders, payments and reporting.
+- An ordering point is optional routing metadata for a general QR link, table or counter. It is not a tenant or staff access scope.
+- Optional brand or reporting groups can be added later without becoming a mandatory tenant level.
+
+## Migration Invariants
+
+- Every operational record must resolve to exactly one restaurant organization.
+- Company-wide access must be explicit and must not weaken restaurant isolation.
+- Ordering points must belong to restaurant organizations.
+- Customer profiles remain restaurant-scoped.
+- Staff and administration remain on the deployment root domain.
+- Customer domains may resolve to a company restaurant picker or directly to a restaurant.
+- Legacy location data is removed after all runtime reads and writes move to restaurant scope.
+
+## Implementation Phases
+
+1. Add the restaurant-owned ordering-point foundation alongside locations.
+2. Simplify onboarding, restaurant administration, staff access and plan limits.
+3. Move orders, menus, inventory, QR routing and reporting to restaurant scope.
+4. Restrict customer domains and integration inheritance to company or restaurant scope.
+5. Remove legacy location schema, routes, UI and compatibility code.
+6. Audit for leftovers and conflicts, then run full tenant, auth, payment and ordering verification.
+
+## Phase 1
+
+- [x] Add restaurant-owned ordering points.
+- [x] Add an optional ordering-point reference to orders.
+- [x] Backfill existing location QR records as ordering points.
+- [x] Preserve the existing runtime until later phases move behavior.
+
+## Phase 2
+
+- [x] Make company onboarding create restaurants directly.
+- [x] Scope restaurant managers and operators to restaurants instead of locations.
+- [x] Manage staff directly from each restaurant.
+- [x] Enforce restaurant and user limits from the company subscription.
+- [x] Hide legacy location administration behind compatibility redirects.
+- [x] Keep one internal compatibility location per restaurant until Phase 3.
+
+## Phase 3
+
+- [x] Make restaurant organizations the runtime scope for menus and modifiers.
+- [x] Make restaurant organizations the runtime scope for inventory.
+- [x] Make restaurant organizations the runtime scope for orders and daily numbers.
+- [x] Resolve QR links through restaurant-owned ordering points.
+- [x] Report operational activity by restaurant instead of compatibility location.
+- [x] Keep legacy operational location columns nullable until Phase 5 cleanup.
+
+## Phase 4
+
+- [x] Restrict customer-facing domains to company or restaurant ownership.
+- [x] Route company domains to a restaurant directly or through a restaurant picker.
+- [x] Route restaurant domains directly to that restaurant and optional ordering points.
+- [x] Resolve restaurant integrations through restaurant, company and permitted platform defaults.
+- [x] Keep Stripe inheritance limited to restaurant and company connected accounts.
+- [x] Use the deployment root domain for universal and tenant OAuth callbacks.
+
+## Phase 5
+
+- [x] Remove the legacy locations table and location columns.
+- [x] Remove location-scoped staff sessions and memberships.
+- [x] Remove company and restaurant location administration routes.
+- [x] Keep ordering points as optional restaurant-owned routing metadata.
+- [x] Rename customer route context away from legacy location terminology.
+- [x] Update bootstrap, verification and test helpers for restaurant scope.
+
+## Phase 6
+
+- [x] Audit runtime code, schema, scripts and tracked documentation for legacy location assumptions.
+- [x] Update tenant-isolation tests for root-domain staff sessions and active restaurant switching.
+- [x] Align current documentation with the company, restaurant and ordering-point hierarchy.
+- [x] Verify new restaurant navigation remains restricted to the correct staff roles.
+- [x] Complete type, lint, build and focused test verification.

@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import { createStaffUser, getTenantAdminSnapshot } from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -25,7 +26,6 @@ export async function POST(request: NextRequest) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "restaurant.staff.create",
       entityType: "membership",
       entityId: staff.membership.id,
@@ -41,6 +41,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
+    }
+
+    if (error instanceof PlanLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
 
     return NextResponse.json(

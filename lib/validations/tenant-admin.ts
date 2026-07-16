@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options";
+import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 
 export const staffRoles = [
   "COMPANY_OWNER",
@@ -40,8 +41,8 @@ export const organizationSettingsSchema = z.object({
   currency: currencySchema,
 });
 
-export const locationSettingsSchema = z.object({
-  name: z.string().trim().min(2, "Location name is required").max(120),
+export const orderingPointSettingsSchema = z.object({
+  name: z.string().trim().min(2, "Ordering point name is required").max(120),
   label: z.string().trim().max(160).optional().transform((value) => value || null),
   qrSlug: z
     .string()
@@ -53,7 +54,6 @@ export const locationSettingsSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((value) => value || null),
-  timezone: timezoneSchema,
   isActive: z.boolean().default(true),
 });
 
@@ -94,13 +94,6 @@ export const reassignExistingUserSchema = z.object({
   identifier: z.string().trim().min(3, "Enter an email or username").max(160),
   role: z.enum(staffRoles),
   organizationId: z.string().uuid("Choose a target organization"),
-  locationId: z
-    .string()
-    .uuid("Choose a target location")
-    .nullable()
-    .optional()
-    .or(z.literal(""))
-    .transform((value) => value || null),
   deactivateExisting: z.boolean().default(true),
 });
 
@@ -122,8 +115,8 @@ export const updateUserAccountSchema = z.object({
 
 export const createCompanyOrganizationSchema = z.object({
   name: z.string().trim().min(2, "Company name is required").max(120),
-  timezone: timezoneSchema.default("Asia/Calcutta"),
-  currency: currencySchema.default("INR"),
+  timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+  currency: currencySchema.default(DEFAULT_CURRENCY),
 });
 
 export const updateOrganizationAdminSchema = z.object({
@@ -133,18 +126,12 @@ export const updateOrganizationAdminSchema = z.object({
   isActive: z.boolean(),
 });
 
-export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema.extend({
-  location: locationSettingsSchema.optional(),
-});
-
-export const createRestaurantLocationSchema = locationSettingsSchema;
+export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema;
 
 export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),
-  timezone: timezoneSchema.default("Asia/Calcutta"),
-  currency: currencySchema.default("INR"),
-  locationName: z.string().trim().min(2, "Location name is required").max(120),
-  locationLabel: z.string().trim().max(160).optional().transform((value) => value || null),
+  timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+  currency: currencySchema.default(DEFAULT_CURRENCY),
 });
 
 export const companyDomainSchema = z.object({
@@ -156,13 +143,12 @@ export const companyDomainSchema = z.object({
     .refine((value) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(value), {
       message: "Enter a valid domain such as foodie.allgoonline.co.uk",
     }),
-  purpose: z.enum(["ORDERING", "BOTH"]).default("ORDERING"),
   isPrimary: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  restaurantOrganizationId: z.string().uuid().nullable().optional().default(null),
 });
 
 export const updateCompanyDomainSchema = z.object({
-  purpose: z.enum(["ORDERING", "BOTH"]).optional(),
   isPrimary: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });

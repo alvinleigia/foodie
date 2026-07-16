@@ -5,12 +5,12 @@ import {
   appState,
   auditLogs,
   inventoryItems,
-  locations,
   memberships,
   menuCategories,
   menuItems,
   orderItems,
   orders,
+  orderingPoints,
   organizationSubscriptions,
   organizations,
   staffInvitations,
@@ -42,7 +42,7 @@ export async function resetUatDatabase(platformOwnerUserId: string) {
         ne(memberships.organizationId, PLATFORM_ORGANIZATION_ID),
       );
     await tx.delete(users).where(ne(users.id, platformOwnerUserId));
-    await tx.delete(locations);
+    await tx.delete(orderingPoints);
     await tx
       .delete(organizations)
       .where(ne(organizations.id, PLATFORM_ORGANIZATION_ID));
@@ -73,7 +73,6 @@ export async function resetUatDatabase(platformOwnerUserId: string) {
       .set({
         role: "PLATFORM_ADMIN",
         isActive: true,
-        locationId: null,
         updatedAt: new Date(),
       })
       .where(

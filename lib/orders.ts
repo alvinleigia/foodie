@@ -40,7 +40,6 @@ function groupItemsByOrder(
     list.push({
       id: item.id,
       organizationId: item.organizationId,
-      locationId: item.locationId,
       categoryId: item.categoryId,
       categoryName: item.categoryName,
       drinkId: item.drinkId,
@@ -77,7 +76,6 @@ async function getModifiersByOrderItemId(
       and(
         inArray(orderItemModifiers.orderItemId, itemIds),
         eq(orderItemModifiers.organizationId, context.organizationId),
-        eq(orderItemModifiers.locationId, context.locationId),
       ),
     );
   const modifiersByItemId = new Map<string, OrderLineItemModifier[]>();
@@ -127,7 +125,6 @@ export function serializeOrder(
     orderNo: order.orderNo,
     orderDate: order.orderDate,
     organizationId: order.organizationId,
-    locationId: order.locationId,
     customerName: order.customerName,
     categoryName: order.categoryName,
     drinkName: order.drinkName,
@@ -141,6 +138,7 @@ export function serializeOrder(
     deliveredAt: order.deliveredAt?.toISOString() ?? null,
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     announcementCount: order.announcementCount,
+    paymentStatus: order.paymentStatus,
   };
 }
 
@@ -152,7 +150,6 @@ export async function getActiveOrders(context: TenantContext = getDefaultTenantC
     .where(
       and(
         eq(orders.organizationId, context.organizationId),
-        eq(orders.locationId, context.locationId),
         inArray(orders.status, activeOrderStatuses),
       ),
     )
@@ -168,8 +165,8 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
       .where(
         and(
           eq(orders.organizationId, context.organizationId),
-          eq(orders.locationId, context.locationId),
           inArray(orders.status, activeOrderStatuses),
+          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
         ),
       )
       .orderBy(activeOrderRank(), desc(orders.createdAt)),
@@ -179,8 +176,8 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
       .where(
         and(
           eq(orders.organizationId, context.organizationId),
-          eq(orders.locationId, context.locationId),
           inArray(orders.status, pastOrderStatuses),
+          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
         ),
       )
       .orderBy(desc(pastOrderClosedAt())),
@@ -190,30 +187,48 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
 }
 
 
-export async function getCustomerOrders(
-  input: Array<{ orderId: string; customerToken: string }>,
+export async function getCustomerAccountOrders(
+  organizationCustomerId: string,
+  view: "ALL" | "COMPLETED",
   context: TenantContext = getDefaultTenantContext(),
 ) {
-  if (input.length === 0) {
+  const filters = [
+    eq(orders.organizationId, context.organizationId),
+    eq(orders.organizationCustomerId, organizationCustomerId),
+  ];
+
+  if (view === "COMPLETED") {
+    filters.push(inArray(orders.status, pastOrderStatuses));
+  }
+
+  return getDb()
+    .select()
+    .from(orders)
+    .where(and(...filters))
+    .orderBy(desc(orders.createdAt))
+    .limit(100);
+}
+
+export async function getCustomerAccountOrdersByIds(
+  organizationCustomerId: string,
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (orderIds.length === 0) {
     return [];
   }
 
-  const db = getDb();
-
-  const foundOrders = await db
+  return getDb()
     .select()
     .from(orders)
     .where(
       and(
-        inArray(orders.id, input.map((item) => item.orderId)),
+        inArray(orders.id, orderIds),
         eq(orders.organizationId, context.organizationId),
-        eq(orders.locationId, context.locationId),
+        eq(orders.organizationCustomerId, organizationCustomerId),
       ),
-    );
-
-  const allowedMap = new Map(input.map((item) => [item.orderId, item.customerToken]));
-
-  return foundOrders.filter((order) => allowedMap.get(order.id) === order.customerToken);
+    )
+    .orderBy(desc(orders.createdAt));
 }
 
 export async function getOrderItemsForOrders(
@@ -232,7 +247,6 @@ export async function getOrderItemsForOrders(
       and(
         inArray(orderItems.orderId, orderIds),
         eq(orderItems.organizationId, context.organizationId),
-        eq(orderItems.locationId, context.locationId),
       ),
     );
 
@@ -256,7 +270,6 @@ export async function getOrderItems(
       and(
         eq(orderItems.orderId, orderId),
         eq(orderItems.organizationId, context.organizationId),
-        eq(orderItems.locationId, context.locationId),
       ),
     );
 

@@ -1,22 +1,25 @@
 # Foodie POS
 
-Foodie POS is a Next.js restaurant order operations MVP being evolved into a multi-tenant SaaS app for parent companies, restaurants, locations and staff users.
+Foodie POS is a Next.js restaurant operations app with a multi-tenant SaaS hierarchy of platform, companies, restaurants and restaurant staff.
 
 ## Current Status
 
 - Customer order page with cart and recent order status.
+- Customer email OTP, Google, Apple and Facebook login, required name/phone onboarding, profile management and active/completed order views.
+- Stripe Connect-hosted customer checkout with company/restaurant inheritance and webhook-gated fulfilment; staff-created orders bypass online payment.
+- Company and restaurant integration settings with inherited SMTP2GO delivery, social login overrides, encrypted tenant credentials and Stripe connected-account onboarding.
 - Staff operations panel with item-level order workflow.
 - Menu manager for categories and products.
-- Inventory manager for location-scoped product stock levels.
-- Restaurant admin route for restaurant settings, location settings and staff access.
+- Inventory manager for restaurant-scoped product stock levels.
+- Restaurant admin routes for restaurant settings, ordering-point settings and staff access.
 - Dedicated SaaS admin route shells at `/platform`, `/company` and `/restaurant`.
 - Platform admin can create/manage parent company tenants.
-- Company admin can create/manage child restaurant tenants and locations.
+- Company admin can create and manage child restaurant tenants.
 - Platform admin can directly create company owner/manager users.
 - Company admin can create restaurant manager/order operator invite links.
-- Users with multiple active location memberships can switch location context from the admin/operations header.
-- Platform/company dashboards show first summary cards for tenants, locations, staff and order activity.
-- Company and restaurant dashboards show range-filtered operational reports for revenue, status counts, prep/collection timing, cancelled items, category mix, staff activity, location activity, top products and stock alerts, with CSV export.
+- Users with multiple active organization memberships can switch company or restaurant context from the admin/operations header.
+- Platform/company dashboards show summary cards for companies, restaurants, staff and order activity.
+- Company and restaurant dashboards show range-filtered operational reports for revenue, status counts, prep/collection timing, cancelled items, category mix, staff activity, restaurant activity, top products and stock alerts, with CSV export.
 - Platform commercial foundation includes seeded SaaS plans, company trial subscriptions, subscription status controls and platform commercial metrics.
 - Suspended or cancelled tenants are blocked from login, tenant APIs, operations pages and public QR ordering.
 - Platform admin can export company tenant data and disable company tenants.
@@ -24,17 +27,17 @@ Foodie POS is a Next.js restaurant order operations MVP being evolved into a mul
 - Phase 7 MVP rate limiting protects public order, order status, cancellation, invitation acceptance and credential-attempt flows.
 - Phase 7 reliability hardening adds structured server logging and abortable customer/staff polling to avoid overlapping refresh calls.
 - Restaurant admins can create staff invitation links so invited users set their own password.
-- Public customer ordering supports location QR links such as `/order?qr=main-bar`.
+- Public customer ordering supports restaurant-owned ordering-point QR links such as `/order?qr=main-bar`.
 - Menu items can be marked sold out from the menu manager.
 - Restaurant managers can track current quantity, low-stock threshold, units and notes for each menu product.
 - Inventory manager shows tracked, low-stock, out-of-stock and untracked product summary cards.
 - Delivered order items automatically deduct tracked inventory for the matching menu product.
-- Order numbers reset per restaurant location and business date instead of using one global platform sequence.
+- Order numbers reset per restaurant and business date instead of using one global platform sequence.
 - Customer and staff order screens share the same order number/date display formatter.
 - Public ordering shows low-stock/out-of-stock inventory states for tracked products and blocks zero-stock tracked products.
 - Supabase/Postgres database via Drizzle.
 - Auth.js credentials login backed by database users.
-- Tenant foundation with organizations, locations and memberships.
+- Tenant foundation with company/restaurant organizations, restaurant memberships and optional ordering points.
 
 See [SAAS_ROADMAP.md](./SAAS_ROADMAP.md) for the active phased implementation tracker.
 
@@ -45,13 +48,64 @@ Create `.env.local` from `.env.example`:
 ```bash
 DATABASE_URL="postgresql://user:password@host:6543/postgres"
 AUTH_SECRET="replace-with-a-long-random-secret"
+DEPLOYMENT_CELL_ID="in-local-1"
+DEPLOYMENT_REGION="IN"
+APP_ROOT_DOMAIN="foodie.leigia.com"
+NEXT_PUBLIC_DEFAULT_LOCALE="en-IN"
+NEXT_PUBLIC_DEFAULT_TIMEZONE="Asia/Calcutta"
+NEXT_PUBLIC_DEFAULT_CURRENCY="INR"
+AUTH_GOOGLE_ID="google-oauth-client-id"
+AUTH_GOOGLE_SECRET="google-oauth-client-secret"
+AUTH_APPLE_ID="apple-services-id"
+AUTH_APPLE_SECRET="apple-client-secret-jwt"
+AUTH_FACEBOOK_ID="facebook-app-id"
+AUTH_FACEBOOK_SECRET="facebook-app-secret"
+SMTP2GO_API_KEY="api-..."
+EMAIL_FROM="Foodie Orders <orders@example.com>"
+TENANT_CREDENTIALS_ENCRYPTION_KEY="base64-encoded-32-byte-key"
+STRIPE_SECRET_KEY="sk_test_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+STRIPE_CONNECT_WEBHOOK_SECRET="whsec_..."
 PLATFORM_OWNER_USERNAME="owner"
 PLATFORM_OWNER_EMAIL="owner@example.com"
 PLATFORM_OWNER_PASSWORD="change-me"
 ENABLE_UAT_DATABASE_RESET="false"
 ```
 
+The `AUTH_GOOGLE_*`, `AUTH_APPLE_*` and `AUTH_FACEBOOK_*` values are the universal Foodie fallback. Company admins can replace them per provider, and restaurants can inherit the company setting, provide their own credentials or disable a provider. Tenant client secrets are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`.
+
+All social login apps use one callback origin, even when customers order on a tenant-owned domain:
+
+```text
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/google
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/apple
+https://<APP_ROOT_DOMAIN>/api/customer-social-auth/callback/facebook
+```
+
+Foodie returns the customer to the ordering domain with a short-lived, single-use session handoff. Apple requires HTTPS and a client-secret JWT. Facebook sign-in requires Facebook to return an email address.
+
+Staff login, operations and administration run only on `APP_ROOT_DOMAIN`. Company subdomains and custom tenant domains are customer-facing and serve ordering, customer account and payment views. Privileged paths opened on a tenant domain redirect to the platform domain.
+
+Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
+
+`/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, Checkout session completed, async payment succeeded/failed and session expired events, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
+
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
+
+Each regional installation is an independent deployment cell with its own Vercel project, database and environment variables. `DEPLOYMENT_CELL_ID`, `DEPLOYMENT_REGION`, `APP_ROOT_DOMAIN`, `NEXT_PUBLIC_DEFAULT_LOCALE`, `NEXT_PUBLIC_DEFAULT_TIMEZONE` and `NEXT_PUBLIC_DEFAULT_CURRENCY` are required. There are no regional fallbacks: verification and production builds fail when the cell configuration is missing or invalid. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
+
+For example, a UK UAT installation can use:
+
+```bash
+DEPLOYMENT_CELL_ID="uk-uat-1"
+DEPLOYMENT_REGION="UK-UAT"
+APP_ROOT_DOMAIN="foodie-uk-staging.example.com"
+NEXT_PUBLIC_DEFAULT_LOCALE="en-GB"
+NEXT_PUBLIC_DEFAULT_TIMEZONE="Europe/London"
+NEXT_PUBLIC_DEFAULT_CURRENCY="GBP"
+```
+
+Keep `DATABASE_URL`, `AUTH_SECRET`, tenant credential encryption keys, SMTP, OAuth and Stripe credentials separate for each deployment cell. `npm run build` automatically runs `npm run verify:deployment`, then migrations and `npm run db:bootstrap:platform` must run against that cell's database. Bootstrap binds the database to `DEPLOYMENT_CELL_ID`, applies the configured platform locale and root domain, and refuses to modify a database already bound to another cell.
 
 Set `ENABLE_UAT_DATABASE_RESET="true"` only on a UAT/dev database if you need the platform reset screen at `/platform/uat-reset`. Do not enable it for production.
 
@@ -68,6 +122,10 @@ Apply migrations from the committed SQL files:
 ```bash
 npm run db:migrate
 ```
+
+Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, tenant social login overrides require `0024_tenant_oauth_settings.sql`, strict cell defaults require `0026_cell_deployment_defaults.sql`, and centralized customer social login requires `0027_customer_auth_handoffs.sql`. Migration `0028_customer_facing_tenant_domains.sql` makes all non-platform domains customer-facing. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
+
+The direct company/restaurant model is completed by migrations `0029` through `0033`. These add restaurant-owned ordering points, move staff and operational data to restaurant scope, restrict customer domains to company/restaurant ownership and remove the legacy locations schema. Each migration and its `app_migrations` record are applied in one database transaction.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 
@@ -89,6 +147,12 @@ Verify tenant foundation:
 npm run db:verify:tenant
 ```
 
+Verify regional deployment settings:
+
+```bash
+npm run verify:deployment
+```
+
 Start development:
 
 ```bash
@@ -98,8 +162,8 @@ npm run dev
 Open:
 
 - Customer order page: `http://localhost:3000/order`
-- Location QR customer order page: `http://localhost:3000/order?qr=your-location-qr-slug`
-- Customer order status page: `http://localhost:3000/order/status?qr=your-location-qr-slug`
+- Ordering-point QR customer order page: `http://localhost:3000/order?qr=your-ordering-point-qr-slug`
+- Customer order status page: `http://localhost:3000/order/status?qr=your-ordering-point-qr-slug`
 - Operations orders: `http://localhost:3000/operations/orders`
 - Operations menu manager: `http://localhost:3000/operations/menu`
 - Operations inventory manager: `http://localhost:3000/operations/inventory`
@@ -118,20 +182,20 @@ npm run build
 
 ## SaaS Notes
 
-- There is no hidden default company, restaurant or location. The SaaS owner creates real companies, then company users create restaurants and locations.
-- Protected staff routes resolve tenant/location from the signed-in user membership.
+- There is no hidden default company or restaurant. The SaaS owner creates companies, then company users create restaurants. Each restaurant receives a default ordering point for customer routing.
+- Protected staff routes resolve the active company or restaurant from the signed-in user membership.
 - Restaurant-level tenant admin APIs are protected by role checks and scoped to the signed-in membership.
 - `/platform`, `/company` and `/restaurant` are role-protected SaaS admin route shells.
-- Platform/company admin users can authenticate without a location-level membership.
+- Platform/company admin users authenticate through organization memberships; ordering points never grant staff access.
 - Direct staff creation is implemented; restaurant staff invitation links are implemented; email delivery is still planned.
 - Membership switching validates active memberships before updating the session.
 - Invitation tokens are stored as hashes and expire after 7 days.
 - Dashboard summaries are scoped by platform/company access before returning counts.
 - Audit logs are scoped by the signed-in user's role and tenant context before they are shown or exported.
 - MVP rate limiting is currently in-memory per server instance; use Redis/Upstash or another shared store before serious production traffic.
-- Public customer routes can resolve tenant/location from the location QR slug using `?qr=...`.
-- Customer orders created from plain `/order` require a QR slug, location route/domain context, or signed-in location context.
-- Inventory records are scoped by restaurant/location and linked to menu products.
+- Public customer routes resolve a restaurant from its customer domain, route slug or an ordering-point QR slug using `?qr=...`.
+- Customer orders created from plain `/order` require a mapped customer domain, restaurant route, ordering-point QR slug or signed-in restaurant context.
+- Inventory records are scoped by restaurant and linked to menu products.
 - Inventory quantities are deducted when a staff user marks an order item delivered. Products with stock tracking disabled are ignored.
 - Order creation validates tracked stock on the server before accepting the order.
-- Order numbers are unique per organization/location/order date, so each location gets its own daily sequence.
+- Order numbers are unique per restaurant and order date, so each restaurant gets its own daily sequence.

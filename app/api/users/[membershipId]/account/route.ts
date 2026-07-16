@@ -35,7 +35,6 @@ export async function PATCH(
     await writeAuditLog({
       actor: session.user,
       organizationId: result.target.organizationId,
-      locationId: result.target.locationId,
       action: "user.account.update",
       entityType: "user",
       entityId: result.user.id,

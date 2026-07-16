@@ -6,8 +6,11 @@
     "node": "24.x"
   },
   "scripts": {
+    "predev": "npm run verify:deployment",
     "dev": "next dev",
+    "prebuild": "npm run verify:deployment",
     "build": "next build",
+    "prestart": "npm run verify:deployment",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
@@ -18,7 +21,8 @@
     "db:migrate": "node scripts/run-sql-migrations.mjs",
     "db:reset:migrate": "node scripts/run-sql-migrations.mjs --reset --confirm-reset",
     "db:verify:tenant": "node scripts/verify-tenant-foundation.mjs",
-    "db:bootstrap:platform": "node scripts/bootstrap-platform-owner.mjs"
+    "db:bootstrap:platform": "node scripts/bootstrap-platform-owner.mjs",
+    "verify:deployment": "node scripts/verify-deployment-config.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -35,6 +39,7 @@
     "react-dom": "19.2.4",
     "shadcn": "^4.7.0",
     "sonner": "^2.0.7",
+    "stripe": "^22.3.1",
     "tailwind-merge": "^3.6.0",
     "tw-animate-css": "^1.4.0",
     "zod": "^4.1.12"

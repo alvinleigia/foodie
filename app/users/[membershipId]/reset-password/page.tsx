@@ -16,7 +16,7 @@ function getSafeReturnTo(value: string | string[] | undefined, role: MembershipR
     role === "PLATFORM_ADMIN"
       ? "/platform/users/memberships"
       : role === "RESTAURANT_MANAGER"
-        ? "/restaurant"
+        ? "/restaurant/staff"
         : "/company/users";
 
   if (
@@ -49,13 +49,13 @@ function getActivePath(returnTo: string, role: MembershipRole) {
   }
 
   if (returnTo.startsWith("/restaurant")) {
-    return "/restaurant";
+    return "/restaurant/staff";
   }
 
   return role === "PLATFORM_ADMIN"
     ? "/platform/users/memberships"
     : role === "RESTAURANT_MANAGER"
-      ? "/restaurant"
+      ? "/restaurant/staff"
       : "/company/users";
 }
 
@@ -87,7 +87,6 @@ export default async function UserPasswordResetLinkPage(
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
-        locationId: session.user.locationId,
         role: session.user.role,
       }}
     >

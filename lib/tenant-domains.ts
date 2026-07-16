@@ -1,29 +1,15 @@
 import { and, eq, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, organizations, tenantDomains } from "@/db/schema";
+import { orderingPoints, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import {
+  normalizeDomain,
+  ROOT_DOMAIN,
+} from "@/lib/deployment-domain";
 import type { TenantContext } from "@/lib/tenant-context";
 
-export const ROOT_DOMAIN =
-  process.env.NEXT_PUBLIC_ROOT_DOMAIN ??
-  process.env.APP_ROOT_DOMAIN ??
-  "foodie.leigia.com";
-
-export function normalizeDomain(value: string | null | undefined) {
-  const rawHost = value?.split(",")[0]?.trim().toLowerCase();
-
-  if (!rawHost) {
-    return null;
-  }
-
-  const withoutProtocol = rawHost.replace(/^https?:\/\//, "");
-  const withoutPath = withoutProtocol.split("/")[0];
-  const withoutPort = withoutPath.split(":")[0];
-  const normalized = withoutPort.replace(/\.$/, "");
-
-  return normalized || null;
-}
+export { normalizeDomain, ROOT_DOMAIN } from "@/lib/deployment-domain";
 
 export function buildCompanySubdomain(companySlug: string) {
   return `${companySlug}.${ROOT_DOMAIN}`.toLowerCase();
@@ -43,56 +29,69 @@ export function getRequestDomain(request: Request) {
   );
 }
 
-async function resolveSingleActiveLocation(
+async function resolveRestaurantContext(
   restaurantOrganizationId: string,
 ): Promise<TenantContext | null> {
-  const rows = await getDb()
+  const db = getDb();
+  const [restaurant] = await db
     .select({
-      organizationId: locations.organizationId,
-      locationId: locations.id,
+      organizationId: organizations.id,
     })
-    .from(locations)
+    .from(organizations)
     .where(
       and(
-        eq(locations.organizationId, restaurantOrganizationId),
-        eq(locations.isActive, true),
+        eq(organizations.id, restaurantOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
       ),
     )
-    .limit(2);
+    .limit(1);
 
-  if (rows.length !== 1) {
+  if (!restaurant) {
     return null;
   }
 
+  const [orderingPoint] = await db
+    .select({ id: orderingPoints.id })
+    .from(orderingPoints)
+    .where(
+      and(
+        eq(orderingPoints.organizationId, restaurantOrganizationId),
+        eq(orderingPoints.isDefault, true),
+        eq(orderingPoints.isActive, true),
+      ),
+    )
+    .limit(1);
+
   return {
-    organizationId: rows[0].organizationId,
-    locationId: rows[0].locationId,
+    organizationId: restaurant.organizationId,
+    orderingPointId: orderingPoint?.id ?? null,
   };
 }
 
-async function resolveRestaurantLocation(
+async function resolveRestaurantOrderingPoint(
   restaurantOrganizationId: string,
-  locationSlug?: string | null,
+  orderingPointSlug?: string | null,
 ): Promise<TenantContext | null> {
-  const normalizedLocationSlug = locationSlug?.trim().toLowerCase();
+  const normalizedOrderingPointSlug = orderingPointSlug?.trim().toLowerCase();
 
-  if (!normalizedLocationSlug) {
-    return resolveSingleActiveLocation(restaurantOrganizationId);
+  if (!normalizedOrderingPointSlug) {
+    return resolveRestaurantContext(restaurantOrganizationId);
   }
 
   const [record] = await getDb()
     .select({
-      organizationId: locations.organizationId,
-      locationId: locations.id,
+      organizationId: orderingPoints.organizationId,
+      orderingPointId: orderingPoints.id,
     })
-    .from(locations)
+    .from(orderingPoints)
     .where(
       and(
-        eq(locations.organizationId, restaurantOrganizationId),
-        eq(locations.isActive, true),
+        eq(orderingPoints.organizationId, restaurantOrganizationId),
+        eq(orderingPoints.isActive, true),
         or(
-          eq(locations.slug, normalizedLocationSlug),
-          eq(locations.qrSlug, normalizedLocationSlug),
+          eq(orderingPoints.slug, normalizedOrderingPointSlug),
+          eq(orderingPoints.qrSlug, normalizedOrderingPointSlug),
         ),
       ),
     )
@@ -101,32 +100,29 @@ async function resolveRestaurantLocation(
   return record
     ? {
         organizationId: record.organizationId,
-        locationId: record.locationId,
+        orderingPointId: record.orderingPointId,
       }
     : null;
 }
 
-async function resolveCompanyLocation(
+async function resolveCompanyRestaurant(
   companyOrganizationId: string,
-  locationSlug?: string | null,
+  restaurantOrOrderingPointSlug?: string | null,
 ): Promise<TenantContext | null> {
-  const normalizedLocationSlug = locationSlug?.trim().toLowerCase();
+  const normalizedSlug = restaurantOrOrderingPointSlug?.trim().toLowerCase();
   const db = getDb();
 
-  if (!normalizedLocationSlug) {
+  if (!normalizedSlug) {
     const rows = await db
       .select({
-        organizationId: locations.organizationId,
-        locationId: locations.id,
+        organizationId: organizations.id,
       })
-      .from(locations)
-      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+      .from(organizations)
       .where(
         and(
           eq(organizations.parentOrganizationId, companyOrganizationId),
           eq(organizations.type, "RESTAURANT"),
           eq(organizations.isActive, true),
-          eq(locations.isActive, true),
         ),
       )
       .limit(2);
@@ -135,44 +131,92 @@ async function resolveCompanyLocation(
       return null;
     }
 
-    return {
-      organizationId: rows[0].organizationId,
-      locationId: rows[0].locationId,
-    };
+    return resolveRestaurantContext(rows[0].organizationId);
   }
 
-  const [record] = await db
-    .select({
-      organizationId: locations.organizationId,
-      locationId: locations.id,
-    })
-    .from(locations)
-    .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+  const [restaurant] = await db
+    .select({ organizationId: organizations.id })
+    .from(organizations)
     .where(
       and(
         eq(organizations.parentOrganizationId, companyOrganizationId),
         eq(organizations.type, "RESTAURANT"),
         eq(organizations.isActive, true),
-        eq(locations.isActive, true),
-        or(
-          eq(locations.slug, normalizedLocationSlug),
-          eq(locations.qrSlug, normalizedLocationSlug),
-        ),
+        eq(organizations.slug, normalizedSlug),
       ),
     )
     .limit(1);
 
-  return record
-    ? {
-        organizationId: record.organizationId,
-        locationId: record.locationId,
-      }
+  if (restaurant) {
+    return resolveRestaurantContext(restaurant.organizationId);
+  }
+
+  const [orderingPoint] = await db
+    .select({ organizationId: orderingPoints.organizationId })
+    .from(orderingPoints)
+    .innerJoin(organizations, eq(organizations.id, orderingPoints.organizationId))
+    .where(
+      and(
+        eq(organizations.parentOrganizationId, companyOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+        eq(orderingPoints.isActive, true),
+        eq(orderingPoints.qrSlug, normalizedSlug),
+      ),
+    )
+    .limit(1);
+
+  return orderingPoint
+    ? resolveRestaurantOrderingPoint(orderingPoint.organizationId, normalizedSlug)
     : null;
+}
+
+export async function getCompanyDomainRestaurants(
+  domainValue: string | null | undefined,
+) {
+  const domain = normalizeDomain(domainValue);
+
+  if (!domain) {
+    return [];
+  }
+
+  const [domainRecord] = await getDb()
+    .select({ companyOrganizationId: tenantDomains.companyOrganizationId })
+    .from(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.domain, domain),
+        eq(tenantDomains.scope, "COMPANY"),
+        eq(tenantDomains.purpose, "ORDERING"),
+        eq(tenantDomains.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!domainRecord?.companyOrganizationId) {
+    return [];
+  }
+
+  return getDb()
+    .select({
+      id: organizations.id,
+      name: organizations.name,
+      slug: organizations.slug,
+    })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.parentOrganizationId, domainRecord.companyOrganizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+      ),
+    )
+    .orderBy(organizations.name);
 }
 
 export async function getTenantContextFromDomain(
   domain: string | null | undefined,
-  locationSlug?: string | null,
+  routeSlug?: string | null,
 ): Promise<TenantContext | null> {
   const normalizedDomain = normalizeDomain(domain);
 
@@ -187,6 +231,10 @@ export async function getTenantContextFromDomain(
       and(
         eq(tenantDomains.domain, normalizedDomain),
         eq(tenantDomains.isActive, true),
+        or(
+          eq(tenantDomains.purpose, "ORDERING"),
+          eq(tenantDomains.purpose, "BOTH"),
+        ),
       ),
     )
     .limit(1);
@@ -197,42 +245,17 @@ export async function getTenantContextFromDomain(
 
   let context: TenantContext | null = null;
 
-  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
-    const [record] = await getDb()
-      .select({
-        organizationId: locations.organizationId,
-        locationId: locations.id,
-      })
-      .from(locations)
-      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
-      .where(
-        and(
-          eq(locations.id, domainRecord.locationId),
-          eq(locations.isActive, true),
-          eq(organizations.isActive, true),
-        ),
-      )
-      .limit(1);
-
-    context = record
-      ? {
-          organizationId: record.organizationId,
-          locationId: record.locationId,
-        }
-      : null;
-  }
-
   if (!context && domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
-    context = await resolveRestaurantLocation(
+    context = await resolveRestaurantOrderingPoint(
       domainRecord.restaurantOrganizationId,
-      locationSlug,
+      routeSlug,
     );
   }
 
   if (!context && domainRecord.scope === "COMPANY" && domainRecord.companyOrganizationId) {
-    context = await resolveCompanyLocation(
+    context = await resolveCompanyRestaurant(
       domainRecord.companyOrganizationId,
-      locationSlug,
+      routeSlug,
     );
   }
 
@@ -275,9 +298,9 @@ export async function getInactiveTenantDomain(domain: string | null | undefined)
 
 export async function getTenantContextFromRequestDomain(
   request: Request,
-  locationSlug?: string | null,
+  routeSlug?: string | null,
 ) {
-  return getTenantContextFromDomain(getRequestDomain(request), locationSlug);
+  return getTenantContextFromDomain(getRequestDomain(request), routeSlug);
 }
 
 export type TenantDomainAccessScope =
@@ -290,12 +313,6 @@ export type TenantDomainAccessScope =
       type: "RESTAURANT";
       companyOrganizationId: string | null;
       restaurantOrganizationId: string;
-    }
-  | {
-      type: "LOCATION";
-      companyOrganizationId: string | null;
-      restaurantOrganizationId: string;
-      locationId: string;
     };
 
 export async function getTenantDomainAccessScopeFromDomain(
@@ -312,7 +329,6 @@ export async function getTenantDomainAccessScopeFromDomain(
       scope: tenantDomains.scope,
       companyOrganizationId: tenantDomains.companyOrganizationId,
       restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
-      locationId: tenantDomains.locationId,
     })
     .from(tenantDomains)
     .where(and(eq(tenantDomains.domain, domain), eq(tenantDomains.isActive, true)))
@@ -343,27 +359,6 @@ export async function getTenantDomainAccessScopeFromDomain(
       companyOrganizationId: restaurant?.companyOrganizationId ?? null,
       restaurantOrganizationId: domainRecord.restaurantOrganizationId,
     };
-  }
-
-  if (domainRecord.scope === "LOCATION" && domainRecord.locationId) {
-    const [location] = await getDb()
-      .select({
-        restaurantOrganizationId: locations.organizationId,
-        companyOrganizationId: organizations.parentOrganizationId,
-      })
-      .from(locations)
-      .innerJoin(organizations, eq(organizations.id, locations.organizationId))
-      .where(eq(locations.id, domainRecord.locationId))
-      .limit(1);
-
-    if (location) {
-      return {
-        type: "LOCATION",
-        companyOrganizationId: location.companyOrganizationId,
-        restaurantOrganizationId: location.restaurantOrganizationId,
-        locationId: domainRecord.locationId,
-      };
-    }
   }
 
   return { type: "PLATFORM" };

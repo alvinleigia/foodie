@@ -44,7 +44,7 @@ export function CustomerOrderUnavailable({
           <p className="mt-4 max-w-2xl text-base text-stone-600">
             {isDisabledDomain
               ? "This domain is still pointing to Foodie, but tenant access has been disabled in platform domain settings. Enable it again or use an active QR/menu link."
-              : "This ordering page needs a restaurant QR/menu link, a mapped company domain, or signed-in location access before it can show the menu."}
+              : "This ordering page needs a restaurant QR/menu link, a mapped customer domain, or signed-in restaurant access before it can show the menu."}
           </p>
         </CardContent>
       </Card>

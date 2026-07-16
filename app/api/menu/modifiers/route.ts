@@ -31,7 +31,6 @@ export async function POST(request: NextRequest) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "menu.modifier.create",
       entityType: "modifier_option",
       entityId: option.id,

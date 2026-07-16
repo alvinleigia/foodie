@@ -6,12 +6,13 @@ This file tracks only pending work from the SaaS roadmap. Completed phase histor
 
 Foodie has working SaaS foundations for:
 
-- Platform, company, restaurant, location and operations roles.
-- Company, restaurant, location and staff management.
+- Platform, company, restaurant and operations roles.
+- Company, restaurant, ordering-point and staff management.
 - Invitation-link onboarding.
 - Tenant-scoped menus, orders, inventory and reports.
 - Audit logs, rate limiting foundation and structured logging.
 - Domain records, company subdomain foundation and custom domain mapping UI.
+- Universal customer social login with encrypted company overrides and restaurant inheritance or override.
 
 ## Immediate Decision
 
@@ -28,7 +29,7 @@ Choose the next track:
 Notes:
 
 - Current invite flow generates copyable links.
-- SMTP/email provider is not configured yet.
+- Customer OTP delivery supports platform, company and restaurant SMTP2GO settings; invitation emails still need to be wired to the shared delivery service.
 - Until email is added, admins can manually copy and share invite links.
 
 ## Phase 5 Pending: Reporting
@@ -47,28 +48,28 @@ Notes:
 Notes:
 
 - Plans, trials, subscription statuses, suspension handling and export workflows exist.
-- The missing part is a polished first-run flow for setting up a new company, restaurant, location, staff and menu.
+- The missing part is a polished first-run flow for setting up a new company, restaurant, staff, ordering point and menu.
 
 ## Phase 8 Pending: Domains And Routing
 
 - [ ] UAT test platform domain routing.
 - [ ] UAT test company subdomain routing.
-- [ ] UAT test location ordering on company subdomain.
+- [ ] UAT test restaurant selection and ordering-point routing on a company domain.
 - [ ] UAT test custom domain ordering.
-- [ ] Harden Auth.js cookie/session behavior before allowing staff/admin login on custom domains.
+- [ ] Verify that staff/admin paths on customer domains always redirect to the platform domain.
 - [ ] Add Vercel domain registration automation after manual Vercel domain mapping is tested.
 
 Notes:
 
 - Main SaaS domain target: `foodie.leigia.com`.
-- Company subdomain target: `{company}.foodie.leigia.com`.
+- Company customer-domain target: `{company}.foodie.leigia.com`.
 - Custom domains should initially target customer ordering/status, not staff/admin login.
 - Staff/admin login should stay on `foodie.leigia.com` until custom-domain auth is intentionally hardened.
 
 ## Production Readiness TODOs
 
 - [ ] Add compliance controls for SaaS owner audit-log access: log audit-log views/exports, avoid sensitive metadata, document platform support access in privacy/customer terms and later consider a reason-required support access mode.
-- [ ] Add automated tests for tenant isolation.
+- [ ] Expand automated tenant-isolation coverage to menu, inventory, orders and reports.
 - [ ] Add automated tests for order transitions.
 - [ ] Replace in-memory rate limiting with Redis, Upstash or another shared store.
 - [ ] Consider Supabase Row Level Security as defense in depth.
@@ -84,7 +85,7 @@ These items come from a project-wide maintainability scan. The app is functional
 
 ### High Priority
 
-- [ ] Split `lib/saas-admin.ts` into focused services: platform companies, company restaurants/locations, company users/memberships, domains and reassignment.
+- [ ] Split `lib/saas-admin.ts` into focused services: platform companies, company restaurants, company users/memberships, domains and reassignment.
 - [ ] Split `lib/saas-reports.ts` into report query modules by concern: summaries, status/product reports, timing/cancellation/revenue reports and CSV export.
 - [ ] Review the remaining QR slug availability fetch after tests cover live validation behavior.
 - [ ] Extend shared money/price formatting into reports and any remaining price displays.
@@ -96,7 +97,7 @@ These items come from a project-wide maintainability scan. The app is functional
 - [ ] Split `components/order/OrderForm.tsx` into smaller components/hooks: menu loading, category navigation, cart drawer, review screen and cart item state.
 - [ ] Split `components/staff/MenuManager.tsx` into smaller components/hooks: category actions, product form, import/export, seed/clear actions and product cards.
 - [ ] Split `components/staff/InventoryManager.tsx` into shared inventory form/card components after tests cover inventory save behavior.
-- [ ] Consolidate create/edit form patterns for company, restaurant, location, subscription, staff and access forms.
+- [ ] Consolidate create/edit form patterns for company, restaurant, ordering point, subscription, staff and access forms.
 - [ ] Create reusable route/action helpers so submit/cancel/back behavior consistently returns to the nearest workflow context.
 - [ ] Create shared status badge components for tenant status, subscription status, user account status, membership access status, order status and item status.
 - [ ] Review route handlers for repeated auth, validation, audit logging and JSON error-response code; extract safe wrappers only after tests are in place.
@@ -106,14 +107,13 @@ These items come from a project-wide maintainability scan. The app is functional
 
 - [ ] Review whether `components/admin/TenantAdminForms.tsx` should be split into one file per form.
 - [ ] Review whether shadcn wrappers under `components/ui` need local documentation for allowed variants and styling rules.
-- [ ] Add lightweight architecture notes for the current tenant hierarchy, membership scopes and domain resolution.
-- [ ] Add a docs page explaining when to use company-level, restaurant-level and location-level access.
+- [ ] Expand architecture notes when brand/reporting groups or multi-ordering-point administration are introduced.
 - [ ] Consider moving report CSV export formatting into a separate `lib/reports/export.ts` module.
 - [ ] Consider moving menu CSV import/export into separate `lib/menu/import-export.ts` once menu tests exist.
 
 ### Observed Hotspots
 
-- `lib/saas-admin.ts` is about 1,149 lines and mixes platform, company, restaurant, location, user, domain and reassignment logic.
+- `lib/saas-admin.ts` still mixes platform, company, restaurant, user, domain and reassignment logic.
 - `lib/saas-reports.ts` is about 1,031 lines and mixes query construction, aggregation and CSV export.
 - `components/staff/MenuManager.tsx` is about 860 lines and owns too many UI states and actions.
 - `components/order/OrderForm.tsx` is about 768 lines and mixes menu loading, cart state, sticky category behavior, review flow and order submission.
@@ -125,13 +125,13 @@ These items come from a project-wide maintainability scan. The app is functional
 
 - [ ] SaaS owner creates a company.
 - [ ] SaaS owner invites company owner.
-- [ ] Company owner creates restaurants and locations.
+- [ ] Company owner creates restaurants.
 - [ ] Company owner manages all company users at `/company/users`.
 - [ ] Company owner invites restaurant manager and order operator.
 - [ ] Invited users accept links and log in.
-- [ ] Restaurant manager manages menu, inventory and location settings.
+- [ ] Restaurant manager manages menu, inventory and ordering-point settings.
 - [ ] Order operator sees only permitted operations.
-- [ ] Customer opens ordering link by QR/location slug.
+- [ ] Customer opens ordering link through a customer domain, restaurant route or ordering-point QR slug.
 - [ ] Customer places multi-item order.
 - [ ] Staff processes item-level order workflow.
 - [ ] Customer sees standalone order status page.

@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+
 type OrderDisplayInput = {
   createdAt?: string | null;
   orderDate?: string | null;
@@ -5,10 +7,20 @@ type OrderDisplayInput = {
 };
 
 function todayIsoDate() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+  const parts = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+    day: "2-digit",
+    month: "2-digit",
+    numberingSystem: "latn",
+    timeZone: DEFAULT_TIMEZONE,
+    year: "numeric",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  if (!year || !month || !day) {
+    throw new Error("Unable to resolve the current deployment-cell date.");
+  }
 
   return `${year}-${month}-${day}`;
 }
@@ -32,9 +44,10 @@ export function formatOrderDateLabel(orderDate?: string | null) {
     return orderDate;
   }
 
-  return parsed.toLocaleDateString(undefined, {
+  return parsed.toLocaleDateString(DEFAULT_LOCALE, {
     day: "2-digit",
     month: "short",
+    timeZone: "UTC",
     year: "numeric",
   });
 }
@@ -45,6 +58,12 @@ export function formatOrderDisplay(input: OrderDisplayInput) {
   return {
     dateLabel,
     label: formatOrderNumber(input.orderNo),
-    meta: dateLabel ?? (input.createdAt ? new Date(input.createdAt).toLocaleDateString() : null),
+    meta:
+      dateLabel ??
+      (input.createdAt
+        ? new Date(input.createdAt).toLocaleDateString(DEFAULT_LOCALE, {
+            timeZone: DEFAULT_TIMEZONE,
+          })
+        : null),
   };
 }

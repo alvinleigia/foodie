@@ -4,6 +4,7 @@ import {
 import {
   boolean,
   AnyPgColumn,
+  check,
   date,
   index,
   integer,
@@ -73,7 +74,6 @@ export const tenantDomainScopeEnum = pgEnum("tenant_domain_scope", [
   "PLATFORM",
   "COMPANY",
   "RESTAURANT",
-  "LOCATION",
 ]);
 
 export const tenantDomainPurposeEnum = pgEnum("tenant_domain_purpose", [
@@ -87,6 +87,73 @@ export const modifierSelectionTypeEnum = pgEnum("modifier_selection_type", [
   "MULTIPLE",
 ]);
 
+export const orderingPointTypeEnum = pgEnum("ordering_point_type", [
+  "GENERAL",
+  "TABLE",
+  "COUNTER",
+]);
+
+export const orderSourceEnum = pgEnum("order_source", [
+  "CUSTOMER_SELF_SERVICE",
+  "STAFF_CREATED",
+]);
+
+export const paymentStatusEnum = pgEnum("payment_status", [
+  "NOT_REQUIRED",
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "CANCELLED",
+  "REFUNDED",
+]);
+
+export const integrationModeEnum = pgEnum("integration_mode", [
+  "INHERIT",
+  "CUSTOM",
+  "DISABLED",
+]);
+
+export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
+
+export const integrationVerificationStatusEnum = pgEnum(
+  "integration_verification_status",
+  ["NOT_CONFIGURED", "PENDING", "VERIFIED", "FAILED"],
+);
+
+export const paymentProviderEnum = pgEnum("payment_provider", ["STRIPE"]);
+
+export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
+  "GOOGLE",
+  "APPLE",
+  "FACEBOOK",
+]);
+
+export const paymentOnboardingStatusEnum = pgEnum("payment_onboarding_status", [
+  "NOT_STARTED",
+  "PENDING",
+  "COMPLETE",
+  "RESTRICTED",
+]);
+
+export const deploymentCells = pgTable(
+  "deployment_cells",
+  {
+    id: integer("id").primaryKey(),
+    cellId: text("cell_id").notNull(),
+    region: text("region").notNull(),
+    rootDomain: text("root_domain").notNull(),
+    defaultLocale: text("default_locale").notNull(),
+    defaultTimezone: text("default_timezone").notNull(),
+    defaultCurrency: text("default_currency").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("deployment_cells_cell_id_unique").on(table.cellId),
+    check("deployment_cells_singleton_check", sql`${table.id} = 1`),
+  ],
+);
+
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   username: text("username").notNull().unique(),
@@ -98,6 +165,66 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const customers = pgTable(
+  "customers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerifiedAt: timestamp("email_verified_at"),
+    phone: text("phone"),
+    phoneVerifiedAt: timestamp("phone_verified_at"),
+    dateOfBirth: date("date_of_birth"),
+    gender: text("gender"),
+    marketingOptIn: boolean("marketing_opt_in").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("customers_email_unique").on(sql`lower(${table.email})`),
+    index("customers_phone_idx").on(table.phone),
+  ],
+);
+
+export const customerOAuthAccounts = pgTable(
+  "customer_oauth_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("customer_oauth_accounts_customer_idx").on(table.customerId),
+    uniqueIndex("customer_oauth_accounts_provider_account_unique").on(
+      table.provider,
+      table.providerAccountId,
+    ),
+  ],
+);
+
+export const customerEmailOtps = pgTable(
+  "customer_email_otps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    email: text("email").notNull(),
+    codeHash: text("code_hash").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("customer_email_otps_email_created_idx").on(table.email, table.createdAt),
+    index("customer_email_otps_expires_idx").on(table.expiresAt),
+  ],
+);
 
 export const organizations = pgTable(
   "organizations",
@@ -111,8 +238,8 @@ export const organizations = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     logoUrl: text("logo_url"),
-    timezone: text("timezone").default("Asia/Calcutta").notNull(),
-    currency: text("currency").default("INR").notNull(),
+    timezone: text("timezone").notNull(),
+    currency: text("currency").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -120,6 +247,155 @@ export const organizations = pgTable(
   (table) => [
     index("organizations_parent_idx").on(table.parentOrganizationId),
     uniqueIndex("organizations_slug_unique").on(table.slug),
+  ],
+);
+
+export const organizationCustomers = pgTable(
+  "organization_customers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    phoneVerifiedAt: timestamp("phone_verified_at"),
+    dateOfBirth: date("date_of_birth"),
+    gender: text("gender"),
+    marketingOptIn: boolean("marketing_opt_in").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_customers_org_customer_unique").on(
+      table.organizationId,
+      table.customerId,
+    ),
+    index("organization_customers_org_name_idx").on(
+      table.organizationId,
+      table.name,
+    ),
+    index("organization_customers_phone_idx").on(table.phone),
+  ],
+);
+
+export const customerAuthHandoffs = pgTable(
+  "customer_auth_handoffs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    customerId: uuid("customer_id")
+      .references(() => customers.id, { onDelete: "cascade" })
+      .notNull(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    tokenHash: text("token_hash").notNull(),
+    destinationOrigin: text("destination_origin").notNull(),
+    returnTo: text("return_to").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    consumedAt: timestamp("consumed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("customer_auth_handoffs_token_hash_unique").on(table.tokenHash),
+    index("customer_auth_handoffs_customer_idx").on(table.customerId),
+    index("customer_auth_handoffs_expires_idx").on(table.expiresAt),
+  ],
+);
+
+export const organizationEmailSettings = pgTable(
+  "organization_email_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    provider: emailProviderEnum("provider").default("SMTP2GO").notNull(),
+    fromName: text("from_name"),
+    fromEmail: text("from_email"),
+    replyToEmail: text("reply_to_email"),
+    apiKeyEncrypted: text("api_key_encrypted"),
+    apiKeyHint: text("api_key_hint"),
+    verificationStatus: integrationVerificationStatusEnum("verification_status")
+      .default("NOT_CONFIGURED")
+      .notNull(),
+    lastTestedAt: timestamp("last_tested_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_email_settings_org_unique").on(table.organizationId),
+    index("organization_email_settings_mode_idx").on(table.mode),
+  ],
+);
+
+export const organizationPaymentAccounts = pgTable(
+  "organization_payment_accounts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
+    stripeAccountId: text("stripe_account_id"),
+    onboardingStatus: paymentOnboardingStatusEnum("onboarding_status")
+      .default("NOT_STARTED")
+      .notNull(),
+    chargesEnabled: boolean("charges_enabled").default(false).notNull(),
+    payoutsEnabled: boolean("payouts_enabled").default(false).notNull(),
+    detailsSubmitted: boolean("details_submitted").default(false).notNull(),
+    applicationFeeBps: integer("application_fee_bps").default(0).notNull(),
+    lastSyncedAt: timestamp("last_synced_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_payment_accounts_org_unique").on(table.organizationId),
+    uniqueIndex("organization_payment_accounts_stripe_unique").on(table.stripeAccountId),
+    index("organization_payment_accounts_mode_idx").on(table.mode),
+    check(
+      "organization_payment_accounts_fee_bps_check",
+      sql`${table.applicationFeeBps} >= 0 AND ${table.applicationFeeBps} <= 10000`,
+    ),
+  ],
+);
+
+export const organizationOAuthSettings = pgTable(
+  "organization_oauth_settings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: socialAuthProviderEnum("provider").notNull(),
+    mode: integrationModeEnum("mode").default("INHERIT").notNull(),
+    clientId: text("client_id"),
+    clientSecretEncrypted: text("client_secret_encrypted"),
+    clientSecretHint: text("client_secret_hint"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_oauth_settings_org_provider_unique").on(
+      table.organizationId,
+      table.provider,
+    ),
+    index("organization_oauth_settings_mode_idx").on(table.mode),
   ],
 );
 
@@ -133,7 +409,6 @@ export const saasPlans = pgTable(
       .default("0")
       .notNull(),
     maxRestaurants: integer("max_restaurants").default(1).notNull(),
-    maxLocations: integer("max_locations").default(1).notNull(),
     maxUsers: integer("max_users").default(5).notNull(),
     maxMonthlyOrders: integer("max_monthly_orders").default(500).notNull(),
     storageMb: integer("storage_mb").default(256).notNull(),
@@ -169,8 +444,8 @@ export const organizationSubscriptions = pgTable(
   ],
 );
 
-export const locations = pgTable(
-  "locations",
+export const orderingPoints = pgTable(
+  "ordering_points",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     organizationId: uuid("organization_id")
@@ -180,15 +455,22 @@ export const locations = pgTable(
     qrSlug: text("qr_slug"),
     name: text("name").notNull(),
     label: text("label"),
-    timezone: text("timezone").default("Asia/Calcutta").notNull(),
+    type: orderingPointTypeEnum("type").default("GENERAL").notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    index("locations_organization_idx").on(table.organizationId),
-    uniqueIndex("locations_org_slug_unique").on(table.organizationId, table.slug),
-    uniqueIndex("locations_qr_slug_unique").on(table.qrSlug),
+    index("ordering_points_organization_idx").on(table.organizationId),
+    uniqueIndex("ordering_points_org_slug_unique").on(
+      table.organizationId,
+      table.slug,
+    ),
+    uniqueIndex("ordering_points_qr_slug_unique").on(table.qrSlug),
+    uniqueIndex("ordering_points_org_default_unique")
+      .on(table.organizationId)
+      .where(sql`${table.isDefault} = true`),
   ],
 );
 
@@ -207,9 +489,6 @@ export const tenantDomains = pgTable(
       () => organizations.id,
       { onDelete: "cascade" },
     ),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     isPrimary: boolean("is_primary").default(false).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -219,8 +498,21 @@ export const tenantDomains = pgTable(
     uniqueIndex("tenant_domains_domain_unique").on(table.domain),
     index("tenant_domains_company_idx").on(table.companyOrganizationId),
     index("tenant_domains_restaurant_idx").on(table.restaurantOrganizationId),
-    index("tenant_domains_location_idx").on(table.locationId),
     index("tenant_domains_scope_idx").on(table.scope),
+    uniqueIndex("tenant_domains_company_primary_unique")
+      .on(table.companyOrganizationId)
+      .where(sql`${table.scope} = 'COMPANY' AND ${table.isPrimary} = true`),
+    uniqueIndex("tenant_domains_restaurant_primary_unique")
+      .on(table.restaurantOrganizationId)
+      .where(sql`${table.scope} = 'RESTAURANT' AND ${table.isPrimary} = true`),
+    check(
+      "tenant_domains_owner_scope_check",
+      sql`(
+        (${table.scope} = 'PLATFORM' AND ${table.companyOrganizationId} IS NULL AND ${table.restaurantOrganizationId} IS NULL)
+        OR (${table.scope} = 'COMPANY' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NULL AND ${table.purpose} = 'ORDERING')
+        OR (${table.scope} = 'RESTAURANT' AND ${table.companyOrganizationId} IS NOT NULL AND ${table.restaurantOrganizationId} IS NOT NULL AND ${table.purpose} = 'ORDERING')
+      )`,
+    ),
   ],
 );
 
@@ -236,9 +528,6 @@ export const auditLogs = pgTable(
     organizationId: uuid("organization_id").references(() => organizations.id, {
       onDelete: "set null",
     }),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "set null",
-    }),
     action: text("action").notNull(),
     entityType: text("entity_type").notNull(),
     entityId: text("entity_id"),
@@ -248,7 +537,6 @@ export const auditLogs = pgTable(
   (table) => [
     index("audit_logs_actor_user_idx").on(table.actorUserId),
     index("audit_logs_organization_idx").on(table.organizationId),
-    index("audit_logs_location_idx").on(table.locationId),
     index("audit_logs_action_idx").on(table.action),
     index("audit_logs_created_at_idx").on(table.createdAt),
   ],
@@ -264,9 +552,6 @@ export const memberships = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     role: membershipRoleEnum("role").notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -274,11 +559,9 @@ export const memberships = pgTable(
   },
   (table) => [
     index("memberships_organization_idx").on(table.organizationId),
-    index("memberships_location_idx").on(table.locationId),
-    uniqueIndex("memberships_user_org_location_unique").on(
+    uniqueIndex("memberships_user_org_unique").on(
       table.userId,
       table.organizationId,
-      sql`coalesce(${table.locationId}, '00000000-0000-0000-0000-000000000000'::uuid)`,
     ),
   ],
 );
@@ -340,30 +623,30 @@ export const menuCategories = pgTable("menu_categories", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   sortOrder: integer("sort_order").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("menu_categories_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_categories_org_slug_unique").on(
+    table.organizationId,
+    table.slug,
+  ),
+]);
 
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id").references(() => locations.id, {
-    onDelete: "cascade",
-  }),
   categoryId: uuid("category_id")
     .references(() => menuCategories.id, { onDelete: "cascade" })
     .notNull(),
-  slug: text("slug").notNull().unique(),
+  slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   price: numeric("price", { precision: 10, scale: 2 }),
@@ -373,7 +656,13 @@ export const menuItems = pgTable("menu_items", {
   isSoldOut: boolean("is_sold_out").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("menu_items_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_items_org_slug_unique").on(
+    table.organizationId,
+    table.slug,
+  ),
+]);
 
 export const menuTags = pgTable(
   "menu_tags",
@@ -420,9 +709,6 @@ export const modifierGroups = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description"),
@@ -439,10 +725,8 @@ export const modifierGroups = pgTable(
   },
   (table) => [
     index("modifier_groups_organization_idx").on(table.organizationId),
-    index("modifier_groups_location_idx").on(table.locationId),
-    uniqueIndex("modifier_groups_tenant_slug_unique").on(
+    uniqueIndex("modifier_groups_org_slug_unique").on(
       table.organizationId,
-      table.locationId,
       table.slug,
     ),
   ],
@@ -455,9 +739,6 @@ export const modifierOptions = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id").references(() => locations.id, {
-      onDelete: "cascade",
-    }),
     groupId: uuid("group_id")
       .references(() => modifierGroups.id, { onDelete: "cascade" })
       .notNull(),
@@ -509,9 +790,6 @@ export const inventoryItems = pgTable(
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
-    locationId: uuid("location_id")
-      .references(() => locations.id, { onDelete: "cascade" })
-      .notNull(),
     menuItemId: uuid("menu_item_id")
       .references(() => menuItems.id, { onDelete: "cascade" })
       .notNull(),
@@ -529,10 +807,8 @@ export const inventoryItems = pgTable(
   },
   (table) => [
     index("inventory_items_organization_idx").on(table.organizationId),
-    index("inventory_items_location_idx").on(table.locationId),
-    uniqueIndex("inventory_items_menu_item_unique").on(
+    uniqueIndex("inventory_items_org_menu_item_unique").on(
       table.organizationId,
-      table.locationId,
       table.menuItemId,
     ),
   ],
@@ -543,13 +819,38 @@ export const orders = pgTable("orders", {
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
     .notNull(),
-  locationId: uuid("location_id")
-    .references(() => locations.id, { onDelete: "cascade" })
-    .notNull(),
+  orderingPointId: uuid("ordering_point_id").references(() => orderingPoints.id, {
+    onDelete: "set null",
+  }),
   orderDate: date("order_date").notNull(),
   orderNo: integer("order_no").notNull(),
   customerName: text("customer_name").notNull(),
   customerToken: text("customer_token").notNull(),
+  customerId: uuid("customer_id").references(() => customers.id, {
+    onDelete: "set null",
+  }),
+  organizationCustomerId: uuid("organization_customer_id").references(
+    () => organizationCustomers.id,
+    { onDelete: "set null" },
+  ),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
+  paymentStatus: paymentStatusEnum("payment_status")
+    .default("NOT_REQUIRED")
+    .notNull(),
+  paymentAmount: numeric("payment_amount", { precision: 10, scale: 2 }),
+  paymentCurrency: text("payment_currency"),
+  paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
+    () => organizations.id,
+    { onDelete: "set null" },
+  ),
+  stripeConnectedAccountId: text("stripe_connected_account_id"),
+  stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentExpiresAt: timestamp("payment_expires_at"),
+  paidAt: timestamp("paid_at"),
   categoryId: text("category_id").notNull(),
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
@@ -567,15 +868,29 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  index("orders_tenant_status_created_idx").on(
+  index("orders_restaurant_status_created_idx").on(
     table.organizationId,
-    table.locationId,
     table.status,
     table.createdAt,
   ),
-  uniqueIndex("orders_location_order_date_no_unique").on(
+  index("orders_customer_created_idx").on(table.customerId, table.createdAt),
+  index("orders_organization_customer_created_idx").on(
+    table.organizationCustomerId,
+    table.createdAt,
+  ),
+  index("orders_created_by_user_idx").on(table.createdByUserId),
+  index("orders_ordering_point_idx").on(table.orderingPointId),
+  index("orders_payment_status_idx").on(table.paymentStatus),
+  index("orders_payment_account_org_idx").on(table.paymentAccountOrganizationId),
+  index("orders_stripe_connected_account_idx").on(table.stripeConnectedAccountId),
+  uniqueIndex("orders_stripe_checkout_session_unique").on(
+    table.stripeCheckoutSessionId,
+  ),
+  uniqueIndex("orders_stripe_payment_intent_unique").on(
+    table.stripePaymentIntentId,
+  ),
+  uniqueIndex("orders_restaurant_order_date_no_unique").on(
     table.organizationId,
-    table.locationId,
     table.orderDate,
     table.orderNo,
   ),
@@ -585,9 +900,6 @@ export const orderItems = pgTable("order_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
     .references(() => organizations.id, { onDelete: "cascade" })
-    .notNull(),
-  locationId: uuid("location_id")
-    .references(() => locations.id, { onDelete: "cascade" })
     .notNull(),
   orderId: uuid("order_id")
     .references(() => orders.id, { onDelete: "cascade" })
@@ -608,9 +920,8 @@ export const orderItems = pgTable("order_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  index("order_items_tenant_order_idx").on(
+  index("order_items_restaurant_order_idx").on(
     table.organizationId,
-    table.locationId,
     table.orderId,
   ),
 ]);
@@ -621,9 +932,6 @@ export const orderItemModifiers = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     organizationId: uuid("organization_id")
       .references(() => organizations.id, { onDelete: "cascade" })
-      .notNull(),
-    locationId: uuid("location_id")
-      .references(() => locations.id, { onDelete: "cascade" })
       .notNull(),
     orderItemId: uuid("order_item_id")
       .references(() => orderItems.id, { onDelete: "cascade" })
@@ -641,6 +949,5 @@ export const orderItemModifiers = pgTable(
   (table) => [
     index("order_item_modifiers_order_item_idx").on(table.orderItemId),
     index("order_item_modifiers_organization_idx").on(table.organizationId),
-    index("order_item_modifiers_location_idx").on(table.locationId),
   ],
 );

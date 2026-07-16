@@ -1,34 +1,70 @@
 import { auth } from "@/auth";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, organizations } from "@/db/schema";
+import { orderingPoints, organizations } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
 import { getTenantContextFromRequestDomain } from "@/lib/tenant-domains";
 
 export type TenantContext = {
   organizationId: string;
-  locationId: string;
+  orderingPointId: string | null;
 };
 
 export function getDefaultTenantContext(): TenantContext {
-  throw new Error("Tenant context is required. Use a QR slug, location link or signed-in location access.");
+  throw new Error("Tenant context is required. Use a restaurant link or signed-in restaurant access.");
+}
+
+async function getRestaurantContext(organizationId: string): Promise<TenantContext> {
+  const db = getDb();
+  const [restaurant] = await db
+    .select({
+      organizationId: organizations.id,
+    })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.id, organizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!restaurant) {
+    throw new Error("Signed-in user is missing restaurant access.");
+  }
+
+  const [orderingPoint] = await db
+    .select({ id: orderingPoints.id })
+    .from(orderingPoints)
+    .where(
+      and(
+        eq(orderingPoints.organizationId, organizationId),
+        eq(orderingPoints.isDefault, true),
+        eq(orderingPoints.isActive, true),
+      ),
+    )
+    .orderBy(asc(orderingPoints.createdAt), asc(orderingPoints.id))
+    .limit(1);
+
+  return {
+    organizationId: restaurant.organizationId,
+    orderingPointId: orderingPoint?.id ?? null,
+  };
 }
 
 export async function getCurrentTenantContext() {
   const session = await auth();
 
-  if (session?.user.organizationId && session.user.locationId) {
+  if (session?.user.kind === "staff" && session.user.organizationId) {
     await assertTenantSubscriptionAccess(session.user.organizationId);
 
-    return {
-      organizationId: session.user.organizationId,
-      locationId: session.user.locationId,
-    };
+    return getRestaurantContext(session.user.organizationId);
   }
 
-  if (session?.user) {
-    throw new Error("Signed-in user is missing tenant or location access.");
+  if (session?.user.kind === "staff") {
+    throw new Error("Signed-in user is missing restaurant access.");
   }
 
   return getDefaultTenantContext();
@@ -44,15 +80,16 @@ export async function getTenantContextFromQrSlug(qrSlug: string) {
   const db = getDb();
   const [record] = await db
     .select({
-      organizationId: locations.organizationId,
-      locationId: locations.id,
+      organizationId: orderingPoints.organizationId,
+      orderingPointId: orderingPoints.id,
     })
-    .from(locations)
-    .innerJoin(organizations, eq(organizations.id, locations.organizationId))
+    .from(orderingPoints)
+    .innerJoin(organizations, eq(organizations.id, orderingPoints.organizationId))
     .where(
       and(
-        eq(locations.qrSlug, normalizedQrSlug),
-        eq(locations.isActive, true),
+        eq(orderingPoints.qrSlug, normalizedQrSlug),
+        eq(orderingPoints.isActive, true),
+        eq(organizations.type, "RESTAURANT"),
         eq(organizations.isActive, true),
       ),
     );
@@ -65,7 +102,7 @@ export async function getTenantContextFromQrSlug(qrSlug: string) {
 
   return {
     organizationId: record.organizationId,
-    locationId: record.locationId,
+    orderingPointId: record.orderingPointId,
   };
 }
 
@@ -77,8 +114,8 @@ export async function getPublicTenantContextFromRequest(request: Request) {
     return getTenantContextFromQrSlug(qrSlug);
   }
 
-  const locationSlug = url.searchParams.get("location");
-  const domainContext = await getTenantContextFromRequestDomain(request, locationSlug);
+  const routeSlug = url.searchParams.get("route");
+  const domainContext = await getTenantContextFromRequestDomain(request, routeSlug);
 
   if (domainContext) {
     return domainContext;
@@ -86,17 +123,14 @@ export async function getPublicTenantContextFromRequest(request: Request) {
 
   const session = await auth();
 
-  if (session?.user.organizationId && session.user.locationId) {
+  if (session?.user.kind === "staff" && session.user.organizationId) {
     await assertTenantSubscriptionAccess(session.user.organizationId);
 
-    return {
-      organizationId: session.user.organizationId,
-      locationId: session.user.locationId,
-    };
+    return getRestaurantContext(session.user.organizationId);
   }
 
-  if (session?.user) {
-    throw new Error("Signed-in user is missing tenant or location access.");
+  if (session?.user.kind === "staff") {
+    throw new Error("Signed-in user is missing restaurant access.");
   }
 
   return getDefaultTenantContext();

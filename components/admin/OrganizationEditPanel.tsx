@@ -23,14 +23,6 @@ type EditableOrganization = {
   timezone: string;
   currency: string;
   isActive: boolean;
-  primaryLocation?: {
-    id: string;
-    name: string;
-    label: string | null;
-    qrSlug: string | null;
-    timezone: string;
-    isActive: boolean;
-  } | null;
 };
 
 type OrganizationEditPanelProps = {
@@ -38,13 +30,11 @@ type OrganizationEditPanelProps = {
   backHref: string;
   entityLabel: string;
   organization: EditableOrganization;
-  showPrimaryLocation?: boolean;
 };
 
 type OrganizationEditField =
   | "currency"
   | "isActive"
-  | "location"
   | "name"
   | "timezone";
 
@@ -53,7 +43,6 @@ export function OrganizationEditPanel({
   backHref,
   entityLabel,
   organization,
-  showPrimaryLocation = false,
 }: OrganizationEditPanelProps) {
   const router = useRouter();
   const [draft, setDraft] = useState({
@@ -61,15 +50,6 @@ export function OrganizationEditPanel({
     timezone: organization.timezone,
     currency: organization.currency,
     isActive: organization.isActive,
-    location: organization.primaryLocation
-      ? {
-          name: organization.primaryLocation.name,
-          label: organization.primaryLocation.label ?? "",
-          qrSlug: organization.primaryLocation.qrSlug ?? "",
-          timezone: organization.primaryLocation.timezone,
-          isActive: organization.primaryLocation.isActive,
-        }
-      : undefined,
   });
   const [isSaving, setIsSaving] = useState(false);
   const validation = useFormValidation<OrganizationEditField>();
@@ -179,99 +159,6 @@ export function OrganizationEditPanel({
                 />
               </FormField>
             </div>
-            {showPrimaryLocation && draft.location ? (
-              <div className="mt-2 grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
-                <div>
-                  <h4 className="text-lg font-semibold text-stone-950">
-                    Primary location
-                  </h4>
-                  <p className="mt-1 text-sm text-stone-500">
-                    This controls the outlet/counter where orders, QR links and
-                    staff location access are attached.
-                  </p>
-                  {validation.getError("location") ? (
-                    <p className="mt-2 text-sm text-rose-600">
-                      {validation.getError("location")}
-                    </p>
-                  ) : null}
-                </div>
-                <FormField label="Location name">
-                  <Input
-                    value={draft.location.name}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        location: current.location
-                          ? { ...current.location, name: event.target.value }
-                          : current.location,
-                      }))
-                    }
-                  />
-                </FormField>
-                <FormField label="Location label">
-                  <Input
-                    placeholder="Optional internal label"
-                    value={draft.location.label}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        location: current.location
-                          ? { ...current.location, label: event.target.value }
-                          : current.location,
-                      }))
-                    }
-                  />
-                </FormField>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FormField label="QR slug">
-                    <Input
-                      placeholder="main-bar"
-                      value={draft.location.qrSlug}
-                      onChange={(event) =>
-                        setDraft((current) => ({
-                          ...current,
-                          location: current.location
-                            ? {
-                                ...current.location,
-                                qrSlug: event.target.value.toLowerCase(),
-                              }
-                            : current.location,
-                        }))
-                      }
-                    />
-                  </FormField>
-                  <FormField label="Location timezone">
-                    <TimezoneSelect
-                      value={draft.location.timezone}
-                      onValueChange={(timezone) =>
-                        setDraft((current) => ({
-                          ...current,
-                          location: current.location
-                            ? { ...current.location, timezone }
-                            : current.location,
-                        }))
-                      }
-                    />
-                  </FormField>
-                </div>
-                <label className="flex items-center gap-2 text-sm text-stone-700">
-                  <input
-                    type="checkbox"
-                    checked={draft.location.isActive}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        location: current.location
-                          ? { ...current.location, isActive: event.target.checked }
-                          : current.location,
-                      }))
-                    }
-                    className="size-4 rounded border-stone-300"
-                  />
-                  Location is active
-                </label>
-              </div>
-            ) : null}
             <div className="flex flex-wrap gap-3 pt-2">
               <Button
                 type="submit"
@@ -299,7 +186,7 @@ export function OrganizationEditPanel({
         <CardContent className="grid gap-4 px-5 pb-5">
           <p className="text-sm leading-6 text-stone-600">
             Disable hides this {entityLabel.toLowerCase()} from active workflows
-            without deleting linked staff, locations, menus or orders.
+            without deleting linked staff, menus or orders.
           </p>
           <Button
             type="button"

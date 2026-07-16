@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { PlanLimitError } from "@/lib/billing";
 import {
   createRestaurantAdminStaffInvitation,
   InvitationConflictError,
@@ -30,7 +31,6 @@ export async function POST(request: Request) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "restaurant.staff.invite",
       entityType: "staff_invitation",
       entityId: invitation.invitation.id,
@@ -52,6 +52,10 @@ export async function POST(request: Request) {
     }
 
     if (error instanceof InvitationConflictError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof PlanLimitError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

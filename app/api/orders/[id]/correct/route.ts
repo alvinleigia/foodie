@@ -124,7 +124,6 @@ export async function POST(
         and(
           eq(orders.id, id),
           eq(orders.organizationId, tenantContext.organizationId),
-          eq(orders.locationId, tenantContext.locationId),
         ),
       );
 
@@ -148,7 +147,6 @@ export async function POST(
           and(
             eq(orderItems.orderId, id),
             eq(orderItems.organizationId, tenantContext.organizationId),
-            eq(orderItems.locationId, tenantContext.locationId),
           ),
         );
 
@@ -171,7 +169,6 @@ export async function POST(
           and(
             eq(orderItems.orderId, id),
             eq(orderItems.organizationId, tenantContext.organizationId),
-            eq(orderItems.locationId, tenantContext.locationId),
           ),
         );
 
@@ -182,7 +179,6 @@ export async function POST(
           and(
             eq(orders.id, id),
             eq(orders.organizationId, tenantContext.organizationId),
-            eq(orders.locationId, tenantContext.locationId),
           ),
         )
         .returning();
@@ -198,7 +194,6 @@ export async function POST(
             and(
               inArray(orderItems.id, reservedItemIds),
               eq(orderItems.organizationId, tenantContext.organizationId),
-              eq(orderItems.locationId, tenantContext.locationId),
             ),
           );
       }
@@ -209,7 +204,6 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "order.status.correct",
       entityType: "order",
       entityId: updatedOrder.id,

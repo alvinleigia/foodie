@@ -1,13 +1,22 @@
 import { and, eq, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { locations, memberships, organizations, users } from "@/db/schema";
+import {
+  memberships,
+  orderingPoints,
+  organizations,
+  users,
+} from "@/db/schema";
+import {
+  assertCompanyUserCapacity,
+  getCommercialOwnerOrganizationId,
+} from "@/lib/billing";
 import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { TenantContext } from "@/lib/tenant-context";
 import {
   createStaffUserSchema,
-  locationSettingsSchema,
+  orderingPointSettingsSchema,
   organizationSettingsSchema,
   updateStaffMembershipSchema,
 } from "@/lib/validations/tenant-admin";
@@ -19,13 +28,20 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
     .from(organizations)
     .where(eq(organizations.id, context.organizationId))
     .limit(1);
-  const [location] = await db
-    .select()
-    .from(locations)
+  const [orderingPoint] = await db
+    .select({
+      id: orderingPoints.id,
+      name: orderingPoints.name,
+      slug: orderingPoints.slug,
+      qrSlug: orderingPoints.qrSlug,
+      label: orderingPoints.label,
+      isActive: orderingPoints.isActive,
+    })
+    .from(orderingPoints)
     .where(
       and(
-        eq(locations.id, context.locationId),
-        eq(locations.organizationId, context.organizationId),
+        eq(orderingPoints.organizationId, context.organizationId),
+        eq(orderingPoints.isDefault, true),
       ),
     )
     .limit(1);
@@ -39,7 +55,6 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
       status: users.status,
       role: memberships.role,
       isActive: memberships.isActive,
-      locationId: memberships.locationId,
       createdAt: memberships.createdAt,
     })
     .from(memberships)
@@ -48,7 +63,7 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
 
   return {
     organization,
-    location,
+    orderingPoint,
     staff: staff.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
@@ -63,64 +78,89 @@ export async function updateOrganizationSettings(
   const parsed = organizationSettingsSchema.parse(input);
   const db = getDb();
   const slug = await ensureUniqueOrganizationSlug(parsed.name, context.organizationId);
-  const [organization] = await db
-    .update(organizations)
-    .set({
-      slug,
-      name: parsed.name,
-      logoUrl: parsed.logoUrl,
-      timezone: parsed.timezone,
-      currency: parsed.currency.toUpperCase(),
-      updatedAt: new Date(),
-    })
-    .where(eq(organizations.id, context.organizationId))
-    .returning();
 
-  return organization ?? null;
+  return db.transaction(async (tx) => {
+    const [organization] = await tx
+      .update(organizations)
+      .set({
+        slug,
+        name: parsed.name,
+        logoUrl: parsed.logoUrl,
+        timezone: parsed.timezone,
+        currency: parsed.currency.toUpperCase(),
+        updatedAt: new Date(),
+      })
+      .where(eq(organizations.id, context.organizationId))
+      .returning();
+
+    if (!organization) {
+      return null;
+    }
+
+    await Promise.all([
+      tx
+        .update(orderingPoints)
+        .set({ name: parsed.name, updatedAt: new Date() })
+        .where(
+          and(
+            eq(orderingPoints.organizationId, context.organizationId),
+            eq(orderingPoints.isDefault, true),
+          ),
+        ),
+    ]);
+
+    return organization;
+  });
 }
 
-export async function updateLocationSettings(context: TenantContext, input: unknown) {
-  const parsed = locationSettingsSchema.parse(input);
+export async function updateOrderingPointSettings(context: TenantContext, input: unknown) {
+  const parsed = orderingPointSettingsSchema.parse(input);
   const db = getDb();
 
   if (parsed.qrSlug) {
-    const [existingQrLocation] = await db
-      .select({ id: locations.id })
-      .from(locations)
-      .where(and(eq(locations.qrSlug, parsed.qrSlug), ne(locations.id, context.locationId)))
+    const [existingQrOrderingPoint] = await db
+      .select({ id: orderingPoints.id })
+      .from(orderingPoints)
+      .where(
+        and(
+          eq(orderingPoints.qrSlug, parsed.qrSlug),
+          context.orderingPointId
+            ? ne(orderingPoints.id, context.orderingPointId)
+            : ne(orderingPoints.organizationId, context.organizationId),
+        ),
+      )
       .limit(1);
 
-    if (existingQrLocation) {
-      throw new Error("QR slug is already used by another location.");
+    if (existingQrOrderingPoint) {
+      throw new Error("QR slug is already used by another ordering point.");
     }
   }
 
-  const [location] = await db
-    .update(locations)
+  const [orderingPoint] = await db
+    .update(orderingPoints)
     .set({
       name: parsed.name,
       label: parsed.label,
       qrSlug: parsed.qrSlug,
-      timezone: parsed.timezone,
       isActive: parsed.isActive,
       updatedAt: new Date(),
     })
     .where(
       and(
-        eq(locations.id, context.locationId),
-        eq(locations.organizationId, context.organizationId),
+        eq(orderingPoints.organizationId, context.organizationId),
+        eq(orderingPoints.isDefault, true),
       ),
     )
     .returning();
 
-  return location ?? null;
+  return orderingPoint ?? null;
 }
 
-export async function checkLocationQrSlugAvailability(
+export async function checkOrderingPointQrSlugAvailability(
   context: TenantContext,
   qrSlug: string,
 ) {
-  const parsedQrSlug = locationSettingsSchema.shape.qrSlug.parse(qrSlug);
+  const parsedQrSlug = orderingPointSettingsSchema.shape.qrSlug.parse(qrSlug);
 
   if (!parsedQrSlug) {
     return {
@@ -130,14 +170,21 @@ export async function checkLocationQrSlugAvailability(
   }
 
   const db = getDb();
-  const [existingQrLocation] = await db
-    .select({ id: locations.id })
-    .from(locations)
-    .where(and(eq(locations.qrSlug, parsedQrSlug), ne(locations.id, context.locationId)))
+  const [existingQrOrderingPoint] = await db
+    .select({ id: orderingPoints.id })
+    .from(orderingPoints)
+    .where(
+      and(
+        eq(orderingPoints.qrSlug, parsedQrSlug),
+        context.orderingPointId
+          ? ne(orderingPoints.id, context.orderingPointId)
+          : ne(orderingPoints.organizationId, context.organizationId),
+      ),
+    )
     .limit(1);
 
   return {
-    available: !existingQrLocation,
+    available: !existingQrOrderingPoint,
     normalizedQrSlug: parsedQrSlug,
   };
 }
@@ -145,6 +192,15 @@ export async function checkLocationQrSlugAvailability(
 export async function createStaffUser(context: TenantContext, input: unknown) {
   const parsed = createStaffUserSchema.parse(input);
   const db = getDb();
+  const companyOrganizationId = await getCommercialOwnerOrganizationId(
+    context.organizationId,
+  );
+
+  if (!companyOrganizationId) {
+    throw new Error("Restaurant company could not be resolved.");
+  }
+
+  await assertCompanyUserCapacity(companyOrganizationId);
   const passwordHash = await hashPassword(parsed.password);
   const [user] = await db
     .insert(users)
@@ -164,7 +220,6 @@ export async function createStaffUser(context: TenantContext, input: unknown) {
     .values({
       userId: user.id,
       organizationId: context.organizationId,
-      locationId: context.locationId,
       role: parsed.role,
       isActive: true,
       updatedAt: new Date(),

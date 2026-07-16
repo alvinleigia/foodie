@@ -1,15 +1,15 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
+import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
+import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
-import { resolveLocationAccess, resolveMembershipAccess } from "@/lib/location-access";
-import {
-  getTenantDomainAccessScopeFromDomain,
-  isRootPlatformDomain,
-} from "@/lib/tenant-domains";
+import { resolveMembershipAccess } from "@/lib/membership-access";
+import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
 import type { MembershipRole } from "@/lib/staff-auth";
 
-export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
+export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() => {
+  return {
   session: {
     strategy: "jwt",
   },
@@ -25,65 +25,126 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       async authorize(credentials, request) {
         const requestHost =
           request.headers.get("x-forwarded-host") ?? request.headers.get("host");
-        const accessScope = await getTenantDomainAccessScopeFromDomain(requestHost);
+
+        if (!isPlatformAdministrationDomain(requestHost)) {
+          return null;
+        }
 
         return authenticateStaff(credentials?.username, credentials?.password, {
-          platformOnly: isRootPlatformDomain(requestHost),
-          accessScope,
+          accessScope: { type: "PLATFORM" },
         });
+      },
+    }),
+    Credentials({
+      id: "customer-email-otp",
+      name: "Email code",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        code: { label: "Code", inputMode: "numeric", type: "text" },
+      },
+      async authorize(credentials) {
+        const customer = await authenticateCustomerEmailOtp(credentials);
+
+        return customer
+          ? {
+              id: customer.id,
+              email: customer.email,
+              kind: "customer" as const,
+              name: customer.name,
+            }
+          : null;
+      },
+    }),
+    Credentials({
+      id: "customer-auth-handoff",
+      name: "Customer session handoff",
+      credentials: {
+        token: { label: "Token", type: "text" },
+      },
+      async authorize(credentials, request) {
+        const customer = await consumeCustomerAuthHandoff(
+          credentials?.token,
+          request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+        );
+
+        return customer
+          ? {
+              id: customer.id,
+              email: customer.email,
+              kind: "customer" as const,
+              name: customer.name,
+            }
+          : null;
       },
     }),
   ],
   callbacks: {
+    async signIn({ account, user }) {
+      if (!account) {
+        return false;
+      }
+
+      if (account.provider === "credentials") {
+        user.kind = "staff";
+        return true;
+      }
+
+      if (account.provider === "customer-email-otp") {
+        return user.kind === "customer" && Boolean(user.email);
+      }
+
+      if (account.provider === "customer-auth-handoff") {
+        return user.kind === "customer" && Boolean(user.email);
+      }
+
+      return false;
+    },
     async jwt({ token, user, trigger, session }) {
       if (user) {
+        if (user.kind === "customer") {
+          token.sub = user.id;
+          token.kind = "customer";
+          delete token.role;
+          delete token.membershipId;
+          delete token.organizationId;
+          delete token.username;
+
+          return token;
+        }
+
         const staffUser = user as {
           id: string;
           role?: MembershipRole;
           organizationId?: string;
-          locationId?: string;
           username?: string;
         };
 
         token.sub = staffUser.id;
+        token.kind = "staff";
         token.role = staffUser.role ?? "ORDER_OPERATOR";
         token.organizationId = staffUser.organizationId;
-        token.locationId = staffUser.locationId;
         token.username = staffUser.username;
       }
 
-      if (trigger === "update" && token.sub) {
+      if (!token.kind && token.role) {
+        token.kind = "staff";
+      }
+
+      if (trigger === "update" && token.kind === "staff" && token.sub) {
         const nextUser = session?.user as
           | {
               membershipId?: unknown;
               organizationId?: unknown;
-              locationId?: unknown;
             }
           | undefined;
         const membershipId =
           typeof nextUser?.membershipId === "string" ? nextUser.membershipId : "";
-        const organizationId =
-          typeof nextUser?.organizationId === "string" ? nextUser.organizationId : "";
-        const locationId =
-          typeof nextUser?.locationId === "string" ? nextUser.locationId : "";
-
         if (membershipId) {
           const access = await resolveMembershipAccess(token.sub, membershipId);
 
           if (access) {
             token.role = access.role;
             token.organizationId = access.organizationId;
-            token.locationId = access.locationId ?? "";
-          }
-        }
-
-        if (organizationId && locationId) {
-          const access = await resolveLocationAccess(token.sub, organizationId, locationId);
-
-          if (access) {
-            token.role = access.role;
-            token.organizationId = access.organizationId;
-            token.locationId = access.locationId;
           }
         }
       }
@@ -91,19 +152,39 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth({
       return token;
     },
     session({ session, token }) {
-      if (session.user) {
-        session.user.id = typeof token.sub === "string" ? token.sub : "";
-        session.user.role =
-          (typeof token.role === "string" ? token.role : "ORDER_OPERATOR") as MembershipRole;
-        session.user.organizationId =
-          typeof token.organizationId === "string" ? token.organizationId : "";
-        session.user.locationId =
-          typeof token.locationId === "string" ? token.locationId : "";
-        session.user.username =
-          typeof token.username === "string" ? token.username : undefined;
+      const id = typeof token.sub === "string" ? token.sub : "";
+      const baseUser = {
+        email: session.user.email,
+        image: session.user.image,
+        name: session.user.name,
+      };
+
+      if (token.kind === "customer") {
+        return {
+          ...session,
+          user: {
+            ...baseUser,
+            id,
+            kind: "customer" as const,
+          },
+        };
       }
 
-      return session;
+      return {
+        ...session,
+        user: {
+          ...baseUser,
+          id,
+          kind: "staff" as const,
+          role: (typeof token.role === "string"
+            ? token.role
+            : "ORDER_OPERATOR") as MembershipRole,
+          organizationId:
+            typeof token.organizationId === "string" ? token.organizationId : "",
+          username: typeof token.username === "string" ? token.username : undefined,
+        },
+      };
     },
   },
+  };
 });

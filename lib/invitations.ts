@@ -3,12 +3,15 @@ import { and, eq, gt, isNull, or } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
-  locations,
   memberships,
   organizations,
   staffInvitations,
   users,
 } from "@/db/schema";
+import {
+  assertCompanyUserCapacity,
+  getCommercialOwnerOrganizationId,
+} from "@/lib/billing";
 import { hashPassword } from "@/lib/passwords";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { TenantContext } from "@/lib/tenant-context";
@@ -55,13 +58,11 @@ async function createScopedStaffInvitation({
   input,
   origin,
   organizationId,
-  locationId,
   allowedRoles,
 }: {
   input: unknown;
   origin: string;
   organizationId: string;
-  locationId: string | null;
   allowedRoles: readonly MembershipRole[];
 }) {
   const parsed = createStaffInvitationSchema.parse(input);
@@ -117,9 +118,6 @@ async function createScopedStaffInvitation({
           })
           .returning();
 
-    const locationCondition = locationId
-      ? eq(memberships.locationId, locationId)
-      : isNull(memberships.locationId);
     const [existingMembership] = await tx
       .select()
       .from(memberships)
@@ -127,7 +125,6 @@ async function createScopedStaffInvitation({
         and(
           eq(memberships.userId, user.id),
           eq(memberships.organizationId, organizationId),
-          locationCondition,
         ),
       )
       .limit(1);
@@ -160,7 +157,6 @@ async function createScopedStaffInvitation({
           .values({
             userId: user.id,
             organizationId,
-            locationId,
             role: parsed.role,
             isActive: false,
             updatedAt: new Date(),
@@ -191,11 +187,20 @@ export async function createRestaurantAdminStaffInvitation(
   input: unknown,
   origin: string,
 ) {
+  const companyOrganizationId = await getCommercialOwnerOrganizationId(
+    context.organizationId,
+  );
+
+  if (!companyOrganizationId) {
+    throw new Error("Restaurant company could not be resolved.");
+  }
+
+  await assertCompanyUserCapacity(companyOrganizationId);
+
   return createScopedStaffInvitation({
     input,
     origin,
     organizationId: context.organizationId,
-    locationId: context.locationId,
     allowedRoles: ["RESTAURANT_MANAGER", "ORDER_OPERATOR"],
   });
 }
@@ -222,11 +227,12 @@ export async function createCompanyStaffInvitation(
     throw new Error("Company not found.");
   }
 
+  await assertCompanyUserCapacity(company.id);
+
   return createScopedStaffInvitation({
     input: parsed,
     origin,
     organizationId: company.id,
-    locationId: null,
     allowedRoles: ["COMPANY_OWNER"],
   });
 }
@@ -234,7 +240,6 @@ export async function createCompanyStaffInvitation(
 export async function createChildRestaurantStaffInvitation(
   companyOrganizationId: string,
   restaurantOrganizationId: string,
-  locationId: string,
   input: unknown,
   origin: string,
 ) {
@@ -256,21 +261,12 @@ export async function createChildRestaurantStaffInvitation(
     throw new Error("Restaurant not found.");
   }
 
-  const [location] = await db
-    .select({ id: locations.id })
-    .from(locations)
-    .where(and(eq(locations.id, locationId), eq(locations.organizationId, restaurant.id)))
-    .limit(1);
-
-  if (!location) {
-    throw new Error("Restaurant needs a location before staff can be invited.");
-  }
+  await assertCompanyUserCapacity(companyOrganizationId);
 
   return createScopedStaffInvitation({
     input: parsed,
     origin,
     organizationId: restaurant.id,
-    locationId: location.id,
     allowedRoles: ["RESTAURANT_MANAGER", "ORDER_OPERATOR"],
   });
 }

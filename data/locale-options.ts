@@ -1,48 +1,45 @@
 import currencyCodes from "@/data/currencies.json";
 import timezoneNames from "@/data/timezones.json";
+import {
+  DEFAULT_CURRENCY,
+  DEFAULT_LOCALE,
+  DEFAULT_TIMEZONE,
+} from "@/lib/locale-defaults";
 
 export type LocaleOption = {
   value: string;
   label: string;
 };
 
-const preferredTimezones = [
-  "Asia/Calcutta",
-  "UTC",
-  "Europe/London",
-  "Asia/Dubai",
-  "Asia/Singapore",
-  "America/New_York",
-  "Australia/Sydney",
-] as const;
+function withDefaultValue(values: string[], defaultValue: string, variableName: string) {
+  if (!values.includes(defaultValue)) {
+    throw new Error(`${variableName} is not supported by this application.`);
+  }
 
-const preferredCurrencies = ["INR", "GBP", "USD", "EUR", "AED", "SGD", "AUD"] as const;
+  const rest = values.filter((value) => value !== defaultValue);
 
-function withPreferredValues(values: string[], preferredValues: readonly string[]) {
-  const supported = new Set(values);
-  const preferred = preferredValues.filter((value) => supported.has(value));
-  const rest = values.filter((value) => !preferred.includes(value));
-
-  return [...preferred, ...rest];
+  return [defaultValue, ...rest];
 }
 
 function getCurrencyName(currency: string) {
   try {
-    const displayNames = new Intl.DisplayNames(["en"], { type: "currency" });
+    const displayNames = new Intl.DisplayNames([DEFAULT_LOCALE], { type: "currency" });
     return displayNames.of(currency) ?? currency;
   } catch {
     return currency;
   }
 }
 
-export const timezoneValues = withPreferredValues(
+export const timezoneValues = withDefaultValue(
   timezoneNames,
-  preferredTimezones,
+  DEFAULT_TIMEZONE,
+  "NEXT_PUBLIC_DEFAULT_TIMEZONE",
 );
 
-export const currencyValues = withPreferredValues(
+export const currencyValues = withDefaultValue(
   currencyCodes,
-  preferredCurrencies,
+  DEFAULT_CURRENCY,
+  "NEXT_PUBLIC_DEFAULT_CURRENCY",
 );
 
 export const timezoneOptions: LocaleOption[] = timezoneValues.map((timezone) => ({

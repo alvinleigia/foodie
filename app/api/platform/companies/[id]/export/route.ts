@@ -33,7 +33,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     metadata: {
       filename,
       restaurantCount: exportData.restaurants.length,
-      locationCount: exportData.locations.length,
+      orderingPointCount: exportData.orderingPoints.length,
       orderCount: exportData.orders.length,
     },
   });

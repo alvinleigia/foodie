@@ -36,7 +36,6 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      locationId: tenantContext.locationId,
       action: "menu.category.update",
       entityType: "menu_category",
       entityId: category.id,

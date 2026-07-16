@@ -2,13 +2,15 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  customers,
   inventoryItems,
-  locations,
   memberships,
   menuCategories,
   menuItems,
   orderItems,
   orders,
+  orderingPoints,
+  organizationCustomers,
   organizationSubscriptions,
   organizations,
   saasPlans,
@@ -53,11 +55,12 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
   const [
     subscriptionRows,
     restaurants,
-    locationRows,
+    orderingPointRows,
     membershipRows,
     categoryRows,
     itemRows,
     inventoryRows,
+    customerRows,
     orderRows,
   ] = await Promise.all([
     db
@@ -69,7 +72,10 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
       ? db.select().from(organizations).where(inArray(organizations.id, restaurantIds))
       : Promise.resolve([]),
     restaurantIds.length
-      ? db.select().from(locations).where(inArray(locations.organizationId, restaurantIds))
+      ? db
+          .select()
+          .from(orderingPoints)
+          .where(inArray(orderingPoints.organizationId, restaurantIds))
       : Promise.resolve([]),
     db
       .select({
@@ -104,6 +110,20 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
           .where(inArray(inventoryItems.organizationId, restaurantIds))
       : Promise.resolve([]),
     restaurantIds.length
+      ? db
+          .select({
+            identity: {
+              email: customers.email,
+              emailVerifiedAt: customers.emailVerifiedAt,
+              id: customers.id,
+            },
+            profile: organizationCustomers,
+          })
+          .from(organizationCustomers)
+          .innerJoin(customers, eq(customers.id, organizationCustomers.customerId))
+          .where(inArray(organizationCustomers.organizationId, restaurantIds))
+      : Promise.resolve([]),
+    restaurantIds.length
       ? db.select().from(orders).where(inArray(orders.organizationId, restaurantIds))
       : Promise.resolve([]),
   ]);
@@ -135,12 +155,13 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     company,
     subscription: subscriptionRows[0] ?? null,
     restaurants,
-    locations: locationRows,
+    orderingPoints: orderingPointRows,
     memberships: membershipRows,
     invitations: invitationRows,
     menuCategories: categoryRows,
     menuItems: itemRows,
     inventoryItems: inventoryRows,
+    customers: customerRows,
     orders: orderRows,
     orderItems: orderItemRows,
   };

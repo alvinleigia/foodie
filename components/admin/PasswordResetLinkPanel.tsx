@@ -21,7 +21,6 @@ type ResetTarget = {
   role: MembershipRole;
   isActive: boolean;
   organizationName: string;
-  locationName: string | null;
 };
 
 type PasswordResetResponse = {
@@ -98,7 +97,6 @@ export function PasswordResetLinkPanel({
           </p>
           <p className="mt-1 text-xs uppercase tracking-[0.18em] text-stone-400">
             {target.role.replaceAll("_", " ")} - {target.organizationName}
-            {target.locationName ? ` - ${target.locationName}` : ""}
           </p>
         </div>
 

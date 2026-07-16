@@ -21,7 +21,7 @@ export default async function NewCompanyRestaurantPage() {
       activePath="/company"
       eyebrow="Company"
       title="Add restaurant"
-      description="Create a child restaurant and its first operational location."
+      description="Create a restaurant under this company."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,

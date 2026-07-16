@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { and, eq } from "drizzle-orm";
+import { auth } from "@/auth";
 import { generateCustomerToken } from "@/lib/order-token";
-import { getLocationBusinessDate, getNextOrderNumber } from "@/lib/order-number";
+import { getNextOrderNumber, getRestaurantBusinessDate } from "@/lib/order-number";
 import { createOrderSchema } from "@/lib/validations/order";
 import {
   buildOrderSummary,
@@ -21,13 +23,32 @@ import {
 import { getDb } from "@/db";
 import { orderItemModifiers, orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
-import { canAccessRole, restaurantAdminRoles } from "@/lib/role-access";
+import {
+  getCustomerProfile,
+  getStaffVisibleCustomer,
+} from "@/lib/customer-account";
+import {
+  canAccessRole,
+  operationalRoles,
+  restaurantAdminRoles,
+} from "@/lib/role-access";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
   rateLimitResponse,
 } from "@/lib/rate-limit";
 import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
+import { isValidCustomerPhone } from "@/lib/validations/customer";
+import {
+  buildOrderPaymentPricing,
+  cancelPendingOrderPaymentByOrderId,
+  createOrderCheckoutSession,
+} from "@/lib/order-payments";
+import { getStripe } from "@/lib/stripe";
+import { logError } from "@/lib/logger";
+import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
+import { withPublicCustomerContext } from "@/lib/customer-navigation";
+import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 
 export async function GET() {
   try {
@@ -63,6 +84,20 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await auth();
+
+    if (!session?.user || (session.user.kind !== "staff" && session.user.kind !== "customer")) {
+      return NextResponse.json({ error: "Sign in before placing an order." }, { status: 401 });
+    }
+
+    if (
+      session.user.kind === "staff" &&
+      (!isPlatformAdministrationRequest(request) ||
+        !canAccessRole(session.user.role, operationalRoles))
+    ) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const rateLimit = checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-create"),
       limit: 12,
@@ -81,6 +116,83 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
+    const customerProfile =
+      session.user.kind === "customer"
+        ? await getCustomerProfile(session.user.id, tenantContext)
+        : null;
+
+    if (session.user.kind === "customer" && !customerProfile) {
+      return NextResponse.json(
+        { error: "Your customer profile could not be loaded." },
+        { status: 409 },
+      );
+    }
+
+    if (
+      session.user.kind === "customer" &&
+      customerProfile &&
+      customerProfile.name.trim().length < 2
+    ) {
+      return NextResponse.json(
+        { error: "Add your name before placing your order." },
+        { status: 409 },
+      );
+    }
+
+    if (
+      session.user.kind === "customer" &&
+      customerProfile &&
+      !isValidCustomerPhone(customerProfile.phone)
+    ) {
+      return NextResponse.json(
+        { error: "Add a valid phone number before placing your order." },
+        { status: 409 },
+      );
+    }
+
+    const paymentIntegration =
+      session.user.kind === "customer"
+        ? await resolveOrganizationPaymentIntegration(tenantContext.organizationId)
+        : null;
+
+    if (
+      session.user.kind === "customer" &&
+      (!process.env.STRIPE_SECRET_KEY || paymentIntegration?.status !== "CONFIGURED")
+    ) {
+      return NextResponse.json(
+        { error: "Online payment is temporarily unavailable." },
+        { status: 503 },
+      );
+    }
+
+    const orderCustomerName =
+      session.user.kind === "customer"
+        ? customerProfile?.name.trim() ?? ""
+        : parsed.data.customerName?.trim() ?? "";
+
+    if (orderCustomerName.length < 2) {
+      return NextResponse.json(
+        { error: "Enter a customer name or table number." },
+        { status: 400 },
+      );
+    }
+
+    const linkedStaffCustomer =
+      session.user.kind === "staff" && parsed.data.customerId
+        ? await getStaffVisibleCustomer(parsed.data.customerId, tenantContext)
+        : null;
+
+    if (
+      session.user.kind === "staff" &&
+      parsed.data.customerId &&
+      !linkedStaffCustomer
+    ) {
+      return NextResponse.json(
+        { error: "Customer is not available for this restaurant." },
+        { status: 403 },
+      );
+    }
+
     const requestedQuantityByDrinkId = new Map<string, number>();
 
     for (const requestedItem of parsed.data.items) {
@@ -93,7 +205,6 @@ export async function POST(request: NextRequest) {
     const cartItems: Array<{
       categoryId: string;
       organizationId: string;
-      locationId: string;
       categoryName: string;
       drinkId: string;
       drinkName: string;
@@ -145,7 +256,6 @@ export async function POST(request: NextRequest) {
       cartItems.push({
         categoryId: category.id,
         organizationId: tenantContext.organizationId,
-        locationId: tenantContext.locationId,
         categoryName: category.name,
         drinkId: item.id,
         drinkName: item.name,
@@ -164,6 +274,14 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
+    const currency = await getTenantMenuCurrency(tenantContext);
+    const paymentPricing =
+      session.user.kind === "customer"
+        ? buildOrderPaymentPricing(cartItems, currency)
+        : null;
+    const paymentExpiresAt = paymentPricing
+      ? new Date(Date.now() + 30 * 60 * 1000)
+      : null;
     const summaryCategoryName =
       cartItems.length === 1 ? cartItems[0].categoryName : `${cartItems.length} categories`;
     const summaryDrinkName = buildOrderSummary(
@@ -171,17 +289,40 @@ export async function POST(request: NextRequest) {
     );
 
     const createdOrder = await db.transaction(async (tx) => {
-      const orderDate = await getLocationBusinessDate(tx, tenantContext);
+      const orderDate = await getRestaurantBusinessDate(tx, tenantContext);
       const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
       const [newOrder] = await tx
         .insert(orders)
         .values({
           organizationId: tenantContext.organizationId,
-          locationId: tenantContext.locationId,
+          orderingPointId: tenantContext.orderingPointId,
           orderDate,
           orderNo,
-          customerName: parsed.data.customerName.trim(),
+          customerName: orderCustomerName,
           customerToken,
+          customerId:
+            session.user.kind === "customer"
+              ? customerProfile?.customerId ?? null
+              : linkedStaffCustomer?.customerId ?? null,
+          organizationCustomerId:
+            session.user.kind === "customer"
+              ? customerProfile?.id ?? null
+              : linkedStaffCustomer?.id ?? null,
+          createdByUserId: session.user.kind === "staff" ? session.user.id : null,
+          source:
+            session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
+          paymentStatus: paymentPricing ? "PENDING" : "NOT_REQUIRED",
+          paymentAmount: paymentPricing?.amountTotal ?? null,
+          paymentCurrency: paymentPricing?.currency ?? null,
+          paymentAccountOrganizationId:
+            paymentIntegration?.status === "CONFIGURED"
+              ? paymentIntegration.organizationId
+              : null,
+          stripeConnectedAccountId:
+            paymentIntegration?.status === "CONFIGURED"
+              ? paymentIntegration.stripeAccountId
+              : null,
+          paymentExpiresAt,
           categoryId: cartItems[0].categoryId,
           categoryName: summaryCategoryName,
           drinkId: cartItems[0].drinkId,
@@ -201,7 +342,6 @@ export async function POST(request: NextRequest) {
           .insert(orderItems)
           .values({
             organizationId: tenantContext.organizationId,
-            locationId: tenantContext.locationId,
             orderId: newOrder.id,
             categoryId: item.categoryId,
             categoryName: item.categoryName,
@@ -219,7 +359,6 @@ export async function POST(request: NextRequest) {
           await tx.insert(orderItemModifiers).values(
             item.modifiers.map((modifier) => ({
               organizationId: tenantContext.organizationId,
-              locationId: tenantContext.locationId,
               orderItemId: newOrderItem.id,
               modifierGroupId: modifier.modifierGroupId,
               modifierGroupName: modifier.modifierGroupName,
@@ -235,9 +374,93 @@ export async function POST(request: NextRequest) {
       return newOrder;
     });
 
+    let checkoutUrl: string | null = null;
+
+    if (
+      paymentPricing &&
+      paymentExpiresAt &&
+      customerProfile &&
+      paymentIntegration?.status === "CONFIGURED"
+    ) {
+      let checkoutSessionId: string | null = null;
+      const customerContext = {
+        orderingPointQrSlug: request.nextUrl.searchParams.get("qr") ?? undefined,
+        routeSlug: request.nextUrl.searchParams.get("route") ?? undefined,
+      };
+      const cancelPath = withPublicCustomerContext(
+        "/account?payment=cancelled",
+        customerContext,
+      );
+      const successPath = withPublicCustomerContext(
+        "/order/payment/success",
+        customerContext,
+      );
+      const successUrl = new URL(successPath, request.url);
+      successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+
+      try {
+        const checkoutSession = await createOrderCheckoutSession({
+          amountTotalMinor: paymentPricing.amountTotalMinor,
+          applicationFeeBps: paymentIntegration.applicationFeeBps,
+          cancelUrl: new URL(cancelPath, request.url).toString(),
+          customerEmail: customerProfile.email,
+          customerId: customerProfile.customerId,
+          expiresAt: paymentExpiresAt,
+          lineItems: paymentPricing.lineItems,
+          orderId: createdOrder.id,
+          stripeAccountId: paymentIntegration.stripeAccountId,
+          successUrl: successUrl.toString().replace(
+            "%7BCHECKOUT_SESSION_ID%7D",
+            "{CHECKOUT_SESSION_ID}",
+          ),
+        });
+        checkoutSessionId = checkoutSession.id;
+        checkoutUrl = checkoutSession.url;
+
+        const [updatedOrder] = await db
+          .update(orders)
+          .set({
+            stripeCheckoutSessionId: checkoutSession.id,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(orders.id, createdOrder.id),
+              eq(orders.paymentStatus, "PENDING"),
+            ),
+          )
+          .returning({ id: orders.id });
+
+        if (!updatedOrder) {
+          throw new Error("Payment session could not be linked to the order.");
+        }
+      } catch (paymentError) {
+        if (checkoutSessionId) {
+          await getStripe()
+            .checkout.sessions.expire(
+              checkoutSessionId,
+              {},
+              { stripeAccount: paymentIntegration.stripeAccountId },
+            )
+            .catch(() => null);
+        }
+
+        await cancelPendingOrderPaymentByOrderId(createdOrder.id, "FAILED").catch(
+          () => null,
+        );
+        logError("order.checkout.create_failed", paymentError, {
+          orderId: createdOrder.id,
+          organizationId: tenantContext.organizationId,
+          orderingPointId: tenantContext.orderingPointId,
+        });
+        throw new Error("Payment could not be started. Please try again.");
+      }
+    }
+
     return NextResponse.json({
       ...serializeOrder(createdOrder, cartItems),
-      currency: await getTenantMenuCurrency(tenantContext),
+      checkoutUrl,
+      currency,
       ordersResetAt: await getOrdersResetAt(),
     });
   } catch (error) {
