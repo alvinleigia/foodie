@@ -13,7 +13,11 @@ import {
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { customerCancelOrderSchema, staffCancelOrderSchema } from "@/lib/validations/order";
 import { serializeOrder } from "@/lib/orders";
-import { getCurrentTenantContext, getPublicTenantContextFromRequest } from "@/lib/tenant-context";
+import {
+  getPublicTenantContextFromRequest,
+  getStaffTenantContextFromRequest,
+  StaffRestaurantContextError,
+} from "@/lib/tenant-context";
 
 export async function POST(
   request: NextRequest,
@@ -38,7 +42,7 @@ export async function POST(
     }
 
     const tenantContext = isStaff
-      ? await getCurrentTenantContext()
+      ? await getStaffTenantContextFromRequest(request)
       : await getPublicTenantContextFromRequest(request);
     const db = getDb();
     const [order] = await db
@@ -235,7 +239,7 @@ export async function POST(
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to cancel order." },
-      { status: 500 },
+      { status: error instanceof StaffRestaurantContextError ? error.status : 500 },
     );
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import type { CustomerAuthProviders } from "@/components/order/CustomerLoginForm";
+import { MembershipSwitcher } from "@/components/admin/MembershipSwitcher";
 import { OrderForm } from "@/components/order/OrderForm";
 import { AppHeader } from "@/components/shared/AppHeader";
 import {
@@ -8,6 +9,7 @@ import {
   getCustomerOrderHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
+import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CustomerOrderPageProps = {
@@ -19,6 +21,11 @@ type CustomerOrderPageProps = {
   customerAuthProviders: CustomerAuthProviders;
   orderingPointQrSlug?: string;
   routeSlug?: string;
+  staffRestaurant?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
   user?: {
     name?: string | null;
     role: MembershipRole;
@@ -30,16 +37,35 @@ export function CustomerOrderPage({
   customerAuthProviders,
   orderingPointQrSlug,
   routeSlug,
+  staffRestaurant,
   user,
 }: CustomerOrderPageProps) {
   const customerContext = { orderingPointQrSlug, routeSlug };
-  const orderHref = getCustomerOrderHref("/order", customerContext);
+  const staffOrderHref = staffRestaurant
+    ? getStaffRestaurantOrderHref(staffRestaurant.slug)
+    : undefined;
+  const orderHref = staffOrderHref ?? getCustomerOrderHref("/order", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
   return (
     <>
       {user ? (
-        <AppHeader activePath="/order" user={user} />
+        <>
+          <AppHeader
+            activePath={staffOrderHref ?? "/order"}
+            staffOrderHref={staffOrderHref}
+            user={{ ...user, contextName: staffRestaurant?.name }}
+          />
+          {staffRestaurant ? (
+            <div className="flex justify-end">
+              <MembershipSwitcher
+                currentOrganizationId={staffRestaurant.id}
+                currentRole={user.role}
+                redirectAfterSwitch="/order"
+              />
+            </div>
+          ) : null}
+        </>
       ) : (
         <AppHeader
           activePath="/order"
@@ -66,6 +92,7 @@ export function CustomerOrderPage({
         isStaffOrder={Boolean(user)}
         orderingPointQrSlug={orderingPointQrSlug}
         routeSlug={routeSlug}
+        staffRestaurantSlug={staffRestaurant?.slug}
       />
     </>
   );

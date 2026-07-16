@@ -28,6 +28,7 @@ import type { MembershipRole } from "@/lib/staff-auth";
 import { cn } from "@/lib/utils";
 
 type AppHeaderUser = {
+  contextName?: string | null;
   name?: string | null;
   role: MembershipRole;
 };
@@ -49,6 +50,7 @@ type AppHeaderProps = {
     ordersHref?: string;
   };
   navigationItems?: NavigationItem[];
+  staffOrderHref?: string;
   user?: AppHeaderUser | null;
 };
 
@@ -105,8 +107,8 @@ const defaultNavigationItems: NavigationItem[] = [
   },
   {
     href: "/order",
-    label: "Customer order",
-    description: "Public ordering page",
+    label: "Take order",
+    description: "Create a restaurant order",
   },
 ];
 
@@ -133,10 +135,17 @@ export function AppHeader({
   className,
   customerMenu,
   navigationItems = defaultNavigationItems,
+  staffOrderHref,
   user,
 }: AppHeaderProps) {
   const visibleNavigationItems = user
-    ? navigationItems.filter((item) => canAccessNavigationPath(user.role, item.href))
+    ? navigationItems
+        .filter((item) => canAccessNavigationPath(user.role, item.href))
+        .map((item) =>
+          item.href === "/order" && staffOrderHref
+            ? { ...item, href: staffOrderHref }
+            : item,
+        )
     : navigationItems;
 
   return (
@@ -162,7 +171,7 @@ export function AppHeader({
                     {user.name ?? "Account"}
                   </span>
                   <span className="mt-1 block text-xs text-stone-400">
-                    {formatRole(user.role)}
+                    {user.contextName ?? formatRole(user.role)}
                   </span>
                 </span>
                 <span className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
@@ -179,6 +188,7 @@ export function AppHeader({
                 {user.name ?? "Account"}
               </span>
               <span className="mt-0.5 block text-xs text-stone-400">
+                {user.contextName ? `${user.contextName} - ` : ""}
                 {formatRole(user.role)}
               </span>
             </DropdownMenuLabel>

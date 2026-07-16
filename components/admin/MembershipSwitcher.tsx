@@ -39,6 +39,7 @@ type MembershipSwitchResponse = {
 type MembershipSwitcherProps = {
   currentOrganizationId?: string | null;
   currentRole?: MembershipRole | null;
+  redirectAfterSwitch?: string;
 };
 
 function getMembershipLabel(option: MembershipOption) {
@@ -89,6 +90,7 @@ function findActiveMembership(
 export function MembershipSwitcher({
   currentOrganizationId,
   currentRole,
+  redirectAfterSwitch,
 }: MembershipSwitcherProps) {
   const router = useRouter();
   const [payload, setPayload] = useState<MembershipPayload | null>(null);
@@ -159,7 +161,7 @@ export function MembershipSwitcher({
             }
 
             toast.success("Access context switched.");
-            router.push(body.redirectTo ?? "/dashboard");
+            router.push(redirectAfterSwitch ?? body.redirectTo ?? "/dashboard");
             router.refresh();
           });
         }}

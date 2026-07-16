@@ -8,6 +8,7 @@ import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
+import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 
 export type StaffCustomerSummary = {
   email: string;
@@ -19,11 +20,13 @@ export type StaffCustomerSummary = {
 type StaffCustomerSearchProps = {
   onChange: (customer: StaffCustomerSummary | null) => void;
   selectedCustomer: StaffCustomerSummary | null;
+  staffRestaurantSlug?: string;
 };
 
 export function StaffCustomerSearch({
   onChange,
   selectedCustomer,
+  staffRestaurantSlug,
 }: StaffCustomerSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StaffCustomerSummary[]>([]);
@@ -43,7 +46,10 @@ export function StaffCustomerSearch({
 
     try {
       const payload = await fetchJson<{ customers: StaffCustomerSummary[] }>(
-        `/api/customer/search?q=${encodeURIComponent(query.trim())}`,
+        withStaffRestaurantContext(
+          `/api/customer/search?q=${encodeURIComponent(query.trim())}`,
+          staffRestaurantSlug,
+        ),
         { fallbackError: "Customers could not be searched." },
       );
       setResults(payload.customers);

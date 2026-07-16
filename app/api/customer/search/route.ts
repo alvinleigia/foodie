@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { requireStaffSession } from "@/lib/auth";
 import { searchCustomersForStaff } from "@/lib/customer-account";
-import { getCurrentTenantContext } from "@/lib/tenant-context";
+import {
+  getStaffTenantContextFromRequest,
+  StaffRestaurantContextError,
+} from "@/lib/tenant-context";
 
 export async function GET(request: Request) {
   const session = await requireStaffSession();
@@ -20,10 +23,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const customers = await searchCustomersForStaff(
-    query,
-    await getCurrentTenantContext(),
-  );
+  try {
+    const customers = await searchCustomersForStaff(
+      query,
+      await getStaffTenantContextFromRequest(request),
+    );
 
-  return NextResponse.json({ customers });
+    return NextResponse.json({ customers });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Customers could not be searched." },
+      { status: error instanceof StaffRestaurantContextError ? error.status : 500 },
+    );
+  }
 }

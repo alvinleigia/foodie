@@ -26,6 +26,7 @@ import {
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 import {
   isValidCustomerPhone,
   normalizeCustomerPhone,
@@ -90,6 +91,7 @@ type OrderFormProps = {
   isStaffOrder?: boolean;
   orderingPointQrSlug?: string;
   routeSlug?: string;
+  staffRestaurantSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -125,8 +127,19 @@ type OrderDraft = {
   customerName: string;
 };
 
-function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
-  const { orderingPointQrSlug, routeSlug } = options;
+function withOrderContext(
+  path: string,
+  options: {
+    orderingPointQrSlug?: string;
+    routeSlug?: string;
+    staffRestaurantSlug?: string;
+  },
+) {
+  const { orderingPointQrSlug, routeSlug, staffRestaurantSlug } = options;
+
+  if (staffRestaurantSlug) {
+    return withStaffRestaurantContext(path, staffRestaurantSlug);
+  }
 
   if (orderingPointQrSlug) {
     const separator = path.includes("?") ? "&" : "?";
@@ -228,6 +241,7 @@ export function OrderForm({
   isStaffOrder = false,
   orderingPointQrSlug,
   routeSlug,
+  staffRestaurantSlug,
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
@@ -310,7 +324,13 @@ export function OrderForm({
 
     async function loadMenu() {
       setIsLoadingMenu(true);
-      const response = await fetch(withPublicContext("/api/menu", { orderingPointQrSlug, routeSlug }));
+      const response = await fetch(
+        withOrderContext("/api/menu", {
+          orderingPointQrSlug,
+          routeSlug,
+          staffRestaurantSlug,
+        }),
+      );
       const payload = await response.json();
 
       if (!response.ok) {
@@ -336,7 +356,7 @@ export function OrderForm({
     return () => {
       isMounted = false;
     };
-  }, [orderingPointQrSlug, routeSlug]);
+  }, [orderingPointQrSlug, routeSlug, staffRestaurantSlug]);
 
   useEffect(() => {
     if (visibleMenuCategories.length === 0) {
@@ -797,25 +817,32 @@ export function OrderForm({
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch(withPublicContext("/api/orders", { orderingPointQrSlug, routeSlug }), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
-        customerName: isStaffOrder ? draft.customerName.trim() : undefined,
-        items: cartItems.map((item) => ({
-          categoryId: item.categoryId,
-          drinkId: item.drinkId,
-          quantity: item.quantity,
-          notes: item.notes.trim(),
-          modifiers: item.modifierSelections.map((modifier) => ({
-            groupId: modifier.groupId,
-            modifierId: modifier.modifierId,
-            quantity: modifier.quantity,
-          })),
-        })),
+    const response = await fetch(
+      withOrderContext("/api/orders", {
+        orderingPointQrSlug,
+        routeSlug,
+        staffRestaurantSlug,
       }),
-    });
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
+          customerName: isStaffOrder ? draft.customerName.trim() : undefined,
+          items: cartItems.map((item) => ({
+            categoryId: item.categoryId,
+            drinkId: item.drinkId,
+            quantity: item.quantity,
+            notes: item.notes.trim(),
+            modifiers: item.modifierSelections.map((modifier) => ({
+              groupId: modifier.groupId,
+              modifierId: modifier.modifierId,
+              quantity: modifier.quantity,
+            })),
+          })),
+        }),
+      },
+    );
 
     const payload = await response.json();
 
@@ -858,10 +885,16 @@ export function OrderForm({
     setIsCartOpen(false);
     setIsSubmitting(false);
     setScreen("menu");
+
+    if (isStaffOrder && staffRestaurantSlug) {
+      router.refresh();
+      return;
+    }
+
     router.push(
       routeSlug
         ? `/order/status/${encodeURIComponent(routeSlug)}`
-        : withPublicContext("/order/status", { orderingPointQrSlug }),
+        : withOrderContext("/order/status", { orderingPointQrSlug }),
     );
   }
 
@@ -1307,6 +1340,7 @@ export function OrderForm({
           <CardContent className="grid gap-4 px-6 pb-6">
             {isStaffOrder ? (
               <StaffCustomerSearch
+                staffRestaurantSlug={staffRestaurantSlug}
                 selectedCustomer={selectedStaffCustomer}
                 onChange={(nextCustomer) => {
                   setSelectedStaffCustomer(nextCustomer);

@@ -42,6 +42,7 @@ function skipUnlessIsolationConfigured() {
 test.describe("tenant isolation", () => {
   test("scopes tenant data to the active restaurant membership", async ({ page }) => {
     const config = skipUnlessIsolationConfigured();
+    const restaurantSlugs: string[] = [];
 
     await loginWithStaffCredentials(
       page,
@@ -74,10 +75,27 @@ test.describe("tenant isolation", () => {
       expect(response.ok()).toBeTruthy();
 
       const snapshot = (await response.json()) as {
-        organization: { id: string };
+        organization: { id: string; slug: string };
       };
       expect(snapshot.organization.id).toBe(membership?.organizationId);
+      restaurantSlugs.push(snapshot.organization.slug);
+
+      const orderResponse = await page.request.get(
+        pathForBaseUrl(config.baseUrl, "/order"),
+      );
+      expect(orderResponse.ok()).toBeTruthy();
+      expect(new URL(orderResponse.url()).pathname).toBe(
+        `/restaurants/${snapshot.organization.slug}/order`,
+      );
     }
+
+    const staleMenuResponse = await page.request.get(
+      pathForBaseUrl(
+        config.baseUrl,
+        `/api/menu?staffRestaurant=${encodeURIComponent(restaurantSlugs[0])}`,
+      ),
+    );
+    expect(staleMenuResponse.status()).toBe(409);
   });
 
   test("rejects switching to an unavailable membership", async ({ page }) => {
