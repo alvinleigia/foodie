@@ -1,22 +1,21 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-import { auth } from "@/auth";
 import { CompanySubscriptionForm } from "@/components/admin/CompanySubscriptionForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
+import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
+import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
 import { getPlatformCompanyWithSubscription } from "@/lib/saas-admin";
 
 export default async function PlatformCompanySubscriptionPage(
   props: PageProps<"/platform/companies/[id]/subscription">,
 ) {
-  const session = await auth();
-
-  if (!session?.user?.role || !canAccessRole(session.user.role, platformAdminRoles)) {
-    redirect("/staff/login");
-  }
-
   const { id } = await props.params;
-  const company = await getPlatformCompanyWithSubscription(id);
+  const { company: companyRecord, session } =
+    await requirePlatformCompanyWorkspaceAccess({
+      destination: "subscription",
+      identifier: id,
+    });
+  const company = await getPlatformCompanyWithSubscription(companyRecord.id);
 
   if (!company || !company.subscription) {
     notFound();
@@ -36,7 +35,7 @@ export default async function PlatformCompanySubscriptionPage(
     >
       <CompanySubscriptionForm
         apiPath={`/api/platform/companies/${company.id}/subscription`}
-        backHref="/platform/companies"
+        backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
         companyName={company.name}
         currentStatus={company.subscription.status}
       />

@@ -32,7 +32,6 @@ export default async function CompanyWorkspaceUsersPage({
     >
       <PlatformCompanyUsersPanel
         assignHref={getCompanyWorkspaceHref(company.slug, "userReassign")}
-        companyId={company.id}
         description="All accepted and invited users with access inside this company."
         editHrefBase={usersHref}
         emptyMessage="No users have been invited to this company yet."

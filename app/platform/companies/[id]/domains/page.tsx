@@ -1,11 +1,10 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-import { auth } from "@/auth";
 import { CompanyDomainsPanel } from "@/components/admin/CompanyDomainsPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
+import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
+import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
 import {
-  getPlatformCompany,
   listCompanyDomains,
   listCompanyRestaurants,
 } from "@/lib/saas-admin";
@@ -13,20 +12,17 @@ import {
 export default async function PlatformCompanyDomainsPage(
   props: PageProps<"/platform/companies/[id]/domains">,
 ) {
-  const session = await auth();
-
-  if (!session?.user?.role || !canAccessRole(session.user.role, platformAdminRoles)) {
-    redirect("/staff/login");
-  }
-
   const { id } = await props.params;
-  const [company, domains, restaurants] = await Promise.all([
-    getPlatformCompany(id),
-    listCompanyDomains(id),
-    listCompanyRestaurants(id),
+  const { company, session } = await requirePlatformCompanyWorkspaceAccess({
+    destination: "domains",
+    identifier: id,
+  });
+  const [domains, restaurants] = await Promise.all([
+    listCompanyDomains(company.id),
+    listCompanyRestaurants(company.id),
   ]);
 
-  if (!company || !domains) {
+  if (!domains) {
     notFound();
   }
 
@@ -44,7 +40,7 @@ export default async function PlatformCompanyDomainsPage(
     >
       <CompanyDomainsPanel
         apiPath={`/api/platform/companies/${company.id}/domains`}
-        backHref="/platform/companies"
+        backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
         companyName={company.name}
         restaurants={restaurants.map((restaurant) => ({
           id: restaurant.id,
