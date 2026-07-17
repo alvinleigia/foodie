@@ -5,6 +5,7 @@ import { unstable_update } from "@/auth";
 import { requireRole } from "@/lib/auth";
 import { resolveMembershipAccess } from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
+import { resolveStaffHomePath } from "@/lib/staff-home";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 const allStaffRoles: MembershipRole[] = [
@@ -43,5 +44,7 @@ export async function GET(request: Request) {
     },
   });
 
-  redirect(getHomePathForRole(access.role));
+  redirect(
+    (await resolveStaffHomePath(access)) ?? getHomePathForRole(access.role),
+  );
 }

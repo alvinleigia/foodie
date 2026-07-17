@@ -39,6 +39,7 @@ type AppHeaderUser = {
 
 type AppHeaderProps = {
   activePath?: string;
+  brandHref?: string;
   className?: string;
   customerMenu?: {
     accountHref?: string;
@@ -52,9 +53,9 @@ type AppHeaderProps = {
   user?: AppHeaderUser | null;
 };
 
-function BrandLogo() {
+function BrandLogo({ href }: { href: string }) {
   return (
-    <Link href="/" className="group inline-flex items-center gap-3">
+    <Link href={href} className="group inline-flex items-center gap-3">
       <span className="grid size-10 place-items-center rounded-lg border border-white/15 bg-white text-sm font-black tracking-tight text-stone-950 shadow-sm">
         F
       </span>
@@ -72,6 +73,7 @@ function BrandLogo() {
 
 export function AppHeader({
   activePath,
+  brandHref = "/",
   className,
   customerMenu,
   navigationItems = staffNavigationItems,
@@ -97,7 +99,7 @@ export function AppHeader({
         className,
       )}
     >
-      <BrandLogo />
+      <BrandLogo href={brandHref} />
 
       {user ? (
         <DropdownMenu>

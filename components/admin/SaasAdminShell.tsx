@@ -17,6 +17,7 @@ import {
 } from "@/lib/staff-navigation";
 import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 import type { MembershipRole } from "@/lib/staff-auth";
+import { getStaffHomePathForOrganization } from "@/lib/staff-home";
 
 type SaasAdminShellProps = {
   activePath: string;
@@ -74,6 +75,8 @@ export async function SaasAdminShell({
   const navigationItems = isUatDatabaseResetEnabled()
     ? [...scopedNavigationItems, uatResetNavigationItem]
     : scopedNavigationItems;
+  const brandHref =
+    getStaffHomePathForOrganization(user.role, organizationContext) ?? "/dashboard";
   const content = commercialAccess.allowed ? (
     children
   ) : (
@@ -84,6 +87,7 @@ export async function SaasAdminShell({
     <AppShell variant="dark" contentClassName="max-w-7xl">
       <AppHeader
         activePath={activePath}
+        brandHref={brandHref}
         navigationItems={navigationItems}
         user={{
           contextName: organizationContext?.name,

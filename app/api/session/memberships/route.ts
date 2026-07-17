@@ -8,6 +8,7 @@ import {
   resolveMembershipAccess,
 } from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
+import { resolveStaffHomePath } from "@/lib/staff-home";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 const allStaffRoles: MembershipRole[] = [
@@ -66,8 +67,11 @@ export async function PATCH(request: Request) {
     },
   });
 
+  const redirectTo =
+    (await resolveStaffHomePath(access)) ?? getHomePathForRole(access.role);
+
   return NextResponse.json({
     active: access,
-    redirectTo: getHomePathForRole(access.role),
+    redirectTo,
   });
 }

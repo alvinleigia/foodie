@@ -15,6 +15,7 @@ test.describe("platform login", () => {
   test("logs in as the SaaS owner", async ({ page }) => {
     await loginAsPlatformOwner(page);
 
+    await expect(page).toHaveURL((url) => url.pathname === "/platform");
     await expect(page.getByRole("heading", { name: /platform/i })).toBeVisible();
   });
 });

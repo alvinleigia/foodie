@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { getMembershipAccessOptions } from "@/lib/membership-access";
 import { getHomePathForRole } from "@/lib/role-access";
+import { resolveStaffHomePath } from "@/lib/staff-home";
 import { getTenantDomainAccessScopeFromDomain } from "@/lib/tenant-domains";
 
 export default async function DashboardRedirectPage() {
@@ -33,5 +34,8 @@ export default async function DashboardRedirectPage() {
     );
   }
 
-  redirect(getHomePathForRole(session.user.role));
+  redirect(
+    (await resolveStaffHomePath(session.user)) ??
+      getHomePathForRole(session.user.role),
+  );
 }
