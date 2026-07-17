@@ -7,7 +7,6 @@ import {
   getMembershipAccessOptions,
   resolveMembershipAccess,
 } from "@/lib/membership-access";
-import { getHomePathForRole } from "@/lib/role-access";
 import { resolveStaffHomePath } from "@/lib/staff-home";
 import type { MembershipRole } from "@/lib/staff-auth";
 
@@ -61,14 +60,20 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Membership access not found." }, { status: 403 });
   }
 
+  const redirectTo = await resolveStaffHomePath(access);
+
+  if (!redirectTo) {
+    return NextResponse.json(
+      { error: "Membership workspace is not configured." },
+      { status: 409 },
+    );
+  }
+
   await unstable_update({
     user: {
       membershipId: access.membershipId,
     },
   });
-
-  const redirectTo =
-    (await resolveStaffHomePath(access)) ?? getHomePathForRole(access.role);
 
   return NextResponse.json({
     active: access,

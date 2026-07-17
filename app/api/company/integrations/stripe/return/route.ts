@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const company = await getPlatformCompany(session.user.organizationId);
 
   if (!company) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/staff/login", request.url));
   }
 
   await syncOrganizationStripeAccount(company.id).catch(() => null);

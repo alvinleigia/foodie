@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
@@ -10,6 +10,7 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
+import { resolveStaffHomePath } from "@/lib/staff-home";
 
 type CustomerOrderStatusPageProps = {
   searchParams: PageProps<"/order/status">["searchParams"];
@@ -29,7 +30,13 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
   if (hasTenantContext && user) {
-    redirect("/operations/orders");
+    const homePath = await resolveStaffHomePath(user);
+
+    if (!homePath) {
+      notFound();
+    }
+
+    redirect(homePath);
   }
 
   if (hasTenantContext && !customer) {

@@ -16,6 +16,11 @@ export type MembershipPayload = {
   memberships: MembershipOption[];
 };
 
+export type MembershipSwitchPayload = {
+  active: MembershipPayload["active"];
+  redirectTo: string;
+};
+
 export function requireEnv(name: string) {
   const value = process.env[name];
 
@@ -110,6 +115,8 @@ export async function activateAccessContext(
   );
 
   expect(switchResponse.ok()).toBeTruthy();
+
+  return (await switchResponse.json()) as MembershipSwitchPayload;
 }
 
 export async function loginAsPlatformOwner(page: Page) {

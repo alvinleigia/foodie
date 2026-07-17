@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { canAccessNavigationPath, formatRole } from "@/lib/role-access";
+import { canAccessNavigation, formatRole } from "@/lib/role-access";
 import { clearStoredCustomerOrders } from "@/lib/customer-orders";
 import {
   staffNavigationItems,
@@ -82,9 +82,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const visibleNavigationItems = user
     ? navigationItems
-        .filter((item) =>
-          canAccessNavigationPath(user.role, item.accessPath ?? item.href),
-        )
+        .filter((item) => canAccessNavigation(user.role, item.access))
         .map((item) =>
           item.href === "/order" && staffOrderHref
             ? { ...item, href: staffOrderHref }

@@ -6,92 +6,43 @@ import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspaceDestination,
 } from "@/lib/restaurant-workspace";
+import type { StaffNavigationAccess } from "@/lib/role-access";
 
 export type StaffNavigationItem = {
-  accessPath?: string;
+  access: StaffNavigationAccess;
   href: string;
   label: string;
   description: string;
 };
 
+type NavigationDefinition<Destination extends string> = Omit<
+  StaffNavigationItem,
+  "href"
+> & {
+  destination: Destination;
+};
+
 export const staffNavigationItems: StaffNavigationItem[] = [
   {
+    access: "PLATFORM_ADMIN",
     href: "/platform",
     label: "Platform",
     description: "SaaS dashboard.",
   },
   {
+    access: "PLATFORM_ADMIN",
     href: "/platform/companies",
     label: "Companies",
     description: "Parent company tenants.",
   },
   {
+    access: "PLATFORM_ADMIN",
     href: "/platform/users/memberships",
     label: "User Memberships",
     description: "Review cross-tenant access.",
   },
   {
-    href: "/company",
-    label: "Company",
-    description: "Company dashboard.",
-  },
-  {
-    href: "/company/restaurants",
-    label: "Company Restaurants",
-    description: "Manage company restaurants.",
-  },
-  {
-    href: "/company/users",
-    label: "Company Users",
-    description: "Manage user access.",
-  },
-  {
-    href: "/company/integrations",
-    label: "Company Integrations",
-    description: "Email and payment services.",
-  },
-  {
-    href: "/restaurant",
-    label: "Restaurant",
-    description: "Restaurant dashboard.",
-  },
-  {
-    href: "/restaurant/staff",
-    label: "Restaurant Staff",
-    description: "Manage restaurant staff.",
-  },
-  {
-    href: "/restaurant/ordering-point",
-    label: "Ordering Point",
-    description: "Manage the restaurant QR entry point.",
-  },
-  {
-    href: "/restaurant/integrations",
-    label: "Restaurant Integrations",
-    description: "Inherited and custom services.",
-  },
-  {
-    href: "/order",
-    label: "Take order",
-    description: "Create a restaurant order.",
-  },
-  {
-    href: "/operations/orders",
-    label: "Orders",
-    description: "Live order operations.",
-  },
-  {
-    href: "/operations/menu",
-    label: "Menu Manager",
-    description: "Categories and products.",
-  },
-  {
-    href: "/operations/inventory",
-    label: "Inventory",
-    description: "Stock control.",
-  },
-  {
-    accessPath: "/audit-logs",
+    access: "PLATFORM_ADMIN",
     href: "/platform/audit-logs",
     label: "Audit logs",
     description: "Security and change history.",
@@ -99,59 +50,116 @@ export const staffNavigationItems: StaffNavigationItem[] = [
 ];
 
 export const uatResetNavigationItem: StaffNavigationItem = {
+  access: "PLATFORM_ADMIN",
   href: "/platform/uat-reset",
   label: "UAT Reset",
   description: "Clear testing data.",
 };
 
-const restaurantDestinationByPath: Partial<
-  Record<string, RestaurantWorkspaceDestination>
-> = {
-  "/audit-logs": "auditLogs",
-  "/operations/inventory": "inventory",
-  "/operations/menu": "menu",
-  "/operations/orders": "orders",
-  "/order": "order",
-  "/restaurant": "dashboard",
-  "/restaurant/integrations": "integrations",
-  "/restaurant/ordering-point": "orderingPoint",
-  "/restaurant/staff": "staff",
-};
+const companyNavigation: Array<
+  NavigationDefinition<CompanyWorkspaceDestination>
+> = [
+  {
+    access: "COMPANY_ADMIN",
+    destination: "dashboard",
+    label: "Company",
+    description: "Company dashboard.",
+  },
+  {
+    access: "COMPANY_ADMIN",
+    destination: "restaurants",
+    label: "Company Restaurants",
+    description: "Manage company restaurants.",
+  },
+  {
+    access: "COMPANY_ADMIN",
+    destination: "users",
+    label: "Company Users",
+    description: "Manage user access.",
+  },
+  {
+    access: "COMPANY_ADMIN",
+    destination: "integrations",
+    label: "Company Integrations",
+    description: "Email and payment services.",
+  },
+  {
+    access: "COMPANY_ADMIN",
+    destination: "auditLogs",
+    label: "Audit logs",
+    description: "Security and change history.",
+  },
+];
 
-const companyDestinationByPath: Partial<
-  Record<string, CompanyWorkspaceDestination>
-> = {
-  "/audit-logs": "auditLogs",
-  "/company": "dashboard",
-  "/company/integrations": "integrations",
-  "/company/restaurants": "restaurants",
-  "/company/users": "users",
-};
+const restaurantNavigation: Array<
+  NavigationDefinition<RestaurantWorkspaceDestination>
+> = [
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "dashboard",
+    label: "Restaurant",
+    description: "Restaurant dashboard.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "staff",
+    label: "Restaurant Staff",
+    description: "Manage restaurant staff.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "orderingPoint",
+    label: "Ordering Point",
+    description: "Manage the restaurant QR entry point.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "integrations",
+    label: "Restaurant Integrations",
+    description: "Inherited and custom services.",
+  },
+  {
+    access: "RESTAURANT_OPERATIONS",
+    destination: "order",
+    label: "Take order",
+    description: "Create a restaurant order.",
+  },
+  {
+    access: "RESTAURANT_OPERATIONS",
+    destination: "orders",
+    label: "Orders",
+    description: "Live order operations.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "menu",
+    label: "Menu Manager",
+    description: "Categories and products.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "inventory",
+    label: "Inventory",
+    description: "Stock control.",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    destination: "auditLogs",
+    label: "Audit logs",
+    description: "Security and change history.",
+  },
+];
 
 export function getStaffNavigationItemsForCompany(companySlug: string) {
-  return staffNavigationItems.map((item) => {
-    const destination = companyDestinationByPath[item.accessPath ?? item.href];
-
-    return destination
-      ? {
-          ...item,
-          accessPath: item.href,
-          href: getCompanyWorkspaceHref(companySlug, destination),
-        }
-      : item;
-  });
+  return companyNavigation.map(({ destination, ...item }) => ({
+    ...item,
+    href: getCompanyWorkspaceHref(companySlug, destination),
+  }));
 }
 
 export function getStaffNavigationItemsForRestaurant(restaurantSlug: string) {
-  return staffNavigationItems.map((item) => {
-    const destination = restaurantDestinationByPath[item.accessPath ?? item.href];
-
-    return destination
-      ? {
-          ...item,
-          accessPath: item.href,
-          href: getRestaurantWorkspaceHref(restaurantSlug, destination),
-        }
-      : item;
-  });
+  return restaurantNavigation.map(({ destination, ...item }) => ({
+    ...item,
+    href: getRestaurantWorkspaceHref(restaurantSlug, destination),
+  }));
 }

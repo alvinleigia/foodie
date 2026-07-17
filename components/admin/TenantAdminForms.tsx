@@ -84,12 +84,12 @@ function StaffRoleSelect({
 }
 
 function FormActions({
-  backHref = "/restaurant",
+  backHref,
   isDisabled = false,
   isSaving,
   submitLabel,
 }: {
-  backHref?: string;
+  backHref: string;
   isDisabled?: boolean;
   isSaving: boolean;
   submitLabel: string;
@@ -467,10 +467,10 @@ export function TenantOrderingPointSettingsForm({
 }
 
 export function TenantStaffInviteForm({
-  assignExistingHref = "/restaurant/staff/reassign",
+  assignExistingHref,
   backHref,
 }: {
-  assignExistingHref?: string;
+  assignExistingHref: string;
   backHref: string;
 }) {
   return (

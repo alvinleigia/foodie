@@ -29,7 +29,7 @@ export async function authenticate(
     await signIn("credentials", {
       username,
       password: formData.get("password"),
-      redirectTo: redirectTo ?? "/dashboard",
+      redirectTo: redirectTo ?? "/staff/login",
     });
 
     return {};

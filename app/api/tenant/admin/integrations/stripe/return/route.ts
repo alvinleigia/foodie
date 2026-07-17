@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const access = await getCurrentStaffRestaurantAccess().catch(() => null);
 
   if (!access) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/staff/login", request.url));
   }
 
   await syncOrganizationStripeAccount(access.tenantContext.organizationId).catch(

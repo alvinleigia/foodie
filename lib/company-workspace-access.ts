@@ -2,15 +2,12 @@ import { notFound, redirect } from "next/navigation";
 
 import { requireRole } from "@/lib/auth";
 import {
-  getCompanyRestaurant,
   getCompanyRestaurantBySlug,
   getPlatformCompany,
 } from "@/lib/saas-admin";
 import { companyAdminRoles } from "@/lib/role-access";
 import {
-  getCompanyRestaurantHref,
   getCompanyWorkspaceHref,
-  type CompanyRestaurantDestination,
   type CompanyWorkspaceDestination,
 } from "@/lib/company-workspace";
 
@@ -32,7 +29,7 @@ export async function requireCompanyWorkspaceAccess({
   const company = await getPlatformCompany(session.user.organizationId);
 
   if (!company) {
-    redirect("/dashboard");
+    notFound();
   }
 
   if (companySlug && company.slug !== companySlug.trim().toLowerCase()) {
@@ -63,28 +60,4 @@ export async function requireCompanyRestaurantWorkspaceAccess({
   }
 
   return { company, restaurant, session };
-}
-
-export async function redirectToActiveCompanyWorkspace(
-  destination: CompanyWorkspaceDestination,
-) {
-  const { company } = await requireCompanyWorkspaceAccess({ destination });
-
-  redirect(getCompanyWorkspaceHref(company.slug, destination));
-}
-
-export async function redirectToActiveCompanyRestaurantWorkspace(
-  restaurantId: string,
-  destination: CompanyRestaurantDestination,
-) {
-  const { company } = await requireCompanyWorkspaceAccess({
-    destination: "restaurants",
-  });
-  const restaurant = await getCompanyRestaurant(company.id, restaurantId);
-
-  if (!restaurant) {
-    notFound();
-  }
-
-  redirect(getCompanyRestaurantHref(company.slug, restaurant.slug, destination));
 }

@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 
 import { auth } from "@/auth";
@@ -40,13 +40,13 @@ export async function requireRestaurantWorkspaceAccess({
   }
 
   if (!(await isSessionAccessAllowedForCurrentDomain(session.user))) {
-    redirect("/dashboard");
+    notFound();
   }
 
   const access = await getCurrentStaffRestaurantAccess().catch(() => null);
 
   if (!access) {
-    redirect("/dashboard");
+    notFound();
   }
 
   if (
@@ -75,16 +75,4 @@ export async function requireRestaurantWorkspaceAdminPage(
   }
 
   return { ...result, snapshot };
-}
-
-export async function redirectToActiveRestaurantWorkspace(
-  destination: RestaurantWorkspaceDestination,
-  allowedRoles: MembershipRole[],
-) {
-  const { access } = await requireRestaurantWorkspaceAccess({
-    allowedRoles,
-    destination,
-  });
-
-  redirect(getRestaurantWorkspaceHref(access.restaurant.slug, destination));
 }

@@ -1,6 +1,9 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { expect, test } from "@playwright/test";
 
-import { canAccessNavigationPath } from "@/lib/role-access";
+import { canAccessNavigation } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
 import {
   getStaffNavigationItemsForCompany,
@@ -17,7 +20,7 @@ type NavigationPolicy = {
 
 function getVisibleNavigationItems(policy: NavigationPolicy) {
   return policy.items.filter((item) =>
-    canAccessNavigationPath(policy.role, item.accessPath ?? item.href),
+    canAccessNavigation(policy.role, item.access),
   );
 }
 
@@ -56,6 +59,18 @@ test.describe("staff navigation URL policy", () => {
           policy.pathPattern,
         );
       }
+    });
+  }
+
+  for (const route of [
+    "audit-logs",
+    "company",
+    "dashboard",
+    "operations",
+    "restaurant",
+  ]) {
+    test(`legacy /${route} route is not published`, () => {
+      expect(existsSync(resolve(process.cwd(), "app", route))).toBe(false);
     });
   }
 });

@@ -76,7 +76,7 @@ export async function SaasAdminShell({
     ? [...scopedNavigationItems, uatResetNavigationItem]
     : scopedNavigationItems;
   const brandHref =
-    getStaffHomePathForOrganization(user.role, organizationContext) ?? "/dashboard";
+    getStaffHomePathForOrganization(user.role, organizationContext) ?? "/";
   const content = commercialAccess.allowed ? (
     children
   ) : (

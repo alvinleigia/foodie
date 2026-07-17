@@ -19,6 +19,12 @@ export const auditLogRoles = [
   ...restaurantAdminRoles,
 ] satisfies MembershipRole[];
 
+export type StaffNavigationAccess =
+  | "COMPANY_ADMIN"
+  | "PLATFORM_ADMIN"
+  | "RESTAURANT_ADMIN"
+  | "RESTAURANT_OPERATIONS";
+
 export function canAccessRole(
   role: MembershipRole | null | undefined,
   allowedRoles: MembershipRole[],
@@ -26,76 +32,23 @@ export function canAccessRole(
   return Boolean(role && allowedRoles.includes(role));
 }
 
-export function getHomePathForRole(role: MembershipRole) {
-  if (canAccessRole(role, platformAdminRoles)) {
-    return "/platform";
-  }
-
-  if (role === "COMPANY_OWNER") {
-    return "/company";
-  }
-
-  if (role === "RESTAURANT_MANAGER") {
-    return "/restaurant";
-  }
-
-  if (role === "ORDER_OPERATOR") {
-    return "/operations/orders";
-  }
-
-  return "/operations/orders";
-}
-
-export function canAccessNavigationPath(role: MembershipRole, href: string) {
-  if (
-    href === "/platform" ||
-    href === "/platform/companies" ||
-    href === "/platform/users/reassign" ||
-    href === "/platform/users/memberships" ||
-    href === "/platform/uat-reset"
-  ) {
+export function canAccessNavigation(
+  role: MembershipRole,
+  access: StaffNavigationAccess,
+) {
+  if (access === "PLATFORM_ADMIN") {
     return canAccessRole(role, platformAdminRoles);
   }
 
-  if (
-    href === "/company" ||
-    href === "/company/restaurants" ||
-    href === "/company/integrations" ||
-    href === "/company/users"
-  ) {
+  if (access === "COMPANY_ADMIN") {
     return role === "COMPANY_OWNER";
   }
 
-  if (
-    href === "/restaurant" ||
-    href === "/restaurant/integrations" ||
-    href === "/restaurant/ordering-point" ||
-    href === "/restaurant/staff"
-  ) {
+  if (access === "RESTAURANT_ADMIN") {
     return role === "RESTAURANT_MANAGER";
   }
 
-  if (href === "/operations/orders") {
-    return role === "RESTAURANT_MANAGER" || role === "ORDER_OPERATOR";
-  }
-
-  if (href === "/order") {
-    return canAccessRole(role, operationalRoles);
-  }
-
-  if (href === "/operations/menu") {
-    return role === "RESTAURANT_MANAGER";
-  }
-
-  if (href === "/operations/inventory") {
-    return role === "RESTAURANT_MANAGER";
-  }
-
-  if (href === "/audit-logs") {
-    return canAccessRole(role, auditLogRoles);
-  }
-
-  return true;
+  return canAccessRole(role, operationalRoles);
 }
 
 export function formatRole(role: MembershipRole) {
