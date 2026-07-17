@@ -91,7 +91,8 @@ export const staffNavigationItems: StaffNavigationItem[] = [
     description: "Stock control.",
   },
   {
-    href: "/audit-logs",
+    accessPath: "/audit-logs",
+    href: "/platform/audit-logs",
     label: "Audit logs",
     description: "Security and change history.",
   },
@@ -129,7 +130,7 @@ const companyDestinationByPath: Partial<
 
 export function getStaffNavigationItemsForCompany(companySlug: string) {
   return staffNavigationItems.map((item) => {
-    const destination = companyDestinationByPath[item.href];
+    const destination = companyDestinationByPath[item.accessPath ?? item.href];
 
     return destination
       ? {
@@ -143,7 +144,7 @@ export function getStaffNavigationItemsForCompany(companySlug: string) {
 
 export function getStaffNavigationItemsForRestaurant(restaurantSlug: string) {
   return staffNavigationItems.map((item) => {
-    const destination = restaurantDestinationByPath[item.href];
+    const destination = restaurantDestinationByPath[item.accessPath ?? item.href];
 
     return destination
       ? {
