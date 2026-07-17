@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 
 import { canAccessNavigation } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
@@ -22,6 +23,18 @@ function getVisibleNavigationItems(policy: NavigationPolicy) {
   return policy.items.filter((item) =>
     canAccessNavigation(policy.role, item.access),
   );
+}
+
+async function doesProxyMatch(url: string) {
+  process.env.APP_ROOT_DOMAIN ??= "example.com";
+
+  const { config } = await import("../../proxy");
+
+  return unstable_doesMiddlewareMatch({
+    config,
+    nextConfig: {},
+    url,
+  });
 }
 
 const navigationPolicies: NavigationPolicy[] = [
@@ -71,6 +84,26 @@ test.describe("staff navigation URL policy", () => {
   ]) {
     test(`legacy /${route} route is not published`, () => {
       expect(existsSync(resolve(process.cwd(), "app", route))).toBe(false);
+    });
+  }
+
+  for (const route of [
+    "/companies/example-company",
+    "/platform",
+    "/restaurants/example-restaurant/orders",
+  ]) {
+    test(`staff route ${route} is confined to the administration domain`, async () => {
+      expect(await doesProxyMatch(route)).toBe(true);
+    });
+  }
+
+  for (const route of [
+    "/account",
+    "/customer/login",
+    "/order/example-restaurant",
+  ]) {
+    test(`customer route ${route} remains available on white-label domains`, async () => {
+      expect(await doesProxyMatch(route)).toBe(false);
     });
   }
 });
