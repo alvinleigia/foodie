@@ -5,6 +5,10 @@ import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import {
+  OrderTransitionConflictError,
+  requireOrderTransitionResult,
+} from "@/lib/order-transition";
 import { serializeOrder } from "@/lib/orders";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -43,8 +47,40 @@ export async function POST(
       );
     }
 
-    const updatedOrder = await db.transaction(async (tx) => {
+    const transition = await db.transaction(async (tx) => {
       const now = new Date();
+      const [lockedOrder] = await tx
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.id, id),
+            eq(orders.organizationId, tenantContext.organizationId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!lockedOrder || lockedOrder.status !== order.status) {
+        throw new OrderTransitionConflictError();
+      }
+
+      const [updatedOrder] = await tx
+        .update(orders)
+        .set({
+          status: "READY",
+          readyAt: lockedOrder.readyAt ?? now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orders.id, id),
+            eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.status, lockedOrder.status),
+          ),
+        )
+        .returning();
+      const nextOrder = requireOrderTransitionResult(updatedOrder);
 
       await tx
         .update(orderItems)
@@ -61,22 +97,7 @@ export async function POST(
           ),
         );
 
-      const [nextOrder] = await tx
-        .update(orders)
-        .set({
-          status: "READY",
-          readyAt: order.readyAt ?? now,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(orders.id, id),
-            eq(orders.organizationId, tenantContext.organizationId),
-          ),
-        )
-        .returning();
-
-      return nextOrder;
+      return { previousOrder: lockedOrder, updatedOrder: nextOrder };
     });
 
     await writeAuditLog({
@@ -84,19 +105,19 @@ export async function POST(
       organizationId: tenantContext.organizationId,
       action: "order.ready",
       entityType: "order",
-      entityId: updatedOrder.id,
+      entityId: transition.updatedOrder.id,
       metadata: {
-        orderNo: updatedOrder.orderNo,
-        previousStatus: order.status,
-        nextStatus: updatedOrder.status,
+        orderNo: transition.updatedOrder.orderNo,
+        previousStatus: transition.previousOrder.status,
+        nextStatus: transition.updatedOrder.status,
       },
     });
 
-    return NextResponse.json(serializeOrder(updatedOrder));
+    return NextResponse.json(serializeOrder(transition.updatedOrder));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update order." },
-      { status: 500 },
+      { status: error instanceof OrderTransitionConflictError ? 409 : 500 },
     );
   }
 }

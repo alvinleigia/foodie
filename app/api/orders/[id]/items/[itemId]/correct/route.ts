@@ -10,6 +10,10 @@ import {
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
 import { canCorrectOrderItemStatus } from "@/lib/order-corrections";
+import {
+  OrderTransitionConflictError,
+  requireOrderTransitionResult,
+} from "@/lib/order-transition";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
@@ -214,10 +218,52 @@ export async function POST(
 
     const result = await db.transaction(async (tx) => {
       const now = new Date();
+      const [lockedOrder] = await tx
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.id, id),
+            eq(orders.organizationId, tenantContext.organizationId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (
+        !lockedOrder ||
+        lockedOrder.status !== order.status ||
+        lockedOrder.cancellationFeeBpsApplied !==
+          order.cancellationFeeBpsApplied
+      ) {
+        throw new OrderTransitionConflictError();
+      }
+
+      const [lockedItem] = await tx
+        .select()
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.id, itemId),
+            eq(orderItems.orderId, id),
+            eq(orderItems.organizationId, tenantContext.organizationId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!lockedItem || lockedItem.status !== item.status) {
+        throw new OrderTransitionConflictError();
+      }
+
       const itemPatch = getItemTimestampPatch(nextStatus, now);
 
-      if (item.status === "CANCELLED" && nextStatus === "PENDING") {
-        const wasReserved = await reserveInventoryForOrderItem(tx, tenantContext, item);
+      if (lockedItem.status === "CANCELLED" && nextStatus === "PENDING") {
+        const wasReserved = await reserveInventoryForOrderItem(
+          tx,
+          tenantContext,
+          lockedItem,
+        );
 
         if (wasReserved) {
           Object.assign(itemPatch, { inventoryReservedAt: now });
@@ -232,9 +278,11 @@ export async function POST(
             eq(orderItems.id, itemId),
             eq(orderItems.orderId, id),
             eq(orderItems.organizationId, tenantContext.organizationId),
+            eq(orderItems.status, lockedItem.status),
           ),
         )
         .returning();
+      const nextItem = requireOrderTransitionResult(updatedItem);
 
       const currentItems = await tx
         .select()
@@ -249,16 +297,21 @@ export async function POST(
 
       const [updatedOrder] = await tx
         .update(orders)
-        .set(getOrderTimestampPatch(nextOrderStatus, order, now))
+        .set(getOrderTimestampPatch(nextOrderStatus, lockedOrder, now))
         .where(
           and(
             eq(orders.id, id),
             eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.status, lockedOrder.status),
           ),
         )
         .returning();
 
-      return { updatedItem, updatedOrder };
+      return {
+        previousItem: lockedItem,
+        updatedItem: nextItem,
+        updatedOrder: requireOrderTransitionResult(updatedOrder),
+      };
     });
 
     await writeAuditLog({
@@ -272,7 +325,7 @@ export async function POST(
         orderNo: result.updatedOrder.orderNo,
         drinkName: result.updatedItem.drinkName,
         quantity: result.updatedItem.quantity,
-        previousStatus: item.status,
+        previousStatus: result.previousItem.status,
         nextStatus: result.updatedItem.status,
         orderStatus: result.updatedOrder.status,
         reason,
@@ -286,7 +339,10 @@ export async function POST(
       itemStatus: result.updatedItem.status,
     });
   } catch (error) {
-    if (error instanceof InventoryReservationError) {
+    if (
+      error instanceof InventoryReservationError ||
+      error instanceof OrderTransitionConflictError
+    ) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

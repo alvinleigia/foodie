@@ -6,6 +6,10 @@ import { orderItems, orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
+import {
+  OrderTransitionConflictError,
+  requireOrderTransitionResult,
+} from "@/lib/order-transition";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 type ItemAction = "start" | "ready" | "announce" | "deliver" | "cancel";
@@ -123,46 +127,68 @@ export async function POST(
       );
     }
 
-    if (body.action === "announce") {
-      await db
-        .update(orders)
-        .set({
-          announcementCount: sql`${orders.announcementCount} + 1`,
-          updatedAt: new Date(),
-        })
+    const result = await db.transaction(async (tx) => {
+      const now = new Date();
+      const [lockedOrder] = await tx
+        .select()
+        .from(orders)
         .where(
           and(
             eq(orders.id, id),
             eq(orders.organizationId, tenantContext.organizationId),
           ),
-        );
+        )
+        .limit(1)
+        .for("update");
 
-      await writeAuditLog({
-        actor: session.user,
-        organizationId: tenantContext.organizationId,
-        action: "order.item.announce",
-        entityType: "order_item",
-        entityId: item.id,
-        metadata: {
-          orderId: order.id,
-          orderNo: order.orderNo,
-          drinkName: item.drinkName,
-          quantity: item.quantity,
-          previousStatus: item.status,
-          nextStatus: item.status,
-        },
-      });
+      if (
+        !lockedOrder ||
+        lockedOrder.status !== order.status ||
+        lockedOrder.paymentStatus !== order.paymentStatus
+      ) {
+        throw new OrderTransitionConflictError();
+      }
 
-      return NextResponse.json({
-        orderId: order.id,
-        orderStatus: order.status,
-        itemId: item.id,
-        itemStatus: item.status,
-      });
-    }
+      const [lockedItem] = await tx
+        .select()
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.id, itemId),
+            eq(orderItems.orderId, id),
+            eq(orderItems.organizationId, tenantContext.organizationId),
+          ),
+        )
+        .limit(1)
+        .for("update");
 
-    const result = await db.transaction(async (tx) => {
-      const now = new Date();
+      if (!lockedItem || lockedItem.status !== item.status) {
+        throw new OrderTransitionConflictError();
+      }
+
+      if (body.action === "announce") {
+        const [updatedOrder] = await tx
+          .update(orders)
+          .set({
+            announcementCount: sql`${orders.announcementCount} + 1`,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(orders.id, id),
+              eq(orders.organizationId, tenantContext.organizationId),
+              eq(orders.status, lockedOrder.status),
+            ),
+          )
+          .returning();
+
+        return {
+          previousItem: lockedItem,
+          updatedItem: lockedItem,
+          updatedOrder: requireOrderTransitionResult(updatedOrder),
+        };
+      }
+
       const itemUpdate =
         body.action === "start"
           ? {
@@ -189,8 +215,12 @@ export async function POST(
                   updatedAt: now,
                 };
 
-      if (body.action === "cancel" && item.inventoryReservedAt) {
-        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      if (body.action === "cancel" && lockedItem.inventoryReservedAt) {
+        await restoreReservedInventoryForOrderItem(
+          tx,
+          tenantContext,
+          lockedItem,
+        );
       }
 
       const [updatedItem] = await tx
@@ -201,9 +231,11 @@ export async function POST(
             eq(orderItems.id, itemId),
             eq(orderItems.orderId, id),
             eq(orderItems.organizationId, tenantContext.organizationId),
+            eq(orderItems.status, lockedItem.status),
           ),
         )
         .returning();
+      const nextItem = requireOrderTransitionResult(updatedItem);
 
       const currentItems = await tx
         .select()
@@ -246,23 +278,33 @@ export async function POST(
         .set({
           status: nextOrderStatus,
           startedAt:
-            nextOrderStatus === "PENDING" ? order.startedAt : (order.startedAt ?? now),
-          readyAt: nextOrderStatus === "READY" ? (order.readyAt ?? now) : null,
+            nextOrderStatus === "PENDING"
+              ? lockedOrder.startedAt
+              : (lockedOrder.startedAt ?? now),
+          readyAt:
+            nextOrderStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
           deliveredAt: nextOrderStatus === "DELIVERED" ? now : null,
           cancelledAt: nextOrderStatus === "CANCELLED" ? now : null,
           cancelledByType:
-            nextOrderStatus === "CANCELLED" ? "STAFF" : order.cancelledByType,
+            nextOrderStatus === "CANCELLED"
+              ? "STAFF"
+              : lockedOrder.cancelledByType,
           updatedAt: now,
         })
         .where(
           and(
             eq(orders.id, id),
             eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.status, lockedOrder.status),
           ),
         )
         .returning();
 
-      return { updatedItem, updatedOrder };
+      return {
+        previousItem: lockedItem,
+        updatedItem: nextItem,
+        updatedOrder: requireOrderTransitionResult(updatedOrder),
+      };
     });
 
     await writeAuditLog({
@@ -276,7 +318,7 @@ export async function POST(
         orderNo: result.updatedOrder.orderNo,
         drinkName: result.updatedItem.drinkName,
         quantity: result.updatedItem.quantity,
-        previousStatus: item.status,
+        previousStatus: result.previousItem.status,
         nextStatus: result.updatedItem.status,
         orderStatus: result.updatedOrder.status,
       },
@@ -291,7 +333,7 @@ export async function POST(
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update order item." },
-      { status: 500 },
+      { status: error instanceof OrderTransitionConflictError ? 409 : 500 },
     );
   }
 }

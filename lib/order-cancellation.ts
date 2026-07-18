@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { getDb } from "@/db";
@@ -369,7 +369,8 @@ async function prepareRefundRetry(input: CancelOrderInput) {
           eq(orders.organizationId, input.organizationId),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!order) {
       throw new OrderCancellationError("Order not found.", 404);
@@ -483,7 +484,8 @@ export async function cancelOrder(input: CancelOrderInput) {
           eq(orders.organizationId, input.organizationId),
         ),
       )
-      .limit(1);
+      .limit(1)
+      .for("update");
 
     if (!order) {
       throw new OrderCancellationError("Order not found.", 404);
@@ -616,12 +618,7 @@ export async function cancelOrder(input: CancelOrderInput) {
         and(
           eq(orders.id, order.id),
           eq(orders.organizationId, input.organizationId),
-          inArray(
-            orders.status,
-            input.actorType === "CUSTOMER"
-              ? ["PENDING"]
-              : ["PENDING", "PREPARING", "READY"],
-          ),
+          eq(orders.status, order.status),
           eq(orders.paymentStatus, order.paymentStatus),
         ),
       )
