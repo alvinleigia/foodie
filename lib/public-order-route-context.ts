@@ -9,6 +9,7 @@ import {
 } from "@/lib/tenant-domains";
 import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
+import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import type { MembershipRole } from "@/lib/staff-auth";
 import {
   getCurrentTenantContext,
@@ -26,6 +27,7 @@ export async function getPublicOrderRouteContext({
   orderingPointQrSlug,
   routeSlug,
 }: PublicOrderRouteOptions) {
+  const phoneVerificationPolicy = getCustomerPhoneVerificationPolicy();
   const session = await auth().catch(() => null);
   const user =
     session?.user.kind === "staff"
@@ -40,6 +42,7 @@ export async function getPublicOrderRouteContext({
           email: session.user.email,
           name: session.user.name,
           phone: null as string | null,
+          phoneVerifiedAt: null as string | null,
         }
       : null;
   const hasSignedRestaurantAccess = Boolean(
@@ -68,6 +71,7 @@ export async function getPublicOrderRouteContext({
       email: customerProfile?.email ?? session.user.email,
       name: customerProfile?.name ?? session.user.name,
       phone: customerProfile?.phone ?? null,
+      phoneVerifiedAt: customerProfile?.phoneVerifiedAt?.toISOString() ?? null,
     };
   }
 
@@ -103,6 +107,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: true,
       customer,
       customerAuthProviders,
+      phoneVerificationPolicy,
       restaurantChoices: [],
       tenantContext,
       user,
@@ -114,6 +119,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: false,
       customer,
       customerAuthProviders,
+      phoneVerificationPolicy,
       restaurantChoices: [],
       tenantContext: null,
       unavailableReason: "MISSING_CONTEXT" as const,
@@ -129,6 +135,7 @@ export async function getPublicOrderRouteContext({
     hasTenantContext: false,
     customer,
     customerAuthProviders,
+    phoneVerificationPolicy,
     restaurantChoices,
     tenantContext: null,
     unavailableReason: (await getInactiveTenantDomain(requestDomain).catch(() => null))

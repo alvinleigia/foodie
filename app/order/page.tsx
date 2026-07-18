@@ -27,6 +27,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
     customer,
     customerAuthProviders,
     hasTenantContext,
+    phoneVerificationPolicy,
     restaurantChoices,
     unavailableReason,
     user,
@@ -39,6 +40,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
           customer={customer}
           customerAuthProviders={customerAuthProviders}
           orderingPointQrSlug={orderingPointQrSlug}
+          phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={routeSlug}
           user={user}
         />

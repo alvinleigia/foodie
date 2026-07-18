@@ -11,6 +11,7 @@ export default async function RestaurantOrderPage(
     customer,
     customerAuthProviders,
     hasTenantContext,
+    phoneVerificationPolicy,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ routeSlug: params.routeSlug });
@@ -21,6 +22,7 @@ export default async function RestaurantOrderPage(
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
+          phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={params.routeSlug}
           user={user}
         />

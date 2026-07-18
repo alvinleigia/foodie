@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { Spinner } from "@/components/shared/Spinner";
+import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerification";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,7 @@ import {
   getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
+import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 
 type CustomerProfileField =
   | "dateOfBirth"
@@ -45,14 +47,17 @@ type CustomerProfileFormProps = {
     marketingOptIn: boolean;
     name: string;
     phone: string | null;
+    phoneVerifiedAt: string | null;
   };
   orderingPointQrSlug?: string;
+  phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
 };
 
 export function CustomerProfileForm({
   customer,
   orderingPointQrSlug,
+  phoneVerificationPolicy,
   routeSlug,
 }: CustomerProfileFormProps) {
   const router = useRouter();
@@ -70,6 +75,10 @@ export function CustomerProfileForm({
     orderingPointQrSlug,
     routeSlug,
   });
+  const [savedPhone, setSavedPhone] = useState(customer.phone);
+  const [phoneVerifiedAt, setPhoneVerifiedAt] = useState(
+    customer.phoneVerifiedAt,
+  );
 
   function updateField<TField extends CustomerProfileField>(
     field: TField,
@@ -87,7 +96,16 @@ export function CustomerProfileForm({
     setFormError(null);
 
     try {
-      await requestJson(
+      const payload = await requestJson<{
+        customer: {
+          dateOfBirth: string | null;
+          gender: string | null;
+          marketingOptIn: boolean;
+          name: string;
+          phone: string | null;
+          phoneVerifiedAt: string | null;
+        };
+      }>(
         withPublicCustomerContext("/api/customer/profile", {
           orderingPointQrSlug,
           routeSlug,
@@ -98,6 +116,15 @@ export function CustomerProfileForm({
           method: "PATCH",
         },
       );
+      setProfile({
+        dateOfBirth: payload.customer.dateOfBirth ?? "",
+        gender: payload.customer.gender ?? "",
+        marketingOptIn: payload.customer.marketingOptIn,
+        name: payload.customer.name,
+        phone: payload.customer.phone ?? "",
+      });
+      setSavedPhone(payload.customer.phone);
+      setPhoneVerifiedAt(payload.customer.phoneVerifiedAt);
       toast.success("Profile saved.");
       router.refresh();
     } catch (error) {
@@ -199,6 +226,18 @@ export function CustomerProfileForm({
           </Select>
         </FormField>
       </div>
+
+      <CustomerPhoneVerification
+        key={savedPhone ?? "no-saved-phone"}
+        disabled={isSaving}
+        onVerified={setPhoneVerifiedAt}
+        orderingPointQrSlug={orderingPointQrSlug}
+        phone={profile.phone}
+        phoneVerifiedAt={phoneVerifiedAt}
+        policy={phoneVerificationPolicy}
+        routeSlug={routeSlug}
+        savedPhone={savedPhone}
+      />
 
       <label
         htmlFor="customer-marketing"

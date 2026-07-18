@@ -14,6 +14,7 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
+import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 
 export default async function CustomerAccountPage(props: PageProps<"/account">) {
   const searchParams = await props.searchParams;
@@ -49,6 +50,7 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
 
   const accountHref = withPublicCustomerContext("/account", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
+  const phoneVerificationPolicy = getCustomerPhoneVerificationPolicy();
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-3xl space-y-6 pb-8">
@@ -74,8 +76,17 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
         </CardHeader>
         <CardContent className="px-6 pb-6">
           <CustomerProfileForm
-            customer={customer}
+            customer={{
+              dateOfBirth: customer.dateOfBirth,
+              email: customer.email,
+              gender: customer.gender,
+              marketingOptIn: customer.marketingOptIn,
+              name: customer.name,
+              phone: customer.phone,
+              phoneVerifiedAt: customer.phoneVerifiedAt?.toISOString() ?? null,
+            }}
             orderingPointQrSlug={orderingPointQrSlug}
+            phoneVerificationPolicy={phoneVerificationPolicy}
             routeSlug={routeSlug}
           />
         </CardContent>
