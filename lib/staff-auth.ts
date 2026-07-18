@@ -23,8 +23,10 @@ export type StaffPrincipal = {
   name: string;
   email: string;
   username: string;
+  membershipId: string;
   role: MembershipRole;
   organizationId: string;
+  sessionVersion: number;
 };
 
 export type StaffAccessCandidate = StaffPrincipal & {
@@ -78,7 +80,9 @@ async function resolveStaffAccessRecord(
       email: users.email,
       username: users.username,
       passwordHash: users.passwordHash,
+      sessionVersion: users.sessionVersion,
       status: users.status,
+      membershipId: memberships.id,
       membershipRole: memberships.role,
       organizationId: memberships.organizationId,
       organizationSlug: organizations.slug,
@@ -136,8 +140,10 @@ export async function resolveStaffAccessCandidate(
     name: record.name,
     email: record.email,
     username: record.username,
+    membershipId: record.membershipId,
     role: record.membershipRole,
     organizationId: record.organizationId,
+    sessionVersion: record.sessionVersion,
     organizationSlug: record.organizationSlug,
     organizationType: record.organizationType,
   } satisfies StaffAccessCandidate;
@@ -190,7 +196,9 @@ export async function authenticateStaff(
     name: record.name,
     email: record.email,
     username: record.username,
+    membershipId: record.membershipId,
     role: record.membershipRole,
     organizationId: record.organizationId,
+    sessionVersion: record.sessionVersion,
   } satisfies StaffPrincipal;
 }

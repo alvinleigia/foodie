@@ -4,8 +4,8 @@ import Credentials from "next-auth/providers/credentials";
 import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
 import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
-import { resolveMembershipAccess } from "@/lib/membership-access";
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
+import { validateStaffSessionAccess } from "@/lib/staff-session";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() => {
@@ -107,6 +107,7 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           delete token.role;
           delete token.membershipId;
           delete token.organizationId;
+          delete token.sessionVersion;
           delete token.username;
 
           return token;
@@ -114,15 +115,19 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
 
         const staffUser = user as {
           id: string;
-          role?: MembershipRole;
-          organizationId?: string;
+          membershipId: string;
+          role: MembershipRole;
+          organizationId: string;
+          sessionVersion: number;
           username?: string;
         };
 
         token.sub = staffUser.id;
         token.kind = "staff";
-        token.role = staffUser.role ?? "ORDER_OPERATOR";
+        token.membershipId = staffUser.membershipId;
+        token.role = staffUser.role;
         token.organizationId = staffUser.organizationId;
+        token.sessionVersion = staffUser.sessionVersion;
         token.username = staffUser.username;
       }
 
@@ -130,24 +135,37 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
         token.kind = "staff";
       }
 
-      if (trigger === "update" && token.kind === "staff" && token.sub) {
-        const nextUser = session?.user as
-          | {
-              membershipId?: unknown;
-              organizationId?: unknown;
-            }
-          | undefined;
-        const membershipId =
-          typeof nextUser?.membershipId === "string" ? nextUser.membershipId : "";
-        if (membershipId) {
-          const access = await resolveMembershipAccess(token.sub, membershipId);
-
-          if (access) {
-            token.role = access.role;
-            token.organizationId = access.organizationId;
-          }
-        }
+      if (token.kind !== "staff") {
+        return token.kind === "customer" ? token : null;
       }
+
+      const nextUser = session?.user as { membershipId?: unknown } | undefined;
+      const requestedMembershipId =
+        trigger === "update" && typeof nextUser?.membershipId === "string"
+          ? nextUser.membershipId
+          : token.membershipId;
+
+      if (
+        typeof token.sub !== "string" ||
+        typeof requestedMembershipId !== "string"
+      ) {
+        return null;
+      }
+
+      const access = await validateStaffSessionAccess({
+        membershipId: requestedMembershipId,
+        sessionVersion: token.sessionVersion,
+        userId: token.sub,
+      });
+
+      if (!access) {
+        return null;
+      }
+
+      token.membershipId = access.membershipId;
+      token.role = access.role;
+      token.organizationId = access.organizationId;
+      token.sessionVersion = access.sessionVersion;
 
       return token;
     },
@@ -176,11 +194,9 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           ...baseUser,
           id,
           kind: "staff" as const,
-          role: (typeof token.role === "string"
-            ? token.role
-            : "ORDER_OPERATOR") as MembershipRole,
-          organizationId:
-            typeof token.organizationId === "string" ? token.organizationId : "",
+          membershipId: token.membershipId as string,
+          role: token.role as MembershipRole,
+          organizationId: token.organizationId as string,
           username: typeof token.username === "string" ? token.username : undefined,
         },
       };

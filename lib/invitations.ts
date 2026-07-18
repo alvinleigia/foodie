@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -317,6 +317,7 @@ export async function acceptStaffInvitation(input: unknown) {
         .update(users)
         .set({
           passwordHash: await hashPassword(parsed.password ?? ""),
+          sessionVersion: sql`${users.sessionVersion} + 1`,
           status: "ACTIVE",
           updatedAt: new Date(),
         })

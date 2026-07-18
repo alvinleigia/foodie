@@ -58,7 +58,6 @@ import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
-import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 
 export async function GET() {
   try {
@@ -83,9 +82,6 @@ export async function GET() {
       pastOrders: pastOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
       canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),
       canManageRefunds: canAccessRole(session.user.role, restaurantAdminRoles),
-      canClearOrders:
-        isUatDatabaseResetEnabled() &&
-        canAccessRole(session.user.role, restaurantAdminRoles),
       currency,
     });
   } catch (error) {
