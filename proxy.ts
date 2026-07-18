@@ -23,16 +23,13 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/audit-logs/:path*",
     "/api/customer-social-auth/:path*",
-    "/company/:path*",
+    "/companies/:path*",
     "/customer/auth/social",
-    "/dashboard/:path*",
     "/invite/:path*",
-    "/operations/:path*",
     "/platform/:path*",
     "/reset-password/:path*",
-    "/restaurant/:path*",
+    "/restaurants/:path*",
     "/staff/:path*",
     "/users/:path*",
   ],

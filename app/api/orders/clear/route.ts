@@ -4,17 +4,26 @@ import { getDb } from "@/db";
 import { and, eq } from "drizzle-orm";
 
 import { orderItems, orders } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { markOrdersReset } from "@/lib/order-reset";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
+import { restaurantAdminRoles } from "@/lib/role-access";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireRole(restaurantAdminRoles);
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isUatDatabaseResetEnabled()) {
+      return NextResponse.json(
+        { error: "Order deletion is available only in a UAT environment." },
+        { status: 403 },
+      );
     }
 
     const body = (await request.json()) as { confirmationText?: string };

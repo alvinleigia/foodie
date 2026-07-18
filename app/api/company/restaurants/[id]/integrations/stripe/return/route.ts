@@ -25,7 +25,7 @@ export async function GET(
   ]);
 
   if (!company || !restaurant) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/staff/login", request.url));
   }
 
   await syncOrganizationStripeAccount(restaurant.id).catch(() => null);

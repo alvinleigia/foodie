@@ -6,25 +6,16 @@ import { orderItems, orders } from "@/db/schema";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
+import {
+  decimalToMinorUnits,
+  getCurrencyMinorUnitFactor,
+} from "@/lib/currency-money";
 
-const zeroDecimalCurrencies = new Set([
-  "BIF",
-  "CLP",
-  "DJF",
-  "GNF",
-  "JPY",
-  "KMF",
-  "KRW",
-  "MGA",
-  "PYG",
-  "RWF",
-  "UGX",
-  "VND",
-  "VUV",
-  "XAF",
-  "XOF",
-  "XPF",
-]);
+export {
+  decimalToMinorUnits,
+  getCurrencyMinorUnitFactor,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 
 export type OrderPaymentLine = {
   drinkName: string;
@@ -36,20 +27,6 @@ export type OrderPaymentLine = {
   quantity: number;
   unitPrice: string | null;
 };
-
-export function getCurrencyMinorUnitFactor(currency: string) {
-  return zeroDecimalCurrencies.has(currency.toUpperCase()) ? 1 : 100;
-}
-
-function decimalToMinorUnits(value: string, currency: string) {
-  const amount = Number(value);
-
-  if (!Number.isFinite(amount) || amount < 0) {
-    throw new Error("Order contains an invalid price.");
-  }
-
-  return Math.round(amount * getCurrencyMinorUnitFactor(currency));
-}
 
 export function buildOrderPaymentPricing(
   lines: OrderPaymentLine[],

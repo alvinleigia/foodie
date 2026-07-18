@@ -27,49 +27,77 @@ ON CONFLICT ("id") DO UPDATE SET
   "is_active" = true,
   "updated_at" = now();
 
-UPDATE "memberships"
-SET
-  "organization_id" = '00000000-0000-0000-0000-000000000000',
-  "location_id" = null,
-  "role" = 'PLATFORM_ADMIN',
-  "is_active" = true,
-  "updated_at" = now()
-WHERE "role" = 'PLATFORM_ADMIN';
+DO $migration$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'memberships'
+      AND column_name = 'location_id'
+  ) THEN
+    EXECUTE $sql$
+      UPDATE "memberships"
+      SET
+        "organization_id" = '00000000-0000-0000-0000-000000000000',
+        "location_id" = null,
+        "role" = 'PLATFORM_ADMIN',
+        "is_active" = true,
+        "updated_at" = now()
+      WHERE "role" = 'PLATFORM_ADMIN'
+    $sql$;
 
-WITH ranked_memberships AS (
-  SELECT
-    "id",
-    row_number() OVER (
-      PARTITION BY
-        "user_id",
-        "organization_id",
-        COALESCE("location_id", '00000000-0000-0000-0000-000000000000'::uuid)
-      ORDER BY
-        "is_active" DESC,
-        "updated_at" DESC,
-        "created_at" DESC,
-        "id" DESC
-    ) AS duplicate_rank
-  FROM "memberships"
-)
-DELETE FROM "memberships"
-WHERE "id" IN (
-  SELECT "id"
-  FROM ranked_memberships
-  WHERE duplicate_rank > 1
-);
+    EXECUTE $sql$
+      WITH ranked_memberships AS (
+        SELECT
+          "id",
+          row_number() OVER (
+            PARTITION BY
+              "user_id",
+              "organization_id",
+              COALESCE(
+                "location_id",
+                '00000000-0000-0000-0000-000000000000'::uuid
+              )
+            ORDER BY
+              "is_active" DESC,
+              "updated_at" DESC,
+              "created_at" DESC,
+              "id" DESC
+          ) AS duplicate_rank
+        FROM "memberships"
+      )
+      DELETE FROM "memberships"
+      WHERE "id" IN (
+        SELECT "id"
+        FROM ranked_memberships
+        WHERE duplicate_rank > 1
+      )
+    $sql$;
 
-DROP INDEX IF EXISTS "memberships_user_org_location_unique";
+    EXECUTE 'DROP INDEX IF EXISTS "memberships_user_org_location_unique"';
 
-CREATE UNIQUE INDEX IF NOT EXISTS "memberships_user_org_location_unique"
-  ON "memberships" (
-    "user_id",
-    "organization_id",
-    COALESCE("location_id", '00000000-0000-0000-0000-000000000000'::uuid)
-  );
+    EXECUTE $sql$
+      CREATE UNIQUE INDEX IF NOT EXISTS "memberships_user_org_location_unique"
+        ON "memberships" (
+          "user_id",
+          "organization_id",
+          COALESCE(
+            "location_id",
+            '00000000-0000-0000-0000-000000000000'::uuid
+          )
+        )
+    $sql$;
+  END IF;
 
-DELETE FROM "locations"
-WHERE "id" = '00000000-0000-0000-0000-000000000003';
+  IF to_regclass('public.locations') IS NOT NULL THEN
+    EXECUTE $sql$
+      DELETE FROM "locations"
+      WHERE "id" = '00000000-0000-0000-0000-000000000003'
+    $sql$;
+  END IF;
+END;
+$migration$;
 
 DELETE FROM "organizations"
 WHERE "id" IN (

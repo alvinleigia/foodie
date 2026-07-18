@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
+import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
 import { formatOrderDisplay } from "@/lib/order-display";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -60,6 +61,30 @@ function sortOrdersByNewest(ordersToSort: ApiOrder[]) {
     (left, right) =>
       new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
   );
+}
+
+function formatMoney(amount: number, currency: string) {
+  return new Intl.NumberFormat(undefined, {
+    currency,
+    style: "currency",
+  }).format(amount);
+}
+
+function getCancellationPreview(order: ApiOrder, fallbackCurrency: string) {
+  const feeBps = order.customerCancellationFeeBps ?? 0;
+  const currency = order.paymentCurrency ?? fallbackCurrency;
+  const amounts = calculateCancellationAmounts({
+    amount: order.paymentAmount ?? "0",
+    currency,
+    feeBps,
+  });
+
+  return {
+    currency,
+    feeAmount: Number(amounts.feeAmount),
+    feeBps,
+    refundAmount: Number(amounts.refundAmount),
+  };
 }
 
 function withPublicContext(path: string, options: { orderingPointQrSlug?: string; routeSlug?: string }) {
@@ -247,7 +272,11 @@ export function CustomerOrderStatus({
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerToken: order.customerToken }),
+        body: JSON.stringify({
+          acknowledgedCancellationFeeBps:
+            order.customerCancellationFeeBps ?? 0,
+          customerToken: order.customerToken,
+        }),
       },
     );
 
@@ -261,11 +290,22 @@ export function CustomerOrderStatus({
     }
 
     const nextOrders = ordersRef.current.map((item) =>
-      item.orderId === order.orderId ? payload : item,
+      item.orderId === order.orderId
+        ? {
+            ...item,
+            ...payload,
+            itemCount: payload.itemCount || item.itemCount,
+            items: payload.items?.length ? payload.items : item.items,
+          }
+        : item,
     );
     ordersRef.current = nextOrders;
     setOrders(nextOrders);
-    toast.success("Order cancelled.");
+    if (payload.refundError) {
+      toast.error("Order cancelled, but the refund needs restaurant attention.");
+    } else {
+      toast.success("Order cancelled.");
+    }
     setPendingCancelId(null);
     setConfirmingCancelOrder(null);
   }
@@ -273,6 +313,9 @@ export function CustomerOrderStatus({
   const activeOrders = orders.filter(isActiveOrder);
   const completedOrders = orders.filter((order) => !isActiveOrder(order));
   const visibleOrders = selectedView === "active" ? activeOrders : completedOrders;
+  const cancellationPreview = confirmingCancelOrder
+    ? getCancellationPreview(confirmingCancelOrder, currency)
+    : null;
 
   return (
     <Card className="rounded-xl border-stone-200/70 bg-white/80 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
@@ -348,7 +391,7 @@ export function CustomerOrderStatus({
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">
                     {orderDisplay.label}
-                    {orderDisplay.meta ? ` · ${orderDisplay.meta}` : ""}
+                    {orderDisplay.meta ? ` / ${orderDisplay.meta}` : ""}
                   </p>
                   <h3 className="mt-1 text-xl font-semibold text-stone-900">
                     {order.drinkName}
@@ -384,10 +427,34 @@ export function CustomerOrderStatus({
                 {order.status === "READY" &&
                   "Your drink is ready. Please collect it."}
                 {order.status === "DELIVERED" && "Collected successfully."}
-                {order.status === "CANCELLED" && "This order was cancelled."}
+                {order.status === "CANCELLED" &&
+                  order.paymentStatus === "REFUND_PENDING" &&
+                  "This order was cancelled. Your refund is being processed."}
+                {order.status === "CANCELLED" &&
+                  order.paymentStatus === "REFUNDED" &&
+                  "This order was cancelled and fully refunded."}
+                {order.status === "CANCELLED" &&
+                  order.paymentStatus === "PARTIALLY_REFUNDED" &&
+                  `This order was cancelled. ${formatMoney(Number(order.refundAmount ?? 0), order.paymentCurrency ?? currency)} was refunded.`}
+                {order.status === "CANCELLED" &&
+                  order.paymentStatus === "REFUND_FAILED" &&
+                  "This order was cancelled. The restaurant needs to retry your refund."}
+                {order.status === "CANCELLED" &&
+                  order.paymentStatus === "PAID" &&
+                  Number(order.cancellationFeeAmount ?? 0) > 0 &&
+                  `This order was cancelled. ${formatMoney(Number(order.cancellationFeeAmount), order.paymentCurrency ?? currency)} was retained as the disclosed cancellation fee.`}
+                {order.status === "CANCELLED" &&
+                  ![
+                    "PAID",
+                    "REFUND_PENDING",
+                    "REFUNDED",
+                    "PARTIALLY_REFUNDED",
+                    "REFUND_FAILED",
+                  ].includes(order.paymentStatus ?? "") &&
+                  "This order was cancelled."}
               </p>
 
-              {order.status === "PENDING" ? (
+              {order.status === "PENDING" && order.paymentStatus === "PAID" ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -426,10 +493,32 @@ export function CustomerOrderStatus({
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
             <AlertDialogDescription>
-              This only works while the order is still pending. The customer will see the
-              cancellation the next time their device syncs.
+              This is available only before preparation starts. Confirm the refund
+              shown below before cancelling.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {cancellationPreview ? (
+            <div className="grid gap-2 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-stone-600">Cancellation fee</span>
+                <span className="font-semibold text-stone-950">
+                  {(cancellationPreview.feeBps / 100).toFixed(2).replace(/\.00$/, "")}% ({formatMoney(
+                    cancellationPreview.feeAmount,
+                    cancellationPreview.currency,
+                  )})
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4 border-t border-stone-200 pt-2">
+                <span className="text-stone-600">Refund</span>
+                <span className="font-semibold text-stone-950">
+                  {formatMoney(
+                    cancellationPreview.refundAmount,
+                    cancellationPreview.currency,
+                  )}
+                </span>
+              </div>
+            </div>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={Boolean(pendingCancelId)}>Keep Order</AlertDialogCancel>
             <AlertDialogAction

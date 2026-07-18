@@ -7,6 +7,7 @@ import {
   CookingPotIcon,
   MegaphoneIcon,
   PackageIcon,
+  RefreshCwIcon,
   RotateCcwIcon,
   UserRoundIcon,
   XIcon,
@@ -18,7 +19,11 @@ import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { OrderItemStatus, OrderStatus } from "@/lib/constants";
+import {
+  OrderItemStatus,
+  OrderStatus,
+  PaymentStatus,
+} from "@/lib/constants";
 import {
   orderCorrectionTargets,
   orderItemCorrectionTargets,
@@ -61,6 +66,13 @@ type StaffOrder = {
   createdAt: string;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  paymentStatus: PaymentStatus;
+  paymentAmount: string | null;
+  paymentCurrency: string | null;
+  customerCancellationFeeBps: number;
+  cancellationFeeBpsApplied: number | null;
+  cancellationFeeAmount: string | null;
+  refundAmount: string | null;
 };
 
 type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
@@ -90,6 +102,8 @@ type OrderCardProps = {
   onCorrectOrder: (order: StaffOrder) => void;
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
   canCorrectStatuses: boolean;
+  canManageRefunds: boolean;
+  onRetryRefund: (order: StaffOrder) => Promise<void>;
   pendingAction: string | null;
   disabled: boolean;
 };
@@ -104,6 +118,8 @@ export function OrderCard({
   onCorrectOrder,
   onCorrectItem,
   canCorrectStatuses,
+  canManageRefunds,
+  onRetryRefund,
   pendingAction,
   disabled,
 }: OrderCardProps) {
@@ -113,11 +129,51 @@ export function OrderCard({
     order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1;
   const placedTime = new Date(order.createdAt).toLocaleTimeString();
   const canCorrectOrder =
-    canCorrectStatuses && orderCorrectionTargets[order.status as OrderStatus].length > 0;
+    canCorrectStatuses &&
+    ![
+      "REFUND_PENDING",
+      "PARTIALLY_REFUNDED",
+      "REFUND_FAILED",
+      "REFUNDED",
+    ].includes(order.paymentStatus) &&
+    orderCorrectionTargets[order.status as OrderStatus].length > 0;
+  const canRetryRefund =
+    canManageRefunds &&
+    order.status === "CANCELLED" &&
+    order.paymentStatus === "REFUND_FAILED";
+  const paymentCurrency = order.paymentCurrency ?? currency;
+  const refundMessage =
+    order.status !== "CANCELLED" || order.paymentStatus === "NOT_REQUIRED"
+      ? null
+      : order.paymentStatus === "REFUND_PENDING"
+        ? "Refund is being processed."
+        : order.paymentStatus === "REFUNDED"
+          ? `Full refund: ${new Intl.NumberFormat(undefined, {
+              currency: paymentCurrency,
+              style: "currency",
+            }).format(Number(order.refundAmount ?? order.paymentAmount ?? 0))}`
+          : order.paymentStatus === "PARTIALLY_REFUNDED"
+            ? `Refunded ${new Intl.NumberFormat(undefined, {
+                currency: paymentCurrency,
+                style: "currency",
+              }).format(Number(order.refundAmount ?? 0))}; retained ${new Intl.NumberFormat(undefined, {
+                currency: paymentCurrency,
+                style: "currency",
+              }).format(Number(order.cancellationFeeAmount ?? 0))}.`
+            : order.paymentStatus === "REFUND_FAILED"
+              ? "Refund failed and needs manager attention."
+              : order.paymentStatus === "PAID" &&
+                  Number(order.cancellationFeeAmount ?? 0) > 0
+                ? `No refund due; ${new Intl.NumberFormat(undefined, {
+                    currency: paymentCurrency,
+                    style: "currency",
+                  }).format(Number(order.cancellationFeeAmount))} was retained.`
+                : null;
 
   function renderOrderActions() {
     if (
       !canCorrectOrder &&
+      !canRetryRefund &&
       (order.status === "DELIVERED" || order.status === "CANCELLED")
     ) {
       return null;
@@ -129,6 +185,24 @@ export function OrderCard({
           Order actions
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
+          {canRetryRefund ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onRetryRefund(order)}
+              className="rounded-lg border-amber-300 bg-white text-amber-800 hover:bg-amber-50 hover:text-amber-900"
+            >
+              {pendingAction === `refund-order:${order.orderId}` ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-amber-800" />
+                  Retrying...
+                </span>
+              ) : (
+                <ButtonLabel icon={RefreshCwIcon}>Retry refund</ButtonLabel>
+              )}
+            </Button>
+          ) : null}
           {order.status === "PENDING" ? (
             <Button
               type="button"
@@ -204,7 +278,9 @@ export function OrderCard({
             </>
           ) : null}
 
-          {order.status === "PENDING" || order.status === "READY" ? (
+          {order.status === "PENDING" ||
+          order.status === "PREPARING" ||
+          order.status === "READY" ? (
             <Button
               type="button"
               variant="outline"
@@ -251,6 +327,7 @@ export function OrderCard({
       Boolean(item.id) && item.status !== "DELIVERED" && item.status !== "CANCELLED";
     const canCorrectItem =
       canCorrectStatuses &&
+      order.cancellationFeeBpsApplied === null &&
       Boolean(item.id) &&
       orderItemCorrectionTargets[item.status].length > 0;
 
@@ -339,7 +416,7 @@ export function OrderCard({
           </>
         ) : null}
 
-        {canUpdateItem ? (
+        {canUpdateItem && order.paymentStatus === "NOT_REQUIRED" ? (
           <Button
             type="button"
             variant="outline"
@@ -424,6 +501,20 @@ export function OrderCard({
           <p className="mt-2 text-sm text-stone-500">
             {order.status === "DELIVERED" ? "Delivered" : "Cancelled"}{" "}
             {new Date(closedAt).toLocaleTimeString()}
+          </p>
+        ) : null}
+
+        {refundMessage ? (
+          <p
+            className={`mt-3 rounded-lg border px-3 py-2 text-sm font-medium ${
+              order.paymentStatus === "REFUND_FAILED"
+                ? "border-rose-200 bg-rose-50 text-rose-800"
+                : order.paymentStatus === "REFUND_PENDING"
+                  ? "border-amber-200 bg-amber-50 text-amber-900"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+            }`}
+          >
+            {refundMessage}
           </p>
         ) : null}
 

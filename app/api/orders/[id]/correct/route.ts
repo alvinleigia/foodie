@@ -131,6 +131,16 @@ export async function POST(
       return NextResponse.json({ error: "Order not found." }, { status: 404 });
     }
 
+    if (order.cancellationFeeBpsApplied !== null) {
+      return NextResponse.json(
+        {
+          error:
+            "A financially settled cancellation cannot be reopened with a status correction.",
+        },
+        { status: 409 },
+      );
+    }
+
     if (!canCorrectOrderStatus(order.status, nextStatus)) {
       return NextResponse.json(
         { error: "This order status cannot be corrected to the selected state." },

@@ -9,6 +9,8 @@ import {
 } from "./helpers";
 
 test.describe("menu manager validation", () => {
+  let menuHref = "";
+
   test.beforeEach(async ({ page }) => {
     const managerBaseUrl = getManagerBaseUrl();
 
@@ -23,17 +25,18 @@ test.describe("menu manager validation", () => {
       "E2E_MANAGER_PASSWORD",
       managerBaseUrl,
     );
-    await activateAccessContext(
+    const switchedAccess = await activateAccessContext(
       page,
       managerBaseUrl,
       optionalEnv("E2E_MANAGER_CONTEXT") ?? "RESTAURANT MANAGER",
     );
+    menuHref = `${switchedAccess.redirectTo.replace(/\/$/, "")}/menu`;
   });
 
   test("shows add-on group validation next to the invalid field", async ({ page }) => {
-    await page.goto(pathForBaseUrl(getManagerBaseUrl(), "/operations/menu"));
+    await page.goto(pathForBaseUrl(getManagerBaseUrl(), menuHref));
 
-    await expect(page).toHaveURL(/\/operations\/menu/, {
+    await expect(page).toHaveURL(/\/restaurants\/[^/]+\/menu$/, {
       timeout: 5000,
     });
     await expect(

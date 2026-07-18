@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  BuildingIcon,
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
@@ -98,13 +97,6 @@ function RestaurantAccessEmptyState() {
         Restaurant settings need a restaurant membership. Create a restaurant from
         Company, then invite a restaurant manager.
       </p>
-      <div className="mt-5 flex flex-wrap gap-3">
-        <Button asChild>
-          <Link href="/company">
-            <ButtonLabel icon={BuildingIcon}>Go to Company</ButtonLabel>
-          </Link>
-        </Button>
-      </div>
     </div>
   );
 }
@@ -113,18 +105,18 @@ export function RestaurantAdminPanel({
   restaurantSlug,
   view = "dashboard",
 }: {
-  restaurantSlug?: string;
+  restaurantSlug: string;
   view?: "dashboard" | "staff";
 }) {
-  const staffHref = restaurantSlug
-    ? getRestaurantWorkspaceHref(restaurantSlug, "staff")
-    : "/restaurant/staff";
-  const staffInviteHref = restaurantSlug
-    ? getRestaurantWorkspaceHref(restaurantSlug, "staffInvite")
-    : "/restaurant/staff/invite";
-  const staffReassignHref = restaurantSlug
-    ? getRestaurantWorkspaceHref(restaurantSlug, "staffReassign")
-    : "/restaurant/staff/reassign";
+  const staffHref = getRestaurantWorkspaceHref(restaurantSlug, "staff");
+  const staffInviteHref = getRestaurantWorkspaceHref(
+    restaurantSlug,
+    "staffInvite",
+  );
+  const staffReassignHref = getRestaurantWorkspaceHref(
+    restaurantSlug,
+    "staffReassign",
+  );
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
   const [summary, setSummary] = useState<RestaurantSummary | null>(null);
   const [report, setReport] = useState<OperationalReport | null>(null);
@@ -283,14 +275,10 @@ export function RestaurantAdminPanel({
                     </div>
                     <div className="flex items-center gap-2">
                       <DesktopQuickAction
-                        href={
-                          restaurantSlug
-                            ? getRestaurantStaffMemberHref(
-                                restaurantSlug,
-                                staff.membershipId,
-                              )
-                            : `/restaurant/staff/${staff.membershipId}`
-                        }
+                        href={getRestaurantStaffMemberHref(
+                          restaurantSlug,
+                          staff.membershipId,
+                        )}
                         icon={PencilIcon}
                         label={`Edit access for ${staff.name}`}
                       />
@@ -310,14 +298,10 @@ export function RestaurantAdminPanel({
                           <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
                             <Link
-                              href={
-                                restaurantSlug
-                                  ? getRestaurantStaffMemberHref(
-                                      restaurantSlug,
-                                      staff.membershipId,
-                                    )
-                                  : `/restaurant/staff/${staff.membershipId}`
-                              }
+                              href={getRestaurantStaffMemberHref(
+                                restaurantSlug,
+                                staff.membershipId,
+                              )}
                             >
                               Edit access
                             </Link>

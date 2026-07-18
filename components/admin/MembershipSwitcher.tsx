@@ -160,8 +160,15 @@ export function MembershipSwitcher({
               return;
             }
 
+            const redirectTo = redirectAfterSwitch ?? body.redirectTo;
+
+            if (!redirectTo) {
+              toast.error("The selected workspace is not configured.");
+              return;
+            }
+
             toast.success("Access context switched.");
-            router.push(redirectAfterSwitch ?? body.redirectTo ?? "/dashboard");
+            router.push(redirectTo);
             router.refresh();
           });
         }}

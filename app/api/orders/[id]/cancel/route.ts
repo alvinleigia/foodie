@@ -1,23 +1,25 @@
-import { and, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
-import { writeAuditLog } from "@/lib/audit-log";
+import { requireCustomerSession, requireStaffSession } from "@/lib/auth";
+import {
+  cancelOrder,
+  OrderCancellationError,
+} from "@/lib/order-cancellation";
+import { serializeOrder } from "@/lib/orders";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
   rateLimitResponse,
 } from "@/lib/rate-limit";
-import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
-import { customerCancelOrderSchema, staffCancelOrderSchema } from "@/lib/validations/order";
-import { serializeOrder } from "@/lib/orders";
 import {
   getPublicTenantContextFromRequest,
   getStaffTenantContextFromRequest,
   StaffRestaurantContextError,
 } from "@/lib/tenant-context";
+import {
+  customerCancelOrderSchema,
+  staffCancelOrderSchema,
+} from "@/lib/validations/order";
 
 export async function POST(
   request: NextRequest,
@@ -27,9 +29,14 @@ export async function POST(
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     const session = await requireStaffSession();
-    const isStaff = Boolean(session);
 
-    if (!isStaff) {
+    if (!session) {
+      const customerSession = await requireCustomerSession();
+
+      if (!customerSession) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
       const rateLimit = checkRateLimit({
         key: getRequestRateLimitKey(request, "public:order-cancel"),
         limit: 20,
@@ -39,207 +46,77 @@ export async function POST(
       if (!rateLimit.allowed) {
         return rateLimitResponse(rateLimit);
       }
+
+      const tenantContext = await getPublicTenantContextFromRequest(request);
+      const parsed = customerCancelOrderSchema.safeParse(body);
+
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: parsed.error.flatten() },
+          { status: 400 },
+        );
+      }
+
+      const result = await cancelOrder({
+        acknowledgedCancellationFeeBps:
+          parsed.data.acknowledgedCancellationFeeBps,
+        actorType: "CUSTOMER",
+        cancelReason: parsed.data.cancelReason,
+        customerId: customerSession.user.id,
+        customerToken: parsed.data.customerToken,
+        orderId: id,
+        organizationId: tenantContext.organizationId,
+      });
+
+      return NextResponse.json({
+        ...serializeOrder(result.order),
+        refundError: result.error,
+      });
     }
 
-    const tenantContext = isStaff
-      ? await getStaffTenantContextFromRequest(request)
-      : await getPublicTenantContextFromRequest(request);
-    const db = getDb();
-    const [order] = await db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.id, id),
-          eq(orders.organizationId, tenantContext.organizationId),
-        ),
-      );
-
-    if (!order) {
-      return NextResponse.json({ error: "Order not found." }, { status: 404 });
-    }
-
-    const parsed = isStaff
-      ? staffCancelOrderSchema.safeParse(body)
-      : customerCancelOrderSchema.safeParse(body);
+    const tenantContext = await getStaffTenantContextFromRequest(request);
+    const parsed = staffCancelOrderSchema.safeParse(body);
 
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-    }
-
-    if (isStaff) {
-      if (order.status !== "PENDING" && order.status !== "READY") {
-        return NextResponse.json(
-          {
-            error:
-              "Staff can only cancel orders while they are pending or ready for pickup.",
-          },
-          { status: 409 },
-        );
-      }
-
-      const updatedOrder = await db.transaction(async (tx) => {
-        const now = new Date();
-        const items = await tx
-          .select()
-          .from(orderItems)
-          .where(
-            and(
-              eq(orderItems.orderId, id),
-              eq(orderItems.organizationId, tenantContext.organizationId),
-            ),
-          );
-
-        for (const item of items.filter(
-          (currentItem) =>
-            currentItem.inventoryReservedAt && currentItem.status !== "DELIVERED",
-        )) {
-          await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
-        }
-
-        await tx
-          .update(orderItems)
-          .set({
-            status: "CANCELLED",
-            cancelledAt: now,
-            inventoryReservedAt: null,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(orderItems.orderId, id),
-              eq(orderItems.organizationId, tenantContext.organizationId),
-            ),
-          );
-
-        const [nextOrder] = await tx
-          .update(orders)
-          .set({
-            status: "CANCELLED",
-            cancelReason: parsed.data.cancelReason?.trim() || null,
-            cancelledAt: now,
-            cancelledByType: "STAFF",
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(orders.id, id),
-              eq(orders.organizationId, tenantContext.organizationId),
-            ),
-          )
-          .returning();
-
-        return nextOrder;
-      });
-
-      await writeAuditLog({
-        actor: session?.user,
-        organizationId: tenantContext.organizationId,
-        action: "order.cancel.staff",
-        entityType: "order",
-        entityId: updatedOrder.id,
-        metadata: {
-          orderNo: updatedOrder.orderNo,
-          previousStatus: order.status,
-          nextStatus: updatedOrder.status,
-          cancelledByType: updatedOrder.cancelledByType,
-          hasCancelReason: Boolean(updatedOrder.cancelReason),
-        },
-      });
-
-      return NextResponse.json(serializeOrder(updatedOrder));
-    }
-
-    if (order.status !== "PENDING") {
       return NextResponse.json(
-        {
-          error:
-            "This order cannot be cancelled because preparation has already started.",
-        },
-        { status: 409 },
+        { error: parsed.error.flatten() },
+        { status: 400 },
       );
     }
 
-    const customerPayload = customerCancelOrderSchema.parse(body);
-
-    if (customerPayload.customerToken !== order.customerToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const updatedOrder = await db.transaction(async (tx) => {
-      const now = new Date();
-      const items = await tx
-        .select()
-        .from(orderItems)
-        .where(
-          and(
-            eq(orderItems.orderId, id),
-            eq(orderItems.organizationId, tenantContext.organizationId),
-          ),
-        );
-
-      for (const item of items.filter(
-        (currentItem) =>
-          currentItem.inventoryReservedAt && currentItem.status !== "DELIVERED",
-      )) {
-        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
-      }
-
-      await tx
-        .update(orderItems)
-        .set({
-          status: "CANCELLED",
-          cancelledAt: now,
-          inventoryReservedAt: null,
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(orderItems.orderId, id),
-            eq(orderItems.organizationId, tenantContext.organizationId),
-          ),
-        );
-
-      const [nextOrder] = await tx
-        .update(orders)
-        .set({
-          status: "CANCELLED",
-          cancelReason: customerPayload.cancelReason?.trim() || null,
-          cancelledAt: now,
-          cancelledByType: "CUSTOMER",
-          updatedAt: now,
-        })
-        .where(
-          and(
-            eq(orders.id, id),
-            eq(orders.organizationId, tenantContext.organizationId),
-          ),
-        )
-        .returning();
-
-      return nextOrder;
-    });
-
-    await writeAuditLog({
-      actor: null,
+    const result = await cancelOrder({
+      actorType: "STAFF",
+      actorUser: session.user,
+      applyCustomerCancellationFee:
+        parsed.data.applyCustomerCancellationFee,
+      cancellationFeeBps:
+        parsed.data.cancellationFeePercent === undefined
+          ? undefined
+          : Math.round(parsed.data.cancellationFeePercent * 100),
+      cancelReason: parsed.data.cancelReason,
+      orderId: id,
       organizationId: tenantContext.organizationId,
-      action: "order.cancel.customer",
-      entityType: "order",
-      entityId: updatedOrder.id,
-      metadata: {
-        orderNo: updatedOrder.orderNo,
-        previousStatus: order.status,
-        nextStatus: updatedOrder.status,
-        cancelledByType: updatedOrder.cancelledByType,
-        hasCancelReason: Boolean(updatedOrder.cancelReason),
-      },
+      overrideReason: parsed.data.overrideReason,
+      retryRefund: parsed.data.retryRefund,
     });
 
-    return NextResponse.json(serializeOrder(updatedOrder));
+    return NextResponse.json({
+      ...serializeOrder(result.order),
+      refundError: result.error,
+    });
   } catch (error) {
+    const status =
+      error instanceof OrderCancellationError ||
+      error instanceof StaffRestaurantContextError
+        ? error.status
+        : 500;
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to cancel order." },
-      { status: error instanceof StaffRestaurantContextError ? error.status : 500 },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to cancel order.",
+      },
+      { status },
     );
   }
 }

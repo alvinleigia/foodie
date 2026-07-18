@@ -104,7 +104,16 @@ export const paymentStatusEnum = pgEnum("payment_status", [
   "PAID",
   "FAILED",
   "CANCELLED",
+  "REFUND_PENDING",
+  "PARTIALLY_REFUNDED",
+  "REFUND_FAILED",
   "REFUNDED",
+]);
+
+export const refundStatusEnum = pgEnum("refund_status", [
+  "PENDING",
+  "SUCCEEDED",
+  "FAILED",
 ]);
 
 export const integrationModeEnum = pgEnum("integration_mode", [
@@ -240,6 +249,9 @@ export const organizations = pgTable(
     logoUrl: text("logo_url"),
     timezone: text("timezone").notNull(),
     currency: text("currency").notNull(),
+    customerCancellationFeeBps: integer("customer_cancellation_fee_bps")
+      .default(0)
+      .notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -247,6 +259,10 @@ export const organizations = pgTable(
   (table) => [
     index("organizations_parent_idx").on(table.parentOrganizationId),
     uniqueIndex("organizations_slug_unique").on(table.slug),
+    check(
+      "organizations_customer_cancellation_fee_bps_check",
+      sql`${table.customerCancellationFeeBps} >= 0 AND ${table.customerCancellationFeeBps} <= 10000`,
+    ),
   ],
 );
 
@@ -851,6 +867,17 @@ export const orders = pgTable("orders", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   paymentExpiresAt: timestamp("payment_expires_at"),
   paidAt: timestamp("paid_at"),
+  customerCancellationFeeBpsSnapshot: integer(
+    "customer_cancellation_fee_bps_snapshot",
+  )
+    .default(0)
+    .notNull(),
+  cancellationFeeBpsApplied: integer("cancellation_fee_bps_applied"),
+  cancellationFeeAmount: numeric("cancellation_fee_amount", {
+    precision: 10,
+    scale: 2,
+  }),
+  refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }),
   categoryId: text("category_id").notNull(),
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
@@ -894,7 +921,104 @@ export const orders = pgTable("orders", {
     table.orderDate,
     table.orderNo,
   ),
+  check(
+    "orders_customer_cancellation_fee_bps_snapshot_check",
+    sql`${table.customerCancellationFeeBpsSnapshot} >= 0 AND ${table.customerCancellationFeeBpsSnapshot} <= 10000`,
+  ),
+  check(
+    "orders_cancellation_fee_bps_applied_check",
+    sql`${table.cancellationFeeBpsApplied} IS NULL OR (${table.cancellationFeeBpsApplied} >= 0 AND ${table.cancellationFeeBpsApplied} <= ${table.customerCancellationFeeBpsSnapshot})`,
+  ),
+  check(
+    "orders_cancellation_amounts_check",
+    sql`(${table.cancellationFeeAmount} IS NULL AND ${table.refundAmount} IS NULL) OR (${table.cancellationFeeAmount} IS NOT NULL AND ${table.cancellationFeeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.paymentAmount} IS NOT NULL AND ${table.cancellationFeeAmount} + ${table.refundAmount} = ${table.paymentAmount})`,
+  ),
 ]);
+
+export const orderCancellations = pgTable(
+  "order_cancellations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    actorType: cancelledByTypeEnum("actor_type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason"),
+    disclosedFeeBps: integer("disclosed_fee_bps").notNull(),
+    appliedFeeBps: integer("applied_fee_bps").notNull(),
+    grossAmount: numeric("gross_amount", { precision: 10, scale: 2 }),
+    feeAmount: numeric("fee_amount", { precision: 10, scale: 2 }),
+    refundAmount: numeric("refund_amount", { precision: 10, scale: 2 }),
+    currency: text("currency"),
+    overrideReason: text("override_reason"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("order_cancellations_order_unique").on(table.orderId),
+    index("order_cancellations_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    check(
+      "order_cancellations_fee_bps_check",
+      sql`${table.disclosedFeeBps} >= 0 AND ${table.disclosedFeeBps} <= 10000 AND ${table.appliedFeeBps} >= 0 AND ${table.appliedFeeBps} <= ${table.disclosedFeeBps}`,
+    ),
+    check(
+      "order_cancellations_amounts_check",
+      sql`(${table.grossAmount} IS NULL AND ${table.feeAmount} IS NULL AND ${table.refundAmount} IS NULL AND ${table.currency} IS NULL) OR (${table.grossAmount} IS NOT NULL AND ${table.grossAmount} >= 0 AND ${table.feeAmount} IS NOT NULL AND ${table.feeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.currency} IS NOT NULL AND ${table.feeAmount} + ${table.refundAmount} = ${table.grossAmount})`,
+    ),
+  ],
+);
+
+export const orderRefunds = pgTable(
+  "order_refunds",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    cancellationId: uuid("cancellation_id")
+      .references(() => orderCancellations.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
+    status: refundStatusEnum("status").default("PENDING").notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    stripeRefundId: text("stripe_refund_id"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    failureReason: text("failure_reason"),
+    requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    requestedAt: timestamp("requested_at").defaultNow().notNull(),
+    processedAt: timestamp("processed_at"),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_refunds_order_requested_idx").on(
+      table.orderId,
+      table.requestedAt,
+    ),
+    uniqueIndex("order_refunds_stripe_refund_unique").on(table.stripeRefundId),
+    uniqueIndex("order_refunds_idempotency_key_unique").on(
+      table.idempotencyKey,
+    ),
+    uniqueIndex("order_refunds_one_pending_per_cancellation_unique")
+      .on(table.cancellationId)
+      .where(sql`${table.status} = 'PENDING'`),
+    check("order_refunds_amount_check", sql`${table.amount} > 0`),
+  ],
+);
 
 export const orderItems = pgTable("order_items", {
   id: uuid("id").defaultRandom().primaryKey(),

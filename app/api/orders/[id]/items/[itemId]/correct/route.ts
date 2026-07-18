@@ -180,6 +180,16 @@ export async function POST(
       return NextResponse.json({ error: "Order not found." }, { status: 404 });
     }
 
+    if (order.cancellationFeeBpsApplied !== null) {
+      return NextResponse.json(
+        {
+          error:
+            "Items in a financially settled cancellation cannot be reopened.",
+        },
+        { status: 409 },
+      );
+    }
+
     const [item] = await db
       .select()
       .from(orderItems)

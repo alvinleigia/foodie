@@ -88,7 +88,7 @@ Staff login, operations and administration run only on `APP_ROOT_DOMAIN`. Compan
 
 Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
 
-`/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, Checkout session completed, async payment succeeded/failed and session expired events, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
+`/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `refund.created`, `refund.updated` and `refund.failed`, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 
@@ -126,6 +126,8 @@ npm run db:migrate
 Customer email OTP requires `0022_customer_email_otp.sql`, tenant integrations require `0023_tenant_integrations.sql`, tenant social login overrides require `0024_tenant_oauth_settings.sql`, strict cell defaults require `0026_cell_deployment_defaults.sql`, and centralized customer social login requires `0027_customer_auth_handoffs.sql`. Migration `0028_customer_facing_tenant_domains.sql` makes all non-platform domains customer-facing. The migration runner applies each migration automatically when it has not already been recorded in `app_migrations`.
 
 The direct company/restaurant model is completed by migrations `0029` through `0033`. These add restaurant-owned ordering points, move staff and operational data to restaurant scope, restrict customer domains to company/restaurant ownership and remove the legacy locations schema. Each migration and its `app_migrations` record are applied in one database transaction.
+
+Order cancellation and refund tracking requires migrations `0034` through `0034c`. These add the cancellation policy snapshot, cancellation and refund ledgers, and partial/failed refund payment states.
 
 For a clean development reset, run the reset-and-migrate command. This deletes the full `public` schema, so use it only for test/dev databases:
 

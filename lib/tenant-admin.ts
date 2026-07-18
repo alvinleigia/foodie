@@ -88,6 +88,9 @@ export async function updateOrganizationSettings(
         logoUrl: parsed.logoUrl,
         timezone: parsed.timezone,
         currency: parsed.currency.toUpperCase(),
+        customerCancellationFeeBps: Math.round(
+          parsed.customerCancellationFeePercent * 100,
+        ),
         updatedAt: new Date(),
       })
       .where(eq(organizations.id, context.organizationId))

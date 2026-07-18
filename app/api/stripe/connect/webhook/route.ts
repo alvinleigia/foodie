@@ -5,6 +5,7 @@ import {
   cancelPendingOrderPayment,
   markOrderPaymentPaid,
 } from "@/lib/order-payments";
+import { syncOrderRefundFromStripe } from "@/lib/order-cancellation";
 import { syncStripeAccountFromWebhook } from "@/lib/organization-payment-settings";
 import { getStripe } from "@/lib/stripe";
 
@@ -39,6 +40,18 @@ export async function POST(request: Request) {
   const stripeConnectedAccountId = event.account ?? null;
 
   if (!stripeConnectedAccountId) {
+    return NextResponse.json({ received: true });
+  }
+
+  if (
+    event.type === "refund.created" ||
+    event.type === "refund.updated" ||
+    event.type === "refund.failed"
+  ) {
+    await syncOrderRefundFromStripe(
+      event.data.object as Stripe.Refund,
+      stripeConnectedAccountId,
+    );
     return NextResponse.json({ received: true });
   }
 

@@ -27,6 +27,11 @@ export type StaffPrincipal = {
   organizationId: string;
 };
 
+export type StaffAccessCandidate = StaffPrincipal & {
+  organizationSlug: string;
+  organizationType: "PLATFORM" | "COMPANY" | "RESTAURANT";
+};
+
 type AuthenticateStaffOptions = {
   platformOnly?: boolean;
   accessScope?: TenantDomainAccessScope;
@@ -55,6 +60,89 @@ function getScopedAccessPriority(
   return 1;
 }
 
+async function resolveStaffAccessRecord(
+  identifier: string,
+  options: AuthenticateStaffOptions,
+) {
+  const db = getDb();
+  const baseAccessCondition = and(
+    or(eq(users.username, identifier), eq(users.email, identifier)),
+    eq(users.status, "ACTIVE"),
+    eq(memberships.isActive, true),
+    eq(organizations.isActive, true),
+  );
+  const records = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      username: users.username,
+      passwordHash: users.passwordHash,
+      status: users.status,
+      membershipRole: memberships.role,
+      organizationId: memberships.organizationId,
+      organizationSlug: organizations.slug,
+      organizationType: organizations.type,
+      parentOrganizationId: organizations.parentOrganizationId,
+      membershipActive: memberships.isActive,
+      organizationActive: organizations.isActive,
+    })
+    .from(users)
+    .innerJoin(memberships, eq(memberships.userId, users.id))
+    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
+    .where(
+      options.platformOnly
+        ? and(
+            baseAccessCondition,
+            eq(memberships.role, "PLATFORM_ADMIN"),
+            eq(organizations.type, "PLATFORM"),
+          )
+        : baseAccessCondition,
+    );
+
+  return (
+    records
+      .filter(
+        (candidate) =>
+          candidate.membershipRole !== "COMPANY_MANAGER" &&
+          isMembershipAllowedInScope(candidate, options.accessScope),
+      )
+      .sort(
+        (first, second) =>
+          getScopedAccessPriority(first, options.accessScope) -
+          getScopedAccessPriority(second, options.accessScope),
+      )[0] ?? null
+  );
+}
+
+export async function resolveStaffAccessCandidate(
+  identifierValue: unknown,
+  options: AuthenticateStaffOptions = {},
+) {
+  const identifier = normalizeIdentifier(identifierValue);
+
+  if (!identifier) {
+    return null;
+  }
+
+  const record = await resolveStaffAccessRecord(identifier, options);
+
+  if (!record) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    name: record.name,
+    email: record.email,
+    username: record.username,
+    role: record.membershipRole,
+    organizationId: record.organizationId,
+    organizationSlug: record.organizationSlug,
+    organizationType: record.organizationType,
+  } satisfies StaffAccessCandidate;
+}
+
 export async function authenticateStaff(
   identifierValue: unknown,
   passwordValue: unknown,
@@ -77,51 +165,7 @@ export async function authenticateStaff(
     return null;
   }
 
-  const db = getDb();
-  const baseAccessCondition = and(
-    or(eq(users.username, identifier), eq(users.email, identifier)),
-    eq(users.status, "ACTIVE"),
-    eq(memberships.isActive, true),
-    eq(organizations.isActive, true),
-  );
-  const records = await db
-    .select({
-      id: users.id,
-      name: users.name,
-      email: users.email,
-      username: users.username,
-      passwordHash: users.passwordHash,
-      status: users.status,
-      membershipRole: memberships.role,
-      organizationId: memberships.organizationId,
-      organizationType: organizations.type,
-      parentOrganizationId: organizations.parentOrganizationId,
-      membershipActive: memberships.isActive,
-      organizationActive: organizations.isActive,
-    })
-    .from(users)
-    .innerJoin(memberships, eq(memberships.userId, users.id))
-    .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
-    .where(
-      options.platformOnly
-        ? and(
-            baseAccessCondition,
-            eq(memberships.role, "PLATFORM_ADMIN"),
-            eq(organizations.type, "PLATFORM"),
-          )
-        : baseAccessCondition,
-    );
-  const [record] = records
-    .filter(
-      (candidate) =>
-        candidate.membershipRole !== "COMPANY_MANAGER" &&
-        isMembershipAllowedInScope(candidate, options.accessScope),
-    )
-    .sort(
-      (first, second) =>
-        getScopedAccessPriority(first, options.accessScope) -
-        getScopedAccessPriority(second, options.accessScope),
-    );
+  const record = await resolveStaffAccessRecord(identifier, options);
 
   if (!record) {
     return null;

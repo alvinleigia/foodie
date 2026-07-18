@@ -439,6 +439,9 @@ export async function updateChildRestaurantAdmin(
         name: parsed.name,
         timezone: parsed.timezone,
         currency: parsed.currency.toUpperCase(),
+        customerCancellationFeeBps: Math.round(
+          parsed.customerCancellationFeePercent * 100,
+        ),
         isActive: parsed.isActive,
         updatedAt: new Date(),
       })

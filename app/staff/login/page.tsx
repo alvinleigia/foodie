@@ -3,13 +3,17 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { StaffLoginForm } from "@/components/staff/StaffLoginForm";
 import { AppShell } from "@/components/shared/AppShell";
-import { getHomePathForRole } from "@/lib/role-access";
+import { resolveStaffHomePath } from "@/lib/staff-home";
 
 export default async function StaffLoginPage() {
   const session = await auth();
 
-  if (session?.user?.role) {
-    redirect(getHomePathForRole(session.user.role));
+  if (session?.user.kind === "staff") {
+    const homePath = await resolveStaffHomePath(session.user);
+
+    if (homePath) {
+      redirect(homePath);
+    }
   }
 
   return (
