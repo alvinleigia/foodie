@@ -59,6 +59,12 @@ export function getCustomerOrderHref(
   return withPublicCustomerContext(path, { orderingPointQrSlug });
 }
 
+export function getCustomerPrivacyHref(
+  context: PublicCustomerContextOptions,
+) {
+  return withPublicCustomerContext("/privacy", context);
+}
+
 export function getCustomerLoginHref({
   orderingPointQrSlug,
   routeSlug,

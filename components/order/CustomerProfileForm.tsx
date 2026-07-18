@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SaveIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -24,7 +25,10 @@ import {
   requestJson,
   type FieldErrors,
 } from "@/lib/api-client";
-import { withPublicCustomerContext } from "@/lib/customer-navigation";
+import {
+  getCustomerPrivacyHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
 
 type CustomerProfileField =
   | "dateOfBirth"
@@ -62,6 +66,10 @@ export function CustomerProfileForm({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors<CustomerProfileField>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const privacyHref = getCustomerPrivacyHref({
+    orderingPointQrSlug,
+    routeSlug,
+  });
 
   function updateField<TField extends CustomerProfileField>(
     field: TField,
@@ -205,6 +213,17 @@ export function CustomerProfileForm({
         />
         <span>Send me occasional offers and restaurant updates.</span>
       </label>
+
+      <p className="text-xs leading-5 text-stone-500">
+        See how profile details and marketing choices are used and retained in the{" "}
+        <Link
+          href={privacyHref}
+          className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+        >
+          privacy notice
+        </Link>
+        .
+      </p>
 
       {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
 

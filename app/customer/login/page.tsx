@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   getSafeCustomerReturnTo,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
@@ -59,6 +60,7 @@ export default async function CustomerLoginPage({
                 "/order/status",
                 customerContext,
               ),
+              privacyHref: getCustomerPrivacyHref(customerContext),
             }}
           />
           <Card className="rounded-xl border-white/60 bg-white/95">

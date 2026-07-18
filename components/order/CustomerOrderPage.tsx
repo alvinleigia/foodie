@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
@@ -88,6 +89,7 @@ export function CustomerOrderPage({
                 }),
             orderHref,
             ordersHref,
+            privacyHref: getCustomerPrivacyHref(customerContext),
           }}
         />
       )}

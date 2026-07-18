@@ -10,6 +10,7 @@ import { getCustomerProfile } from "@/lib/customer-account";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
@@ -58,6 +59,7 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
           customerName: customer.name,
           orderHref: getCustomerOrderHref("/order", customerContext),
           ordersHref,
+          privacyHref: getCustomerPrivacyHref(customerContext),
         }}
       />
 

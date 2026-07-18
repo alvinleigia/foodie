@@ -8,6 +8,7 @@ import {
   LogInIcon,
   LogOutIcon,
   MenuIcon,
+  ShieldCheckIcon,
   UserRoundIcon,
   UtensilsIcon,
 } from "lucide-react";
@@ -47,6 +48,7 @@ type AppHeaderProps = {
     loginHref?: string;
     orderHref?: string;
     ordersHref?: string;
+    privacyHref?: string;
   };
   navigationItems?: StaffNavigationItem[];
   staffOrderHref?: string;
@@ -250,6 +252,17 @@ export function AppHeader({
                 >
                   <UserRoundIcon />
                   My account
+                </Link>
+              </DropdownMenuItem>
+            ) : null}
+            {customerMenu.privacyHref ? (
+              <DropdownMenuItem asChild>
+                <Link
+                  href={customerMenu.privacyHref}
+                  className={cn(activePath === "/privacy" && "bg-white/10 text-white")}
+                >
+                  <ShieldCheckIcon />
+                  Privacy notice
                 </Link>
               </DropdownMenuItem>
             ) : null}

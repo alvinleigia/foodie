@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
@@ -26,6 +27,7 @@ import {
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import { getCustomerPrivacyHref } from "@/lib/customer-navigation";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 import {
   isValidCustomerPhone,
@@ -283,6 +285,10 @@ export function OrderForm({
       isValidCustomerPhone(savedCustomerPhoneValue),
   );
   const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
+  const privacyHref = getCustomerPrivacyHref({
+    orderingPointQrSlug,
+    routeSlug,
+  });
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -1553,7 +1559,27 @@ export function OrderForm({
               </div>
             </div>
 
-            <div className="grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-2">
+            {!isStaffOrder ? (
+              <p className="border-t border-stone-200 pt-4 text-xs leading-5 text-stone-500">
+                See how the restaurant and Foodie use your contact, order and payment
+                information in the{" "}
+                <Link
+                  href={privacyHref}
+                  className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+                >
+                  privacy notice
+                </Link>
+                .
+              </p>
+            ) : null}
+
+            <div
+              className={
+                isStaffOrder
+                  ? "grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-2"
+                  : "grid gap-3 sm:grid-cols-2"
+              }
+            >
               <Button
                 type="button"
                 variant="outline"

@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { requireCustomerSession } from "@/lib/auth";
 import {
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getCustomerPaymentResult } from "@/lib/order-payments";
@@ -67,6 +68,7 @@ export default async function OrderPaymentSuccessPage(
           customerName: order.customerName,
           orderHref,
           ordersHref,
+          privacyHref: getCustomerPrivacyHref(customerContext),
         }}
       />
 

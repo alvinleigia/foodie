@@ -7,6 +7,7 @@ import { CustomerOrderStatus } from "@/components/order/CustomerOrderStatus";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
@@ -70,6 +71,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
                     }),
                 orderHref: getCustomerOrderHref("/order", customerContext),
                 ordersHref,
+                privacyHref: getCustomerPrivacyHref(customerContext),
               }}
             />
           )}
