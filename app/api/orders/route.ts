@@ -58,6 +58,7 @@ import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
+import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 
 export async function GET() {
   try {
@@ -156,6 +157,30 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Add a valid phone number before placing your order." },
+        { status: 409 },
+      );
+    }
+
+    const phoneVerificationPolicy = getCustomerPhoneVerificationPolicy();
+
+    if (
+      session.user.kind === "customer" &&
+      phoneVerificationPolicy.required &&
+      !phoneVerificationPolicy.available
+    ) {
+      return NextResponse.json(
+        { error: "Phone verification is temporarily unavailable." },
+        { status: 503 },
+      );
+    }
+
+    if (
+      session.user.kind === "customer" &&
+      phoneVerificationPolicy.required &&
+      !customerProfile?.phoneVerifiedAt
+    ) {
+      return NextResponse.json(
+        { error: "Verify your phone number before placing your order." },
         { status: 409 },
       );
     }

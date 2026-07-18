@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
@@ -26,6 +27,7 @@ import {
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import { getCustomerPrivacyHref } from "@/lib/customer-navigation";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 import {
   isValidCustomerPhone,
@@ -40,6 +42,7 @@ import {
   CustomerLoginForm,
   type CustomerAuthProviders,
 } from "@/components/order/CustomerLoginForm";
+import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerification";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -74,6 +77,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import {
   MenuCategoryRecord,
   MenuItemRecord,
@@ -86,10 +90,12 @@ type OrderFormProps = {
     email?: string | null;
     name?: string | null;
     phone?: string | null;
+    phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
   isStaffOrder?: boolean;
   orderingPointQrSlug?: string;
+  phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   staffRestaurantSlug?: string;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
@@ -240,6 +246,7 @@ export function OrderForm({
   customerAuthProviders,
   isStaffOrder = false,
   orderingPointQrSlug,
+  phoneVerificationPolicy,
   routeSlug,
   staffRestaurantSlug,
   onOrderCreated,
@@ -260,6 +267,9 @@ export function OrderForm({
   const [savedCustomerName, setSavedCustomerName] = useState<string | null>(null);
   const [customerPhone, setCustomerPhone] = useState<string | null>(null);
   const [savedCustomerPhone, setSavedCustomerPhone] = useState<string | null>(null);
+  const [customerPhoneVerifiedAt, setCustomerPhoneVerifiedAt] = useState<
+    string | null
+  >(customer?.phoneVerifiedAt ?? null);
   const [selectedStaffCustomer, setSelectedStaffCustomer] =
     useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -276,13 +286,26 @@ export function OrderForm({
   const savedCustomerNameValue = savedCustomerName ?? customer?.name ?? null;
   const customerPhoneValue = customerPhone ?? customer?.phone ?? "";
   const savedCustomerPhoneValue = savedCustomerPhone ?? customer?.phone ?? null;
+  const hasVerifiedCustomerPhone = Boolean(
+    customerPhoneVerifiedAt &&
+      isValidCustomerPhone(savedCustomerPhoneValue) &&
+      normalizeCustomerPhone(customerPhoneValue) ===
+        normalizeCustomerPhone(savedCustomerPhoneValue!),
+  );
   const hasCompleteCustomerProfile = Boolean(
     customer &&
       savedCustomerNameValue &&
       savedCustomerNameValue.trim().length >= 2 &&
       isValidCustomerPhone(savedCustomerPhoneValue),
   );
-  const canPlaceOrder = isStaffOrder || hasCompleteCustomerProfile;
+  const canPlaceOrder =
+    isStaffOrder ||
+    (hasCompleteCustomerProfile &&
+      (!phoneVerificationPolicy.required || hasVerifiedCustomerPhone));
+  const privacyHref = getCustomerPrivacyHref({
+    orderingPointQrSlug,
+    routeSlug,
+  });
 
   const availableTags = useMemo(() => {
     const tagsById = new Map<string, NonNullable<MenuItemRecord["tags"]>[number]>();
@@ -796,7 +819,11 @@ export function OrderForm({
     }
 
     if (!canPlaceOrder) {
-      setError("Add a valid phone number before placing your order.");
+      setError(
+        phoneVerificationPolicy.required && !hasVerifiedCustomerPhone
+          ? "Verify your phone number before placing your order."
+          : "Add a valid phone number before placing your order.",
+      );
       return;
     }
 
@@ -914,9 +941,16 @@ export function OrderForm({
 
     try {
       const payload = await requestJson<{
-        customer: { name: string; phone: string | null };
+        customer: {
+          name: string;
+          phone: string | null;
+          phoneVerifiedAt: string | null;
+        };
       }>(
-        "/api/customer/profile",
+        withOrderContext("/api/customer/profile", {
+          orderingPointQrSlug,
+          routeSlug,
+        }),
         {
           body: { name: customerNameValue, phone: customerPhoneValue },
           fallbackError: "Profile could not be saved.",
@@ -929,6 +963,7 @@ export function OrderForm({
       setSavedCustomerName(name);
       setCustomerPhone(phone);
       setSavedCustomerPhone(phone);
+      setCustomerPhoneVerifiedAt(payload.customer.phoneVerifiedAt);
       toast.success("Profile saved.");
       router.refresh();
     } catch (profileError) {
@@ -1432,6 +1467,17 @@ export function OrderForm({
                     </Button>
                   </div>
                 )}
+                <CustomerPhoneVerification
+                  key={savedCustomerPhoneValue ?? "no-saved-phone"}
+                  disabled={isSavingProfile || isSubmitting}
+                  onVerified={setCustomerPhoneVerifiedAt}
+                  orderingPointQrSlug={orderingPointQrSlug}
+                  phone={customerPhoneValue}
+                  phoneVerifiedAt={customerPhoneVerifiedAt}
+                  policy={phoneVerificationPolicy}
+                  routeSlug={routeSlug}
+                  savedPhone={savedCustomerPhoneValue}
+                />
               </div>
             ) : null}
 
@@ -1553,7 +1599,27 @@ export function OrderForm({
               </div>
             </div>
 
-            <div className="grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-2">
+            {!isStaffOrder ? (
+              <p className="border-t border-stone-200 pt-4 text-xs leading-5 text-stone-500">
+                See how the restaurant and Foodie use your contact, order and payment
+                information in the{" "}
+                <Link
+                  href={privacyHref}
+                  className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+                >
+                  privacy notice
+                </Link>
+                .
+              </p>
+            ) : null}
+
+            <div
+              className={
+                isStaffOrder
+                  ? "grid gap-3 border-t border-stone-200 pt-4 sm:grid-cols-2"
+                  : "grid gap-3 sm:grid-cols-2"
+              }
+            >
               <Button
                 type="button"
                 variant="outline"

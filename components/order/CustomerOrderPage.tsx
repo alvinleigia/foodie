@@ -7,20 +7,24 @@ import { AppHeader } from "@/components/shared/AppHeader";
 import {
   getCustomerLoginHref,
   getCustomerOrderHref,
+  getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 
 type CustomerOrderPageProps = {
   customer?: {
     email?: string | null;
     name?: string | null;
     phone?: string | null;
+    phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
   orderingPointQrSlug?: string;
+  phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   staffRestaurant?: {
     id: string;
@@ -37,6 +41,7 @@ export function CustomerOrderPage({
   customer,
   customerAuthProviders,
   orderingPointQrSlug,
+  phoneVerificationPolicy,
   routeSlug,
   staffRestaurant,
   user,
@@ -88,6 +93,7 @@ export function CustomerOrderPage({
                 }),
             orderHref,
             ordersHref,
+            privacyHref: getCustomerPrivacyHref(customerContext),
           }}
         />
       )}
@@ -97,6 +103,7 @@ export function CustomerOrderPage({
         customerAuthProviders={customerAuthProviders}
         isStaffOrder={Boolean(user)}
         orderingPointQrSlug={orderingPointQrSlug}
+        phoneVerificationPolicy={phoneVerificationPolicy}
         routeSlug={routeSlug}
         staffRestaurantSlug={staffRestaurant?.slug}
       />

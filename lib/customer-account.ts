@@ -9,6 +9,7 @@ import {
   organizations,
 } from "@/db/schema";
 import type { customerProfileUpdateSchema } from "@/lib/validations/customer";
+import { normalizeCustomerPhone } from "@/lib/validations/customer";
 import type { z } from "zod";
 import type { TenantContext } from "@/lib/tenant-context";
 
@@ -94,7 +95,14 @@ export async function updateCustomerProfile(
 
   if (input.phone !== undefined) {
     updates.phone = input.phone;
-    updates.phoneVerifiedAt = null;
+
+    const existingPhone = existingCustomer.phone
+      ? normalizeCustomerPhone(existingCustomer.phone)
+      : null;
+
+    if (existingPhone !== input.phone) {
+      updates.phoneVerifiedAt = null;
+    }
   }
 
   if (input.dateOfBirth !== undefined) {
@@ -121,6 +129,27 @@ export async function updateCustomerProfile(
     .returning();
 
   return customer ? getCustomerProfile(customerId, context) : null;
+}
+
+export async function markCustomerPhoneVerified(
+  customerId: string,
+  context: TenantContext,
+  expectedPhone: string,
+) {
+  const verifiedAt = new Date();
+  const [customer] = await getDb()
+    .update(organizationCustomers)
+    .set({ phoneVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+    .where(
+      and(
+        eq(organizationCustomers.customerId, customerId),
+        eq(organizationCustomers.organizationId, context.organizationId),
+        eq(organizationCustomers.phone, expectedPhone),
+      ),
+    )
+    .returning({ phoneVerifiedAt: organizationCustomers.phoneVerifiedAt });
+
+  return customer?.phoneVerifiedAt ?? null;
 }
 
 export async function getCustomerOrderHistory(

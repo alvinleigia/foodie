@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { getCustomerRouteSlugFromUrl } from "../../lib/customer-navigation";
+import {
+  getCustomerPrivacyHref,
+  getCustomerRouteSlugFromUrl,
+} from "../../lib/customer-navigation";
 
 test.describe("customer route context", () => {
   test("reads a restaurant slug from customer order paths", () => {
@@ -32,5 +35,14 @@ test.describe("customer route context", () => {
         new URL("https://orders.example.com/order/status"),
       ),
     ).toBeNull();
+  });
+
+  test("keeps restaurant context on privacy notice links", () => {
+    expect(getCustomerPrivacyHref({ routeSlug: "snack-shack" })).toBe(
+      "/privacy?route=snack-shack",
+    );
+    expect(getCustomerPrivacyHref({ orderingPointQrSlug: "table-12" })).toBe(
+      "/privacy?qr=table-12",
+    );
   });
 });

@@ -13,6 +13,11 @@ const noCustomerAuthProviders = {
   google: false,
 };
 
+const noCustomerPhoneVerification = {
+  available: false,
+  required: false,
+};
+
 export default async function StaffRestaurantOrderPage({
   params,
 }: {
@@ -38,6 +43,7 @@ export default async function StaffRestaurantOrderPage({
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
       <CustomerOrderPage
         customerAuthProviders={noCustomerAuthProviders}
+        phoneVerificationPolicy={noCustomerPhoneVerification}
         staffRestaurant={{
           id: staffAccess.restaurant.id,
           name: staffAccess.restaurant.name,

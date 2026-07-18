@@ -28,6 +28,7 @@ export function CustomerOrderUnavailable({
             : {
                 orderHref: "/order",
                 ordersHref: "/order/status",
+                privacyHref: "/privacy",
               }
         }
       />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { KeyRoundIcon, LogInIcon, MailIcon } from "lucide-react";
@@ -12,7 +13,10 @@ import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
-import { withPublicCustomerContext } from "@/lib/customer-navigation";
+import {
+  getCustomerPrivacyHref,
+  withPublicCustomerContext,
+} from "@/lib/customer-navigation";
 import { cn } from "@/lib/utils";
 
 export type CustomerAuthProviders = {
@@ -55,6 +59,10 @@ export function CustomerLoginForm({
   const [isRequestingCode, setIsRequestingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const hasSocialProvider = providers.google || providers.apple || providers.facebook;
+  const privacyHref = getCustomerPrivacyHref({
+    orderingPointQrSlug,
+    routeSlug,
+  });
 
   useEffect(() => {
     if (retrySeconds <= 0) {
@@ -358,6 +366,18 @@ export function CustomerLoginForm({
           {error}
         </p>
       ) : null}
+
+      <p className="text-xs leading-5 text-stone-500">
+        Before signing in, read how your account and order information is handled in
+        the{" "}
+        <Link
+          href={privacyHref}
+          className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+        >
+          privacy notice
+        </Link>
+        .
+      </p>
     </div>
   );
 }
