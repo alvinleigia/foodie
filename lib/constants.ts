@@ -24,6 +24,7 @@ export type OrderItemStatus = (typeof orderItemStatuses)[number];
 
 export const paymentStatuses = [
   "NOT_REQUIRED",
+  "UNPAID",
   "PENDING",
   "PAID",
   "FAILED",
@@ -35,6 +36,10 @@ export const paymentStatuses = [
 ] as const;
 
 export type PaymentStatus = (typeof paymentStatuses)[number];
+
+export const orderPaymentMethods = ["CASH", "STRIPE_CHECKOUT"] as const;
+
+export type OrderPaymentMethod = (typeof orderPaymentMethods)[number];
 
 export type OrderLineItem = {
   id?: string;

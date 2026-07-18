@@ -126,7 +126,7 @@ export async function getOrganizationPaymentSettingsSnapshot(
       : null,
     settings: {
       mode: settings?.mode ?? "INHERIT",
-      provider: settings?.provider ?? "STRIPE",
+      provider: "STRIPE",
       stripeAccountId: settings?.stripeAccountId ?? null,
       onboardingStatus: settings?.onboardingStatus ?? "NOT_STARTED",
       chargesEnabled: settings?.chargesEnabled ?? false,

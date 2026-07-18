@@ -68,7 +68,11 @@ export async function POST(
       );
     }
 
-    if (body.action === "cancel" && order.paymentStatus !== "NOT_REQUIRED") {
+    if (
+      body.action === "cancel" &&
+      order.paymentStatus !== "NOT_REQUIRED" &&
+      order.paymentStatus !== "UNPAID"
+    ) {
       return NextResponse.json(
         {
           error:

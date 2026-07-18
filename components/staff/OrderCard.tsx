@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  BanknoteIcon,
   CheckCircleIcon,
   CirclePlayIcon,
   ClockIcon,
   CookingPotIcon,
+  CreditCardIcon,
   MegaphoneIcon,
   PackageIcon,
   RefreshCwIcon,
@@ -21,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   OrderItemStatus,
+  OrderPaymentMethod,
   OrderStatus,
   PaymentStatus,
 } from "@/lib/constants";
@@ -30,11 +33,12 @@ import {
 } from "@/lib/order-corrections";
 import { formatOrderDisplay } from "@/lib/order-display";
 
-type StaffOrder = {
+export type StaffOrder = {
   orderId: string;
   orderNo: number;
   orderDate?: string | null;
   customerName: string;
+  source: "CUSTOMER_SELF_SERVICE" | "STAFF_CREATED";
   categoryName: string;
   drinkName: string;
   itemCount?: number;
@@ -67,6 +71,7 @@ type StaffOrder = {
   deliveredAt?: string | null;
   cancelledAt?: string | null;
   paymentStatus: PaymentStatus;
+  paymentMethod: OrderPaymentMethod | null;
   paymentAmount: string | null;
   paymentCurrency: string | null;
   customerCancellationFeeBps: number;
@@ -75,7 +80,7 @@ type StaffOrder = {
   refundAmount: string | null;
 };
 
-type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
+export type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
 
 type OrderCardProps = {
   currency: string;
@@ -101,6 +106,8 @@ type OrderCardProps = {
   ) => Promise<void>;
   onCorrectOrder: (order: StaffOrder) => void;
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
+  onSettleOrder: (order: StaffOrder) => void;
+  onCancelPayment: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
   onRetryRefund: (order: StaffOrder) => Promise<void>;
@@ -117,6 +124,8 @@ export function OrderCard({
   onOrderAction,
   onCorrectOrder,
   onCorrectItem,
+  onSettleOrder,
+  onCancelPayment,
   canCorrectStatuses,
   canManageRefunds,
   onRetryRefund,
@@ -142,18 +151,24 @@ export function OrderCard({
     order.status === "CANCELLED" &&
     order.paymentStatus === "REFUND_FAILED";
   const paymentCurrency = order.paymentCurrency ?? currency;
+  const paymentTotal = order.paymentAmount
+    ? new Intl.NumberFormat(undefined, {
+        currency: paymentCurrency,
+        style: "currency",
+      }).format(Number(order.paymentAmount))
+    : "Price unavailable";
   const refundMessage =
     order.status !== "CANCELLED" || order.paymentStatus === "NOT_REQUIRED"
       ? null
       : order.paymentStatus === "REFUND_PENDING"
         ? "Refund is being processed."
         : order.paymentStatus === "REFUNDED"
-          ? `Full refund: ${new Intl.NumberFormat(undefined, {
+          ? `${order.paymentMethod === "CASH" ? "Cash returned" : "Full refund"}: ${new Intl.NumberFormat(undefined, {
               currency: paymentCurrency,
               style: "currency",
             }).format(Number(order.refundAmount ?? order.paymentAmount ?? 0))}`
           : order.paymentStatus === "PARTIALLY_REFUNDED"
-            ? `Refunded ${new Intl.NumberFormat(undefined, {
+            ? `${order.paymentMethod === "CASH" ? "Returned cash" : "Refunded"} ${new Intl.NumberFormat(undefined, {
                 currency: paymentCurrency,
                 style: "currency",
               }).format(Number(order.refundAmount ?? 0))}; retained ${new Intl.NumberFormat(undefined, {
@@ -278,9 +293,9 @@ export function OrderCard({
             </>
           ) : null}
 
-          {order.status === "PENDING" ||
+          {(order.status === "PENDING" ||
           order.status === "PREPARING" ||
-          order.status === "READY" ? (
+          order.status === "READY") && order.paymentStatus !== "PENDING" ? (
             <Button
               type="button"
               variant="outline"
@@ -416,7 +431,9 @@ export function OrderCard({
           </>
         ) : null}
 
-        {canUpdateItem && order.paymentStatus === "NOT_REQUIRED" ? (
+        {canUpdateItem &&
+        (order.paymentStatus === "NOT_REQUIRED" ||
+          order.paymentStatus === "UNPAID") ? (
           <Button
             type="button"
             variant="outline"
@@ -516,6 +533,91 @@ export function OrderCard({
           >
             {refundMessage}
           </p>
+        ) : null}
+
+        {order.source === "STAFF_CREATED" &&
+        order.status !== "CANCELLED" &&
+        (order.paymentStatus === "UNPAID" ||
+          order.paymentStatus === "PENDING" ||
+          order.paymentStatus === "PAID") ? (
+          <div
+            className={`mt-4 flex flex-wrap items-center justify-between gap-3 border-y px-1 py-3 ${
+              order.paymentStatus === "PAID"
+                ? "border-emerald-200 text-emerald-900"
+                : order.paymentStatus === "PENDING"
+                  ? "border-sky-200 text-sky-950"
+                  : "border-amber-200 text-amber-950"
+            }`}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className={`grid size-9 shrink-0 place-items-center rounded-lg ${
+                  order.paymentStatus === "PAID"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : order.paymentStatus === "PENDING"
+                      ? "bg-sky-100 text-sky-700"
+                      : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {order.paymentMethod === "CASH" ? (
+                  <BanknoteIcon className="size-4" />
+                ) : (
+                  <CreditCardIcon className="size-4" />
+                )}
+              </span>
+              <div>
+                <p className="text-sm font-semibold">
+                  {order.paymentStatus === "PAID"
+                    ? order.paymentMethod === "CASH"
+                      ? "Paid in cash"
+                      : "Paid online"
+                    : order.paymentStatus === "PENDING"
+                      ? "Online payment requested"
+                      : "Bill unpaid"}
+                </p>
+                <p className="mt-0.5 text-xs opacity-75">{paymentTotal}</p>
+              </div>
+            </div>
+
+            {order.paymentStatus === "UNPAID" ? (
+              <Button
+                type="button"
+                disabled={disabled || !order.paymentAmount}
+                onClick={() => onSettleOrder(order)}
+                className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+              >
+                Settle bill
+              </Button>
+            ) : order.paymentStatus === "PENDING" ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onSettleOrder(order)}
+                  className="rounded-lg border-sky-200 bg-white text-sky-900 hover:bg-sky-50"
+                >
+                  View payment link
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={disabled}
+                  onClick={() => onCancelPayment(order)}
+                  className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+                >
+                  {pendingAction === `cancel-payment:${order.orderId}` ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="text-stone-700" />
+                      Cancelling...
+                    </span>
+                  ) : (
+                    "Cancel payment request"
+                  )}
+                </Button>
+              </div>
+            ) : null}
+          </div>
         ) : null}
 
         {renderOrderActions()}

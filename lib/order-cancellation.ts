@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   orderCancellations,
   orderItems,
+  orderPayments,
   orderRefunds,
   orders,
 } from "@/db/schema";
@@ -523,7 +524,11 @@ export async function cancelOrder(input: CancelOrderInput) {
       );
     }
 
-    if (order.paymentStatus !== "PAID" && order.paymentStatus !== "NOT_REQUIRED") {
+    if (
+      order.paymentStatus !== "PAID" &&
+      order.paymentStatus !== "UNPAID" &&
+      order.paymentStatus !== "NOT_REQUIRED"
+    ) {
       throw new OrderCancellationError(
         "This order cannot be cancelled in its current payment state.",
       );
@@ -590,6 +595,22 @@ export async function cancelOrder(input: CancelOrderInput) {
       }
     }
 
+    const [successfulPayment] =
+      order.paymentStatus === "PAID"
+        ? await tx
+            .select({ method: orderPayments.method })
+            .from(orderPayments)
+            .where(
+              and(
+                eq(orderPayments.orderId, order.id),
+                eq(orderPayments.organizationId, order.organizationId),
+                eq(orderPayments.status, "SUCCEEDED"),
+              ),
+            )
+            .orderBy(desc(orderPayments.completedAt))
+            .limit(1)
+        : [];
+    const isCashPayment = successfulPayment?.method === "CASH";
     const financials =
       order.paymentStatus === "PAID" && order.paymentAmount && order.paymentCurrency
         ? calculateCancellationAmounts({
@@ -609,7 +630,13 @@ export async function cancelOrder(input: CancelOrderInput) {
         cancelledByType: input.actorType,
         cancelledByUserId: input.actorUser?.id ?? null,
         cancelReason: input.cancelReason?.trim() || null,
-        paymentStatus: refundId ? "REFUND_PENDING" : order.paymentStatus,
+        paymentStatus: refundId
+          ? isCashPayment
+            ? financials?.refundMinor === financials?.grossMinor
+              ? "REFUNDED"
+              : "PARTIALLY_REFUNDED"
+            : "REFUND_PENDING"
+          : order.paymentStatus,
         refundAmount: financials?.refundAmount ?? null,
         status: "CANCELLED",
         updatedAt: now,
@@ -701,7 +728,10 @@ export async function cancelOrder(input: CancelOrderInput) {
           idempotencyKey: `order-refund-${order.id}-${refundId}`,
           orderId: order.id,
           organizationId: order.organizationId,
+          processedAt: isCashPayment ? now : null,
+          provider: isCashPayment ? "CASH" : "STRIPE",
           requestedByUserId: input.actorUser?.id ?? null,
+          status: isCashPayment ? "SUCCEEDED" : "PENDING",
         })
         .returning();
     }

@@ -2,7 +2,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orderPayments, orders } from "@/db/schema";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
@@ -89,42 +89,46 @@ export async function createOrderCheckoutSession(input: {
   amountTotalMinor: number;
   applicationFeeBps: number;
   cancelUrl: string;
-  customerEmail: string;
-  customerId: string;
+  customerEmail?: string | null;
+  customerId?: string | null;
   expiresAt: Date;
+  idempotencyKey?: string;
   lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
   orderId: string;
+  paymentRecordId?: string | null;
   stripeAccountId: string;
   successUrl: string;
 }) {
   const applicationFeeAmount = Math.round(
     (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
   );
+  const metadata = {
+    orderId: input.orderId,
+    ...(input.customerId ? { customerId: input.customerId } : {}),
+    ...(input.paymentRecordId
+      ? { paymentRecordId: input.paymentRecordId }
+      : {}),
+  };
   const session = await getStripe().checkout.sessions.create(
     {
       cancel_url: input.cancelUrl,
       client_reference_id: input.orderId,
-      customer_email: input.customerEmail,
+      ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       expires_at: Math.floor(input.expiresAt.getTime() / 1000),
       line_items: input.lineItems,
-      metadata: {
-        customerId: input.customerId,
-        orderId: input.orderId,
-      },
+      metadata,
       mode: "payment",
       payment_intent_data: {
         ...(applicationFeeAmount > 0
           ? { application_fee_amount: applicationFeeAmount }
           : {}),
-        metadata: {
-          customerId: input.customerId,
-          orderId: input.orderId,
-        },
+        metadata,
       },
       success_url: input.successUrl,
     },
     {
-      idempotencyKey: `order-checkout-${input.orderId}`,
+      idempotencyKey:
+        input.idempotencyKey ?? `order-checkout-${input.orderId}`,
       stripeAccount: input.stripeAccountId,
     },
   );
@@ -178,21 +182,46 @@ export async function markOrderPaymentPaid(
     typeof session.payment_intent === "string"
       ? session.payment_intent
       : session.payment_intent?.id ?? null;
-  const [updatedOrder] = await getDb()
-    .update(orders)
-    .set({
-      paidAt: new Date(),
-      paymentStatus: "PAID",
-      stripePaymentIntentId: paymentIntentId,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(orders.id, order.id),
-        eq(orders.paymentStatus, "PENDING"),
-      ),
-    )
-    .returning();
+  const updatedOrder = await getDb().transaction(async (tx) => {
+    const now = new Date();
+    const [nextOrder] = await tx
+      .update(orders)
+      .set({
+        paidAt: now,
+        paymentStatus: "PAID",
+        stripePaymentIntentId: paymentIntentId,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orders.id, order.id),
+          eq(orders.paymentStatus, "PENDING"),
+        ),
+      )
+      .returning();
+
+    if (!nextOrder) {
+      return null;
+    }
+
+    await tx
+      .update(orderPayments)
+      .set({
+        completedAt: now,
+        status: "SUCCEEDED",
+        stripePaymentIntentId: paymentIntentId,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderPayments.orderId, order.id),
+          eq(orderPayments.stripeCheckoutSessionId, session.id),
+          eq(orderPayments.status, "PENDING"),
+        ),
+      );
+
+    return nextOrder;
+  });
 
   return updatedOrder ?? null;
 }
@@ -216,7 +245,61 @@ async function cancelPendingOrderPaymentRecord(
               : isNull(orders.stripeConnectedAccountId),
           )
         : eq(orders.id, lookup.orderId);
+    const [lockedOrder] = await tx
+      .select()
+      .from(orders)
+      .where(condition)
+      .limit(1)
+      .for("update");
+
+    if (!lockedOrder || lockedOrder.paymentStatus !== "PENDING") {
+      return null;
+    }
+
     const now = new Date();
+    const paymentRecordStatus =
+      paymentStatus === "FAILED" ? "FAILED" : "CANCELLED";
+
+    if (lockedOrder.source === "STAFF_CREATED") {
+      const [order] = await tx
+        .update(orders)
+        .set({
+          paymentAccountOrganizationId: null,
+          paymentExpiresAt: null,
+          paymentStatus: "UNPAID",
+          stripeCheckoutSessionId: null,
+          stripeConnectedAccountId: null,
+          stripePaymentIntentId: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orders.id, lockedOrder.id),
+            eq(orders.paymentStatus, "PENDING"),
+          ),
+        )
+        .returning();
+
+      if (!order) {
+        return null;
+      }
+
+      await tx
+        .update(orderPayments)
+        .set({
+          status: paymentRecordStatus,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orderPayments.orderId, order.id),
+            eq(orderPayments.status, "PENDING"),
+          ),
+        );
+
+      return order;
+    }
+
     const [order] = await tx
       .update(orders)
       .set({
@@ -229,7 +312,7 @@ async function cancelPendingOrderPaymentRecord(
       })
       .where(
         and(
-          condition,
+          eq(orders.id, lockedOrder.id),
           eq(orders.status, "PENDING"),
           eq(orders.paymentStatus, "PENDING"),
         ),
@@ -239,6 +322,19 @@ async function cancelPendingOrderPaymentRecord(
     if (!order) {
       return null;
     }
+
+    await tx
+      .update(orderPayments)
+      .set({
+        status: paymentRecordStatus,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderPayments.orderId, order.id),
+          eq(orderPayments.status, "PENDING"),
+        ),
+      );
 
     const tenantContext = {
       organizationId: order.organizationId,
