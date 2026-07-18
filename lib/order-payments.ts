@@ -227,7 +227,13 @@ async function cancelPendingOrderPaymentRecord(
         status: "CANCELLED",
         updatedAt: now,
       })
-      .where(and(condition, eq(orders.paymentStatus, "PENDING")))
+      .where(
+        and(
+          condition,
+          eq(orders.status, "PENDING"),
+          eq(orders.paymentStatus, "PENDING"),
+        ),
+      )
       .returning();
 
     if (!order) {
@@ -241,7 +247,13 @@ async function cancelPendingOrderPaymentRecord(
     const items = await tx
       .select()
       .from(orderItems)
-      .where(eq(orderItems.orderId, order.id));
+      .where(
+        and(
+          eq(orderItems.orderId, order.id),
+          eq(orderItems.organizationId, order.organizationId),
+          eq(orderItems.status, "PENDING"),
+        ),
+      );
 
     for (const item of items.filter((current) => current.inventoryReservedAt)) {
       await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
@@ -255,7 +267,13 @@ async function cancelPendingOrderPaymentRecord(
         status: "CANCELLED",
         updatedAt: now,
       })
-      .where(eq(orderItems.orderId, order.id));
+      .where(
+        and(
+          eq(orderItems.orderId, order.id),
+          eq(orderItems.organizationId, order.organizationId),
+          eq(orderItems.status, "PENDING"),
+        ),
+      );
 
     return order;
   });

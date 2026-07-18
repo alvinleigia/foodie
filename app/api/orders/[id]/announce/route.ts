@@ -5,6 +5,10 @@ import { getDb } from "@/db";
 import { orders } from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import {
+  OrderTransitionConflictError,
+  requireOrderTransitionResult,
+} from "@/lib/order-transition";
 import { serializeOrder } from "@/lib/orders";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -53,28 +57,30 @@ export async function POST(
         and(
           eq(orders.id, id),
           eq(orders.organizationId, tenantContext.organizationId),
+          eq(orders.status, order.status),
         ),
       )
       .returning();
+    const announcedOrder = requireOrderTransitionResult(updatedOrder);
 
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
       action: "order.announce",
       entityType: "order",
-      entityId: updatedOrder.id,
+      entityId: announcedOrder.id,
       metadata: {
-        orderNo: updatedOrder.orderNo,
-        status: updatedOrder.status,
-        announcementCount: updatedOrder.announcementCount,
+        orderNo: announcedOrder.orderNo,
+        status: announcedOrder.status,
+        announcementCount: announcedOrder.announcementCount,
       },
     });
 
-    return NextResponse.json(serializeOrder(updatedOrder));
+    return NextResponse.json(serializeOrder(announcedOrder));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to record announcement." },
-      { status: 500 },
+      { status: error instanceof OrderTransitionConflictError ? 409 : 500 },
     );
   }
 }
