@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,8 +30,13 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { OrderItemStatus, OrderStatus } from "@/lib/constants";
+import {
+  OrderItemStatus,
+  OrderStatus,
+  PaymentStatus,
+} from "@/lib/constants";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
 import {
   orderCorrectionTargets,
   orderItemCorrectionTargets,
@@ -73,11 +79,20 @@ type StaffOrder = {
   createdAt: string;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  paymentStatus: PaymentStatus;
+  paymentAmount: string | null;
+  paymentCurrency: string | null;
+  customerCancellationFeeBps: number;
+  cancellationFeeBpsApplied: number | null;
+  cancellationFeeAmount: string | null;
+  refundAmount: string | null;
 };
 
 type OrdersPayload = {
   activeOrders: StaffOrder[];
+  canClearOrders: boolean;
   canCorrectStatuses: boolean;
+  canManageRefunds: boolean;
   currency: string;
   pastOrders: StaffOrder[];
 };
@@ -113,10 +128,19 @@ function playOrderAnnouncement(customerName: string) {
   window.speechSynthesis.speak(utterance);
 }
 
+function formatMoney(amount: number, currency: string) {
+  return new Intl.NumberFormat(undefined, {
+    currency,
+    style: "currency",
+  }).format(amount);
+}
+
 export function StaffOrderBoard() {
   const [orders, setOrders] = useState<OrdersPayload>({
     activeOrders: [],
+    canClearOrders: false,
     canCorrectStatuses: false,
+    canManageRefunds: false,
     currency: DEFAULT_CURRENCY,
     pastOrders: [],
   });
@@ -130,6 +154,12 @@ export function StaffOrderBoard() {
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionTarget | null>(null);
   const [correctionStatus, setCorrectionStatus] = useState<OrderStatus | OrderItemStatus | "">("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const [cancellationTarget, setCancellationTarget] =
+    useState<StaffOrder | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [applyCustomerCancellationFee, setApplyCustomerCancellationFee] =
+    useState(false);
+  const [cancellationFeePercent, setCancellationFeePercent] = useState(0);
   const ordersRequestRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(false);
 
@@ -159,7 +189,9 @@ export function StaffOrderBoard() {
 
       setOrders({
         activeOrders: payload.activeOrders ?? [],
+        canClearOrders: Boolean(payload.canClearOrders),
         canCorrectStatuses: Boolean(payload.canCorrectStatuses),
+        canManageRefunds: Boolean(payload.canManageRefunds),
         currency: payload.currency ?? DEFAULT_CURRENCY,
         pastOrders: payload.pastOrders ?? [],
       });
@@ -308,12 +340,26 @@ export function StaffOrderBoard() {
     orderId: string,
     action: "start" | "ready" | "deliver" | "cancel",
   ) {
+    if (action === "cancel") {
+      const order = [...orders.activeOrders, ...orders.pastOrders].find(
+        (candidate) => candidate.orderId === orderId,
+      );
+
+      if (order) {
+        setCancellationTarget(order);
+        setCancellationReason("");
+        setApplyCustomerCancellationFee(false);
+        setCancellationFeePercent(order.customerCancellationFeeBps / 100);
+      }
+
+      return;
+    }
+
     setPendingAction(`${action}-order:${orderId}`);
 
     const response = await fetch(`/api/orders/${orderId}/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: action === "cancel" ? JSON.stringify({}) : undefined,
     });
     const payload = await response.json();
 
@@ -329,9 +375,83 @@ export function StaffOrderBoard() {
       start: "Order preparation started.",
       ready: "Order marked ready.",
       deliver: "Order marked delivered.",
-      cancel: "Order cancelled.",
     }[action];
     toast.success(successMessage);
+    setPendingAction(null);
+  }
+
+  async function cancelSelectedOrder() {
+    if (!cancellationTarget) {
+      return;
+    }
+
+    const actionKey = `cancel-order:${cancellationTarget.orderId}`;
+    setPendingAction(actionKey);
+    const response = await fetch(
+      `/api/orders/${cancellationTarget.orderId}/cancel`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          applyCustomerCancellationFee,
+          cancellationFeePercent: applyCustomerCancellationFee
+            ? cancellationFeePercent
+            : undefined,
+          cancelReason: cancellationReason,
+          overrideReason: applyCustomerCancellationFee
+            ? cancellationReason
+            : undefined,
+        }),
+      },
+    );
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.error ?? "Failed to cancel order.");
+      toast.error(payload.error ?? "Failed to cancel order.");
+      setPendingAction(null);
+      return;
+    }
+
+    await syncOrders();
+    setCancellationTarget(null);
+    setCancellationReason("");
+    setApplyCustomerCancellationFee(false);
+
+    if (payload.refundError) {
+      toast.error("Order cancelled, but its refund needs attention.");
+    } else {
+      toast.success("Order cancelled.");
+    }
+
+    setPendingAction(null);
+  }
+
+  async function retryRefund(order: StaffOrder) {
+    const actionKey = `refund-order:${order.orderId}`;
+    setPendingAction(actionKey);
+    const response = await fetch(`/api/orders/${order.orderId}/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retryRefund: true }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.error ?? "Failed to retry refund.");
+      toast.error(payload.error ?? "Failed to retry refund.");
+      setPendingAction(null);
+      return;
+    }
+
+    await syncOrders();
+
+    if (payload.refundError) {
+      toast.error("Refund failed again. Check the Stripe account and retry.");
+    } else {
+      toast.success("Refund submitted.");
+    }
+
     setPendingAction(null);
   }
 
@@ -400,7 +520,9 @@ export function StaffOrderBoard() {
 
     setOrders((current) => ({
       activeOrders: [],
+      canClearOrders: current.canClearOrders,
       canCorrectStatuses: current.canCorrectStatuses,
+      canManageRefunds: current.canManageRefunds,
       currency: current.currency,
       pastOrders: [],
     }));
@@ -415,6 +537,22 @@ export function StaffOrderBoard() {
 
   const visibleOrders =
     activeTab === "active" ? orders.activeOrders : orders.pastOrders;
+  const cancellationFeeBps = applyCustomerCancellationFee
+    ? Math.round(cancellationFeePercent * 100)
+    : 0;
+  const cancellationFinancials =
+    cancellationTarget?.paymentStatus === "PAID" &&
+    cancellationTarget.paymentAmount &&
+    Number.isFinite(cancellationFeeBps) &&
+    cancellationFeeBps >= 0 &&
+    cancellationFeeBps <= cancellationTarget.customerCancellationFeeBps
+      ? calculateCancellationAmounts({
+          amount: cancellationTarget.paymentAmount,
+          currency:
+            cancellationTarget.paymentCurrency ?? orders.currency,
+          feeBps: cancellationFeeBps,
+        })
+      : null;
 
   return (
     <Card className="rounded-xl border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
@@ -456,15 +594,17 @@ export function StaffOrderBoard() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <Button
-          type="button"
-          variant="destructive"
-          disabled={Boolean(pendingAction)}
-          className="rounded-lg"
-          onClick={() => setIsClearDialogOpen(true)}
-        >
-          <ButtonLabel icon={Trash2Icon}>Clear All Orders</ButtonLabel>
-        </Button>
+        {orders.canClearOrders ? (
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={Boolean(pendingAction)}
+            className="rounded-lg"
+            onClick={() => setIsClearDialogOpen(true)}
+          >
+            <ButtonLabel icon={Trash2Icon}>Clear All Orders</ButtonLabel>
+          </Button>
+        ) : null}
       </div>
 
       {!hasLoadedOnce && isRefreshing ? (
@@ -512,6 +652,8 @@ export function StaffOrderBoard() {
               onCorrectOrder={openOrderCorrection}
               onCorrectItem={openItemCorrection}
               canCorrectStatuses={orders.canCorrectStatuses}
+              canManageRefunds={orders.canManageRefunds}
+              onRetryRefund={retryRefund}
               pendingAction={pendingAction}
               disabled={Boolean(pendingAction)}
             />
@@ -568,6 +710,138 @@ export function StaffOrderBoard() {
                 </span>
               ) : (
                 <ButtonLabel icon={Trash2Icon}>Delete All Orders</ButtonLabel>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={Boolean(cancellationTarget)}
+        onOpenChange={(open) => {
+          if (pendingAction?.startsWith("cancel-order:")) {
+            return;
+          }
+
+          if (!open) {
+            setCancellationTarget(null);
+            setCancellationReason("");
+            setApplyCustomerCancellationFee(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Restaurant cancellations issue a full refund. A manager can instead
+              apply up to the fee originally shown to the customer while the order
+              is still pending.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {cancellationTarget ? (
+            <div className="grid gap-4">
+              {cancellationTarget.paymentStatus === "PAID" ? (
+                <>
+                  {orders.canManageRefunds &&
+                  cancellationTarget.status === "PENDING" ? (
+                    <label className="flex items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
+                      <Checkbox
+                        checked={applyCustomerCancellationFee}
+                        disabled={Boolean(pendingAction)}
+                        onCheckedChange={(checked) =>
+                          setApplyCustomerCancellationFee(checked === true)
+                        }
+                      />
+                      <span className="text-sm font-medium text-stone-900">
+                        Customer-requested cancellation
+                      </span>
+                    </label>
+                  ) : null}
+                  {applyCustomerCancellationFee ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-stone-700">
+                        Cancellation fee (%)
+                      </p>
+                      <Input
+                        type="number"
+                        min="0"
+                        max={cancellationTarget.customerCancellationFeeBps / 100}
+                        step="0.01"
+                        value={cancellationFeePercent}
+                        disabled={Boolean(pendingAction)}
+                        onChange={(event) =>
+                          setCancellationFeePercent(event.target.valueAsNumber)
+                        }
+                      />
+                    </div>
+                  ) : null}
+                  <div className="grid gap-2 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-stone-600">Cancellation fee</span>
+                      <span className="font-semibold text-stone-950">
+                        {formatMoney(
+                          Number(cancellationFinancials?.feeAmount ?? 0),
+                          cancellationTarget.paymentCurrency ?? orders.currency,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 border-t border-stone-200 pt-2">
+                      <span className="text-stone-600">Refund</span>
+                      <span className="font-semibold text-stone-950">
+                        {formatMoney(
+                          Number(cancellationFinancials?.refundAmount ?? 0),
+                          cancellationTarget.paymentCurrency ?? orders.currency,
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-stone-700">
+                  Cancellation reason
+                </p>
+                <Textarea
+                  value={cancellationReason}
+                  disabled={Boolean(pendingAction)}
+                  maxLength={200}
+                  onChange={(event) => setCancellationReason(event.target.value)}
+                  placeholder="Optional reason"
+                />
+              </div>
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(pendingAction)}>
+              Keep Order
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={
+                !cancellationTarget ||
+                Boolean(pendingAction) ||
+                (applyCustomerCancellationFee &&
+                  (!Number.isFinite(cancellationFeePercent) ||
+                    cancellationFeePercent < 0 ||
+                    cancellationFeePercent >
+                      (cancellationTarget?.customerCancellationFeeBps ?? 0) /
+                        100 ||
+                    (cancellationFeeBps <
+                      (cancellationTarget?.customerCancellationFeeBps ?? 0) &&
+                      cancellationReason.trim().length < 3)))
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                void cancelSelectedOrder();
+              }}
+            >
+              {pendingAction?.startsWith("cancel-order:") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-rose-700" />
+                  Cancelling...
+                </span>
+              ) : (
+                "Cancel and settle refund"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

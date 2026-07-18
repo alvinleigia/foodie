@@ -33,6 +33,7 @@ type RestaurantSettings = {
   logoUrl: string | null;
   timezone: string;
   currency: string;
+  customerCancellationFeeBps: number;
 };
 
 type OrderingPointSettings = {
@@ -49,7 +50,12 @@ type StaffAccess = {
   isActive: boolean;
 };
 
-type TenantRestaurantField = "currency" | "logoUrl" | "name" | "timezone";
+type TenantRestaurantField =
+  | "currency"
+  | "customerCancellationFeePercent"
+  | "logoUrl"
+  | "name"
+  | "timezone";
 type TenantOrderingPointField = "isActive" | "label" | "name" | "qrSlug";
 type TenantStaffAccessField = "isActive" | "role";
 
@@ -125,6 +131,8 @@ export function TenantRestaurantSettingsForm({
     logoUrl: organization.logoUrl ?? "",
     timezone: organization.timezone,
     currency: organization.currency,
+    customerCancellationFeePercent:
+      organization.customerCancellationFeeBps / 100,
   });
   const [isSaving, setIsSaving] = useState(false);
   const validation = useFormValidation<TenantRestaurantField>();
@@ -227,6 +235,34 @@ export function TenantRestaurantSettingsForm({
               />
             </FormField>
           </div>
+          <FormField
+            label="Customer cancellation fee (%)"
+            error={validation.getError("customerCancellationFeePercent")}
+            errorId="tenant-restaurant-cancellation-fee-error"
+          >
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={draft.customerCancellationFeePercent}
+              aria-describedby={
+                validation.getError("customerCancellationFeePercent")
+                  ? "tenant-restaurant-cancellation-fee-error"
+                  : undefined
+              }
+              aria-invalid={Boolean(
+                validation.getError("customerCancellationFeePercent"),
+              )}
+              onChange={(event) => {
+                validation.clearFieldError("customerCancellationFeePercent");
+                setDraft((current) => ({
+                  ...current,
+                  customerCancellationFeePercent: event.target.valueAsNumber,
+                }));
+              }}
+            />
+          </FormField>
           <FormActions
             backHref={backHref}
             isSaving={isSaving}

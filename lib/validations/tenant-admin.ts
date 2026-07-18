@@ -28,6 +28,11 @@ const currencySchema = z
   .max(8)
   .refine(isSupportedCurrency, "Choose a supported currency");
 
+const cancellationFeePercentSchema = z.coerce
+  .number()
+  .min(0, "Cancellation fee cannot be below 0%")
+  .max(100, "Cancellation fee cannot exceed 100%");
+
 export const organizationSettingsSchema = z.object({
   name: z.string().trim().min(2, "Organization name is required").max(120),
   logoUrl: z
@@ -39,6 +44,7 @@ export const organizationSettingsSchema = z.object({
     .transform((value) => value || null),
   timezone: timezoneSchema,
   currency: currencySchema,
+  customerCancellationFeePercent: cancellationFeePercentSchema,
 });
 
 export const orderingPointSettingsSchema = z.object({
@@ -126,7 +132,9 @@ export const updateOrganizationAdminSchema = z.object({
   isActive: z.boolean(),
 });
 
-export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema;
+export const updateChildRestaurantAdminSchema = updateOrganizationAdminSchema.extend({
+  customerCancellationFeePercent: cancellationFeePercentSchema,
+});
 
 export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),

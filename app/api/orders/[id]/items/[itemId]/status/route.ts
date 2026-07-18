@@ -64,6 +64,16 @@ export async function POST(
       );
     }
 
+    if (body.action === "cancel" && order.paymentStatus !== "NOT_REQUIRED") {
+      return NextResponse.json(
+        {
+          error:
+            "Paid orders must be cancelled as a whole so the refund is recorded correctly.",
+        },
+        { status: 409 },
+      );
+    }
+
     const [item] = await db
       .select()
       .from(orderItems)

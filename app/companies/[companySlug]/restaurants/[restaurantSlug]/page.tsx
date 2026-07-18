@@ -66,6 +66,7 @@ export default async function CompanyWorkspaceRestaurantPage({
         backHref={getCompanyWorkspaceHref(company.slug, "restaurants")}
         entityLabel="Restaurant"
         organization={restaurant}
+        showCustomerCancellationPolicy
       />
     </SaasAdminShell>
   );

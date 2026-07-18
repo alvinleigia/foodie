@@ -22,6 +22,7 @@ type EditableOrganization = {
   slug: string;
   timezone: string;
   currency: string;
+  customerCancellationFeeBps?: number;
   isActive: boolean;
 };
 
@@ -30,10 +31,12 @@ type OrganizationEditPanelProps = {
   backHref: string;
   entityLabel: string;
   organization: EditableOrganization;
+  showCustomerCancellationPolicy?: boolean;
 };
 
 type OrganizationEditField =
   | "currency"
+  | "customerCancellationFeePercent"
   | "isActive"
   | "name"
   | "timezone";
@@ -43,12 +46,17 @@ export function OrganizationEditPanel({
   backHref,
   entityLabel,
   organization,
+  showCustomerCancellationPolicy = false,
 }: OrganizationEditPanelProps) {
   const router = useRouter();
   const [draft, setDraft] = useState({
     name: organization.name,
     timezone: organization.timezone,
     currency: organization.currency,
+    customerCancellationFeePercent:
+      !showCustomerCancellationPolicy
+        ? undefined
+        : (organization.customerCancellationFeeBps ?? 0) / 100,
     isActive: organization.isActive,
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -159,6 +167,38 @@ export function OrganizationEditPanel({
                 />
               </FormField>
             </div>
+            {draft.customerCancellationFeePercent !== undefined ? (
+              <FormField
+                label="Customer cancellation fee (%)"
+                error={validation.getError("customerCancellationFeePercent")}
+                errorId="organization-cancellation-fee-error"
+              >
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={draft.customerCancellationFeePercent}
+                  aria-describedby={
+                    validation.getError("customerCancellationFeePercent")
+                      ? "organization-cancellation-fee-error"
+                      : undefined
+                  }
+                  aria-invalid={Boolean(
+                    validation.getError("customerCancellationFeePercent"),
+                  )}
+                  onChange={(event) => {
+                    validation.clearFieldError(
+                      "customerCancellationFeePercent",
+                    );
+                    setDraft((current) => ({
+                      ...current,
+                      customerCancellationFeePercent: event.target.valueAsNumber,
+                    }));
+                  }}
+                />
+              </FormField>
+            ) : null}
             <div className="flex flex-wrap gap-3 pt-2">
               <Button
                 type="submit"

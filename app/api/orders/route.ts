@@ -21,7 +21,12 @@ import {
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
 import { getDb } from "@/db";
-import { orderItemModifiers, orderItems, orders } from "@/db/schema";
+import {
+  orderItemModifiers,
+  orderItems,
+  orders,
+  organizations,
+} from "@/db/schema";
 import { requireStaffSession } from "@/lib/auth";
 import {
   getCustomerProfile,
@@ -53,6 +58,7 @@ import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
+import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 
 export async function GET() {
   try {
@@ -76,6 +82,10 @@ export async function GET() {
       activeOrders: activeOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
       pastOrders: pastOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
       canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),
+      canManageRefunds: canAccessRole(session.user.role, restaurantAdminRoles),
+      canClearOrders:
+        isUatDatabaseResetEnabled() &&
+        canAccessRole(session.user.role, restaurantAdminRoles),
       currency,
     });
   } catch (error) {
@@ -278,7 +288,26 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
-    const currency = await getTenantMenuCurrency(tenantContext);
+    const [currency, restaurantPolicy] = await Promise.all([
+      getTenantMenuCurrency(tenantContext),
+      db
+        .select({
+          customerCancellationFeeBps:
+            organizations.customerCancellationFeeBps,
+        })
+        .from(organizations)
+        .where(eq(organizations.id, tenantContext.organizationId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null),
+    ]);
+
+    if (!restaurantPolicy) {
+      return NextResponse.json(
+        { error: "Restaurant settings could not be loaded." },
+        { status: 409 },
+      );
+    }
+
     const paymentPricing =
       session.user.kind === "customer"
         ? buildOrderPaymentPricing(cartItems, currency)
@@ -327,6 +356,8 @@ export async function POST(request: NextRequest) {
               ? paymentIntegration.stripeAccountId
               : null,
           paymentExpiresAt,
+          customerCancellationFeeBpsSnapshot:
+            restaurantPolicy.customerCancellationFeeBps,
           categoryId: cartItems[0].categoryId,
           categoryName: summaryCategoryName,
           drinkId: cartItems[0].drinkId,

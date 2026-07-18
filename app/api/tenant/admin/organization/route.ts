@@ -44,6 +44,8 @@ export async function PATCH(request: NextRequest) {
         logoUrl: organization.logoUrl,
         timezone: organization.timezone,
         currency: organization.currency,
+        customerCancellationFeeBps:
+          organization.customerCancellationFeeBps,
       },
     });
 

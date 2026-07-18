@@ -31,12 +31,17 @@ export const createOrderSchema = z
   });
 
 export const customerCancelOrderSchema = z.object({
+  acknowledgedCancellationFeeBps: z.coerce.number().int().min(0).max(10_000),
   customerToken: z.string().min(20),
   cancelReason: z.string().trim().max(200).optional(),
 });
 
 export const staffCancelOrderSchema = z.object({
+  applyCustomerCancellationFee: z.boolean().default(false),
+  cancellationFeePercent: z.coerce.number().min(0).max(100).optional(),
   cancelReason: z.string().trim().max(200).optional(),
+  overrideReason: z.string().trim().max(200).optional(),
+  retryRefund: z.boolean().default(false),
 });
 
 export const orderStatusRequestSchema = z.object({

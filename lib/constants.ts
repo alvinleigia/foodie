@@ -22,6 +22,20 @@ export const orderItemStatuses = [
 
 export type OrderItemStatus = (typeof orderItemStatuses)[number];
 
+export const paymentStatuses = [
+  "NOT_REQUIRED",
+  "PENDING",
+  "PAID",
+  "FAILED",
+  "CANCELLED",
+  "REFUND_PENDING",
+  "PARTIALLY_REFUNDED",
+  "REFUND_FAILED",
+  "REFUNDED",
+] as const;
+
+export type PaymentStatus = (typeof paymentStatuses)[number];
+
 export type OrderLineItem = {
   id?: string;
   organizationId?: string;
@@ -63,4 +77,11 @@ export type LocalCustomerOrder = {
   items?: OrderLineItem[];
   status: OrderStatus;
   createdAt: string;
+  paymentStatus?: PaymentStatus;
+  paymentAmount?: string | null;
+  paymentCurrency?: string | null;
+  customerCancellationFeeBps?: number;
+  cancellationFeeBpsApplied?: number | null;
+  cancellationFeeAmount?: string | null;
+  refundAmount?: string | null;
 };

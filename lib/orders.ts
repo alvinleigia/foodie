@@ -139,6 +139,13 @@ export function serializeOrder(
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     announcementCount: order.announcementCount,
     paymentStatus: order.paymentStatus,
+    paymentAmount: order.paymentAmount,
+    paymentCurrency: order.paymentCurrency,
+    customerCancellationFeeBps:
+      order.customerCancellationFeeBpsSnapshot,
+    cancellationFeeBpsApplied: order.cancellationFeeBpsApplied,
+    cancellationFeeAmount: order.cancellationFeeAmount,
+    refundAmount: order.refundAmount,
   };
 }
 
@@ -177,7 +184,14 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
         and(
           eq(orders.organizationId, context.organizationId),
           inArray(orders.status, pastOrderStatuses),
-          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
+          inArray(orders.paymentStatus, [
+            "NOT_REQUIRED",
+            "PAID",
+            "REFUND_PENDING",
+            "PARTIALLY_REFUNDED",
+            "REFUND_FAILED",
+            "REFUNDED",
+          ]),
         ),
       )
       .orderBy(desc(pastOrderClosedAt())),
