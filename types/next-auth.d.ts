@@ -6,7 +6,7 @@ type StaffSessionUser = DefaultSession["user"] & {
   id: string;
   kind: "staff";
   role: MembershipRole;
-  membershipId?: string;
+  membershipId: string;
   organizationId: string;
   username?: string;
 };
@@ -30,6 +30,7 @@ declare module "next-auth" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
+    sessionVersion?: number;
     username?: string;
   }
 }
@@ -40,6 +41,7 @@ declare module "next-auth/jwt" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
+    sessionVersion?: number;
     username?: string;
   }
 }

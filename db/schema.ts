@@ -169,6 +169,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash"),
+  sessionVersion: integer("session_version").default(1).notNull(),
   role: userRoleEnum("role").notNull(),
   status: userStatusEnum("status").default("ACTIVE").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

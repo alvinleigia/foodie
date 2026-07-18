@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -244,6 +244,7 @@ export async function resetPasswordWithToken(input: unknown) {
       .update(users)
       .set({
         passwordHash: await hashPassword(parsed.password),
+        sessionVersion: sql`${users.sessionVersion} + 1`,
         updatedAt: new Date(),
       })
       .where(eq(users.id, resetToken.userId));
