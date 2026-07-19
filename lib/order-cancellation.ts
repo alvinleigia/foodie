@@ -46,7 +46,7 @@ type CancelOrderInput = {
 
 type RefundOperation = {
   order: typeof orders.$inferSelect;
-  payment: typeof orderPayments.$inferSelect | null;
+  payment: typeof orderPayments.$inferSelect;
   refund: typeof orderRefunds.$inferSelect;
 };
 
@@ -168,7 +168,7 @@ async function getRefundOperation(refundId: string) {
     })
     .from(orderRefunds)
     .innerJoin(orders, eq(orders.id, orderRefunds.orderId))
-    .leftJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
+    .innerJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
     .where(eq(orderRefunds.id, refundId))
     .limit(1);
 
@@ -251,7 +251,7 @@ export async function syncOrderRefundFromStripe(
     })
     .from(orderRefunds)
     .innerJoin(orders, eq(orders.id, orderRefunds.orderId))
-    .leftJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
+    .innerJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
     .where(lookup)
     .limit(1);
 
@@ -259,9 +259,14 @@ export async function syncOrderRefundFromStripe(
     return null;
   }
 
-  const paymentAccountId =
-    operation.payment?.stripeConnectedAccountId ??
-    operation.order.stripeConnectedAccountId;
+  if (
+    operation.refund.provider !== "STRIPE" ||
+    operation.payment.method !== "STRIPE_CHECKOUT"
+  ) {
+    throw new Error("Stripe refund is not linked to a Stripe payment.");
+  }
+
+  const paymentAccountId = operation.payment.stripeConnectedAccountId;
 
   if (paymentAccountId !== stripeConnectedAccountId) {
     throw new Error("Stripe refund account does not match the order account.");
@@ -348,12 +353,15 @@ async function executeRefund(refundId: string) {
       throw new Error("Stripe is not configured for refunds.");
     }
 
-    const stripeConnectedAccountId =
-      operation.payment?.stripeConnectedAccountId ??
-      operation.order.stripeConnectedAccountId;
-    const stripePaymentIntentId =
-      operation.payment?.stripePaymentIntentId ??
-      operation.order.stripePaymentIntentId;
+    if (
+      operation.refund.provider !== "STRIPE" ||
+      operation.payment.method !== "STRIPE_CHECKOUT"
+    ) {
+      throw new Error("Stripe refund is not linked to a Stripe payment.");
+    }
+
+    const stripeConnectedAccountId = operation.payment.stripeConnectedAccountId;
+    const stripePaymentIntentId = operation.payment.stripePaymentIntentId;
 
     if (!stripeConnectedAccountId || !stripePaymentIntentId) {
       throw new Error("The Stripe payment reference is missing from this order.");
@@ -472,7 +480,7 @@ async function prepareRefundRetry(input: CancelOrderInput) {
         continue;
       }
 
-      const paymentKey = attempt.orderPaymentId ?? "legacy-stripe-payment";
+      const paymentKey = attempt.orderPaymentId;
 
       if (reviewedPaymentKeys.has(paymentKey)) {
         continue;
@@ -481,7 +489,7 @@ async function prepareRefundRetry(input: CancelOrderInput) {
       reviewedPaymentKeys.add(paymentKey);
       const hasActiveOrSuccessfulReplacement = attempts.some(
         (candidate) =>
-          (candidate.orderPaymentId ?? "legacy-stripe-payment") === paymentKey &&
+          candidate.orderPaymentId === paymentKey &&
           (candidate.status === "PENDING" || candidate.status === "SUCCEEDED"),
       );
 
