@@ -1,10 +1,15 @@
 import { notFound } from "next/navigation";
 
+import { CompanyFeatureEntitlementsForm } from "@/components/admin/CompanyFeatureEntitlementsForm";
 import { CompanySubscriptionForm } from "@/components/admin/CompanySubscriptionForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { listOrganizationFeatureEntitlements } from "@/lib/feature-entitlements";
 import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
 import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
-import { getPlatformCompanyWithSubscription } from "@/lib/saas-admin";
+import {
+  getPlatformCompanyWithSubscription,
+  listCompanyRestaurants,
+} from "@/lib/saas-admin";
 
 export default async function PlatformCompanySubscriptionPage(
   props: PageProps<"/platform/companies/[id]/subscription">,
@@ -15,7 +20,11 @@ export default async function PlatformCompanySubscriptionPage(
       destination: "subscription",
       identifier: id,
     });
-  const company = await getPlatformCompanyWithSubscription(companyRecord.id);
+  const [company, restaurants, initialEntitlements] = await Promise.all([
+    getPlatformCompanyWithSubscription(companyRecord.id),
+    listCompanyRestaurants(companyRecord.id),
+    listOrganizationFeatureEntitlements(companyRecord.id),
+  ]);
 
   if (!company || !company.subscription) {
     notFound();
@@ -33,12 +42,26 @@ export default async function PlatformCompanySubscriptionPage(
         role: session.user.role,
       }}
     >
-      <CompanySubscriptionForm
-        apiPath={`/api/platform/companies/${company.id}/subscription`}
-        backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
-        companyName={company.name}
-        currentStatus={company.subscription.status}
-      />
+      <div className="grid gap-6">
+        <CompanySubscriptionForm
+          apiPath={`/api/platform/companies/${company.id}/subscription`}
+          backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
+          companyName={company.name}
+          currentStatus={company.subscription.status}
+        />
+        <CompanyFeatureEntitlementsForm
+          apiPath={`/api/platform/companies/${company.id}/features`}
+          initialEntitlements={initialEntitlements}
+          scopes={[
+            { id: company.id, name: company.name, type: "COMPANY" },
+            ...restaurants.map((restaurant) => ({
+              id: restaurant.id,
+              name: restaurant.name,
+              type: "RESTAURANT" as const,
+            })),
+          ]}
+        />
+      </div>
     </SaasAdminShell>
   );
 }

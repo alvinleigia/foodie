@@ -33,9 +33,25 @@ export type FeatureEntitlement = {
   description: string | null;
   enabled: boolean;
   featureId: string;
-  key: string;
+  key: FeatureKey;
   name: string;
+  override: FeatureEntitlementOverride | null;
   source: FeatureEntitlementSource;
+};
+
+export type FeatureEntitlementOverride = {
+  enabled: boolean;
+  expiresAt: string | null;
+  reason: string | null;
+};
+
+export type FeatureOverrideMode = "INHERIT" | "ENABLED" | "DISABLED";
+
+export type FeatureOverrideUpdate = {
+  expiresAt: Date | null;
+  featureKey: FeatureKey;
+  mode: FeatureOverrideMode;
+  reason: string | null;
 };
 
 type ResolveFeatureEntitlementInput = {
@@ -139,7 +155,12 @@ export async function listOrganizationFeatureEntitlements(
         name: saasFeatures.name,
       })
       .from(saasFeatures)
-      .where(eq(saasFeatures.isActive, true)),
+      .where(
+        and(
+          eq(saasFeatures.isActive, true),
+          inArray(saasFeatures.key, featureKeys),
+        ),
+      ),
     getDb()
       .select({
         enabled: saasPlanFeatures.enabled,
@@ -159,8 +180,10 @@ export async function listOrganizationFeatureEntitlements(
     getDb()
       .select({
         enabled: organizationFeatureOverrides.enabled,
+        expiresAt: organizationFeatureOverrides.expiresAt,
         featureId: organizationFeatureOverrides.featureId,
         organizationId: organizationFeatureOverrides.organizationId,
+        reason: organizationFeatureOverrides.reason,
       })
       .from(organizationFeatureOverrides)
       .where(
@@ -185,22 +208,27 @@ export async function listOrganizationFeatureEntitlements(
       .filter(
         (override) => override.organizationId === companyOrganizationId,
       )
-      .map((override) => [override.featureId, override.enabled]),
+      .map((override) => [override.featureId, override]),
   );
   const restaurantOverridesByFeatureId = new Map(
     overrides
       .filter(
         (override) => override.organizationId === restaurantOrganizationId,
       )
-      .map((override) => [override.featureId, override.enabled]),
+      .map((override) => [override.featureId, override]),
   );
 
   return features.map((feature) => {
+    const companyOverride = companyOverridesByFeatureId.get(feature.id);
+    const restaurantOverride = restaurantOverridesByFeatureId.get(feature.id);
+    const scopeOverride = restaurantOrganizationId
+      ? restaurantOverride
+      : companyOverride;
     const resolution = resolveFeatureEntitlement({
-      companyOverride: companyOverridesByFeatureId.get(feature.id),
+      companyOverride: companyOverride?.enabled,
       defaultEnabled: feature.defaultEnabled,
       planEnabled: planByFeatureId.get(feature.id),
-      restaurantOverride: restaurantOverridesByFeatureId.get(feature.id),
+      restaurantOverride: restaurantOverride?.enabled,
     });
 
     return {
@@ -208,11 +236,100 @@ export async function listOrganizationFeatureEntitlements(
       description: feature.description,
       enabled: resolution.enabled,
       featureId: feature.id,
-      key: feature.key,
+      key: feature.key as FeatureKey,
       name: feature.name,
+      override: scopeOverride
+        ? {
+            enabled: scopeOverride.enabled,
+            expiresAt: scopeOverride.expiresAt?.toISOString() ?? null,
+            reason: scopeOverride.reason,
+          }
+        : null,
       source: resolution.source,
     };
   });
+}
+
+export async function updateOrganizationFeatureOverrides(
+  organizationId: string,
+  updates: FeatureOverrideUpdate[],
+  updatedByUserId: string | null,
+) {
+  await getEntitlementScope(organizationId);
+
+  const requestedFeatureKeys = [...new Set(updates.map((update) => update.featureKey))];
+  const features = await getDb()
+    .select({ id: saasFeatures.id, key: saasFeatures.key })
+    .from(saasFeatures)
+    .where(
+      and(
+        eq(saasFeatures.isActive, true),
+        inArray(saasFeatures.key, requestedFeatureKeys),
+      ),
+    );
+
+  if (features.length !== requestedFeatureKeys.length) {
+    throw new FeatureEntitlementError(
+      "One or more features are not available in the feature catalogue.",
+    );
+  }
+
+  const featureIdByKey = new Map(
+    features.map((feature) => [feature.key, feature.id]),
+  );
+  const now = new Date();
+
+  await getDb().transaction(async (transaction) => {
+    for (const update of updates) {
+      const featureId = featureIdByKey.get(update.featureKey);
+
+      if (!featureId) {
+        throw new FeatureEntitlementError(
+          `Feature ${update.featureKey} is not configured.`,
+        );
+      }
+
+      if (update.mode === "INHERIT") {
+        await transaction
+          .delete(organizationFeatureOverrides)
+          .where(
+            and(
+              eq(organizationFeatureOverrides.organizationId, organizationId),
+              eq(organizationFeatureOverrides.featureId, featureId),
+            ),
+          );
+        continue;
+      }
+
+      const enabled = update.mode === "ENABLED";
+      await transaction
+        .insert(organizationFeatureOverrides)
+        .values({
+          organizationId,
+          featureId,
+          enabled,
+          reason: update.reason,
+          expiresAt: update.expiresAt,
+          updatedByUserId,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            organizationFeatureOverrides.organizationId,
+            organizationFeatureOverrides.featureId,
+          ],
+          set: {
+            enabled,
+            reason: update.reason,
+            expiresAt: update.expiresAt,
+            updatedByUserId,
+            updatedAt: now,
+          },
+        });
+    }
+  });
+
+  return listOrganizationFeatureEntitlements(organizationId);
 }
 
 export async function getOrganizationFeatureEntitlement(
