@@ -1,162 +1,331 @@
-# Foodie SaaS Pending Roadmap
+# Foodie Product And POS Roadmap
 
-This file tracks only pending work from the SaaS roadmap. Completed phase history has been removed so future sessions can quickly decide what to do next.
+This is the main product roadmap and status tracker for Foodie.
 
-## Current Position
+## Status Guide
 
-Foodie has working SaaS foundations for:
+- `[x]` Implemented in the application.
+- `[ ]` Not yet implemented or not yet verified.
+- **Now** means required before onboarding live POS tenants.
+- **Next** means required for a broader restaurant rollout.
+- **Later** means an optional, premium or customer-growth module.
 
-- Platform, company, restaurant and operations roles.
-- Company, restaurant, ordering-point and staff management.
-- Invitation-link onboarding.
-- Tenant-scoped menus, orders, inventory and reports.
-- Audit logs, rate limiting foundation and structured logging.
-- Domain records, company subdomain foundation and custom domain mapping UI.
-- Universal customer social login with encrypted company overrides and restaurant inheritance or override.
+Implementation is not the same as production readiness. Features involving payments,
+refunds, authentication, domains or tenant isolation remain blocked until their UAT
+checks pass in every deployment cell.
 
-## Immediate Decision
+## Product Position
 
-Choose the next track:
+Foodie should first launch as a cloud ordering and counter-service POS for:
 
-- **UAT hardening:** test and stabilize the current app before adding more major features.
-- **Production readiness:** add infrastructure items needed before real customers.
-- **Domain deployment:** test `foodie.leigia.com`, company subdomains and custom domain routing on Vercel.
+- Quick-service restaurants.
+- Takeaway and collection businesses.
+- Bars and counter-service venues.
+- Restaurants using customer QR or online payments.
 
-## Phase 3 Pending: Tenant Admin
+Do not position Foodie as a complete full-service table POS until the table, seat,
+course and split-check module is complete.
 
-- [ ] Add real email delivery for invitation links.
+## Done: SaaS Foundation
 
-Notes:
+- [x] Regional deployment cells with required domain, locale, timezone and currency settings.
+- [x] Direct Platform -> Company -> Restaurant hierarchy with no legacy location layer.
+- [x] Company and restaurant scoped administration.
+- [x] Restaurant-scoped staff memberships and context switching.
+- [x] Platform, company, restaurant manager and order operator roles.
+- [x] Staff invitation links and password reset flows.
+- [x] Staff session revocation after password changes or access removal.
+- [x] Trial, active, suspended and cancelled subscription states.
+- [x] Plan quotas for restaurants, users, monthly orders and storage.
+- [x] Tenant data export and tenant disable controls.
+- [x] Tenant-scoped audit logs and CSV export.
+- [x] Company subdomain and custom-domain records.
+- [x] Customer-facing custom domains with staff/admin work restricted to the platform domain.
+- [x] Canonical company, restaurant and operations route slugs.
+- [x] Deployment configuration verification during builds.
 
-- Current invite flow generates copyable links.
-- Customer OTP delivery supports platform, company and restaurant SMTP2GO settings; invitation emails still need to be wired to the shared delivery service.
-- Until email is added, admins can manually copy and share invite links.
+## Done: Customer Experience
 
-## Phase 5 Pending: Reporting
+- [x] Restaurant ordering pages and ordering-point QR links.
+- [x] Customer email OTP login.
+- [x] Universal Google, Apple and Facebook login foundation.
+- [x] Company and restaurant OAuth inheritance or override.
+- [x] Central social-login callback with customer-domain handoff.
+- [x] Tenant-scoped customer profiles.
+- [x] Required customer name and phone before checkout.
+- [x] Active and completed customer order views.
+- [x] Customer cancellation flow subject to the restaurant policy.
+- [x] Privacy notice framework with tenant and platform placeholders.
+- [x] Optional Twilio Verify provider adapter for future phone verification.
 
-- [ ] Add PDF export for reports.
+## Done: Menu And Ordering
 
-Notes:
+- [x] Restaurant-scoped menu categories and products.
+- [x] Product descriptions, prices and image links.
+- [x] Modifier groups and modifier options.
+- [x] Menu tags.
+- [x] Sold-out controls.
+- [x] Restaurant menu CSV import and export.
+- [x] Customer and staff-created orders.
+- [x] Daily restaurant order numbers.
+- [x] Item notes and modifier snapshots on orders.
+- [x] Item-level pending, preparing, ready, delivered and cancelled workflow.
+- [x] Atomic compare-and-set order status transitions.
+- [x] Concurrent inventory reservation protection.
+- [x] Removal of the unsafe clear-all-orders workflow.
 
-- CSV export already exists.
-- PDF can wait unless customers specifically need printable reports.
+## Done: Payments And Refunds
 
-## Phase 6 Pending: Commercial Layer
+- [x] Stripe Connect account inheritance and restaurant override.
+- [x] Stripe-hosted customer checkout.
+- [x] Webhook-gated customer-order fulfilment.
+- [x] Staff-created unpaid bills.
+- [x] Staff cash settlement with tendered amount and change calculation.
+- [x] Partial cash payment and remaining-balance tracking.
+- [x] Stripe Checkout links for a remaining staff bill balance.
+- [x] Customer-facing Stripe payment QR codes for staff-created bills.
+- [x] Separate payment records for each collected portion.
+- [x] Cancellation fee percentage with manager override controls.
+- [x] Refund allocation back to each original payment.
+- [x] Automatic Stripe refund requests and recorded cash-return portions.
+- [x] Refund retry and failed-refund visibility.
+- [x] Payment and refund idempotency and database integrity constraints.
 
-- [ ] Build a guided tenant onboarding flow.
+Deployment note:
 
-Notes:
+- [ ] Confirm migration `0038_order_refund_payment_integrity.sql` is recorded in every live database.
+- [ ] Complete duplicate, delayed and out-of-order Stripe webhook UAT.
 
-- Plans, trials, subscription statuses, suspension handling and export workflows exist.
-- The missing part is a polished first-run flow for setting up a new company, restaurant, staff, ordering point and menu.
+## Done: Operations And Reporting
 
-## Phase 8 Pending: Domains And Routing
+- [x] Staff order board with item-level actions.
+- [x] Restaurant product-level inventory quantities.
+- [x] Low-stock and out-of-stock warnings.
+- [x] Inventory deduction after item delivery.
+- [x] Company and restaurant dashboards.
+- [x] Revenue, order status, timing, cancellation, product and staff reports.
+- [x] CSV report export.
+- [x] Structured server logging foundation.
+- [x] Abortable customer and staff polling.
 
-- [ ] UAT test platform domain routing.
-- [ ] UAT test company subdomain routing.
-- [ ] UAT test restaurant selection and ordering-point routing on a company domain.
-- [ ] UAT test custom domain ordering.
-- [ ] Verify that staff/admin paths on customer domains always redirect to the platform domain.
-- [ ] Add Vercel domain registration automation after manual Vercel domain mapping is tested.
+## Done: Security Foundation
 
-Notes:
+- [x] Tenant-scoped route authorization.
+- [x] Revalidation of active staff membership and session version.
+- [x] Rate-limiting foundation for public and credential endpoints.
+- [x] Content Security Policy.
+- [x] Anti-framing, nosniff, Referrer Policy and Permissions Policy headers.
+- [x] Disabled `X-Powered-By` response header.
+- [x] Drizzle ORM upgraded to the identifier-escaping security patch.
+- [x] Automated coverage for session revocation, order concurrency and security headers.
 
-- Main SaaS domain target: `foodie.leigia.com`.
-- Company customer-domain target: `{company}.foodie.leigia.com`.
-- Custom domains should initially target customer ordering/status, not staff/admin login.
-- Staff/admin login should stay on `foodie.leigia.com` until custom-domain auth is intentionally hardened.
+## Now: POS Financial Core
 
-## Production Readiness TODOs
+These changes should be designed before real tenants build transaction history.
 
-- [ ] Add compliance controls for SaaS owner audit-log access: log audit-log views/exports, avoid sensitive metadata, document platform support access in privacy/customer terms and later consider a reason-required support access mode.
-- [ ] Expand automated tenant-isolation coverage to menu, inventory, orders and reports.
-- [ ] Add automated tests for order transitions.
-- [ ] Replace in-memory rate limiting with Redis, Upstash or another shared store.
-- [ ] Consider Supabase Row Level Security as defense in depth.
-- [ ] Add database backup and restore plan.
-- [ ] Replace constant polling with Supabase Realtime or adaptive polling before heavier traffic.
-- [ ] Add tenant-scoped image uploads and storage limits when image upload storage is introduced.
-- [ ] Review server logs and monitoring approach for production.
-- [ ] Review Vercel environment variables and deployment settings before live UAT.
+- [ ] Add feature entitlements instead of relying only on plan quotas.
+- [ ] Add a feature catalogue and plan-to-feature entitlements.
+- [ ] Add company or restaurant feature overrides for trials and support.
+- [ ] Add restaurant tax and VAT profiles.
+- [ ] Support tax-inclusive and tax-exclusive pricing.
+- [ ] Snapshot tax rate, taxable amount and tax amount on each order line.
+- [ ] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.
+- [ ] Store immutable subtotal, discount, tax, charge, tip and final-total snapshots.
+- [ ] Add consistent monetary rounding rules per currency.
+- [ ] Reconcile financial reports from order, adjustment, payment and refund ledgers.
+- [ ] Add sequential receipt and invoice numbers per restaurant.
+- [ ] Add printable and email receipts.
+- [ ] Add UK simplified VAT invoice support and full VAT invoice data when required.
 
-## Code Health And Maintainability TODOs
+## Now: Core Restaurant Operations
 
-These items come from a project-wide maintainability scan. The app is functional, but several modules have grown large enough that future work will become slower and riskier unless we extract shared patterns.
+- [ ] Add fulfilment types: dine-in, takeaway, collection and delivery.
+- [ ] Add promised or scheduled fulfilment time.
+- [ ] Add basic discount and comp actions with reason codes.
+- [ ] Add granular staff permissions instead of role-only action access.
+- [ ] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
+- [ ] Add cash drawer sessions with opening float.
+- [ ] Add cash paid-in and paid-out movements with reasons.
+- [ ] Add expected-versus-counted cash reconciliation.
+- [ ] Add shift and end-of-day close reports.
+- [ ] Add basic prep stations and route products to kitchen or bar stations.
+- [ ] Add kitchen ticket printing or a dedicated KDS station view.
+- [ ] Add expeditor or final-assembly status where required.
 
-### High Priority
+## Now: Launch Decisions
 
-- [ ] Split `lib/saas-admin.ts` into focused services: platform companies, company restaurants, company users/memberships, domains and reassignment.
-- [ ] Split `lib/saas-reports.ts` into report query modules by concern: summaries, status/product reports, timing/cancellation/revenue reports and CSV export.
-- [ ] Review the remaining QR slug availability fetch after tests cover live validation behavior.
-- [ ] Extend shared money/price formatting into reports and any remaining price displays.
-- [ ] Add automated tests for tenant isolation before refactoring route handlers or data services.
-- [ ] Add automated tests for order workflow transitions before changing order board or customer status behavior.
+Each item needs an explicit product decision before Foodie is sold as a POS.
 
-### Medium Priority
+- [ ] Integrate a card-present terminal provider, or describe the first release as cash plus QR/online payment only.
+- [ ] Implement offline order continuity, or document the pilot as online-only with a manual outage procedure.
+- [ ] Decide whether tips and service charges are part of the first quick-service release.
+- [ ] Decide whether one order always maps to one bill in the quick-service release.
+- [ ] Decide which receipt formats are mandatory at launch.
 
-- [ ] Split `components/order/OrderForm.tsx` into smaller components/hooks: menu loading, category navigation, cart drawer, review screen and cart item state.
-- [ ] Split `components/staff/MenuManager.tsx` into smaller components/hooks: category actions, product form, import/export, seed/clear actions and product cards.
-- [ ] Split `components/staff/InventoryManager.tsx` into shared inventory form/card components after tests cover inventory save behavior.
-- [ ] Consolidate create/edit form patterns for company, restaurant, ordering point, subscription, staff and access forms.
-- [ ] Create reusable route/action helpers so submit/cancel/back behavior consistently returns to the nearest workflow context.
-- [ ] Create shared status badge components for tenant status, subscription status, user account status, membership access status, order status and item status.
-- [ ] Review route handlers for repeated auth, validation, audit logging and JSON error-response code; extract safe wrappers only after tests are in place.
-- [ ] Replace remaining route-specific page copy/paste with small server page helpers where it improves clarity without hiding permissions.
+## Now: Production Readiness
 
-### Lower Priority
+- [ ] Replace the in-memory rate limiter with a shared Redis or equivalent store before serious traffic.
+- [ ] Add and test database backup and restore procedures.
+- [ ] Add Stripe webhook failure alerts.
+- [ ] Add application error monitoring and operational alert ownership.
+- [ ] Verify Vercel deployment SHA after each staging and production release.
+- [ ] Replace constant polling with adaptive polling or realtime updates before heavier traffic.
+- [ ] Complete paid checkout, cancellation and refund UAT.
+- [ ] Test duplicate, delayed and failed webhooks.
+- [ ] Test disabled-staff and password-reset session revocation end to end.
+- [ ] Test two-restaurant isolation using real manager accounts.
+- [ ] Test email OTP and Google login from a white-label customer domain.
+- [ ] Test OTP delivery to Gmail and Outlook and inspect SPF and DKIM results.
+- [ ] Add and validate the DMARC record for the sending domain.
+- [ ] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
+- [ ] Verify every staff/admin route redirects away from customer domains.
+- [ ] Review Vercel environment variables and function regions in every deployment cell.
+- [ ] Consider Supabase Row Level Security as defence in depth.
 
-- [ ] Review whether `components/admin/TenantAdminForms.tsx` should be split into one file per form.
-- [ ] Review whether shadcn wrappers under `components/ui` need local documentation for allowed variants and styling rules.
-- [ ] Expand architecture notes when brand/reporting groups or multi-ordering-point administration are introduced.
-- [ ] Consider moving report CSV export formatting into a separate `lib/reports/export.ts` module.
-- [ ] Consider moving menu CSV import/export into separate `lib/menu/import-export.ts` once menu tests exist.
+## Now: Compliance And Tenant Operations
 
-### Observed Hotspots
+- [ ] Replace all privacy-notice placeholders with approved company information.
+- [ ] Obtain legal review for privacy, retention, cancellation and refund wording.
+- [ ] Document customer data access, correction and deletion procedures.
+- [ ] Document platform support access to tenant data.
+- [ ] Audit access to audit-log views and exports.
+- [ ] Avoid storing secrets or unnecessary personal data in audit metadata.
+- [ ] Decide whether customer phone verification is required at launch.
+- [ ] Configure Twilio Verify only when SMS verification is enabled.
+- [ ] Add real email delivery for staff invitations.
 
-- `lib/saas-admin.ts` still mixes platform, company, restaurant, user, domain and reassignment logic.
-- `lib/saas-reports.ts` is about 1,031 lines and mixes query construction, aggregation and CSV export.
-- `components/staff/MenuManager.tsx` is about 860 lines and owns too many UI states and actions.
-- `components/order/OrderForm.tsx` is about 768 lines and mixes menu loading, cart state, sticky category behavior, review flow and order submission.
-- `components/admin/TenantAdminForms.tsx` is about 483 lines and contains several independent forms.
-- The app has many repeated `fetch -> json -> get error -> toast -> pending state` patterns.
-- The app has many repeated role/context checks in API routes; these are correct but verbose and should be wrapped carefully after tests.
+## Conditional: Full-Service Restaurant Module
 
-## UAT Checklist To Create Or Update
+Move this section into **Now** before onboarding full-service table restaurants.
 
-- [ ] SaaS owner creates a company.
-- [ ] SaaS owner invites company owner.
-- [ ] Company owner creates restaurants.
-- [ ] Company owner manages all company users at `/company/users`.
-- [ ] Company owner invites restaurant manager and order operator.
-- [ ] Invited users accept links and log in.
-- [ ] Restaurant manager manages menu, inventory and ordering-point settings.
-- [ ] Order operator sees only permitted operations.
-- [ ] Customer opens ordering link through a customer domain, restaurant route or ordering-point QR slug.
-- [ ] Customer places multi-item order.
-- [ ] Staff processes item-level order workflow.
-- [ ] Customer sees standalone order status page.
-- [ ] Reports and audit logs show scoped data only.
-- [ ] Disabled/suspended tenants cannot access protected flows.
+- [ ] Add restaurant floor plans.
+- [ ] Add structured dining tables instead of free-text table numbers.
+- [ ] Add table sessions and cover counts.
+- [ ] Add seat assignment.
+- [ ] Add courses and controlled kitchen firing.
+- [ ] Separate the kitchen order from the financial check or bill.
+- [ ] Support multiple checks for one table session.
+- [ ] Transfer and merge tables or checks.
+- [ ] Split checks by seat, item, amount or equal share.
+- [ ] Support multiple card payments on one bill.
+- [ ] Add server assignment and table handover.
+- [ ] Add table progress and occupancy states.
 
-## Suggested Next Order
+## Next: Operational Expansion
 
-1. Run UAT using the current local/Vercel app.
-2. Fix UAT bugs before adding new large features.
-3. Test manual Vercel domain mapping for `foodie.leigia.com` and one company subdomain.
-4. Add email delivery for invitations.
-5. Add Redis/Upstash rate limiting.
-6. Add automated tenant isolation and order workflow tests.
-7. Continue refactoring shared JSON request/form utilities before adding another large admin surface.
-8. Decide whether PDF export or guided onboarding is more important for first real users.
+- [ ] Add ingredient and recipe inventory.
+- [ ] Add ingredient depletion from product sales.
+- [ ] Add stock adjustments, waste and variance tracking.
+- [ ] Add suppliers and purchase orders.
+- [ ] Add stock transfers between restaurants.
+- [ ] Add menu availability schedules and time-based menus.
+- [ ] Add allergen and dietary information.
+- [ ] Add customer-facing and kitchen printer configuration.
+- [ ] Add accounting export or accounting-provider integrations.
+- [ ] Add tenant-scoped image uploads and storage limits.
+- [ ] Automate Vercel custom-domain registration after manual routing is proven.
+- [ ] Build a guided company and restaurant onboarding flow.
 
-## Notes For Future Chat Sessions
+## Later: Premium And Customer-Growth Modules
 
-- Keep this file pending-only.
-- Move completed items out of this file once finished.
-- Do not add hard-delete flows for users or companies while orders and audit logs reference them.
-- Prefer disabling access/tenants over deleting history.
-- Continue using shared shadcn/Tailwind components from `components/ui` and shared wrappers before adding custom UI.
-- Use `npm run db:migrate` for normal migration application.
-- Use `npm run db:reset:migrate` only for intentional clean development resets.
-- Avoid relying on `npm run db:push` while Drizzle introspection remains unreliable against the current Supabase schema.
-- Run `npm run lint` and `npm run build` after implementation work.
+- [ ] Coupon codes and basic offers.
+- [ ] Automatic promotions and happy hours.
+- [ ] Loyalty points and rewards.
+- [ ] Gift cards and stored value.
+- [ ] Customer segments and marketing campaigns.
+- [ ] Birthday and visit-history offers.
+- [ ] Reservations and waitlists.
+- [ ] Delivery marketplace integrations.
+- [ ] Staff time clock, scheduling and payroll integrations.
+- [ ] Advanced inventory forecasting and recipe costing.
+- [ ] Advanced multi-restaurant menu synchronisation.
+- [ ] PDF and scheduled reports.
+- [ ] Self-service kiosks.
+- [ ] Customer-facing displays.
+- [ ] Branded customer applications.
+- [ ] Personalised upsells and recommendations.
+- [ ] AI-assisted forecasting, menu analysis and operational insights.
+
+The detailed offers plan remains in `OFFERS_ROADMAP.md`.
+
+## Tenant-Safe Architecture Rules
+
+All future modules must follow these rules so existing tenants can adopt them safely:
+
+- Use additive database migrations with explicit backfills.
+- Never calculate historical tax, discounts or charges from current settings.
+- Snapshot financial and policy values when the transaction is created.
+- Keep one shared schema with strict organization scoping.
+- Add features through entitlements, not tenant-specific code branches.
+- Use company defaults with optional restaurant overrides.
+- Keep payment, SMS, email, printer and delivery providers behind adapters.
+- Prefer typed ledgers for financial changes instead of adding one column per feature.
+- Version pricing and policy behaviour when calculation rules change.
+- Keep audit and financial history immutable.
+- Disable tenants, users and definitions instead of hard-deleting referenced history.
+- Add new premium features disabled by default, then enable them by plan or override.
+
+## Code Health Track
+
+Complete these alongside product work when touching the affected modules:
+
+- [ ] Split `lib/saas-admin.ts` into focused tenant, user, domain and reassignment services.
+- [ ] Split `lib/saas-reports.ts` into financial and operational report modules.
+- [ ] Split `components/order/OrderForm.tsx` into focused cart, menu and review components.
+- [ ] Split `components/staff/MenuManager.tsx` into focused forms and product-list components.
+- [ ] Split `components/staff/StaffOrderBoard.tsx` before adding KDS, cash close or table workflows.
+- [ ] Add broader tenant-isolation tests for menus, inventory, orders and reports.
+- [ ] Add workflow tests before extending order, check or kitchen states.
+- [ ] Consolidate repeated authenticated API validation, logging and error responses carefully.
+- [ ] Extend shared money formatting and minor-unit calculations into every financial report.
+
+## Recommended Execution Order
+
+1. Add feature entitlements and document the order/check/financial architecture.
+2. Implement tax, VAT, adjustments, immutable totals and receipts.
+3. Implement fulfilment types, granular permissions and manager approvals.
+4. Implement cash drawer sessions and end-of-day reconciliation.
+5. Implement basic kitchen or bar prep-station routing.
+6. Complete shared rate limiting, backups, monitoring and the required UAT gate.
+7. Pilot with one quick-service restaurant and one second restaurant for isolation testing.
+8. Build the full-service module only when that market is being onboarded.
+9. Add premium growth modules after the operational core is stable.
+
+## Quick-Service Launch Gate
+
+Foodie is ready for live quick-service tenants only when:
+
+- [ ] Tax, VAT, totals and receipts reconcile exactly.
+- [ ] Cash and Stripe settlements match end-of-day reports.
+- [ ] Refund and duplicate-webhook tests pass.
+- [ ] Sensitive staff actions require the correct permission or approval.
+- [ ] Kitchen or bar routing is reliable during a busy-order test.
+- [ ] Two-restaurant isolation tests pass.
+- [ ] Authentication and session revocation tests pass.
+- [ ] Backup restoration is demonstrated.
+- [ ] Monitoring and webhook alerts have an owner.
+- [ ] Domain, OAuth, SMTP and deployment-cell checks pass.
+- [ ] Product positioning clearly states any card-terminal or offline limitations.
+
+## Working Notes
+
+- Use `npm run db:migrate` for committed migrations.
+- Use `npm run db:reset:migrate` only for intentional test database resets.
+- Avoid `npm run db:push` as the normal migration path.
+- Run focused tests, `npm run lint` and `npm run build` after implementation work.
+- Keep this roadmap updated when a feature is implemented and again when its UAT gate passes.
+
+## Benchmark References
+
+- Square for Restaurants pricing and feature comparison:
+  `https://squareup.com/gb/en/point-of-sale/restaurants/pricing`
+- Toast restaurant POS:
+  `https://pos.toasttab.com/products/point-of-sale`
+- Toast kitchen display system:
+  `https://pos.toasttab.com/hardware/kitchen-display-system`
+- Lightspeed Restaurant features:
+  `https://www.lightspeedhq.co.uk/pos/restaurant/multi-location-pos/`
+- TouchBistro restaurant POS:
+  `https://www.touchbistro.com/pos/`
+- HMRC VAT record and invoice guidance:
+  `https://www.gov.uk/guidance/record-keeping-for-vat-notice-70021`
