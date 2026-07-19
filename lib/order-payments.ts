@@ -34,6 +34,80 @@ export type OrderPaymentLine = {
   unitPrice: string | null;
 };
 
+export type OrderLineTaxSnapshot = {
+  taxAmountSnapshot: string | null;
+  taxableAmountSnapshot: string | null;
+  taxRateBpsSnapshot: number;
+};
+
+function calculateOrderLineUnitTaxPricing(
+  line: OrderPaymentLine,
+  currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
+) {
+  if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+    throw new Error(`${line.drinkName} needs a valid quantity.`);
+  }
+
+  if (line.unitPrice === null) {
+    return null;
+  }
+
+  const modifierAmount = line.modifiers.reduce(
+    (total, modifier) =>
+      total +
+      decimalToMinorUnits(modifier.priceDelta, currency) * modifier.quantity,
+    0,
+  );
+  const listedUnitAmount =
+    decimalToMinorUnits(line.unitPrice, currency) + modifierAmount;
+
+  return calculateTaxPricing(
+    listedUnitAmount,
+    taxPricing.taxRateBps,
+    taxPricing.pricingMode,
+  );
+}
+
+export function buildOrderLineTaxSnapshot(
+  line: OrderPaymentLine,
+  currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
+): OrderLineTaxSnapshot {
+  const normalizedCurrency = currency.trim().toUpperCase();
+  const unitPricing = calculateOrderLineUnitTaxPricing(
+    line,
+    normalizedCurrency,
+    taxPricing,
+  );
+
+  if (!unitPricing) {
+    return {
+      taxAmountSnapshot: null,
+      taxableAmountSnapshot: null,
+      taxRateBpsSnapshot: taxPricing.taxRateBps,
+    };
+  }
+
+  return {
+    taxAmountSnapshot: minorUnitsToDecimal(
+      unitPricing.taxAmountMinor * line.quantity,
+      normalizedCurrency,
+    ),
+    taxableAmountSnapshot: minorUnitsToDecimal(
+      unitPricing.taxableAmountMinor * line.quantity,
+      normalizedCurrency,
+    ),
+    taxRateBpsSnapshot: taxPricing.taxRateBps,
+  };
+}
+
 export function buildOrderPaymentPricing(
   lines: OrderPaymentLine[],
   currency: string,
@@ -47,29 +121,20 @@ export function buildOrderPaymentPricing(
   let taxableAmountMinor = 0;
   let taxAmountMinor = 0;
   const lineItems = lines.map((line) => {
-    if (line.unitPrice === null) {
+    const unitPricing = calculateOrderLineUnitTaxPricing(
+      line,
+      normalizedCurrency,
+      taxPricing,
+    );
+
+    if (!unitPricing) {
       throw new Error(`${line.drinkName} is not available for online payment.`);
     }
 
-    const modifierAmount = line.modifiers.reduce(
-      (total, modifier) =>
-        total +
-        decimalToMinorUnits(modifier.priceDelta, normalizedCurrency) *
-          modifier.quantity,
-      0,
-    );
-    const listedUnitAmount =
-      decimalToMinorUnits(line.unitPrice, normalizedCurrency) + modifierAmount;
-
-    if (listedUnitAmount <= 0) {
+    if (unitPricing.listedAmountMinor <= 0) {
       throw new Error(`${line.drinkName} needs a valid price for online payment.`);
     }
 
-    const unitPricing = calculateTaxPricing(
-      listedUnitAmount,
-      taxPricing.taxRateBps,
-      taxPricing.pricingMode,
-    );
     listedSubtotalMinor += unitPricing.listedAmountMinor * line.quantity;
     taxableAmountMinor += unitPricing.taxableAmountMinor * line.quantity;
     taxAmountMinor += unitPricing.taxAmountMinor * line.quantity;

@@ -136,7 +136,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add platform controls for company or restaurant feature overrides.
 - [x] Add restaurant tax and VAT profiles.
 - [x] Support tax-inclusive and tax-exclusive pricing.
-- [ ] Snapshot tax rate, taxable amount and tax amount on each order line.
+- [x] Snapshot tax rate, taxable amount and tax amount on each order line.
 - [ ] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.
 - [ ] Store immutable subtotal, discount, tax, charge, tip and final-total snapshots.
 - [ ] Add consistent monetary rounding rules per currency.

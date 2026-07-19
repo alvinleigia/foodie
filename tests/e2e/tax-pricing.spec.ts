@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { buildOrderLineTaxSnapshot } from "@/lib/order-payments";
 import { calculateTaxPricing } from "@/lib/tax-pricing";
 
 function readSource(...segments: string[]) {
@@ -37,6 +38,46 @@ test.describe("tax pricing modes", () => {
     });
   });
 
+  test("snapshots full line tax totals including quantity and modifiers", () => {
+    expect(
+      buildOrderLineTaxSnapshot(
+        {
+          drinkName: "Lunch",
+          modifiers: [
+            { modifierName: "Extra", priceDelta: "2.00", quantity: 1 },
+          ],
+          quantity: 2,
+          unitPrice: "8.00",
+        },
+        "GBP",
+        { pricingMode: "EXCLUSIVE", taxRateBps: 2_000 },
+      ),
+    ).toEqual({
+      taxAmountSnapshot: "4.00",
+      taxableAmountSnapshot: "20.00",
+      taxRateBpsSnapshot: 2_000,
+    });
+  });
+
+  test("keeps monetary snapshots nullable for an unpriced staff line", () => {
+    expect(
+      buildOrderLineTaxSnapshot(
+        {
+          drinkName: "Market item",
+          modifiers: [],
+          quantity: 1,
+          unitPrice: null,
+        },
+        "GBP",
+        { pricingMode: "INCLUSIVE", taxRateBps: 2_000 },
+      ),
+    ).toEqual({
+      taxAmountSnapshot: null,
+      taxableAmountSnapshot: null,
+      taxRateBpsSnapshot: 2_000,
+    });
+  });
+
   test("snapshots pricing policy and reuses it for staff collection", () => {
     const orderRouteSource = readSource("app", "api", "orders", "route.ts");
     const staffPaymentSource = readSource("lib", "staff-order-payments.ts");
@@ -44,6 +85,8 @@ test.describe("tax pricing modes", () => {
 
     expect(orderRouteSource).toContain("taxPricingModeSnapshot");
     expect(orderRouteSource).toContain("taxRateBpsSnapshot");
+    expect(orderRouteSource).toContain("taxableAmountSnapshot");
+    expect(orderRouteSource).toContain("taxAmountSnapshot");
     expect(staffPaymentSource).toContain("order.taxPricingModeSnapshot");
     expect(staffPaymentSource).toContain("order.taxRateBpsSnapshot");
     expect(menuRouteSource).toContain("getRestaurantTaxPricing");

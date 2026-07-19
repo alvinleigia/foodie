@@ -51,6 +51,9 @@ export type StaffOrder = {
     quantity: number;
     notes: string | null;
     unitPrice: string | null;
+    taxRateBpsSnapshot: number;
+    taxableAmountSnapshot: string | null;
+    taxAmountSnapshot: string | null;
     status: OrderItemStatus;
     startedAt: string | null;
     readyAt: string | null;

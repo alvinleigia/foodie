@@ -1279,6 +1279,15 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").default(1).notNull(),
   notes: text("notes"),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+  taxRateBpsSnapshot: integer("tax_rate_bps_snapshot").default(0).notNull(),
+  taxableAmountSnapshot: numeric("taxable_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  taxAmountSnapshot: numeric("tax_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
   status: orderItemStatusEnum("status").default("PENDING").notNull(),
   startedAt: timestamp("started_at"),
   readyAt: timestamp("ready_at"),
@@ -1291,6 +1300,14 @@ export const orderItems = pgTable("order_items", {
   index("order_items_restaurant_order_idx").on(
     table.organizationId,
     table.orderId,
+  ),
+  check(
+    "order_items_tax_rate_bps_snapshot_check",
+    sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
+  ),
+  check(
+    "order_items_tax_amount_snapshots_check",
+    sql`(${table.taxableAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL) OR (${table.taxableAmountSnapshot} IS NOT NULL AND ${table.taxableAmountSnapshot} >= 0 AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} >= 0)`,
   ),
 ]);
 

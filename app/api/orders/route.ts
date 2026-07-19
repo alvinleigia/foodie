@@ -52,6 +52,7 @@ import {
 } from "@/lib/tenant-context";
 import { isValidCustomerPhone } from "@/lib/validations/customer";
 import {
+  buildOrderLineTaxSnapshot,
   buildOrderPaymentPricing,
   cancelPendingOrderPaymentByOrderId,
   createOrderCheckoutSession,
@@ -386,6 +387,9 @@ export async function POST(request: NextRequest) {
 
     const paymentPricing =
       session.user.kind === "customer" ? orderPricing : null;
+    const orderLineTaxSnapshots = cartItems.map((item) =>
+      buildOrderLineTaxSnapshot(item, currency, taxPricing),
+    );
     const paymentExpiresAt = paymentPricing
       ? new Date(Date.now() + 30 * 60 * 1000)
       : null;
@@ -443,7 +447,8 @@ export async function POST(request: NextRequest) {
         .returning();
 
       const now = new Date();
-      for (const item of cartItems) {
+      for (const [itemIndex, item] of cartItems.entries()) {
+        const lineTaxSnapshot = orderLineTaxSnapshots[itemIndex];
         const inventoryReservedAt = item.shouldReserveInventory
           ? await reserveInventoryForOrderItem(tx, tenantContext, item).then((wasReserved) =>
               wasReserved ? now : null,
@@ -462,6 +467,9 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             notes: item.notes,
             unitPrice: item.unitPrice,
+            taxRateBpsSnapshot: lineTaxSnapshot.taxRateBpsSnapshot,
+            taxableAmountSnapshot: lineTaxSnapshot.taxableAmountSnapshot,
+            taxAmountSnapshot: lineTaxSnapshot.taxAmountSnapshot,
             inventoryReservedAt,
             updatedAt: now,
           })
@@ -590,7 +598,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ...serializeOrder(createdOrder, cartItems),
+      ...serializeOrder(
+        createdOrder,
+        cartItems.map((item, itemIndex) => ({
+          ...item,
+          ...orderLineTaxSnapshots[itemIndex],
+        })),
+      ),
       checkoutUrl,
       currency,
       ordersResetAt: await getOrdersResetAt(),
