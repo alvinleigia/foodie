@@ -114,6 +114,19 @@ test.describe("staff bill payment policy", () => {
     expect(source).toContain('status: isCash ? "SUCCEEDED" : "PENDING"');
   });
 
+  test("requires every refund to reference its original payment", () => {
+    const cancellationSource = readSource("lib", "order-cancellation.ts");
+    const schemaSource = readSource("db", "schema.ts");
+
+    expect(schemaSource).toMatch(
+      /orderPaymentId: uuid\("order_payment_id"\)[\s\S]*?\.references\(\(\) => orderPayments\.id, \{ onDelete: "restrict" \}\)[\s\S]*?\.notNull\(\)/,
+    );
+    expect(cancellationSource).toContain(".innerJoin(orderPayments");
+    expect(cancellationSource).not.toContain(".leftJoin(orderPayments");
+    expect(cancellationSource).not.toContain("legacy-stripe-payment");
+    expect(cancellationSource).not.toContain("operation.payment?.");
+  });
+
   test("blocks item reopenings after payment collection starts", () => {
     const source = readSource(
       "app",

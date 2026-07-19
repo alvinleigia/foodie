@@ -1068,9 +1068,9 @@ export const orderRefunds = pgTable(
     cancellationId: uuid("cancellation_id")
       .references(() => orderCancellations.id, { onDelete: "cascade" })
       .notNull(),
-    orderPaymentId: uuid("order_payment_id").references(() => orderPayments.id, {
-      onDelete: "set null",
-    }),
+    orderPaymentId: uuid("order_payment_id")
+      .references(() => orderPayments.id, { onDelete: "restrict" })
+      .notNull(),
     provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
     status: refundStatusEnum("status").default("PENDING").notNull(),
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
