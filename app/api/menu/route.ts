@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import {
   assertOrganizationFeatureEnabled,
   FeatureEntitlementError,
+  getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
 import {
@@ -23,8 +24,15 @@ export async function GET(request: Request) {
       );
     }
 
+    const inventoryEntitlement = await getOrganizationFeatureEntitlement(
+      tenantContext.organizationId,
+      "operations.inventory",
+    );
+
     const [categories, currency] = await Promise.all([
-      getPublicMenu(tenantContext),
+      getPublicMenu(tenantContext, {
+        includeInventory: inventoryEntitlement.enabled,
+      }),
       getTenantMenuCurrency(tenantContext),
     ]);
     return NextResponse.json({ categories, currency });

@@ -4,6 +4,10 @@ import { ZodError } from "zod";
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getInventoryRecords, upsertInventoryItem } from "@/lib/inventory";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
@@ -16,10 +20,18 @@ export async function GET() {
     }
 
     const tenantContext = await getCurrentTenantContext();
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "operations.inventory",
+    );
     const inventory = await getInventoryRecords(tenantContext);
 
     return NextResponse.json({ inventory });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch inventory." },
       { status: 500 },
@@ -36,6 +48,10 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantContext = await getCurrentTenantContext();
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "operations.inventory",
+    );
     const body = await request.json();
     const inventory = await upsertInventoryItem(tenantContext, body);
 
@@ -70,6 +86,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ inventory });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }

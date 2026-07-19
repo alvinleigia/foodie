@@ -157,8 +157,16 @@ export function getStaffNavigationItemsForCompany(companySlug: string) {
   }));
 }
 
-export function getStaffNavigationItemsForRestaurant(restaurantSlug: string) {
-  return restaurantNavigation.map(({ destination, ...item }) => ({
+export function getStaffNavigationItemsForRestaurant(
+  restaurantSlug: string,
+  options: { inventoryEnabled?: boolean } = {},
+) {
+  const navigation =
+    options.inventoryEnabled === false
+      ? restaurantNavigation.filter(({ destination }) => destination !== "inventory")
+      : restaurantNavigation;
+
+  return navigation.map(({ destination, ...item }) => ({
     ...item,
     href: getRestaurantWorkspaceHref(restaurantSlug, destination),
   }));

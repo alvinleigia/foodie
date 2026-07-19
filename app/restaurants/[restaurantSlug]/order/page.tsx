@@ -5,6 +5,7 @@ import { AppShell } from "@/components/shared/AppShell";
 import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 
 const noCustomerAuthProviders = {
   apple: false,
@@ -39,10 +40,18 @@ export default async function StaffRestaurantOrderPage({
     redirect(getStaffRestaurantOrderHref(staffAccess.restaurant.slug));
   }
 
+  const inventoryEnabled = (
+    await getOrganizationFeatureEntitlement(
+      staffAccess.restaurant.id,
+      "operations.inventory",
+    )
+  ).enabled;
+
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
       <CustomerOrderPage
         customerAuthProviders={noCustomerAuthProviders}
+        inventoryEnabled={inventoryEnabled}
         phoneVerificationPolicy={noCustomerPhoneVerification}
         staffRestaurant={{
           id: staffAccess.restaurant.id,

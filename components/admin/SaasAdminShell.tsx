@@ -8,6 +8,7 @@ import { SectionHeader } from "@/components/shared/SectionHeader";
 import { getDb } from "@/db";
 import { organizations } from "@/db/schema";
 import { getTenantSubscriptionAccess } from "@/lib/billing";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { canAccessRole, platformAdminRoles } from "@/lib/role-access";
 import {
   getStaffNavigationItemsForCompany,
@@ -66,9 +67,20 @@ export async function SaasAdminShell({
       : Promise.resolve({ allowed: true, status: null }),
     getOrganizationContext(user.organizationId),
   ]);
+  const inventoryEnabled =
+    organizationContext?.type === "RESTAURANT" && user.organizationId
+      ? (
+          await getOrganizationFeatureEntitlement(
+            user.organizationId,
+            "operations.inventory",
+          )
+        ).enabled
+      : true;
   const scopedNavigationItems =
     organizationContext?.type === "RESTAURANT"
-      ? getStaffNavigationItemsForRestaurant(organizationContext.slug)
+      ? getStaffNavigationItemsForRestaurant(organizationContext.slug, {
+          inventoryEnabled,
+        })
       : organizationContext?.type === "COMPANY"
         ? getStaffNavigationItemsForCompany(organizationContext.slug)
       : staffNavigationItems;

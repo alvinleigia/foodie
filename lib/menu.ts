@@ -583,7 +583,10 @@ async function assertMenuModifierGroupsExist(groupIds: string[], context: Tenant
   }
 }
 
-export async function getPublicMenu(context: TenantContext = getDefaultTenantContext()) {
+export async function getPublicMenu(
+  context: TenantContext = getDefaultTenantContext(),
+  options: { includeInventory?: boolean } = {},
+) {
   const db = getDb();
   const categories = await db
     .select()
@@ -603,10 +606,13 @@ export async function getPublicMenu(context: TenantContext = getDefaultTenantCon
       ),
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
-  const inventoryByItemId = await getInventoryByMenuItemId(
-    items.map((item) => item.id),
-    context,
-  );
+  const inventoryByItemId =
+    options.includeInventory === false
+      ? new Map<string, typeof inventoryItems.$inferSelect>()
+      : await getInventoryByMenuItemId(
+          items.map((item) => item.id),
+          context,
+        );
   const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
   const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
     items.map((item) => item.id),
@@ -677,6 +683,7 @@ export async function getMenuSelectionSnapshot(
   categoryId: string,
   itemId: string,
   context: TenantContext = getDefaultTenantContext(),
+  options: { includeInventory?: boolean } = {},
 ) {
   const db = getDb();
 
@@ -712,6 +719,10 @@ export async function getMenuSelectionSnapshot(
 
   if (!item) {
     return { category, inventory: null, item: null };
+  }
+
+  if (options.includeInventory === false) {
+    return { category, inventory: null, item };
   }
 
   const [inventory] = await db

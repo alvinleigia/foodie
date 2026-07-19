@@ -24,6 +24,7 @@ type CustomerOrderPageProps = {
   } | null;
   customerAuthProviders: CustomerAuthProviders;
   orderingPointQrSlug?: string;
+  inventoryEnabled?: boolean;
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   stripePaymentsEnabled?: boolean;
@@ -42,6 +43,7 @@ export function CustomerOrderPage({
   customer,
   customerAuthProviders,
   orderingPointQrSlug,
+  inventoryEnabled = true,
   phoneVerificationPolicy,
   routeSlug,
   stripePaymentsEnabled = true,
@@ -63,7 +65,9 @@ export function CustomerOrderPage({
             activePath={staffOrderHref ?? "/order"}
             navigationItems={
               staffRestaurant
-                ? getStaffNavigationItemsForRestaurant(staffRestaurant.slug)
+                ? getStaffNavigationItemsForRestaurant(staffRestaurant.slug, {
+                    inventoryEnabled,
+                  })
                 : undefined
             }
             staffOrderHref={staffOrderHref}

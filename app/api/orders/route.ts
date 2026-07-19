@@ -65,6 +65,7 @@ import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-pol
 import {
   assertOrganizationFeaturesEnabled,
   FeatureEntitlementError,
+  getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 
 export async function GET() {
@@ -160,6 +161,13 @@ export async function POST(request: NextRequest) {
         ],
       );
     }
+
+    const inventoryEnabled = (
+      await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      )
+    ).enabled;
 
     const customerProfile =
       session.user.kind === "customer"
@@ -301,6 +309,7 @@ export async function POST(request: NextRequest) {
         requestedItem.categoryId,
         requestedItem.drinkId,
         tenantContext,
+        { includeInventory: inventoryEnabled },
       );
 
       if (!category || !item) {

@@ -16,6 +16,7 @@ import {
 } from "@/lib/order-transition";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { writeAuditLog } from "@/lib/audit-log";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 function isOrderItemStatus(value: unknown): value is OrderItemStatus {
@@ -169,6 +170,12 @@ export async function POST(
 
     const { id, itemId } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    const inventoryEnabled = (
+      await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      )
+    ).enabled;
     const db = getDb();
     const [order] = await db
       .select()
@@ -284,7 +291,11 @@ export async function POST(
 
       const itemPatch = getItemTimestampPatch(nextStatus, now);
 
-      if (lockedItem.status === "CANCELLED" && nextStatus === "PENDING") {
+      if (
+        inventoryEnabled &&
+        lockedItem.status === "CANCELLED" &&
+        nextStatus === "PENDING"
+      ) {
         const wasReserved = await reserveInventoryForOrderItem(
           tx,
           tenantContext,

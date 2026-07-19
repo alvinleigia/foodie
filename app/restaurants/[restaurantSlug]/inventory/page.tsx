@@ -1,7 +1,10 @@
+import { notFound } from "next/navigation";
+
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { InventoryManager } from "@/components/staff/InventoryManager";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspacePageProps,
@@ -16,6 +19,14 @@ export default async function RestaurantInventoryPage({
     destination: "inventory",
     restaurantSlug,
   });
+  const inventoryEntitlement = await getOrganizationFeatureEntitlement(
+    access.restaurant.id,
+    "operations.inventory",
+  );
+
+  if (!inventoryEntitlement.enabled) {
+    notFound();
+  }
 
   return (
     <SaasAdminShell
