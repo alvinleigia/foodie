@@ -83,4 +83,17 @@ test.describe("staff bill payment policy", () => {
     expect(source).toContain('provider: isCashPayment ? "CASH" : "STRIPE"');
     expect(source).toContain('status: isCashPayment ? "SUCCEEDED" : "PENDING"');
   });
+
+  test("renders the exact Stripe Checkout link as a payment QR", () => {
+    const source = readSource(
+      "components",
+      "staff",
+      "StaffOrderBoard.tsx",
+    );
+
+    expect(source).toContain('import { QRCodeSVG } from "qrcode.react"');
+    expect(source).toContain("value={checkoutUrl}");
+    expect(source).toContain('marginSize={4}');
+    expect(source).toContain("Scan to pay");
+  });
 });

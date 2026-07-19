@@ -8,6 +8,7 @@ import {
   ExternalLinkIcon,
   RotateCcwIcon,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -969,26 +970,53 @@ export function StaffOrderBoard() {
                   ) : null}
 
                   {checkoutUrl ? (
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                      <Button asChild className="flex-1 bg-stone-950 text-white">
-                        <a
-                          href={checkoutUrl}
-                          target="_blank"
-                          rel="noreferrer"
+                    <div className="mt-4">
+                      <div className="grid justify-items-center gap-3 border-y border-stone-200 py-5 text-center">
+                        <div className="grid aspect-square w-full max-w-60 place-items-center overflow-hidden rounded-lg border border-stone-200 bg-white p-3">
+                          <QRCodeSVG
+                            value={checkoutUrl}
+                            size={216}
+                            level="M"
+                            marginSize={4}
+                            title={`Stripe payment QR for order ${settlementTarget.orderNo}`}
+                            className="h-auto w-full max-w-54"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-stone-950">
+                            Scan to pay {settlementTarget.paymentAmount
+                              ? formatMoney(
+                                  Number(settlementTarget.paymentAmount),
+                                  settlementCurrency,
+                                )
+                              : "this bill"}
+                          </p>
+                          <p className="mt-1 text-xs text-stone-500">
+                            Order #{settlementTarget.orderNo}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Button asChild className="flex-1 bg-stone-950 text-white">
+                          <a
+                            href={checkoutUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLinkIcon />
+                            Open Checkout
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => void copyCheckoutLink()}
                         >
-                          <ExternalLinkIcon />
-                          Open Checkout
-                        </a>
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => void copyCheckoutLink()}
-                      >
-                        <CopyIcon />
-                        Copy link
-                      </Button>
+                          <CopyIcon />
+                          Copy link
+                        </Button>
+                      </div>
                     </div>
                   ) : null}
 
