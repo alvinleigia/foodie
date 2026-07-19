@@ -123,7 +123,7 @@ Deployment note:
 
 These changes should be designed before real tenants build transaction history.
 
-- [ ] Enforce feature entitlements at product entry points instead of relying only on plan quotas.
+- [x] Enforce feature entitlements at product entry points instead of relying only on plan quotas.
 - [x] Enforce customer-ordering access on public order pages, menu reads and customer order creation.
 - [x] Enforce customer-account access on sign-in, profile, order history and customer order actions.
 - [x] Enforce social-login access throughout provider selection, callback and customer-domain handoff.
@@ -131,6 +131,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Enforce staff-billing access on cash, partial and new payment-link settlement while preserving open payment requests.
 - [x] Enforce inventory access on stock management and automatic stock reservations while preserving existing reservation cleanup.
 - [x] Enforce operational-report access on company and restaurant dashboards and CSV exports.
+- [x] Enforce custom-domain access on management and public host resolution while preserving platform-managed tenant subdomains.
 - [x] Add a feature catalogue and plan-to-feature entitlements.
 - [x] Add platform controls for company or restaurant feature overrides.
 - [ ] Add restaurant tax and VAT profiles.

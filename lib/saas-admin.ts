@@ -19,6 +19,8 @@ import {
   getStarterPlanId,
   getTrialEndDate,
 } from "@/lib/billing";
+import { isPlatformManagedTenantDomain } from "@/lib/deployment-domain";
+import { assertOrganizationFeatureEnabled } from "@/lib/feature-entitlements";
 import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { slugify } from "@/lib/slugs";
@@ -164,6 +166,7 @@ export async function listCompanyDomains(companyOrganizationId: string) {
     )
     .map((domain) => ({
       ...domain,
+      isCustomDomain: !isPlatformManagedTenantDomain(domain.domain),
       restaurantName: domain.restaurantOrganizationId
         ? restaurantNames.get(domain.restaurantOrganizationId) ?? null
         : null,
@@ -183,6 +186,21 @@ async function assertDomainIsAvailable(domain: string, currentDomainId?: string)
   if (existing && existing.id !== currentDomainId) {
     throw new Error("This domain is already linked to another tenant.");
   }
+}
+
+async function assertCustomDomainAccess(
+  domain: string,
+  companyOrganizationId: string,
+  restaurantOrganizationId?: string | null,
+) {
+  if (isPlatformManagedTenantDomain(domain)) {
+    return;
+  }
+
+  await assertOrganizationFeatureEnabled(
+    restaurantOrganizationId ?? companyOrganizationId,
+    "branding.custom_domains",
+  );
 }
 
 export async function createCompanyDomain(companyOrganizationId: string, input: unknown) {
@@ -216,6 +234,12 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
       throw new Error("Restaurant not found for this company.");
     }
   }
+
+  await assertCustomDomainAccess(
+    parsed.domain,
+    companyOrganizationId,
+    parsed.restaurantOrganizationId,
+  );
 
   await assertDomainIsAvailable(parsed.domain);
 
@@ -296,6 +320,14 @@ export async function updateCompanyDomain(
 
   if (nextIsPrimary && !nextIsActive) {
     throw new Error("A primary domain must be active.");
+  }
+
+  if (parsed.isActive === true || parsed.isPrimary === true) {
+    await assertCustomDomainAccess(
+      existing.domain,
+      companyOrganizationId,
+      existing.restaurantOrganizationId,
+    );
   }
 
   return db.transaction(async (tx) => {

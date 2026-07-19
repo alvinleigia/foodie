@@ -4,9 +4,11 @@ import { getDb } from "@/db";
 import { orderingPoints, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
 import {
+  isPlatformManagedTenantDomain,
   normalizeDomain,
   ROOT_DOMAIN,
 } from "@/lib/deployment-domain";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import type { TenantContext } from "@/lib/tenant-context";
 
 export { normalizeDomain, ROOT_DOMAIN } from "@/lib/deployment-domain";
@@ -27,6 +29,31 @@ export function getRequestDomain(request: Request) {
       request.headers.get("host") ??
       new URL(request.url).host,
   );
+}
+
+async function canUseTenantDomain(domainRecord: {
+  companyOrganizationId: string | null;
+  domain: string;
+  restaurantOrganizationId: string | null;
+}) {
+  if (isPlatformManagedTenantDomain(domainRecord.domain)) {
+    return true;
+  }
+
+  const organizationId =
+    domainRecord.restaurantOrganizationId ??
+    domainRecord.companyOrganizationId;
+
+  if (!organizationId) {
+    return false;
+  }
+
+  const entitlement = await getOrganizationFeatureEntitlement(
+    organizationId,
+    "branding.custom_domains",
+  );
+
+  return entitlement.enabled;
 }
 
 async function resolveRestaurantContext(
@@ -181,7 +208,11 @@ export async function getCompanyDomainRestaurants(
   }
 
   const [domainRecord] = await getDb()
-    .select({ companyOrganizationId: tenantDomains.companyOrganizationId })
+    .select({
+      companyOrganizationId: tenantDomains.companyOrganizationId,
+      domain: tenantDomains.domain,
+      restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
+    })
     .from(tenantDomains)
     .where(
       and(
@@ -193,7 +224,10 @@ export async function getCompanyDomainRestaurants(
     )
     .limit(1);
 
-  if (!domainRecord?.companyOrganizationId) {
+  if (
+    !domainRecord?.companyOrganizationId ||
+    !(await canUseTenantDomain(domainRecord))
+  ) {
     return [];
   }
 
@@ -243,6 +277,10 @@ export async function getTenantContextFromDomain(
     return null;
   }
 
+  if (!(await canUseTenantDomain(domainRecord))) {
+    return null;
+  }
+
   let context: TenantContext | null = null;
 
   if (!context && domainRecord.scope === "RESTAURANT" && domainRecord.restaurantOrganizationId) {
@@ -276,24 +314,30 @@ export async function getInactiveTenantDomain(domain: string | null | undefined)
 
   const [domainRecord] = await getDb()
     .select({
+      companyOrganizationId: tenantDomains.companyOrganizationId,
       domain: tenantDomains.domain,
+      isActive: tenantDomains.isActive,
+      restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
       scope: tenantDomains.scope,
       purpose: tenantDomains.purpose,
     })
     .from(tenantDomains)
-    .where(
-      and(
-        eq(tenantDomains.domain, normalizedDomain),
-        eq(tenantDomains.isActive, false),
-      ),
-    )
+    .where(eq(tenantDomains.domain, normalizedDomain))
     .limit(1);
 
   if (!domainRecord || domainRecord.scope === "PLATFORM") {
     return null;
   }
 
-  return domainRecord;
+  if (domainRecord.isActive && (await canUseTenantDomain(domainRecord))) {
+    return null;
+  }
+
+  return {
+    domain: domainRecord.domain,
+    scope: domainRecord.scope,
+    purpose: domainRecord.purpose,
+  };
 }
 
 export async function getTenantContextFromRequestDomain(
@@ -335,6 +379,10 @@ export async function getTenantDomainAccessScopeFromDomain(
     .limit(1);
 
   if (!domainRecord || domainRecord.scope === "PLATFORM") {
+    return { type: "PLATFORM" };
+  }
+
+  if (!(await canUseTenantDomain({ ...domainRecord, domain }))) {
     return { type: "PLATFORM" };
   }
 
