@@ -216,6 +216,21 @@ export async function POST(
       );
     }
 
+    if (
+      item.status === "CANCELLED" &&
+      nextStatus === "PENDING" &&
+      order.paymentStatus !== "NOT_REQUIRED" &&
+      order.paymentStatus !== "UNPAID"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "A cancelled item cannot be reopened after payment collection has started.",
+        },
+        { status: 409 },
+      );
+    }
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
       const [lockedOrder] = await tx
@@ -254,6 +269,17 @@ export async function POST(
 
       if (!lockedItem || lockedItem.status !== item.status) {
         throw new OrderTransitionConflictError();
+      }
+
+      if (
+        lockedItem.status === "CANCELLED" &&
+        nextStatus === "PENDING" &&
+        lockedOrder.paymentStatus !== "NOT_REQUIRED" &&
+        lockedOrder.paymentStatus !== "UNPAID"
+      ) {
+        throw new OrderTransitionConflictError(
+          "A cancelled item cannot be reopened after payment collection has started.",
+        );
       }
 
       const itemPatch = getItemTimestampPatch(nextStatus, now);

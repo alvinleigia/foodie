@@ -9,7 +9,9 @@ import type { TenantContext } from "@/lib/tenant-context";
 import {
   decimalToMinorUnits,
   getCurrencyMinorUnitFactor,
+  minorUnitsToDecimal,
 } from "@/lib/currency-money";
+import { calculatePaymentBalance } from "@/lib/order-payment-financials";
 
 export {
   decimalToMinorUnits,
@@ -144,38 +146,43 @@ export async function markOrderPaymentPaid(
   session: Stripe.Checkout.Session,
   stripeConnectedAccountId: string | null = null,
 ) {
-  const [order] = await getDb()
+  const [paymentRecord] = await getDb()
     .select()
-    .from(orders)
+    .from(orderPayments)
     .where(
       and(
-        eq(orders.stripeCheckoutSessionId, session.id),
+        eq(orderPayments.stripeCheckoutSessionId, session.id),
         stripeConnectedAccountId
-          ? eq(orders.stripeConnectedAccountId, stripeConnectedAccountId)
-          : isNull(orders.stripeConnectedAccountId),
+          ? eq(
+              orderPayments.stripeConnectedAccountId,
+              stripeConnectedAccountId,
+            )
+          : isNull(orderPayments.stripeConnectedAccountId),
       ),
     )
     .limit(1);
 
-  if (!order || order.paymentStatus === "PAID") {
-    return order ?? null;
-  }
-
-  if (order.paymentStatus !== "PENDING" || session.payment_status !== "paid") {
+  if (!paymentRecord) {
     return null;
   }
 
-  const expectedAmount = order.paymentAmount
-    ? decimalToMinorUnits(order.paymentAmount, order.paymentCurrency ?? "")
-    : null;
+  if (session.payment_status !== "paid") {
+    return null;
+  }
+
+  const expectedAmount = decimalToMinorUnits(
+    paymentRecord.amount,
+    paymentRecord.currency,
+  );
 
   if (
-    expectedAmount === null ||
     session.amount_total === null ||
     expectedAmount !== session.amount_total ||
-    order.paymentCurrency?.toLowerCase() !== session.currency?.toLowerCase()
+    paymentRecord.currency.toLowerCase() !== session.currency?.toLowerCase()
   ) {
-    throw new Error(`Stripe payment amount mismatch for order ${order.id}.`);
+    throw new Error(
+      `Stripe payment amount mismatch for order ${paymentRecord.orderId}.`,
+    );
   }
 
   const paymentIntentId =
@@ -183,19 +190,68 @@ export async function markOrderPaymentPaid(
       ? session.payment_intent
       : session.payment_intent?.id ?? null;
   const updatedOrder = await getDb().transaction(async (tx) => {
+    const [lockedPayment] = await tx
+      .select()
+      .from(orderPayments)
+      .where(eq(orderPayments.id, paymentRecord.id))
+      .limit(1)
+      .for("update");
+    const [lockedOrder] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, paymentRecord.orderId))
+      .limit(1)
+      .for("update");
+
+    if (!lockedPayment || !lockedOrder) {
+      return null;
+    }
+
+    if (lockedPayment.status === "SUCCEEDED") {
+      return lockedOrder;
+    }
+
+    if (
+      lockedPayment.status !== "PENDING" ||
+      lockedOrder.paymentStatus !== "PENDING" ||
+      lockedOrder.stripeCheckoutSessionId !== session.id ||
+      !lockedOrder.paymentAmount ||
+      !lockedOrder.paymentCurrency
+    ) {
+      return null;
+    }
+
+    const balance = calculatePaymentBalance({
+      amount: lockedOrder.paymentAmount,
+      collectedAmount: lockedOrder.paymentCollectedAmount,
+      currency: lockedOrder.paymentCurrency,
+    });
+    const collectedMinor = balance.collectedMinor + expectedAmount;
+
+    if (collectedMinor > balance.amountMinor) {
+      throw new Error(`Stripe payment exceeds the balance for order ${lockedOrder.id}.`);
+    }
+
+    const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
     const [nextOrder] = await tx
       .update(orders)
       .set({
-        paidAt: now,
-        paymentStatus: "PAID",
+        paidAt: isPaid ? now : null,
+        paymentCollectedAmount: minorUnitsToDecimal(
+          collectedMinor,
+          lockedOrder.paymentCurrency,
+        ),
+        paymentExpiresAt: null,
+        paymentStatus: isPaid ? "PAID" : "PARTIALLY_PAID",
         stripePaymentIntentId: paymentIntentId,
         updatedAt: now,
       })
       .where(
         and(
-          eq(orders.id, order.id),
+          eq(orders.id, lockedOrder.id),
           eq(orders.paymentStatus, "PENDING"),
+          eq(orders.stripeCheckoutSessionId, session.id),
         ),
       )
       .returning();
@@ -214,7 +270,7 @@ export async function markOrderPaymentPaid(
       })
       .where(
         and(
-          eq(orderPayments.orderId, order.id),
+          eq(orderPayments.id, lockedPayment.id),
           eq(orderPayments.stripeCheckoutSessionId, session.id),
           eq(orderPayments.status, "PENDING"),
         ),
@@ -261,12 +317,16 @@ async function cancelPendingOrderPaymentRecord(
       paymentStatus === "FAILED" ? "FAILED" : "CANCELLED";
 
     if (lockedOrder.source === "STAFF_CREATED") {
+      const nextPaymentStatus =
+        Number(lockedOrder.paymentCollectedAmount) > 0
+          ? ("PARTIALLY_PAID" as const)
+          : ("UNPAID" as const);
       const [order] = await tx
         .update(orders)
         .set({
           paymentAccountOrganizationId: null,
           paymentExpiresAt: null,
-          paymentStatus: "UNPAID",
+          paymentStatus: nextPaymentStatus,
           stripeCheckoutSessionId: null,
           stripeConnectedAccountId: null,
           stripePaymentIntentId: null,

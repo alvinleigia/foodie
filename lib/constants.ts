@@ -25,6 +25,7 @@ export type OrderItemStatus = (typeof orderItemStatuses)[number];
 export const paymentStatuses = [
   "NOT_REQUIRED",
   "UNPAID",
+  "PARTIALLY_PAID",
   "PENDING",
   "PAID",
   "FAILED",
@@ -84,6 +85,7 @@ export type LocalCustomerOrder = {
   createdAt: string;
   paymentStatus?: PaymentStatus;
   paymentAmount?: string | null;
+  paymentCollectedAmount?: string;
   paymentCurrency?: string | null;
   customerCancellationFeeBps?: number;
   cancellationFeeBpsApplied?: number | null;

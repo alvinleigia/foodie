@@ -13,6 +13,7 @@ import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 const paymentSchema = z.discriminatedUnion("method", [
   z.object({
+    amount: z.string().trim().min(1).max(20),
     method: z.literal("CASH"),
     tenderedAmount: z.string().trim().min(1).max(20),
   }),
@@ -47,6 +48,7 @@ export async function POST(
     if (parsed.data.method === "CASH") {
       const result = await collectStaffCashPayment({
         actor: session.user,
+        amount: parsed.data.amount,
         orderId: id,
         organizationId: tenantContext.organizationId,
         tenderedAmount: parsed.data.tenderedAmount,
@@ -54,6 +56,8 @@ export async function POST(
 
       return NextResponse.json({
         changeAmount: result.payment.changeAmount,
+        paymentAmount: result.order.paymentAmount,
+        paymentCollectedAmount: result.order.paymentCollectedAmount,
         paymentMethod: result.payment.method,
         paymentStatus: result.order.paymentStatus,
       });
@@ -73,6 +77,8 @@ export async function POST(
 
     return NextResponse.json({
       checkoutUrl: result.checkoutUrl,
+      paymentAmount: result.order.paymentAmount,
+      paymentCollectedAmount: result.order.paymentCollectedAmount,
       paymentMethod: "STRIPE_CHECKOUT",
       paymentStatus: result.order.paymentStatus,
     });
@@ -112,7 +118,11 @@ export async function DELETE(
       organizationId: tenantContext.organizationId,
     });
 
-    return NextResponse.json({ paymentStatus: order.paymentStatus });
+    return NextResponse.json({
+      paymentAmount: order.paymentAmount,
+      paymentCollectedAmount: order.paymentCollectedAmount,
+      paymentStatus: order.paymentStatus,
+    });
   } catch (error) {
     if (error instanceof StaffOrderPaymentError) {
       return NextResponse.json(

@@ -73,7 +73,12 @@ export type StaffOrder = {
   paymentStatus: PaymentStatus;
   paymentMethod: OrderPaymentMethod | null;
   paymentAmount: string | null;
+  paymentCollectedAmount: string;
   paymentCurrency: string | null;
+  paymentPortions: Array<{
+    amount: string;
+    method: OrderPaymentMethod;
+  }>;
   customerCancellationFeeBps: number;
   cancellationFeeBpsApplied: number | null;
   cancellationFeeAmount: string | null;
@@ -157,18 +162,33 @@ export function OrderCard({
         style: "currency",
       }).format(Number(order.paymentAmount))
     : "Price unavailable";
+  const paymentCollected = new Intl.NumberFormat(undefined, {
+    currency: paymentCurrency,
+    style: "currency",
+  }).format(Number(order.paymentCollectedAmount));
+  const paymentRemaining = order.paymentAmount
+    ? new Intl.NumberFormat(undefined, {
+        currency: paymentCurrency,
+        style: "currency",
+      }).format(
+        Math.max(
+          Number(order.paymentAmount) - Number(order.paymentCollectedAmount),
+          0,
+        ),
+      )
+    : "Price unavailable";
   const refundMessage =
     order.status !== "CANCELLED" || order.paymentStatus === "NOT_REQUIRED"
       ? null
       : order.paymentStatus === "REFUND_PENDING"
         ? "Refund is being processed."
         : order.paymentStatus === "REFUNDED"
-          ? `${order.paymentMethod === "CASH" ? "Cash returned" : "Full refund"}: ${new Intl.NumberFormat(undefined, {
+          ? `Full refund: ${new Intl.NumberFormat(undefined, {
               currency: paymentCurrency,
               style: "currency",
             }).format(Number(order.refundAmount ?? order.paymentAmount ?? 0))}`
           : order.paymentStatus === "PARTIALLY_REFUNDED"
-            ? `${order.paymentMethod === "CASH" ? "Returned cash" : "Refunded"} ${new Intl.NumberFormat(undefined, {
+            ? `Refunded ${new Intl.NumberFormat(undefined, {
                 currency: paymentCurrency,
                 style: "currency",
               }).format(Number(order.refundAmount ?? 0))}; retained ${new Intl.NumberFormat(undefined, {
@@ -177,7 +197,8 @@ export function OrderCard({
               }).format(Number(order.cancellationFeeAmount ?? 0))}.`
             : order.paymentStatus === "REFUND_FAILED"
               ? "Refund failed and needs manager attention."
-              : order.paymentStatus === "PAID" &&
+              : (order.paymentStatus === "PAID" ||
+                    order.paymentStatus === "PARTIALLY_PAID") &&
                   Number(order.cancellationFeeAmount ?? 0) > 0
                 ? `No refund due; ${new Intl.NumberFormat(undefined, {
                     currency: paymentCurrency,
@@ -538,6 +559,7 @@ export function OrderCard({
         {order.source === "STAFF_CREATED" &&
         order.status !== "CANCELLED" &&
         (order.paymentStatus === "UNPAID" ||
+          order.paymentStatus === "PARTIALLY_PAID" ||
           order.paymentStatus === "PENDING" ||
           order.paymentStatus === "PAID") ? (
           <div
@@ -573,20 +595,30 @@ export function OrderCard({
                       : "Paid online"
                     : order.paymentStatus === "PENDING"
                       ? "Online payment requested"
+                      : order.paymentStatus === "PARTIALLY_PAID"
+                        ? "Partially paid"
                       : "Bill unpaid"}
                 </p>
-                <p className="mt-0.5 text-xs opacity-75">{paymentTotal}</p>
+                <p className="mt-0.5 text-xs opacity-75">
+                  {order.paymentStatus === "PARTIALLY_PAID" ||
+                  order.paymentStatus === "PENDING"
+                    ? `${paymentCollected} collected; ${paymentRemaining} remaining`
+                    : paymentTotal}
+                </p>
               </div>
             </div>
 
-            {order.paymentStatus === "UNPAID" ? (
+            {order.paymentStatus === "UNPAID" ||
+            order.paymentStatus === "PARTIALLY_PAID" ? (
               <Button
                 type="button"
                 disabled={disabled || !order.paymentAmount}
                 onClick={() => onSettleOrder(order)}
                 className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
-                Settle bill
+                {order.paymentStatus === "PARTIALLY_PAID"
+                  ? "Collect balance"
+                  : "Settle bill"}
               </Button>
             ) : order.paymentStatus === "PENDING" ? (
               <div className="flex flex-wrap gap-2">

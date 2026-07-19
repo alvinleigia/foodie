@@ -101,6 +101,7 @@ export const orderSourceEnum = pgEnum("order_source", [
 export const paymentStatusEnum = pgEnum("payment_status", [
   "NOT_REQUIRED",
   "UNPAID",
+  "PARTIALLY_PAID",
   "PENDING",
   "PAID",
   "FAILED",
@@ -872,6 +873,12 @@ export const orders = pgTable("orders", {
     .default("NOT_REQUIRED")
     .notNull(),
   paymentAmount: numeric("payment_amount", { precision: 10, scale: 2 }),
+  paymentCollectedAmount: numeric("payment_collected_amount", {
+    precision: 10,
+    scale: 2,
+  })
+    .default("0")
+    .notNull(),
   paymentCurrency: text("payment_currency"),
   paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
     () => organizations.id,
@@ -946,7 +953,11 @@ export const orders = pgTable("orders", {
   ),
   check(
     "orders_cancellation_amounts_check",
-    sql`(${table.cancellationFeeAmount} IS NULL AND ${table.refundAmount} IS NULL) OR (${table.cancellationFeeAmount} IS NOT NULL AND ${table.cancellationFeeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.paymentAmount} IS NOT NULL AND ${table.cancellationFeeAmount} + ${table.refundAmount} = ${table.paymentAmount})`,
+    sql`(${table.cancellationFeeAmount} IS NULL AND ${table.refundAmount} IS NULL) OR (${table.cancellationFeeAmount} IS NOT NULL AND ${table.cancellationFeeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.cancellationFeeAmount} + ${table.refundAmount} = ${table.paymentCollectedAmount})`,
+  ),
+  check(
+    "orders_payment_collected_amount_check",
+    sql`${table.paymentCollectedAmount} >= 0 AND ((${table.paymentAmount} IS NULL AND ${table.paymentCollectedAmount} = 0) OR (${table.paymentAmount} IS NOT NULL AND ${table.paymentCollectedAmount} <= ${table.paymentAmount}))`,
   ),
 ]);
 
@@ -1057,6 +1068,9 @@ export const orderRefunds = pgTable(
     cancellationId: uuid("cancellation_id")
       .references(() => orderCancellations.id, { onDelete: "cascade" })
       .notNull(),
+    orderPaymentId: uuid("order_payment_id").references(() => orderPayments.id, {
+      onDelete: "set null",
+    }),
     provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
     status: refundStatusEnum("status").default("PENDING").notNull(),
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
@@ -1076,12 +1090,13 @@ export const orderRefunds = pgTable(
       table.orderId,
       table.requestedAt,
     ),
+    index("order_refunds_payment_idx").on(table.orderPaymentId),
     uniqueIndex("order_refunds_stripe_refund_unique").on(table.stripeRefundId),
     uniqueIndex("order_refunds_idempotency_key_unique").on(
       table.idempotencyKey,
     ),
-    uniqueIndex("order_refunds_one_pending_per_cancellation_unique")
-      .on(table.cancellationId)
+    uniqueIndex("order_refunds_one_pending_per_payment_unique")
+      .on(table.cancellationId, table.orderPaymentId)
       .where(sql`${table.status} = 'PENDING'`),
     check("order_refunds_amount_check", sql`${table.amount} > 0`),
   ],

@@ -167,6 +167,10 @@ export function serializeOrder(
   order: typeof orders.$inferSelect,
   items: OrderLineItem[] = [],
   paymentMethod: OrderPaymentMethod | null = null,
+  paymentPortions: Array<{
+    amount: string;
+    method: OrderPaymentMethod;
+  }> = [],
 ) {
   return {
     orderId: order.id,
@@ -192,7 +196,9 @@ export function serializeOrder(
       paymentMethod ??
       (order.stripeCheckoutSessionId ? "STRIPE_CHECKOUT" : null),
     paymentAmount: getDisplayedPaymentAmount(order, items),
+    paymentCollectedAmount: order.paymentCollectedAmount,
     paymentCurrency: order.paymentCurrency,
+    paymentPortions,
     customerCancellationFeeBps:
       order.customerCancellationFeeBpsSnapshot,
     cancellationFeeBpsApplied: order.cancellationFeeBpsApplied,
@@ -226,7 +232,12 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
           eq(orders.organizationId, context.organizationId),
           inArray(orders.status, activeOrderStatuses),
           or(
-            inArray(orders.paymentStatus, ["NOT_REQUIRED", "UNPAID", "PAID"]),
+            inArray(orders.paymentStatus, [
+              "NOT_REQUIRED",
+              "UNPAID",
+              "PARTIALLY_PAID",
+              "PAID",
+            ]),
             and(
               eq(orders.source, "STAFF_CREATED"),
               eq(orders.paymentStatus, "PENDING"),
@@ -246,6 +257,7 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
             inArray(orders.paymentStatus, [
               "NOT_REQUIRED",
               "UNPAID",
+              "PARTIALLY_PAID",
               "PAID",
               "REFUND_PENDING",
               "PARTIALLY_REFUNDED",
@@ -295,6 +307,44 @@ export async function getLatestOrderPaymentsForOrders(
   }
 
   return methods;
+}
+
+export async function getSuccessfulOrderPaymentPortionsForOrders(
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const portions = new Map<
+    string,
+    Array<{ amount: string; method: OrderPaymentMethod }>
+  >();
+
+  if (orderIds.length === 0) {
+    return portions;
+  }
+
+  const rows = await getDb()
+    .select({
+      amount: orderPayments.amount,
+      method: orderPayments.method,
+      orderId: orderPayments.orderId,
+    })
+    .from(orderPayments)
+    .where(
+      and(
+        inArray(orderPayments.orderId, orderIds),
+        eq(orderPayments.organizationId, context.organizationId),
+        eq(orderPayments.status, "SUCCEEDED"),
+      ),
+    )
+    .orderBy(desc(orderPayments.completedAt), desc(orderPayments.createdAt));
+
+  for (const row of rows) {
+    const orderPortions = portions.get(row.orderId) ?? [];
+    orderPortions.push({ amount: row.amount, method: row.method });
+    portions.set(row.orderId, orderPortions);
+  }
+
+  return portions;
 }
 
 

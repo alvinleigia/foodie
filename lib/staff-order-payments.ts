@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, eq, inArray, ne } from "drizzle-orm";
+import type Stripe from "stripe";
 
 import { getDb } from "@/db";
 import {
@@ -10,7 +11,14 @@ import {
   orders,
 } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit-log";
-import { calculateCashSettlement } from "@/lib/order-payment-financials";
+import {
+  calculateCashSettlement,
+  calculatePaymentBalance,
+} from "@/lib/order-payment-financials";
+import {
+  decimalToMinorUnits,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 import {
   buildOrderPaymentPricing,
   cancelPendingOrderPaymentByOrderId,
@@ -128,8 +136,33 @@ function assertCollectibleStaffOrder(order: typeof orders.$inferSelect) {
   }
 }
 
+function getPaymentBalance(
+  order: typeof orders.$inferSelect,
+  amount: string,
+  currency: string,
+) {
+  const balance = calculatePaymentBalance({
+    amount,
+    collectedAmount: order.paymentCollectedAmount,
+    currency,
+  });
+
+  if (
+    balance.collectedMinor > 0 &&
+    order.paymentAmount &&
+    decimalToMinorUnits(order.paymentAmount, currency) !== balance.amountMinor
+  ) {
+    throw new StaffOrderPaymentError(
+      "The bill total changed after payment collection started. Review the order before collecting more.",
+    );
+  }
+
+  return balance;
+}
+
 export async function collectStaffCashPayment(input: {
   actor: StaffPaymentActor;
+  amount: string;
   orderId: string;
   organizationId: string;
   tenderedAmount: string;
@@ -153,11 +186,14 @@ export async function collectStaffCashPayment(input: {
 
     assertCollectibleStaffOrder(order);
 
-    if (order.paymentStatus !== "UNPAID") {
+    if (
+      order.paymentStatus !== "UNPAID" &&
+      order.paymentStatus !== "PARTIALLY_PAID"
+    ) {
       throw new StaffOrderPaymentError(
         order.paymentStatus === "PENDING"
           ? "Cancel the active online payment request before collecting cash."
-          : "This bill is no longer unpaid.",
+          : "This bill is not available for another payment.",
       );
     }
 
@@ -173,26 +209,40 @@ export async function collectStaffCashPayment(input: {
       order.organizationId,
       currency,
     );
+    const balance = getPaymentBalance(order, pricing.amountTotal, currency);
+    const amountMinor = decimalToMinorUnits(input.amount, currency);
+
+    if (amountMinor <= 0 || amountMinor > balance.remainingMinor) {
+      throw new StaffOrderPaymentError(
+        "Enter an amount greater than zero and no more than the remaining balance.",
+        400,
+      );
+    }
+
+    const amount = minorUnitsToDecimal(amountMinor, currency);
     const cash = calculateCashSettlement({
-      amount: pricing.amountTotal,
+      amount,
       currency,
       tenderedAmount: input.tenderedAmount,
     });
+    const collectedMinor = balance.collectedMinor + amountMinor;
+    const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
     const [updatedOrder] = await tx
       .update(orders)
       .set({
-        paidAt: now,
+        paidAt: isPaid ? now : null,
         paymentAmount: pricing.amountTotal,
+        paymentCollectedAmount: minorUnitsToDecimal(collectedMinor, currency),
         paymentCurrency: currency,
-        paymentStatus: "PAID",
+        paymentStatus: isPaid ? "PAID" : "PARTIALLY_PAID",
         updatedAt: now,
       })
       .where(
         and(
           eq(orders.id, order.id),
           eq(orders.organizationId, order.organizationId),
-          eq(orders.paymentStatus, "UNPAID"),
+          eq(orders.paymentStatus, order.paymentStatus),
         ),
       )
       .returning();
@@ -206,7 +256,7 @@ export async function collectStaffCashPayment(input: {
     const [payment] = await tx
       .insert(orderPayments)
       .values({
-        amount: pricing.amountTotal,
+        amount,
         changeAmount: cash.changeAmount,
         completedAt: now,
         currency,
@@ -307,7 +357,10 @@ export async function createStaffStripeCheckout(input: {
     order = await getStaffOrder(input.orderId, input.organizationId);
   }
 
-  if (order.paymentStatus !== "UNPAID") {
+  if (
+    order.paymentStatus !== "UNPAID" &&
+    order.paymentStatus !== "PARTIALLY_PAID"
+  ) {
     throw new StaffOrderPaymentError("This bill is not available for payment.");
   }
 
@@ -349,7 +402,10 @@ export async function createStaffStripeCheckout(input: {
 
     assertCollectibleStaffOrder(lockedOrder);
 
-    if (lockedOrder.paymentStatus !== "UNPAID") {
+    if (
+      lockedOrder.paymentStatus !== "UNPAID" &&
+      lockedOrder.paymentStatus !== "PARTIALLY_PAID"
+    ) {
       throw new StaffOrderPaymentError(
         "The bill changed while its payment link was being created. Refresh and try again.",
       );
@@ -367,11 +423,33 @@ export async function createStaffStripeCheckout(input: {
       lockedOrder.organizationId,
       currency,
     );
+    const balance = getPaymentBalance(
+      lockedOrder,
+      pricing.amountTotal,
+      currency,
+    );
+
+    if (balance.remainingMinor <= 0) {
+      throw new StaffOrderPaymentError("This bill has already been paid.");
+    }
+
+    const remainingLineItems = [
+      {
+        price_data: {
+          currency: currency.toLowerCase(),
+          product_data: {
+            name: `Order #${lockedOrder.orderNo} remaining balance`,
+          },
+          unit_amount: balance.remainingMinor,
+        },
+        quantity: 1,
+      },
+    ] satisfies Stripe.Checkout.SessionCreateParams.LineItem[];
     const now = new Date();
     const [payment] = await tx
       .insert(orderPayments)
       .values({
-        amount: pricing.amountTotal,
+        amount: balance.remainingAmount,
         currency,
         method: "STRIPE_CHECKOUT",
         orderId: lockedOrder.id,
@@ -396,7 +474,7 @@ export async function createStaffStripeCheckout(input: {
       .where(
         and(
           eq(orders.id, lockedOrder.id),
-          eq(orders.paymentStatus, "UNPAID"),
+          eq(orders.paymentStatus, lockedOrder.paymentStatus),
         ),
       )
       .returning();
@@ -407,19 +485,24 @@ export async function createStaffStripeCheckout(input: {
       );
     }
 
-    return { order: updatedOrder, payment, pricing };
+    return {
+      lineItems: remainingLineItems,
+      order: updatedOrder,
+      payment,
+      remainingMinor: balance.remainingMinor,
+    };
   });
 
   let checkoutSessionId: string | null = null;
 
   try {
     const session = await createOrderCheckoutSession({
-      amountTotalMinor: prepared.pricing.amountTotalMinor,
+      amountTotalMinor: prepared.remainingMinor,
       applicationFeeBps: integration.applicationFeeBps,
       cancelUrl: input.cancelUrl,
       expiresAt,
       idempotencyKey: `staff-order-checkout-${prepared.payment.id}`,
-      lineItems: prepared.pricing.lineItems,
+      lineItems: prepared.lineItems,
       orderId: prepared.order.id,
       paymentRecordId: prepared.payment.id,
       stripeAccountId: integration.stripeAccountId,
@@ -504,7 +587,10 @@ export async function cancelStaffStripeCheckout(input: {
 }) {
   const order = await getStaffOrder(input.orderId, input.organizationId);
 
-  if (order.paymentStatus === "UNPAID") {
+  if (
+    order.paymentStatus === "UNPAID" ||
+    order.paymentStatus === "PARTIALLY_PAID"
+  ) {
     return order;
   }
 

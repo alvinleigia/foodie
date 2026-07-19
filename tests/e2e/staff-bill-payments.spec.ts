@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { calculateCashSettlement } from "@/lib/order-payment-financials";
+import {
+  calculateCashSettlement,
+  calculatePaymentBalance,
+} from "@/lib/order-payment-financials";
 
 function readSource(...segments: string[]) {
   return readFileSync(resolve(process.cwd(), ...segments), "utf8");
@@ -42,7 +45,31 @@ test.describe("staff bill payment policy", () => {
         currency: "GBP",
         tenderedAmount: "9.99",
       }),
-    ).toThrow("Cash tendered must cover the full bill.");
+    ).toThrow("Cash received must cover the amount being collected.");
+  });
+
+  test("calculates the collected and remaining portions of a bill", () => {
+    expect(
+      calculatePaymentBalance({
+        amount: "10.00",
+        collectedAmount: "4.25",
+        currency: "GBP",
+      }),
+    ).toMatchObject({
+      amountMinor: 1000,
+      collectedAmount: "4.25",
+      collectedMinor: 425,
+      remainingAmount: "5.75",
+      remainingMinor: 575,
+    });
+
+    expect(() =>
+      calculatePaymentBalance({
+        amount: "10.00",
+        collectedAmount: "10.01",
+        currency: "GBP",
+      }),
+    ).toThrow("Collected payments exceed the bill total.");
   });
 
   test("creates staff orders as unpaid bills and customer orders as pending checkout", () => {
@@ -59,7 +86,8 @@ test.describe("staff bill payment policy", () => {
     const source = readSource("lib", "staff-order-payments.ts");
 
     expect(source).toContain('.for("update")');
-    expect(source).toContain('eq(orders.paymentStatus, "UNPAID")');
+    expect(source).toContain('order.paymentStatus !== "PARTIALLY_PAID"');
+    expect(source).toContain("paymentCollectedAmount");
     expect(source).toContain(".insert(orderPayments)");
     expect(source).toContain('method: "CASH"');
     expect(source).toContain('method: "STRIPE_CHECKOUT"');
@@ -72,16 +100,36 @@ test.describe("staff bill payment policy", () => {
       source.indexOf("const tenantContext =", source.indexOf('if (lockedOrder.source === "STAFF_CREATED")')),
     );
 
-    expect(staffBranch).toContain('paymentStatus: "UNPAID"');
+    expect(staffBranch).toContain('("PARTIALLY_PAID" as const)');
+    expect(staffBranch).toContain('("UNPAID" as const)');
     expect(staffBranch).not.toContain("update(orderItems)");
   });
 
-  test("records cash returns separately from Stripe refunds", () => {
+  test("allocates mixed-payment returns to their original payments", () => {
     const source = readSource("lib", "order-cancellation.ts");
 
-    expect(source).toContain('successfulPayment?.method === "CASH"');
-    expect(source).toContain('provider: isCashPayment ? "CASH" : "STRIPE"');
-    expect(source).toContain('status: isCashPayment ? "SUCCEEDED" : "PENDING"');
+    expect(source).toContain("allocateRefundAcrossPayments");
+    expect(source).toContain("orderPaymentId: allocation.orderPaymentId");
+    expect(source).toContain('provider: isCash ? "CASH" : "STRIPE"');
+    expect(source).toContain('status: isCash ? "SUCCEEDED" : "PENDING"');
+  });
+
+  test("blocks item reopenings after payment collection starts", () => {
+    const source = readSource(
+      "app",
+      "api",
+      "orders",
+      "[id]",
+      "items",
+      "[itemId]",
+      "correct",
+      "route.ts",
+    );
+
+    expect(source).toContain(
+      "A cancelled item cannot be reopened after payment collection has started.",
+    );
+    expect(source).toContain('lockedOrder.paymentStatus !== "UNPAID"');
   });
 
   test("renders the exact Stripe Checkout link as a payment QR", () => {

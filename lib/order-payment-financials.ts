@@ -3,6 +3,36 @@ import {
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 
+export function calculatePaymentBalance(input: {
+  amount: string;
+  collectedAmount: string;
+  currency: string;
+}) {
+  const amountMinor = decimalToMinorUnits(input.amount, input.currency);
+  const collectedMinor = decimalToMinorUnits(
+    input.collectedAmount,
+    input.currency,
+  );
+
+  if (amountMinor <= 0) {
+    throw new Error("This order does not have a collectible total.");
+  }
+
+  if (collectedMinor > amountMinor) {
+    throw new Error("Collected payments exceed the bill total.");
+  }
+
+  const remainingMinor = amountMinor - collectedMinor;
+
+  return {
+    amountMinor,
+    collectedAmount: minorUnitsToDecimal(collectedMinor, input.currency),
+    collectedMinor,
+    remainingAmount: minorUnitsToDecimal(remainingMinor, input.currency),
+    remainingMinor,
+  };
+}
+
 export function calculateCashSettlement(input: {
   amount: string;
   currency: string;
@@ -19,7 +49,7 @@ export function calculateCashSettlement(input: {
   }
 
   if (tenderedMinor < amountMinor) {
-    throw new Error("Cash tendered must cover the full bill.");
+    throw new Error("Cash received must cover the amount being collected.");
   }
 
   return {
