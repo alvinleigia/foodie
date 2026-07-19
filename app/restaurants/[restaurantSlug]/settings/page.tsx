@@ -1,5 +1,7 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
+import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
@@ -21,6 +23,7 @@ export default async function RestaurantSettingsPage({
     access.restaurant.slug,
     "dashboard",
   );
+  const taxProfile = await getRestaurantTaxProfile(access.restaurant.id);
 
   return (
     <SaasAdminShell
@@ -34,10 +37,16 @@ export default async function RestaurantSettingsPage({
         role: session.user.role,
       }}
     >
-      <TenantRestaurantSettingsForm
-        backHref={dashboardHref}
-        organization={snapshot.organization}
-      />
+      <div className="grid gap-6">
+        <TenantRestaurantSettingsForm
+          backHref={dashboardHref}
+          organization={snapshot.organization}
+        />
+        <RestaurantTaxProfileForm
+          apiPath="/api/tenant/admin/tax-profile"
+          profile={taxProfile}
+        />
+      </div>
     </SaasAdminShell>
   );
 }

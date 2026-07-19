@@ -134,7 +134,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Enforce custom-domain access on management and public host resolution while preserving platform-managed tenant subdomains.
 - [x] Add a feature catalogue and plan-to-feature entitlements.
 - [x] Add platform controls for company or restaurant feature overrides.
-- [ ] Add restaurant tax and VAT profiles.
+- [x] Add restaurant tax and VAT profiles.
 - [ ] Support tax-inclusive and tax-exclusive pricing.
 - [ ] Snapshot tax rate, taxable amount and tax amount on each order line.
 - [ ] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.

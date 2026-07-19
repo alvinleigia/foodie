@@ -124,6 +124,20 @@ export const integrationModeEnum = pgEnum("integration_mode", [
   "DISABLED",
 ]);
 
+export const taxSystemEnum = pgEnum("tax_system", [
+  "NONE",
+  "VAT",
+  "GST",
+  "SALES_TAX",
+  "OTHER",
+]);
+
+export const taxRegistrationStatusEnum = pgEnum("tax_registration_status", [
+  "NOT_REGISTERED",
+  "PENDING",
+  "REGISTERED",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -449,6 +463,63 @@ export const saasPlans = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [uniqueIndex("saas_plans_slug_unique").on(table.slug)],
+);
+
+export const organizationTaxProfiles = pgTable(
+  "organization_tax_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    taxSystem: taxSystemEnum("tax_system").default("NONE").notNull(),
+    registrationStatus: taxRegistrationStatusEnum("registration_status")
+      .default("NOT_REGISTERED")
+      .notNull(),
+    registrationNumber: text("registration_number"),
+    legalName: text("legal_name"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    city: text("city"),
+    region: text("region"),
+    postalCode: text("postal_code"),
+    countryCode: text("country_code"),
+    defaultTaxRateBps: integer("default_tax_rate_bps").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_tax_profiles_org_unique").on(
+      table.organizationId,
+    ),
+    index("organization_tax_profiles_status_idx").on(
+      table.registrationStatus,
+    ),
+    check(
+      "organization_tax_profiles_rate_check",
+      sql`${table.defaultTaxRateBps} >= 0 AND ${table.defaultTaxRateBps} <= 10000`,
+    ),
+    check(
+      "organization_tax_profiles_country_check",
+      sql`${table.countryCode} IS NULL OR ${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      "organization_tax_profiles_none_check",
+      sql`${table.taxSystem} <> 'NONE' OR (${table.registrationStatus} = 'NOT_REGISTERED' AND ${table.defaultTaxRateBps} = 0)`,
+    ),
+    check(
+      "organization_tax_profiles_registered_check",
+      sql`${table.registrationStatus} <> 'REGISTERED' OR (
+        ${table.taxSystem} <> 'NONE'
+        AND NULLIF(BTRIM(${table.registrationNumber}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.legalName}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.addressLine1}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.city}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.postalCode}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.countryCode}), '') IS NOT NULL
+      )`,
+    ),
+  ],
 );
 
 export const saasFeatures = pgTable(
