@@ -451,6 +451,77 @@ export const saasPlans = pgTable(
   (table) => [uniqueIndex("saas_plans_slug_unique").on(table.slug)],
 );
 
+export const saasFeatures = pgTable(
+  "saas_features",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    category: text("category").notNull(),
+    defaultEnabled: boolean("default_enabled").default(false).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("saas_features_key_unique").on(table.key),
+    index("saas_features_category_idx").on(table.category),
+  ],
+);
+
+export const saasPlanFeatures = pgTable(
+  "saas_plan_features",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planId: uuid("plan_id")
+      .references(() => saasPlans.id, { onDelete: "cascade" })
+      .notNull(),
+    featureId: uuid("feature_id")
+      .references(() => saasFeatures.id, { onDelete: "cascade" })
+      .notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("saas_plan_features_plan_feature_unique").on(
+      table.planId,
+      table.featureId,
+    ),
+    index("saas_plan_features_feature_idx").on(table.featureId),
+  ],
+);
+
+export const organizationFeatureOverrides = pgTable(
+  "organization_feature_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    featureId: uuid("feature_id")
+      .references(() => saasFeatures.id, { onDelete: "cascade" })
+      .notNull(),
+    enabled: boolean("enabled").notNull(),
+    reason: text("reason"),
+    expiresAt: timestamp("expires_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_feature_overrides_org_feature_unique").on(
+      table.organizationId,
+      table.featureId,
+    ),
+    index("organization_feature_overrides_feature_idx").on(table.featureId),
+    index("organization_feature_overrides_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const organizationSubscriptions = pgTable(
   "organization_subscriptions",
   {
