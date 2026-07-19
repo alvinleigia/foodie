@@ -13,6 +13,7 @@ import {
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
+import { calculateTaxPricing } from "@/lib/tax-pricing";
 
 const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
@@ -153,9 +154,14 @@ function getDisplayedPaymentAmount(
           modifier.quantity,
       0,
     );
-    totalMinor +=
-      (decimalToMinorUnits(item.unitPrice, currency) + modifierMinor) *
-      item.quantity;
+    const listedUnitMinor =
+      decimalToMinorUnits(item.unitPrice, currency) + modifierMinor;
+    const unitPricing = calculateTaxPricing(
+      listedUnitMinor,
+      order.taxRateBpsSnapshot,
+      order.taxPricingModeSnapshot,
+    );
+    totalMinor += unitPricing.totalAmountMinor * item.quantity;
   }
 
   return totalMinor > 0

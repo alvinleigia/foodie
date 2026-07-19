@@ -27,7 +27,15 @@ import {
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  decimalToMinorUnits,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 import { getCustomerPrivacyHref } from "@/lib/customer-navigation";
+import {
+  calculateTaxPricing,
+  type TaxPricingMode,
+} from "@/lib/tax-pricing";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 import {
   isValidCustomerPhone,
@@ -132,6 +140,16 @@ type CustomizerState = {
 
 type OrderDraft = {
   customerName: string;
+};
+
+type RestaurantTaxPricing = {
+  pricingMode: TaxPricingMode;
+  taxRateBps: number;
+};
+
+const defaultTaxPricing: RestaurantTaxPricing = {
+  pricingMode: "INCLUSIVE",
+  taxRateBps: 0,
 };
 
 function withOrderContext(
@@ -256,6 +274,7 @@ export function OrderForm({
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: customer?.name ?? "",
   });
@@ -371,6 +390,7 @@ export function OrderForm({
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
         setCurrency(payload.currency ?? DEFAULT_CURRENCY);
+        setTaxPricing(payload.taxPricing ?? defaultTaxPricing);
         setMenuError(null);
         setIsLoadingMenu(false);
         setActiveCategoryId(payload.categories?.[0]?.id);
@@ -458,20 +478,42 @@ export function OrderForm({
     [cartItems],
   );
 
-  const totalAmount = useMemo(() => {
-    const pricedTotal = cartItems.reduce((sum, item) => {
-      const lineTotal = getCartItemLineTotal(item);
+  const cartPricing = useMemo(() => {
+    let hasAnyPrice = false;
+    let listedSubtotalMinor = 0;
+    let taxAmountMinor = 0;
+    let totalAmountMinor = 0;
 
-      if (lineTotal === null) {
-        return sum;
+    for (const item of cartItems) {
+      const listedUnitTotal = getCartItemUnitTotal(item);
+
+      if (listedUnitTotal === null) {
+        continue;
       }
 
-      return sum + lineTotal;
-    }, 0);
+      hasAnyPrice = true;
+      const unitPricing = calculateTaxPricing(
+        decimalToMinorUnits(String(listedUnitTotal), currency),
+        taxPricing.taxRateBps,
+        taxPricing.pricingMode,
+      );
+      listedSubtotalMinor += unitPricing.listedAmountMinor * item.quantity;
+      taxAmountMinor += unitPricing.taxAmountMinor * item.quantity;
+      totalAmountMinor += unitPricing.totalAmountMinor * item.quantity;
+    }
 
-    const hasAnyPrice = cartItems.some((item) => getCartItemLineTotal(item) !== null);
-    return hasAnyPrice ? pricedTotal.toFixed(2) : null;
-  }, [cartItems]);
+    if (!hasAnyPrice) {
+      return null;
+    }
+
+    return {
+      listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, currency),
+      taxAmount: minorUnitsToDecimal(taxAmountMinor, currency),
+      totalAmount: minorUnitsToDecimal(totalAmountMinor, currency),
+    };
+  }, [cartItems, currency, taxPricing]);
+  const totalAmount = cartPricing?.totalAmount ?? null;
+  const taxRateLabel = `${taxPricing.taxRateBps / 100}%`;
 
   const customerNameError =
     isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
@@ -1595,6 +1637,24 @@ export function OrderForm({
                   <span>Pricing</span>
                   <span>{totalAmount ? "Calculated" : "Price on request"}</span>
                 </div>
+                {cartPricing && taxPricing.taxRateBps > 0 ? (
+                  <>
+                    {taxPricing.pricingMode === "EXCLUSIVE" ? (
+                      <div className="flex items-center justify-between gap-4 text-stone-600">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(cartPricing.listedSubtotal, { currency })}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-4 text-stone-600">
+                      <span>
+                        {taxPricing.pricingMode === "INCLUSIVE"
+                          ? `Includes tax (${taxRateLabel})`
+                          : `Tax (${taxRateLabel})`}
+                      </span>
+                      <span>{formatPrice(cartPricing.taxAmount, { currency })}</span>
+                    </div>
+                  </>
+                ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
                   <span>To Pay</span>
                   <span>{formatPrice(totalAmount, { currency })}</span>

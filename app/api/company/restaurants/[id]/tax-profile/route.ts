@@ -37,6 +37,7 @@ export async function PATCH(
       metadata: {
         companyOrganizationId: session.user.organizationId,
         defaultTaxRateBps: profile.defaultTaxRateBps,
+        pricingMode: profile.pricingMode,
         registrationStatus: profile.registrationStatus,
         taxSystem: profile.taxSystem,
       },

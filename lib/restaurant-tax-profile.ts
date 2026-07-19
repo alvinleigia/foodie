@@ -4,6 +4,16 @@ import { getDb } from "@/db";
 import { organizations, organizationTaxProfiles } from "@/db/schema";
 import { restaurantTaxProfileSchema } from "@/lib/validations/restaurant-tax-profile";
 
+export type RestaurantTaxPricing = {
+  pricingMode: "INCLUSIVE" | "EXCLUSIVE";
+  taxRateBps: number;
+};
+
+export const defaultRestaurantTaxPricing: RestaurantTaxPricing = {
+  pricingMode: "INCLUSIVE",
+  taxRateBps: 0,
+};
+
 export async function getRestaurantTaxProfile(
   restaurantOrganizationId: string,
 ) {
@@ -23,6 +33,21 @@ export async function getRestaurantTaxProfile(
     .limit(1);
 
   return profile?.profile ?? null;
+}
+
+export async function getRestaurantTaxPricing(
+  restaurantOrganizationId: string,
+): Promise<RestaurantTaxPricing> {
+  const profile = await getRestaurantTaxProfile(restaurantOrganizationId);
+
+  if (!profile || profile.taxSystem === "NONE") {
+    return defaultRestaurantTaxPricing;
+  }
+
+  return {
+    pricingMode: profile.pricingMode,
+    taxRateBps: profile.defaultTaxRateBps,
+  };
 }
 
 export async function updateRestaurantTaxProfile(
@@ -58,6 +83,7 @@ export async function updateRestaurantTaxProfile(
     .values({
       organizationId: restaurantOrganizationId,
       taxSystem: parsed.taxSystem,
+      pricingMode: parsed.pricingMode,
       registrationStatus: parsed.registrationStatus,
       registrationNumber: parsed.registrationNumber,
       legalName: parsed.legalName,
@@ -74,6 +100,7 @@ export async function updateRestaurantTaxProfile(
       target: organizationTaxProfiles.organizationId,
       set: {
         taxSystem: parsed.taxSystem,
+        pricingMode: parsed.pricingMode,
         registrationStatus: parsed.registrationStatus,
         registrationNumber: parsed.registrationNumber,
         legalName: parsed.legalName,

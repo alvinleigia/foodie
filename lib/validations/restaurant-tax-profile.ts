@@ -14,6 +14,8 @@ export const taxRegistrationStatuses = [
   "REGISTERED",
 ] as const;
 
+export const taxPricingModes = ["INCLUSIVE", "EXCLUSIVE"] as const;
+
 const optionalText = (max: number) =>
   z
     .string()
@@ -26,6 +28,7 @@ const optionalText = (max: number) =>
 export const restaurantTaxProfileSchema = z
   .object({
     taxSystem: z.enum(taxSystems),
+    pricingMode: z.enum(taxPricingModes),
     registrationStatus: z.enum(taxRegistrationStatuses),
     registrationNumber: optionalText(64),
     legalName: optionalText(160),
@@ -50,6 +53,14 @@ export const restaurantTaxProfileSchema = z
   })
   .superRefine((profile, context) => {
     if (profile.taxSystem === "NONE") {
+      if (profile.pricingMode !== "INCLUSIVE") {
+        context.addIssue({
+          code: "custom",
+          message: "Tax-exclusive pricing requires a tax system",
+          path: ["pricingMode"],
+        });
+      }
+
       if (profile.registrationStatus !== "NOT_REGISTERED") {
         context.addIssue({
           code: "custom",

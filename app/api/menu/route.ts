@@ -7,6 +7,7 @@ import {
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
+import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
 import {
   getPublicTenantContextFromRequest,
   StaffRestaurantContextError,
@@ -29,13 +30,14 @@ export async function GET(request: Request) {
       "operations.inventory",
     );
 
-    const [categories, currency] = await Promise.all([
+    const [categories, currency, taxPricing] = await Promise.all([
       getPublicMenu(tenantContext, {
         includeInventory: inventoryEntitlement.enabled,
       }),
       getTenantMenuCurrency(tenantContext),
+      getRestaurantTaxPricing(tenantContext.organizationId),
     ]);
-    return NextResponse.json({ categories, currency });
+    return NextResponse.json({ categories, currency, taxPricing });
   } catch (error) {
     if (error instanceof FeatureEntitlementError) {
       return NextResponse.json({ error: error.message }, { status: 403 });

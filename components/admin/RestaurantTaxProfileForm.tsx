@@ -25,9 +25,11 @@ import type {
 
 type TaxSystem = (typeof taxSystems)[number];
 type TaxRegistrationStatus = (typeof taxRegistrationStatuses)[number];
+type TaxPricingMode = "INCLUSIVE" | "EXCLUSIVE";
 
 type RestaurantTaxProfile = {
   taxSystem: TaxSystem;
+  pricingMode: TaxPricingMode;
   registrationStatus: TaxRegistrationStatus;
   registrationNumber: string | null;
   legalName: string | null;
@@ -48,6 +50,7 @@ type TaxProfileField =
   | "defaultTaxRatePercent"
   | "legalName"
   | "postalCode"
+  | "pricingMode"
   | "region"
   | "registrationNumber"
   | "registrationStatus"
@@ -70,6 +73,14 @@ const registrationStatusOptions: Array<{
   { label: "Registered", value: "REGISTERED" },
 ];
 
+const pricingModeOptions: Array<{
+  label: string;
+  value: TaxPricingMode;
+}> = [
+  { label: "Prices include tax", value: "INCLUSIVE" },
+  { label: "Add tax at checkout", value: "EXCLUSIVE" },
+];
+
 export function RestaurantTaxProfileForm({
   apiPath,
   profile,
@@ -79,6 +90,7 @@ export function RestaurantTaxProfileForm({
 }) {
   const [draft, setDraft] = useState({
     taxSystem: profile?.taxSystem ?? ("NONE" as TaxSystem),
+    pricingMode: profile?.pricingMode ?? ("INCLUSIVE" as TaxPricingMode),
     registrationStatus:
       profile?.registrationStatus ?? ("NOT_REGISTERED" as TaxRegistrationStatus),
     registrationNumber: profile?.registrationNumber ?? "",
@@ -142,7 +154,7 @@ export function RestaurantTaxProfileForm({
             <p className="text-sm text-rose-600">{validation.formError}</p>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <FormField
               label="Tax system"
               error={validation.getError("taxSystem")}
@@ -159,6 +171,7 @@ export function RestaurantTaxProfileForm({
                     ...(taxSystem === "NONE"
                       ? {
                           defaultTaxRatePercent: 0,
+                          pricingMode: "INCLUSIVE" as const,
                           registrationStatus: "NOT_REGISTERED" as const,
                         }
                       : {}),
@@ -170,6 +183,31 @@ export function RestaurantTaxProfileForm({
                 </SelectTrigger>
                 <SelectContent>
                   {taxSystemOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
+
+            <FormField
+              label="Menu price treatment"
+              error={validation.getError("pricingMode")}
+              errorId="restaurant-tax-pricing-mode-error"
+            >
+              <Select
+                value={draft.pricingMode}
+                disabled={!hasTaxSystem}
+                onValueChange={(value) =>
+                  updateField("pricingMode", value as TaxPricingMode)
+                }
+              >
+                <SelectTrigger className="bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {pricingModeOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

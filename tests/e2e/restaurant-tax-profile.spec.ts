@@ -13,6 +13,7 @@ test.describe("restaurant tax profiles", () => {
   test("requires a zero rate when no tax system is configured", () => {
     const result = restaurantTaxProfileSchema.safeParse({
       taxSystem: "NONE",
+      pricingMode: "INCLUSIVE",
       registrationStatus: "NOT_REGISTERED",
       defaultTaxRatePercent: 20,
     });
@@ -23,6 +24,7 @@ test.describe("restaurant tax profiles", () => {
   test("requires legal and registration details for registered restaurants", () => {
     const result = restaurantTaxProfileSchema.safeParse({
       taxSystem: "VAT",
+      pricingMode: "INCLUSIVE",
       registrationStatus: "REGISTERED",
       defaultTaxRatePercent: 20,
     });
@@ -38,6 +40,7 @@ test.describe("restaurant tax profiles", () => {
   test("accepts and normalizes a complete VAT profile", () => {
     const profile = restaurantTaxProfileSchema.parse({
       taxSystem: "VAT",
+      pricingMode: "INCLUSIVE",
       registrationStatus: "REGISTERED",
       registrationNumber: "GB123456789",
       legalName: "Example Restaurant Limited",

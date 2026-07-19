@@ -33,6 +33,7 @@ export async function PATCH(request: Request) {
       entityId: profile.id,
       metadata: {
         defaultTaxRateBps: profile.defaultTaxRateBps,
+        pricingMode: profile.pricingMode,
         registrationStatus: profile.registrationStatus,
         taxSystem: profile.taxSystem,
       },

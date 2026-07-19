@@ -29,6 +29,7 @@ import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integr
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
 import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
+import type { TaxPricingMode } from "@/lib/tax-pricing";
 
 type StaffPaymentActor = {
   id: string;
@@ -56,6 +57,10 @@ async function getCollectiblePricing(
   orderId: string,
   organizationId: string,
   currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
 ) {
   const items = await tx
     .select()
@@ -114,6 +119,7 @@ async function getCollectiblePricing(
         unitPrice: item.unitPrice,
       })),
       currency,
+      taxPricing,
     );
   } catch (error) {
     throw new StaffOrderPaymentError(
@@ -214,6 +220,10 @@ export async function collectStaffCashPayment(input: {
       order.id,
       order.organizationId,
       currency,
+      {
+        pricingMode: order.taxPricingModeSnapshot,
+        taxRateBps: order.taxRateBpsSnapshot,
+      },
     );
     const balance = getPaymentBalance(order, pricing.amountTotal, currency);
     const amountMinor = decimalToMinorUnits(input.amount, currency);
@@ -433,6 +443,10 @@ export async function createStaffStripeCheckout(input: {
       lockedOrder.id,
       lockedOrder.organizationId,
       currency,
+      {
+        pricingMode: lockedOrder.taxPricingModeSnapshot,
+        taxRateBps: lockedOrder.taxRateBpsSnapshot,
+      },
     );
     const balance = getPaymentBalance(
       lockedOrder,

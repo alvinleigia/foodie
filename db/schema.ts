@@ -138,6 +138,11 @@ export const taxRegistrationStatusEnum = pgEnum("tax_registration_status", [
   "REGISTERED",
 ]);
 
+export const taxPricingModeEnum = pgEnum("tax_pricing_mode", [
+  "INCLUSIVE",
+  "EXCLUSIVE",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -473,6 +478,9 @@ export const organizationTaxProfiles = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
     taxSystem: taxSystemEnum("tax_system").default("NONE").notNull(),
+    pricingMode: taxPricingModeEnum("pricing_mode")
+      .default("INCLUSIVE")
+      .notNull(),
     registrationStatus: taxRegistrationStatusEnum("registration_status")
       .default("NOT_REGISTERED")
       .notNull(),
@@ -506,6 +514,10 @@ export const organizationTaxProfiles = pgTable(
     check(
       "organization_tax_profiles_none_check",
       sql`${table.taxSystem} <> 'NONE' OR (${table.registrationStatus} = 'NOT_REGISTERED' AND ${table.defaultTaxRateBps} = 0)`,
+    ),
+    check(
+      "organization_tax_profiles_none_pricing_mode_check",
+      sql`${table.taxSystem} <> 'NONE' OR ${table.pricingMode} = 'INCLUSIVE'`,
     ),
     check(
       "organization_tax_profiles_registered_check",
@@ -1031,6 +1043,10 @@ export const orders = pgTable("orders", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   paymentExpiresAt: timestamp("payment_expires_at"),
   paidAt: timestamp("paid_at"),
+  taxPricingModeSnapshot: taxPricingModeEnum("tax_pricing_mode_snapshot")
+    .default("INCLUSIVE")
+    .notNull(),
+  taxRateBpsSnapshot: integer("tax_rate_bps_snapshot").default(0).notNull(),
   customerCancellationFeeBpsSnapshot: integer(
     "customer_cancellation_fee_bps_snapshot",
   )
@@ -1084,6 +1100,10 @@ export const orders = pgTable("orders", {
     table.organizationId,
     table.orderDate,
     table.orderNo,
+  ),
+  check(
+    "orders_tax_rate_bps_snapshot_check",
+    sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
   ),
   check(
     "orders_customer_cancellation_fee_bps_snapshot_check",

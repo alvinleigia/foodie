@@ -67,6 +67,7 @@ import {
   FeatureEntitlementError,
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
+import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
 
 export async function GET() {
   try {
@@ -352,7 +353,7 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
-    const [currency, restaurantPolicy] = await Promise.all([
+    const [currency, restaurantPolicy, taxPricing] = await Promise.all([
       getTenantMenuCurrency(tenantContext),
       db
         .select({
@@ -363,6 +364,7 @@ export async function POST(request: NextRequest) {
         .where(eq(organizations.id, tenantContext.organizationId))
         .limit(1)
         .then((rows) => rows[0] ?? null),
+      getRestaurantTaxPricing(tenantContext.organizationId),
     ]);
 
     if (!restaurantPolicy) {
@@ -375,7 +377,7 @@ export async function POST(request: NextRequest) {
     let orderPricing: ReturnType<typeof buildOrderPaymentPricing> | null = null;
 
     try {
-      orderPricing = buildOrderPaymentPricing(cartItems, currency);
+      orderPricing = buildOrderPaymentPricing(cartItems, currency, taxPricing);
     } catch (pricingError) {
       if (session.user.kind === "customer") {
         throw pricingError;
@@ -429,6 +431,8 @@ export async function POST(request: NextRequest) {
               ? paymentIntegration.stripeAccountId
               : null,
           paymentExpiresAt,
+          taxPricingModeSnapshot: taxPricing.pricingMode,
+          taxRateBpsSnapshot: taxPricing.taxRateBps,
           customerCancellationFeeBpsSnapshot:
             restaurantPolicy.customerCancellationFeeBps,
           categoryId: cartItems[0].categoryId,

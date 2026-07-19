@@ -12,6 +12,10 @@ import {
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
+import {
+  calculateTaxPricing,
+  type TaxPricingMode,
+} from "@/lib/tax-pricing";
 
 export {
   decimalToMinorUnits,
@@ -33,8 +37,15 @@ export type OrderPaymentLine = {
 export function buildOrderPaymentPricing(
   lines: OrderPaymentLine[],
   currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  } = { pricingMode: "INCLUSIVE", taxRateBps: 0 },
 ) {
   const normalizedCurrency = currency.trim().toUpperCase();
+  let listedSubtotalMinor = 0;
+  let taxableAmountMinor = 0;
+  let taxAmountMinor = 0;
   const lineItems = lines.map((line) => {
     if (line.unitPrice === null) {
       throw new Error(`${line.drinkName} is not available for online payment.`);
@@ -47,12 +58,21 @@ export function buildOrderPaymentPricing(
           modifier.quantity,
       0,
     );
-    const unitAmount =
+    const listedUnitAmount =
       decimalToMinorUnits(line.unitPrice, normalizedCurrency) + modifierAmount;
 
-    if (unitAmount <= 0) {
+    if (listedUnitAmount <= 0) {
       throw new Error(`${line.drinkName} needs a valid price for online payment.`);
     }
+
+    const unitPricing = calculateTaxPricing(
+      listedUnitAmount,
+      taxPricing.taxRateBps,
+      taxPricing.pricingMode,
+    );
+    listedSubtotalMinor += unitPricing.listedAmountMinor * line.quantity;
+    taxableAmountMinor += unitPricing.taxableAmountMinor * line.quantity;
+    taxAmountMinor += unitPricing.taxAmountMinor * line.quantity;
 
     return {
       price_data: {
@@ -68,7 +88,7 @@ export function buildOrderPaymentPricing(
               }
             : {}),
         },
-        unit_amount: unitAmount,
+        unit_amount: unitPricing.totalAmountMinor,
       },
       quantity: line.quantity,
     } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
@@ -83,7 +103,13 @@ export function buildOrderPaymentPricing(
     amountTotal: (amountTotalMinor / factor).toFixed(factor === 1 ? 0 : 2),
     amountTotalMinor,
     currency: normalizedCurrency,
+    listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, normalizedCurrency),
+    listedSubtotalMinor,
     lineItems,
+    taxableAmount: minorUnitsToDecimal(taxableAmountMinor, normalizedCurrency),
+    taxableAmountMinor,
+    taxAmount: minorUnitsToDecimal(taxAmountMinor, normalizedCurrency),
+    taxAmountMinor,
   };
 }
 
