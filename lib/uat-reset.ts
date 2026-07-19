@@ -8,6 +8,7 @@ import {
   memberships,
   menuCategories,
   menuItems,
+  orderAdjustments,
   orderItems,
   orders,
   orderingPoints,
@@ -30,6 +31,7 @@ export async function resetUatDatabase(platformOwnerUserId: string) {
     await tx.delete(staffInvitations);
     await tx.delete(auditLogs);
     await tx.delete(inventoryItems);
+    await tx.delete(orderAdjustments);
     await tx.delete(orderItems);
     await tx.delete(orders);
     await tx.delete(menuItems);

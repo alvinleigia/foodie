@@ -7,6 +7,7 @@ import {
   memberships,
   menuCategories,
   menuItems,
+  orderAdjustments,
   orderItems,
   orders,
   orderingPoints,
@@ -130,9 +131,15 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
 
   const orderIds = orderRows.map((order) => order.id);
   const membershipIds = membershipRows.map((row) => row.membership.id);
-  const [orderItemRows, invitationRows] = await Promise.all([
+  const [orderItemRows, orderAdjustmentRows, invitationRows] = await Promise.all([
     orderIds.length
       ? db.select().from(orderItems).where(inArray(orderItems.orderId, orderIds))
+      : Promise.resolve([]),
+    orderIds.length
+      ? db
+          .select()
+          .from(orderAdjustments)
+          .where(inArray(orderAdjustments.orderId, orderIds))
       : Promise.resolve([]),
     membershipIds.length
       ? db
@@ -164,5 +171,6 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     customers: customerRows,
     orders: orderRows,
     orderItems: orderItemRows,
+    orderAdjustments: orderAdjustmentRows,
   };
 }

@@ -137,7 +137,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add restaurant tax and VAT profiles.
 - [x] Support tax-inclusive and tax-exclusive pricing.
 - [x] Snapshot tax rate, taxable amount and tax amount on each order line.
-- [ ] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.
+- [x] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.
 - [ ] Store immutable subtotal, discount, tax, charge, tip and final-total snapshots.
 - [ ] Add consistent monetary rounding rules per currency.
 - [ ] Reconcile financial reports from order, adjustment, payment and refund ledgers.

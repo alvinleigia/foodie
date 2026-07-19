@@ -6,6 +6,7 @@ import {
   AnyPgColumn,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -142,6 +143,33 @@ export const taxPricingModeEnum = pgEnum("tax_pricing_mode", [
   "INCLUSIVE",
   "EXCLUSIVE",
 ]);
+
+export const orderAdjustmentTypeEnum = pgEnum("order_adjustment_type", [
+  "DISCOUNT",
+  "COMP",
+  "SERVICE_CHARGE",
+  "TIP",
+]);
+
+export const orderAdjustmentScopeEnum = pgEnum("order_adjustment_scope", [
+  "ORDER",
+  "ITEM",
+]);
+
+export const orderAdjustmentCalculationEnum = pgEnum(
+  "order_adjustment_calculation",
+  ["FIXED_AMOUNT", "PERCENTAGE"],
+);
+
+export const orderAdjustmentEntryKindEnum = pgEnum(
+  "order_adjustment_entry_kind",
+  ["APPLY", "REVERSAL"],
+);
+
+export const orderAdjustmentActorTypeEnum = pgEnum(
+  "order_adjustment_actor_type",
+  ["CUSTOMER", "STAFF", "SYSTEM"],
+);
 
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
@@ -1101,6 +1129,10 @@ export const orders = pgTable("orders", {
     table.orderDate,
     table.orderNo,
   ),
+  uniqueIndex("orders_id_organization_unique").on(
+    table.id,
+    table.organizationId,
+  ),
   check(
     "orders_tax_rate_bps_snapshot_check",
     sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
@@ -1301,6 +1333,11 @@ export const orderItems = pgTable("order_items", {
     table.organizationId,
     table.orderId,
   ),
+  uniqueIndex("order_items_id_order_organization_unique").on(
+    table.id,
+    table.orderId,
+    table.organizationId,
+  ),
   check(
     "order_items_tax_rate_bps_snapshot_check",
     sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
@@ -1334,5 +1371,99 @@ export const orderItemModifiers = pgTable(
   (table) => [
     index("order_item_modifiers_order_item_idx").on(table.orderItemId),
     index("order_item_modifiers_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const orderAdjustments = pgTable(
+  "order_adjustments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id").notNull(),
+    orderItemId: uuid("order_item_id"),
+    type: orderAdjustmentTypeEnum("type").notNull(),
+    scope: orderAdjustmentScopeEnum("scope").notNull(),
+    calculation: orderAdjustmentCalculationEnum("calculation").notNull(),
+    entryKind: orderAdjustmentEntryKindEnum("entry_kind")
+      .default("APPLY")
+      .notNull(),
+    basisAmount: numeric("basis_amount", { precision: 10, scale: 2 }).notNull(),
+    rateBps: integer("rate_bps"),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    reasonCode: text("reason_code"),
+    note: text("note"),
+    actorType: orderAdjustmentActorTypeEnum("actor_type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    actorCustomerId: uuid("actor_customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    reversesAdjustmentId: uuid("reverses_adjustment_id").references(
+      (): AnyPgColumn => orderAdjustments.id,
+      { onDelete: "restrict" },
+    ),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_adjustments_organization_order_created_idx").on(
+      table.organizationId,
+      table.orderId,
+      table.createdAt,
+    ),
+    index("order_adjustments_order_item_idx").on(table.orderItemId),
+    uniqueIndex("order_adjustments_organization_idempotency_unique").on(
+      table.organizationId,
+      table.idempotencyKey,
+    ),
+    uniqueIndex("order_adjustments_reversal_unique")
+      .on(table.reversesAdjustmentId)
+      .where(sql`${table.reversesAdjustmentId} IS NOT NULL`),
+    foreignKey({
+      columns: [table.orderId, table.organizationId],
+      foreignColumns: [orders.id, orders.organizationId],
+      name: "order_adjustments_order_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.orderItemId, table.orderId, table.organizationId],
+      foreignColumns: [
+        orderItems.id,
+        orderItems.orderId,
+        orderItems.organizationId,
+      ],
+      name: "order_adjustments_item_order_organization_fk",
+    }).onDelete("restrict"),
+    check(
+      "order_adjustments_scope_check",
+      sql`(${table.scope} = 'ORDER' AND ${table.orderItemId} IS NULL) OR (${table.scope} = 'ITEM' AND ${table.orderItemId} IS NOT NULL)`,
+    ),
+    check(
+      "order_adjustments_calculation_check",
+      sql`(${table.calculation} = 'FIXED_AMOUNT' AND ${table.rateBps} IS NULL) OR (${table.calculation} = 'PERCENTAGE' AND ${table.rateBps} IS NOT NULL AND ${table.rateBps} > 0 AND ${table.rateBps} <= 10000)`,
+    ),
+    check(
+      "order_adjustments_amount_check",
+      sql`${table.basisAmount} >= 0 AND ${table.amount} > 0 AND (${table.type} NOT IN ('DISCOUNT', 'COMP') OR ${table.amount} <= ${table.basisAmount})`,
+    ),
+    check(
+      "order_adjustments_reason_check",
+      sql`${table.type} NOT IN ('DISCOUNT', 'COMP') OR (${table.reasonCode} IS NOT NULL AND char_length(btrim(${table.reasonCode})) > 0)`,
+    ),
+    check(
+      "order_adjustments_reversal_check",
+      sql`(${table.entryKind} = 'APPLY' AND ${table.reversesAdjustmentId} IS NULL) OR (${table.entryKind} = 'REVERSAL' AND ${table.reversesAdjustmentId} IS NOT NULL)`,
+    ),
+    check(
+      "order_adjustments_currency_check",
+      sql`char_length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`,
+    ),
+    check(
+      "order_adjustments_actor_check",
+      sql`(${table.actorType} = 'STAFF' AND ${table.actorCustomerId} IS NULL) OR (${table.actorType} = 'CUSTOMER' AND ${table.actorUserId} IS NULL) OR (${table.actorType} = 'SYSTEM' AND ${table.actorUserId} IS NULL AND ${table.actorCustomerId} IS NULL)`,
+    ),
   ],
 );
