@@ -9,6 +9,7 @@ import {
   customerOAuthContextCookieName,
   parseCustomerOAuthContextValue,
 } from "@/lib/customer-oauth-context";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 
 type CustomerSocialAuthPageProps = {
   searchParams: Promise<{ error?: string | string[] }>;
@@ -25,6 +26,15 @@ export default async function CustomerSocialAuthPage({
 
   if (!context) {
     redirect("/");
+  }
+
+  try {
+    await assertOrganizationFeaturesEnabled(
+      context.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
+  } catch {
+    redirect(new URL(context.returnTo, context.destinationOrigin).toString());
   }
 
   return (

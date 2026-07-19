@@ -5,7 +5,7 @@ import {
   createCustomerOAuthContextValue,
 } from "@/lib/customer-oauth-context";
 import {
-  assertOrganizationFeatureEnabled,
+  assertOrganizationFeaturesEnabled,
   FeatureEntitlementError,
 } from "@/lib/feature-entitlements";
 import {
@@ -59,9 +59,9 @@ export async function POST(request: Request) {
 
   try {
     const tenantContext = await getPublicTenantContextFromRequest(request);
-    await assertOrganizationFeatureEnabled(
+    await assertOrganizationFeaturesEnabled(
       tenantContext.organizationId,
-      "ordering.customer_accounts",
+      ["ordering.customer_accounts", "auth.social"],
     );
     const effective = await resolveOrganizationOAuthIntegration(
       tenantContext.organizationId,

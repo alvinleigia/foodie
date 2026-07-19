@@ -354,16 +354,42 @@ export async function assertOrganizationFeatureEnabled(
   organizationId: string,
   featureKey: FeatureKey,
 ) {
-  const entitlement = await getOrganizationFeatureEntitlement(
+  const [entitlement] = await assertOrganizationFeaturesEnabled(
     organizationId,
-    featureKey,
+    [featureKey],
   );
 
-  if (!entitlement.enabled) {
+  return entitlement;
+}
+
+export async function assertOrganizationFeaturesEnabled(
+  organizationId: string,
+  requestedFeatureKeys: readonly FeatureKey[],
+) {
+  const entitlements = await listOrganizationFeatureEntitlements(organizationId);
+  const entitlementByKey = new Map(
+    entitlements.map((entitlement) => [entitlement.key, entitlement]),
+  );
+  const requestedEntitlements = requestedFeatureKeys.map((featureKey) => {
+    const entitlement = entitlementByKey.get(featureKey);
+
+    if (!entitlement) {
+      throw new FeatureEntitlementError(
+        `Feature ${featureKey} is not configured in the feature catalogue.`,
+      );
+    }
+
+    return entitlement;
+  });
+  const disabledEntitlement = requestedEntitlements.find(
+    (entitlement) => !entitlement.enabled,
+  );
+
+  if (disabledEntitlement) {
     throw new FeatureEntitlementError(
-      `${entitlement.name} is not enabled for this organization.`,
+      `${disabledEntitlement.name} is not enabled for this organization.`,
     );
   }
 
-  return entitlement;
+  return requestedEntitlements;
 }

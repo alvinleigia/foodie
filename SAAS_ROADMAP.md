@@ -126,6 +126,7 @@ These changes should be designed before real tenants build transaction history.
 - [ ] Enforce feature entitlements at product entry points instead of relying only on plan quotas.
 - [x] Enforce customer-ordering access on public order pages, menu reads and customer order creation.
 - [x] Enforce customer-account access on sign-in, profile, order history and customer order actions.
+- [x] Enforce social-login access throughout provider selection, callback and customer-domain handoff.
 - [x] Add a feature catalogue and plan-to-feature entitlements.
 - [x] Add platform controls for company or restaurant feature overrides.
 - [ ] Add restaurant tax and VAT profiles.

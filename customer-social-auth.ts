@@ -4,10 +4,13 @@ import Facebook from "next-auth/providers/facebook";
 import Google from "next-auth/providers/google";
 
 import { getOrCreateOAuthCustomer } from "@/lib/customer-auth";
-import { getCustomerOAuthContextFromRequest } from "@/lib/customer-oauth-context";
+import {
+  getCustomerOAuthContextFromRequest,
+  type CustomerOAuthContext,
+} from "@/lib/customer-oauth-context";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 import type { SocialAuthProvider } from "@/lib/organization-integration-types";
 import {
-  getPlatformOAuthCredentials,
   resolveOrganizationOAuthIntegration,
 } from "@/lib/organization-oauth-settings";
 
@@ -35,38 +38,43 @@ const callbackCookieOptions = {
   sameSite: secureCookies ? ("none" as const) : ("lax" as const),
 };
 
-async function getSocialProviders(
-  request: Parameters<typeof getCustomerOAuthContextFromRequest>[0],
-) {
-  const credentials = {
-    apple: getPlatformOAuthCredentials("APPLE"),
-    facebook: getPlatformOAuthCredentials("FACEBOOK"),
-    google: getPlatformOAuthCredentials("GOOGLE"),
-  };
-  const context = getCustomerOAuthContextFromRequest(request);
-
-  if (context) {
-    const effective = await resolveOrganizationOAuthIntegration(
-      context.organizationId,
-      providerTypeMap[context.provider],
-    );
-    credentials[context.provider] =
-      effective.status === "CONFIGURED"
-        ? { clientId: effective.clientId, clientSecret: effective.clientSecret }
-        : null;
+async function getSocialProviders(context: CustomerOAuthContext | null) {
+  if (!context) {
+    return [];
   }
 
-  return [
-    ...(credentials.google
-      ? [Google({ clientId: credentials.google.clientId, clientSecret: credentials.google.clientSecret })]
-      : []),
-    ...(credentials.apple
-      ? [Apple({ clientId: credentials.apple.clientId, clientSecret: credentials.apple.clientSecret })]
-      : []),
-    ...(credentials.facebook
-      ? [Facebook({ clientId: credentials.facebook.clientId, clientSecret: credentials.facebook.clientSecret })]
-      : []),
-  ];
+  try {
+    await assertOrganizationFeaturesEnabled(
+      context.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
+  } catch {
+    return [];
+  }
+
+  const effective = await resolveOrganizationOAuthIntegration(
+    context.organizationId,
+    providerTypeMap[context.provider],
+  );
+
+  if (effective.status !== "CONFIGURED") {
+    return [];
+  }
+
+  const credentials = {
+    clientId: effective.clientId,
+    clientSecret: effective.clientSecret,
+  };
+
+  if (context.provider === "google") {
+    return [Google(credentials)];
+  }
+
+  if (context.provider === "apple") {
+    return [Apple(credentials)];
+  }
+
+  return [Facebook(credentials)];
 }
 
 function hasTrustedOAuthEmail(
@@ -87,87 +95,102 @@ function hasTrustedOAuthEmail(
 export const {
   auth: customerSocialAuth,
   handlers: customerSocialHandlers,
-} = NextAuth(async (request) => ({
-  basePath: "/api/customer-social-auth",
-  cookies: {
-    sessionToken: {
-      name: customerSocialSessionCookieName,
-      options: standardCookieOptions,
-    },
-    callbackUrl: {
-      name: `${securePrefix}foodie.customer-social.callback-url`,
-      options: callbackCookieOptions,
-    },
-    csrfToken: {
-      name: `${hostPrefix}foodie.customer-social.csrf-token`,
-      options: standardCookieOptions,
-    },
-    pkceCodeVerifier: {
-      name: `${securePrefix}foodie.customer-social.pkce.code-verifier`,
-      options: { ...callbackCookieOptions, maxAge: 15 * 60 },
-    },
-    state: {
-      name: `${securePrefix}foodie.customer-social.state`,
-      options: { ...callbackCookieOptions, maxAge: 15 * 60 },
-    },
-    nonce: {
-      name: `${securePrefix}foodie.customer-social.nonce`,
-      options: callbackCookieOptions,
-    },
-  },
-  pages: {
-    error: "/customer/auth/social",
-    signIn: "/customer/auth/social",
-  },
-  providers: await getSocialProviders(request),
-  session: { strategy: "jwt" },
-  callbacks: {
-    async signIn({ account, profile, user }) {
-      if (
-        !account ||
-        !["apple", "facebook", "google"].includes(account.provider) ||
-        !user.email ||
-        !hasTrustedOAuthEmail(
-          account.provider,
-          profile as Record<string, unknown> | undefined,
-        )
-      ) {
-        return false;
-      }
+} = NextAuth(async (request) => {
+  const context = getCustomerOAuthContextFromRequest(request);
 
-      const customer = await getOrCreateOAuthCustomer({
-        email: user.email,
-        name: user.name ?? "",
-        provider: account.provider,
-        providerAccountId: account.providerAccountId,
-      });
-
-      user.id = customer.id;
-      user.kind = "customer";
-      user.email = customer.email;
-      user.name = customer.name;
-
-      return true;
+  return {
+    basePath: "/api/customer-social-auth",
+    cookies: {
+      sessionToken: {
+        name: customerSocialSessionCookieName,
+        options: standardCookieOptions,
+      },
+      callbackUrl: {
+        name: `${securePrefix}foodie.customer-social.callback-url`,
+        options: callbackCookieOptions,
+      },
+      csrfToken: {
+        name: `${hostPrefix}foodie.customer-social.csrf-token`,
+        options: standardCookieOptions,
+      },
+      pkceCodeVerifier: {
+        name: `${securePrefix}foodie.customer-social.pkce.code-verifier`,
+        options: { ...callbackCookieOptions, maxAge: 15 * 60 },
+      },
+      state: {
+        name: `${securePrefix}foodie.customer-social.state`,
+        options: { ...callbackCookieOptions, maxAge: 15 * 60 },
+      },
+      nonce: {
+        name: `${securePrefix}foodie.customer-social.nonce`,
+        options: callbackCookieOptions,
+      },
     },
-    jwt({ token, user }) {
-      if (user) {
-        token.sub = user.id;
-        token.kind = "customer";
-      }
+    pages: {
+      error: "/customer/auth/social",
+      signIn: "/customer/auth/social",
+    },
+    providers: await getSocialProviders(context),
+    session: { strategy: "jwt" },
+    callbacks: {
+      async signIn({ account, profile, user }) {
+        if (
+          !context ||
+          !account ||
+          !["apple", "facebook", "google"].includes(account.provider) ||
+          account.provider !== context.provider ||
+          !user.email ||
+          !hasTrustedOAuthEmail(
+            account.provider,
+            profile as Record<string, unknown> | undefined,
+          )
+        ) {
+          return false;
+        }
 
-      return token;
+        try {
+          await assertOrganizationFeaturesEnabled(context.organizationId, [
+            "ordering.customer_accounts",
+            "auth.social",
+          ]);
+        } catch {
+          return false;
+        }
+
+        const customer = await getOrCreateOAuthCustomer({
+          email: user.email,
+          name: user.name ?? "",
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+        });
+
+        user.id = customer.id;
+        user.kind = "customer";
+        user.email = customer.email;
+        user.name = customer.name;
+
+        return true;
+      },
+      jwt({ token, user }) {
+        if (user) {
+          token.sub = user.id;
+          token.kind = "customer";
+        }
+
+        return token;
+      },
+      session({ session, token }) {
+        return {
+          ...session,
+          user: {
+            email: session.user.email,
+            id: typeof token.sub === "string" ? token.sub : "",
+            image: session.user.image,
+            kind: "customer" as const,
+            name: session.user.name,
+          },
+        };
+      },
     },
-    session({ session, token }) {
-      return {
-        ...session,
-        user: {
-          email: session.user.email,
-          id: typeof token.sub === "string" ? token.sub : "",
-          image: session.user.image,
-          kind: "customer" as const,
-          name: session.user.name,
-        },
-      };
-    },
-  },
-}));
+  };
+});

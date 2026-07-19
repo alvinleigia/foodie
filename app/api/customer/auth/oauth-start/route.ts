@@ -9,6 +9,7 @@ import {
   getPlatformAdministrationOrigin,
   isPlatformAdministrationRequest,
 } from "@/lib/deployment-domain";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 
 export async function GET(request: NextRequest) {
   const platformOrigin = getPlatformAdministrationOrigin(request);
@@ -17,6 +18,17 @@ export async function GET(request: NextRequest) {
 
   if (!isPlatformAdministrationRequest(request) || !context) {
     return NextResponse.redirect(new URL("/", platformOrigin));
+  }
+
+  try {
+    await assertOrganizationFeaturesEnabled(
+      context.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
+  } catch {
+    return NextResponse.redirect(
+      new URL(context.returnTo, context.destinationOrigin),
+    );
   }
 
   const response = NextResponse.redirect(

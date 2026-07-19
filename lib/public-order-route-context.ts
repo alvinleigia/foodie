@@ -34,6 +34,9 @@ async function getCustomerFeatureAvailability(organizationId: string) {
       entitlements.find(
         (entitlement) => entitlement.key === "ordering.customer",
       )?.enabled ?? false,
+    socialLoginEnabled:
+      entitlements.find((entitlement) => entitlement.key === "auth.social")
+        ?.enabled ?? false,
   };
 }
 
@@ -85,15 +88,18 @@ export async function getPublicOrderRouteContext({
     ? await getCustomerFeatureAvailability(tenantContext.organizationId).catch(() => ({
         customerAccountsEnabled: false,
         customerOrderingEnabled: false,
+        socialLoginEnabled: false,
       }))
     : {
         customerAccountsEnabled: false,
         customerOrderingEnabled: false,
+        socialLoginEnabled: false,
       };
   const customerOrderingEnabled =
     session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
   const customerAccountsEnabled =
     session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
+  const socialLoginEnabled = customerFeatures.socialLoginEnabled;
 
   if (!customerAccountsEnabled) {
     customer = null;
@@ -138,14 +144,23 @@ export async function getPublicOrderRouteContext({
         ])
       : [null, null, null, null];
   const customerAuthProviders = {
-    apple: customerAccountsEnabled && appleIntegration?.status === "CONFIGURED",
+    apple:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      appleIntegration?.status === "CONFIGURED",
     email: Boolean(
       customerAccountsEnabled &&
         process.env.AUTH_SECRET &&
         emailIntegration?.status === "CONFIGURED",
     ),
-    facebook: customerAccountsEnabled && facebookIntegration?.status === "CONFIGURED",
-    google: customerAccountsEnabled && googleIntegration?.status === "CONFIGURED",
+    facebook:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      facebookIntegration?.status === "CONFIGURED",
+    google:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      googleIntegration?.status === "CONFIGURED",
   };
 
   if (tenantContext) {
@@ -153,6 +168,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: true,
       customerAccountsEnabled,
       customerOrderingEnabled,
+      socialLoginEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -172,6 +188,7 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: false,
       customerAccountsEnabled: false,
       customerOrderingEnabled: false,
+      socialLoginEnabled: false,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -192,6 +209,7 @@ export async function getPublicOrderRouteContext({
               ).catch(() => ({
                 customerAccountsEnabled: false,
                 customerOrderingEnabled: false,
+                socialLoginEnabled: false,
               }));
 
               return {
@@ -214,6 +232,7 @@ export async function getPublicOrderRouteContext({
     hasTenantContext: false,
     customerAccountsEnabled: false,
     customerOrderingEnabled: false,
+    socialLoginEnabled: false,
     customer,
     customerAuthProviders,
     phoneVerificationPolicy,

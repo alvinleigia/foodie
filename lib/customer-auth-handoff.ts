@@ -13,6 +13,7 @@ import {
   isPlatformAdministrationDomain,
   normalizeDomain,
 } from "@/lib/deployment-domain";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 import {
   getTenantContextFromDomain,
 } from "@/lib/tenant-domains";
@@ -100,6 +101,15 @@ export async function consumeCustomerAuthHandoff(
       );
 
   if (tenantContext?.organizationId !== handoff.organizationId) {
+    return null;
+  }
+
+  try {
+    await assertOrganizationFeaturesEnabled(
+      handoff.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
+  } catch {
     return null;
   }
 

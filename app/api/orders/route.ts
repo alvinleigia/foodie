@@ -63,7 +63,7 @@ import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import {
-  assertOrganizationFeatureEnabled,
+  assertOrganizationFeaturesEnabled,
   FeatureEntitlementError,
 } from "@/lib/feature-entitlements";
 
@@ -151,13 +151,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (session.user.kind === "customer") {
-      await assertOrganizationFeatureEnabled(
+      await assertOrganizationFeaturesEnabled(
         tenantContext.organizationId,
-        "ordering.customer",
-      );
-      await assertOrganizationFeatureEnabled(
-        tenantContext.organizationId,
-        "ordering.customer_accounts",
+        ["ordering.customer", "ordering.customer_accounts"],
       );
     }
 
