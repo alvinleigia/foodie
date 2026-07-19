@@ -115,6 +115,7 @@ type OrderCardProps = {
   onCancelPayment: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
+  canSettleBills: boolean;
   onRetryRefund: (order: StaffOrder) => Promise<void>;
   pendingAction: string | null;
   disabled: boolean;
@@ -133,6 +134,7 @@ export function OrderCard({
   onCancelPayment,
   canCorrectStatuses,
   canManageRefunds,
+  canSettleBills,
   onRetryRefund,
   pendingAction,
   disabled,
@@ -608,8 +610,9 @@ export function OrderCard({
               </div>
             </div>
 
-            {order.paymentStatus === "UNPAID" ||
-            order.paymentStatus === "PARTIALLY_PAID" ? (
+            {canSettleBills &&
+            (order.paymentStatus === "UNPAID" ||
+              order.paymentStatus === "PARTIALLY_PAID") ? (
               <Button
                 type="button"
                 disabled={disabled || !order.paymentAmount}

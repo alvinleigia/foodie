@@ -28,7 +28,7 @@ import {
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
-import { assertOrganizationFeatureEnabled } from "@/lib/feature-entitlements";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 
 type StaffPaymentActor = {
   id: string;
@@ -168,6 +168,11 @@ export async function collectStaffCashPayment(input: {
   organizationId: string;
   tenderedAmount: string;
 }) {
+  await assertOrganizationFeaturesEnabled(
+    input.organizationId,
+    ["payments.staff_billing"],
+  );
+
   const result = await getDb().transaction(async (tx) => {
     const [order] = await tx
       .select()
@@ -365,9 +370,9 @@ export async function createStaffStripeCheckout(input: {
     throw new StaffOrderPaymentError("This bill is not available for payment.");
   }
 
-  await assertOrganizationFeatureEnabled(
+  await assertOrganizationFeaturesEnabled(
     input.organizationId,
-    "payments.stripe",
+    ["payments.staff_billing", "payments.stripe"],
   );
 
   if (!process.env.STRIPE_SECRET_KEY) {

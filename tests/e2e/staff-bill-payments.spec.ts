@@ -193,4 +193,31 @@ test.describe("staff bill payment policy", () => {
       expect(source).toContain("FeatureEntitlementError");
     }
   });
+
+  test("gates staff bill collection without stranding pending Stripe links", () => {
+    const paymentSource = readSource("lib", "staff-order-payments.ts");
+    const cashCollection = paymentSource.slice(
+      paymentSource.indexOf("export async function collectStaffCashPayment"),
+      paymentSource.indexOf("async function getStaffOrder"),
+    );
+    const stripeCollection = paymentSource.slice(
+      paymentSource.indexOf("export async function createStaffStripeCheckout"),
+      paymentSource.indexOf("export async function cancelStaffStripeCheckout"),
+    );
+    const pendingPaymentBranch = stripeCollection.indexOf(
+      'if (order.paymentStatus === "PENDING")',
+    );
+    const staffBillingCheck = stripeCollection.indexOf(
+      '"payments.staff_billing"',
+    );
+    const orderCardSource = readSource("components", "staff", "OrderCard.tsx");
+
+    expect(cashCollection).toContain('"payments.staff_billing"');
+    expect(pendingPaymentBranch).toBeGreaterThan(-1);
+    expect(staffBillingCheck).toBeGreaterThan(pendingPaymentBranch);
+    expect(stripeCollection).toContain(
+      '["payments.staff_billing", "payments.stripe"]',
+    );
+    expect(orderCardSource).toContain("canSettleBills &&");
+  });
 });

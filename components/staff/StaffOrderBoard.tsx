@@ -112,8 +112,10 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export function StaffOrderBoard({
+  staffBillingEnabled = true,
   stripePaymentsEnabled = true,
 }: {
+  staffBillingEnabled?: boolean;
   stripePaymentsEnabled?: boolean;
 }) {
   const [orders, setOrders] = useState<OrdersPayload>({
@@ -870,6 +872,7 @@ export function StaffOrderBoard({
               onCancelPayment={cancelPaymentRequest}
               canCorrectStatuses={orders.canCorrectStatuses}
               canManageRefunds={orders.canManageRefunds}
+              canSettleBills={staffBillingEnabled}
               onRetryRefund={retryRefund}
               pendingAction={pendingAction}
               disabled={Boolean(pendingAction)}
