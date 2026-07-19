@@ -6,6 +6,7 @@ import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-s
 import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-settings";
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { getRequestOrigin } from "@/lib/request-origin";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
@@ -23,12 +24,13 @@ export default async function RestaurantIntegrationsPage({
       destination: "integrations",
       restaurantSlug,
     });
-  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot] =
+  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot, stripePayments] =
     await Promise.all([
       getRequestOrigin(),
       getOrganizationEmailSettingsSnapshot(snapshot.organization.id),
       getOrganizationOAuthSettingsSnapshots(snapshot.organization.id),
       getOrganizationPaymentSettingsSnapshot(snapshot.organization.id),
+      getOrganizationFeatureEntitlement(snapshot.organization.id, "payments.stripe"),
     ]);
   const dashboardHref = getRestaurantWorkspaceHref(
     access.restaurant.slug,
@@ -63,6 +65,7 @@ export default async function RestaurantIntegrationsPage({
       <StripeIntegrationForm
         apiPath="/api/tenant/admin/integrations/stripe"
         backHref={dashboardHref}
+        enabled={stripePayments.enabled}
         initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>

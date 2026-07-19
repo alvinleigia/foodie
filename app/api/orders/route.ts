@@ -153,7 +153,11 @@ export async function POST(request: NextRequest) {
     if (session.user.kind === "customer") {
       await assertOrganizationFeaturesEnabled(
         tenantContext.organizationId,
-        ["ordering.customer", "ordering.customer_accounts"],
+        [
+          "ordering.customer",
+          "ordering.customer_accounts",
+          "payments.stripe",
+        ],
       );
     }
 

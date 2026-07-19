@@ -10,6 +10,7 @@ import {
 } from "@/lib/staff-order-payments";
 import { logError } from "@/lib/logger";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { FeatureEntitlementError } from "@/lib/feature-entitlements";
 
 const paymentSchema = z.discriminatedUnion("method", [
   z.object({
@@ -83,6 +84,10 @@ export async function POST(
       paymentStatus: result.order.paymentStatus,
     });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof StaffOrderPaymentError) {
       return NextResponse.json(
         { error: error.message },

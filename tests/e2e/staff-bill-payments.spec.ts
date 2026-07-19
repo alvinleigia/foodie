@@ -157,4 +157,40 @@ test.describe("staff bill payment policy", () => {
     expect(source).toContain('marginSize={4}');
     expect(source).toContain("Scan to pay");
   });
+
+  test("gates new Stripe sessions without blocking pending link recovery", () => {
+    const customerOrderSource = readSource("app", "api", "orders", "route.ts");
+    const staffPaymentSource = readSource("lib", "staff-order-payments.ts");
+    const pendingPaymentBranch = staffPaymentSource.indexOf(
+      'if (order.paymentStatus === "PENDING")',
+    );
+    const entitlementCheck = staffPaymentSource.indexOf(
+      '"payments.stripe"',
+      pendingPaymentBranch,
+    );
+
+    expect(customerOrderSource).toContain('"payments.stripe"');
+    expect(pendingPaymentBranch).toBeGreaterThan(-1);
+    expect(entitlementCheck).toBeGreaterThan(pendingPaymentBranch);
+
+    for (const segments of [
+      ["app", "api", "company", "integrations", "stripe", "route.ts"],
+      [
+        "app",
+        "api",
+        "company",
+        "restaurants",
+        "[id]",
+        "integrations",
+        "stripe",
+        "route.ts",
+      ],
+      ["app", "api", "tenant", "admin", "integrations", "stripe", "route.ts"],
+    ]) {
+      const source = readSource(...segments);
+
+      expect(source).toContain("assertOrganizationFeatureEnabled");
+      expect(source).toContain("FeatureEntitlementError");
+    }
+  });
 });

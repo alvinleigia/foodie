@@ -26,6 +26,7 @@ type CustomerOrderPageProps = {
   orderingPointQrSlug?: string;
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
+  stripePaymentsEnabled?: boolean;
   staffRestaurant?: {
     id: string;
     name: string;
@@ -43,6 +44,7 @@ export function CustomerOrderPage({
   orderingPointQrSlug,
   phoneVerificationPolicy,
   routeSlug,
+  stripePaymentsEnabled = true,
   staffRestaurant,
   user,
 }: CustomerOrderPageProps) {
@@ -105,6 +107,7 @@ export function CustomerOrderPage({
         orderingPointQrSlug={orderingPointQrSlug}
         phoneVerificationPolicy={phoneVerificationPolicy}
         routeSlug={routeSlug}
+        stripePaymentsEnabled={stripePaymentsEnabled}
         staffRestaurantSlug={staffRestaurant?.slug}
       />
     </>

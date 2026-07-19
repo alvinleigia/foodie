@@ -28,6 +28,7 @@ import {
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
+import { assertOrganizationFeatureEnabled } from "@/lib/feature-entitlements";
 
 type StaffPaymentActor = {
   id: string;
@@ -363,6 +364,11 @@ export async function createStaffStripeCheckout(input: {
   ) {
     throw new StaffOrderPaymentError("This bill is not available for payment.");
   }
+
+  await assertOrganizationFeatureEnabled(
+    input.organizationId,
+    "payments.stripe",
+  );
 
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new StaffOrderPaymentError(

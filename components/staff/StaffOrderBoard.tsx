@@ -111,7 +111,11 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
-export function StaffOrderBoard() {
+export function StaffOrderBoard({
+  stripePaymentsEnabled = true,
+}: {
+  stripePaymentsEnabled?: boolean;
+}) {
   const [orders, setOrders] = useState<OrdersPayload>({
     activeOrders: [],
     canCorrectStatuses: false,
@@ -1051,49 +1055,51 @@ export function StaffOrderBoard() {
                     </Button>
                   </section>
 
-                  <section
-                    aria-labelledby="online-payment-heading"
-                    className="border-t border-stone-200 pt-5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CreditCardIcon className="size-4 text-sky-700" />
-                      <h3
-                        id="online-payment-heading"
-                        className="font-semibold text-stone-950"
-                      >
-                        Online payment
-                      </h3>
-                    </div>
-                    <p className="mt-1 text-sm text-stone-600">
-                      Create a Stripe Checkout link for the remaining balance of{" "}
-                      {settlementBalance
-                        ? formatMoney(
-                            Number(settlementBalance.remainingAmount),
-                            settlementCurrency,
-                          )
-                        : "this bill"}
-                      .
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="mt-4 w-full"
-                      disabled={Boolean(pendingAction)}
-                      onClick={() => void loadStripePaymentLink()}
+                  {stripePaymentsEnabled ? (
+                    <section
+                      aria-labelledby="online-payment-heading"
+                      className="border-t border-stone-200 pt-5"
                     >
-                      {pendingAction ===
-                      `stripe-payment:${settlementTarget.orderId}` ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Spinner className="text-stone-700" />
-                          Creating link...
-                        </span>
-                      ) : (
-                        <ButtonLabel icon={CreditCardIcon}>
-                          Create Stripe payment link
-                        </ButtonLabel>
-                      )}
-                    </Button>
-                  </section>
+                      <div className="flex items-center gap-2">
+                        <CreditCardIcon className="size-4 text-sky-700" />
+                        <h3
+                          id="online-payment-heading"
+                          className="font-semibold text-stone-950"
+                        >
+                          Online payment
+                        </h3>
+                      </div>
+                      <p className="mt-1 text-sm text-stone-600">
+                        Create a Stripe Checkout link for the remaining balance of{" "}
+                        {settlementBalance
+                          ? formatMoney(
+                              Number(settlementBalance.remainingAmount),
+                              settlementCurrency,
+                            )
+                          : "this bill"}
+                        .
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4 w-full"
+                        disabled={Boolean(pendingAction)}
+                        onClick={() => void loadStripePaymentLink()}
+                      >
+                        {pendingAction ===
+                        `stripe-payment:${settlementTarget.orderId}` ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Spinner className="text-stone-700" />
+                            Creating link...
+                          </span>
+                        ) : (
+                          <ButtonLabel icon={CreditCardIcon}>
+                            Create Stripe payment link
+                          </ButtonLabel>
+                        )}
+                      </Button>
+                    </section>
+                  ) : null}
                 </>
               ) : settlementTarget.paymentStatus === "PENDING" ? (
                 <section aria-labelledby="pending-payment-heading">

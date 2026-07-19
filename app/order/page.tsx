@@ -31,6 +31,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
     hasTenantContext,
     phoneVerificationPolicy,
     restaurantChoices,
+    stripePaymentsEnabled,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
@@ -44,6 +45,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
           orderingPointQrSlug={orderingPointQrSlug}
           phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={routeSlug}
+          stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}
         />
       ) : restaurantChoices.length ? (

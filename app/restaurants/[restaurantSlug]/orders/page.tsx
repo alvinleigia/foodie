@@ -1,6 +1,7 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StaffOrderBoard } from "@/components/staff/StaffOrderBoard";
 import { operationalRoles } from "@/lib/role-access";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -16,6 +17,10 @@ export default async function RestaurantOrdersPage({
     destination: "orders",
     restaurantSlug,
   });
+  const stripePayments = await getOrganizationFeatureEntitlement(
+    access.restaurant.id,
+    "payments.stripe",
+  );
 
   return (
     <SaasAdminShell
@@ -30,7 +35,7 @@ export default async function RestaurantOrdersPage({
         role: session.user.role,
       }}
     >
-      <StaffOrderBoard />
+      <StaffOrderBoard stripePaymentsEnabled={stripePayments.enabled} />
     </SaasAdminShell>
   );
 }

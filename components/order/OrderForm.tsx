@@ -98,6 +98,7 @@ type OrderFormProps = {
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   staffRestaurantSlug?: string;
+  stripePaymentsEnabled?: boolean;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -249,6 +250,7 @@ export function OrderForm({
   phoneVerificationPolicy,
   routeSlug,
   staffRestaurantSlug,
+  stripePaymentsEnabled = true,
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
@@ -300,7 +302,8 @@ export function OrderForm({
   );
   const canPlaceOrder =
     isStaffOrder ||
-    (hasCompleteCustomerProfile &&
+    (stripePaymentsEnabled &&
+      hasCompleteCustomerProfile &&
       (!phoneVerificationPolicy.required || hasVerifiedCustomerPhone));
   const privacyHref = getCustomerPrivacyHref({
     orderingPointQrSlug,
@@ -1600,17 +1603,24 @@ export function OrderForm({
             </div>
 
             {!isStaffOrder ? (
-              <p className="border-t border-stone-200 pt-4 text-xs leading-5 text-stone-500">
-                See how the restaurant and Foodie use your contact, order and payment
-                information in the{" "}
-                <Link
-                  href={privacyHref}
-                  className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
-                >
-                  privacy notice
-                </Link>
-                .
-              </p>
+              <div className="grid gap-3 border-t border-stone-200 pt-4">
+                {!stripePaymentsEnabled ? (
+                  <p className="text-sm font-medium text-amber-800">
+                    Online payment is not available for this restaurant.
+                  </p>
+                ) : null}
+                <p className="text-xs leading-5 text-stone-500">
+                  See how the restaurant and Foodie use your contact, order and payment
+                  information in the{" "}
+                  <Link
+                    href={privacyHref}
+                    className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+                  >
+                    privacy notice
+                  </Link>
+                  .
+                </p>
+              </div>
             ) : null}
 
             <div

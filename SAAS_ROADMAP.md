@@ -127,6 +127,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Enforce customer-ordering access on public order pages, menu reads and customer order creation.
 - [x] Enforce customer-account access on sign-in, profile, order history and customer order actions.
 - [x] Enforce social-login access throughout provider selection, callback and customer-domain handoff.
+- [x] Enforce Stripe access on customer Checkout, staff payment links and Connect setup while preserving in-flight reconciliation.
 - [x] Add a feature catalogue and plan-to-feature entitlements.
 - [x] Add platform controls for company or restaurant feature overrides.
 - [ ] Add restaurant tax and VAT profiles.

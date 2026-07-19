@@ -12,7 +12,14 @@ import {
 } from "@/lib/organization-payment-settings";
 import { companyAdminRoles } from "@/lib/role-access";
 import { getPlatformCompany } from "@/lib/saas-admin";
-import { organizationPaymentActionSchema } from "@/lib/validations/organization-integrations";
+import {
+  organizationPaymentActionSchema,
+  organizationPaymentSettingsSchema,
+} from "@/lib/validations/organization-integrations";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 
 async function getCompanySession() {
   const session = await requireRole([...companyAdminRoles]);
@@ -27,9 +34,18 @@ export async function PATCH(request: Request) {
   }
 
   try {
+    const settings = organizationPaymentSettingsSchema.parse(await request.json());
+
+    if (settings.mode !== "DISABLED") {
+      await assertOrganizationFeatureEnabled(
+        session.user.organizationId,
+        "payments.stripe",
+      );
+    }
+
     const snapshot = await updateOrganizationPaymentSettings(
       session.user.organizationId,
-      await request.json(),
+      settings,
       session.user.id,
     );
 
@@ -44,6 +60,10 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ snapshot });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }
@@ -78,6 +98,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ snapshot });
     }
 
+    await assertOrganizationFeatureEnabled(
+      session.user.organizationId,
+      "payments.stripe",
+    );
+
     const company = await getPlatformCompany(session.user.organizationId);
 
     if (!company) {
@@ -101,6 +126,10 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(onboarding);
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }

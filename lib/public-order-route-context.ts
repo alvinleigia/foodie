@@ -37,6 +37,9 @@ async function getCustomerFeatureAvailability(organizationId: string) {
     socialLoginEnabled:
       entitlements.find((entitlement) => entitlement.key === "auth.social")
         ?.enabled ?? false,
+    stripePaymentsEnabled:
+      entitlements.find((entitlement) => entitlement.key === "payments.stripe")
+        ?.enabled ?? false,
   };
 }
 
@@ -89,17 +92,20 @@ export async function getPublicOrderRouteContext({
         customerAccountsEnabled: false,
         customerOrderingEnabled: false,
         socialLoginEnabled: false,
+        stripePaymentsEnabled: false,
       }))
     : {
         customerAccountsEnabled: false,
         customerOrderingEnabled: false,
         socialLoginEnabled: false,
+        stripePaymentsEnabled: false,
       };
   const customerOrderingEnabled =
     session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
   const customerAccountsEnabled =
     session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
   const socialLoginEnabled = customerFeatures.socialLoginEnabled;
+  const stripePaymentsEnabled = customerFeatures.stripePaymentsEnabled;
 
   if (!customerAccountsEnabled) {
     customer = null;
@@ -169,6 +175,7 @@ export async function getPublicOrderRouteContext({
       customerAccountsEnabled,
       customerOrderingEnabled,
       socialLoginEnabled,
+      stripePaymentsEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -189,6 +196,7 @@ export async function getPublicOrderRouteContext({
       customerAccountsEnabled: false,
       customerOrderingEnabled: false,
       socialLoginEnabled: false,
+      stripePaymentsEnabled: false,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -210,6 +218,7 @@ export async function getPublicOrderRouteContext({
                 customerAccountsEnabled: false,
                 customerOrderingEnabled: false,
                 socialLoginEnabled: false,
+                stripePaymentsEnabled: false,
               }));
 
               return {
@@ -233,6 +242,7 @@ export async function getPublicOrderRouteContext({
     customerAccountsEnabled: false,
     customerOrderingEnabled: false,
     socialLoginEnabled: false,
+    stripePaymentsEnabled: false,
     customer,
     customerAuthProviders,
     phoneVerificationPolicy,
