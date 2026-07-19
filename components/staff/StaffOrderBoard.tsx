@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RotateCcwIcon } from "lucide-react";
+import {
+  BanknoteIcon,
+  CopyIcon,
+  CreditCardIcon,
+  ExternalLinkIcon,
+  RotateCcwIcon,
+} from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { OrderCard } from "@/components/staff/OrderCard";
+import {
+  OrderCard,
+  type StaffOrder,
+  type StaffOrderItem,
+} from "@/components/staff/OrderCard";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import {
@@ -21,6 +32,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,63 +49,22 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  OrderItemStatus,
-  OrderStatus,
-  PaymentStatus,
-} from "@/lib/constants";
+import { OrderItemStatus, OrderStatus } from "@/lib/constants";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
-import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
+import {
+  allocateRefundAcrossPayments,
+  calculateCancellationAmounts,
+} from "@/lib/order-cancellation-financials";
+import { minorUnitsToDecimal } from "@/lib/currency-money";
+import {
+  calculateCashSettlement,
+  calculatePaymentBalance,
+} from "@/lib/order-payment-financials";
 import {
   orderCorrectionTargets,
   orderItemCorrectionTargets,
   statusCorrectionLabels,
 } from "@/lib/order-corrections";
-
-type StaffOrder = {
-  orderId: string;
-  orderNo: number;
-  orderDate?: string | null;
-  customerName: string;
-  categoryName: string;
-  drinkName: string;
-  itemCount?: number;
-  items?: Array<{
-    id?: string;
-    categoryId: string;
-    categoryName: string;
-    drinkId: string;
-    drinkName: string;
-    quantity: number;
-    notes: string | null;
-    unitPrice: string | null;
-    status: OrderItemStatus;
-    startedAt: string | null;
-    readyAt: string | null;
-    deliveredAt: string | null;
-    cancelledAt: string | null;
-    modifiers?: Array<{
-      id?: string;
-      modifierGroupId: string;
-      modifierGroupName: string;
-      modifierId: string;
-      modifierName: string;
-      quantity: number;
-      priceDelta: string;
-    }>;
-  }>;
-  status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
-  createdAt: string;
-  deliveredAt?: string | null;
-  cancelledAt?: string | null;
-  paymentStatus: PaymentStatus;
-  paymentAmount: string | null;
-  paymentCurrency: string | null;
-  customerCancellationFeeBps: number;
-  cancellationFeeBpsApplied: number | null;
-  cancellationFeeAmount: string | null;
-  refundAmount: string | null;
-};
 
 type OrdersPayload = {
   activeOrders: StaffOrder[];
@@ -97,7 +75,6 @@ type OrdersPayload = {
 };
 
 type StaffTab = "active" | "past";
-type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
 type CorrectionTarget =
   | {
       scope: "order";
@@ -156,6 +133,11 @@ export function StaffOrderBoard() {
   const [applyCustomerCancellationFee, setApplyCustomerCancellationFee] =
     useState(false);
   const [cancellationFeePercent, setCancellationFeePercent] = useState(0);
+  const [settlementTarget, setSettlementTarget] =
+    useState<StaffOrder | null>(null);
+  const [cashAmount, setCashAmount] = useState("");
+  const [cashTendered, setCashTendered] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const ordersRequestRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(false);
 
@@ -495,24 +477,304 @@ export function StaffOrderBoard() {
     setPendingAction(null);
   }
 
+  function openSettlement(order: StaffOrder) {
+    const currency = order.paymentCurrency ?? orders.currency;
+    let remainingAmount = order.paymentAmount ?? "";
+
+    if (order.paymentAmount) {
+      remainingAmount = calculatePaymentBalance({
+        amount: order.paymentAmount,
+        collectedAmount: order.paymentCollectedAmount,
+        currency,
+      }).remainingAmount;
+    }
+
+    setSettlementTarget(order);
+    setCashAmount(remainingAmount);
+    setCashTendered(remainingAmount);
+    setCheckoutUrl(null);
+  }
+
+  async function collectCashPayment() {
+    if (!settlementTarget) {
+      return;
+    }
+
+    const actionKey = `cash-payment:${settlementTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${settlementTarget.orderId}/payments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: cashAmount,
+            method: "CASH",
+            tenderedAmount: cashTendered,
+          }),
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Cash payment could not be recorded.");
+      }
+
+      await syncOrders();
+      const currency = settlementTarget.paymentCurrency ?? orders.currency;
+      const changeMessage = `Change due: ${formatMoney(
+        Number(payload.changeAmount ?? 0),
+        currency,
+      )}.`;
+
+      if (payload.paymentStatus === "PAID") {
+        toast.success(`Bill paid. ${changeMessage}`);
+        setSettlementTarget(null);
+        setCashAmount("");
+        setCashTendered("");
+        setCheckoutUrl(null);
+      } else {
+        const nextOrder = {
+          ...settlementTarget,
+          paymentAmount: payload.paymentAmount,
+          paymentCollectedAmount: payload.paymentCollectedAmount,
+          paymentMethod: "CASH" as const,
+          paymentStatus: "PARTIALLY_PAID" as const,
+        };
+        const balance = calculatePaymentBalance({
+          amount: nextOrder.paymentAmount,
+          collectedAmount: nextOrder.paymentCollectedAmount,
+          currency,
+        });
+        setSettlementTarget(nextOrder);
+        setCashAmount(balance.remainingAmount);
+        setCashTendered(balance.remainingAmount);
+        setCheckoutUrl(null);
+        toast.success(
+          `Partial cash payment recorded. ${changeMessage} ${formatMoney(
+            Number(balance.remainingAmount),
+            currency,
+          )} remains.`,
+        );
+      }
+      setError(null);
+    } catch (paymentError) {
+      const message =
+        paymentError instanceof Error
+          ? paymentError.message
+          : "Cash payment could not be recorded.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function loadStripePaymentLink() {
+    if (!settlementTarget) {
+      return;
+    }
+
+    const actionKey = `stripe-payment:${settlementTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${settlementTarget.orderId}/payments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ method: "STRIPE_CHECKOUT" }),
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? "Stripe payment link could not be created.",
+        );
+      }
+
+      await syncOrders();
+
+      if (payload.paymentStatus === "PAID") {
+        toast.success("This bill has already been paid.");
+        setSettlementTarget(null);
+        setCashAmount("");
+        setCashTendered("");
+        setCheckoutUrl(null);
+      } else if (payload.checkoutUrl) {
+        setSettlementTarget((current) =>
+          current
+            ? {
+                ...current,
+                paymentAmount: payload.paymentAmount ?? current.paymentAmount,
+                paymentCollectedAmount:
+                  payload.paymentCollectedAmount ??
+                  current.paymentCollectedAmount,
+                paymentMethod: "STRIPE_CHECKOUT",
+                paymentStatus: "PENDING",
+              }
+            : current,
+        );
+        setCheckoutUrl(payload.checkoutUrl);
+        toast.success("Stripe payment link is ready.");
+      } else {
+        toast.success("Stripe is confirming this payment.");
+      }
+
+      setError(null);
+    } catch (paymentError) {
+      const message =
+        paymentError instanceof Error
+          ? paymentError.message
+          : "Stripe payment link could not be created.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function copyCheckoutLink() {
+    if (!checkoutUrl) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(checkoutUrl);
+      toast.success("Payment link copied.");
+    } catch {
+      toast.error("The payment link could not be copied.");
+    }
+  }
+
+  async function cancelPaymentRequest(order: StaffOrder) {
+    const actionKey = `cancel-payment:${order.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(`/api/orders/${order.orderId}/payments`, {
+        method: "DELETE",
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ?? "The payment request could not be cancelled.",
+        );
+      }
+
+      await syncOrders();
+      setSettlementTarget(null);
+      setCashAmount("");
+      setCashTendered("");
+      setCheckoutUrl(null);
+      setError(null);
+      toast.success(
+        payload.paymentStatus === "PARTIALLY_PAID"
+          ? "Payment request cancelled. The collected portion is retained and the balance remains due."
+          : "Payment request cancelled. The bill is unpaid again.",
+      );
+    } catch (paymentError) {
+      const message =
+        paymentError instanceof Error
+          ? paymentError.message
+          : "The payment request could not be cancelled.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   const visibleOrders =
     activeTab === "active" ? orders.activeOrders : orders.pastOrders;
+  const settlementCurrency =
+    settlementTarget?.paymentCurrency ?? orders.currency;
+  let settlementBalance: ReturnType<typeof calculatePaymentBalance> | null =
+    null;
+  let cashChangeAmount: string | null = null;
+  let cashPaymentError: string | null = null;
+
+  if (settlementTarget?.paymentAmount) {
+    try {
+      settlementBalance = calculatePaymentBalance({
+        amount: settlementTarget.paymentAmount,
+        collectedAmount: settlementTarget.paymentCollectedAmount,
+        currency: settlementCurrency,
+      });
+
+      if (cashAmount.trim().length > 0 && cashTendered.trim().length > 0) {
+        const cash = calculateCashSettlement({
+          amount: cashAmount,
+          currency: settlementCurrency,
+          tenderedAmount: cashTendered,
+        });
+
+        if (cash.amountMinor > settlementBalance.remainingMinor) {
+          throw new Error("The cash amount cannot exceed the remaining balance.");
+        }
+
+        cashChangeAmount = cash.changeAmount;
+      }
+    } catch (balanceError) {
+      cashPaymentError = balanceError instanceof Error
+        ? balanceError.message
+        : "Enter a valid amount.";
+    }
+  }
   const cancellationFeeBps = applyCustomerCancellationFee
     ? Math.round(cancellationFeePercent * 100)
     : 0;
+  const cancellationHasCollectedPayment =
+    cancellationTarget?.paymentStatus === "PAID" ||
+    cancellationTarget?.paymentStatus === "PARTIALLY_PAID";
   const cancellationFinancials =
-    cancellationTarget?.paymentStatus === "PAID" &&
-    cancellationTarget.paymentAmount &&
+    cancellationHasCollectedPayment &&
+    cancellationTarget &&
+    Number(cancellationTarget.paymentCollectedAmount) > 0 &&
     Number.isFinite(cancellationFeeBps) &&
     cancellationFeeBps >= 0 &&
     cancellationFeeBps <= cancellationTarget.customerCancellationFeeBps
       ? calculateCancellationAmounts({
-          amount: cancellationTarget.paymentAmount,
+          amount: cancellationTarget.paymentCollectedAmount,
           currency:
             cancellationTarget.paymentCurrency ?? orders.currency,
           feeBps: cancellationFeeBps,
         })
       : null;
+  let cancellationRefundAllocations: ReturnType<
+    typeof allocateRefundAcrossPayments
+  > = [];
+
+  if (
+    cancellationTarget &&
+    cancellationFinancials &&
+    cancellationFinancials.refundMinor > 0
+  ) {
+    try {
+      cancellationRefundAllocations = allocateRefundAcrossPayments({
+        currency: cancellationTarget.paymentCurrency ?? orders.currency,
+        payments: cancellationTarget.paymentPortions.map((payment, index) => ({
+          ...payment,
+          id: `${payment.method}-${index}`,
+        })),
+        refundAmount: cancellationFinancials.refundAmount,
+      });
+    } catch {
+      cancellationRefundAllocations = [];
+    }
+  }
+
+  const cashReturnMinor = cancellationRefundAllocations
+    .filter((allocation) => allocation.method === "CASH")
+    .reduce((total, allocation) => total + allocation.amountMinor, 0);
+  const stripeRefundMinor = cancellationRefundAllocations
+    .filter((allocation) => allocation.method === "STRIPE_CHECKOUT")
+    .reduce((total, allocation) => total + allocation.amountMinor, 0);
 
   return (
     <Card className="rounded-xl border-white/60 bg-white/85 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
@@ -600,6 +862,8 @@ export function StaffOrderBoard() {
               onOrderAnnounce={announceOrder}
               onCorrectOrder={openOrderCorrection}
               onCorrectItem={openItemCorrection}
+              onSettleOrder={openSettlement}
+              onCancelPayment={cancelPaymentRequest}
               canCorrectStatuses={orders.canCorrectStatuses}
               canManageRefunds={orders.canManageRefunds}
               onRetryRefund={retryRefund}
@@ -610,6 +874,337 @@ export function StaffOrderBoard() {
         </div>
       )}
       </CardContent>
+      <Dialog
+        open={Boolean(settlementTarget)}
+        onOpenChange={(open) => {
+          if (
+            pendingAction?.startsWith("cash-payment:") ||
+            pendingAction?.startsWith("stripe-payment:") ||
+            pendingAction?.startsWith("cancel-payment:")
+          ) {
+            return;
+          }
+
+          if (!open) {
+            setSettlementTarget(null);
+            setCashAmount("");
+            setCashTendered("");
+            setCheckoutUrl(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg p-0 sm:max-w-lg">
+          <DialogHeader className="border-b border-stone-200 px-6 py-5">
+            <DialogTitle className="text-lg font-semibold text-stone-950">
+              Settle bill
+            </DialogTitle>
+            <DialogDescription>
+              Record full or partial cash, then collect any remaining balance
+              through cash or Stripe.
+            </DialogDescription>
+          </DialogHeader>
+
+          {settlementTarget ? (
+            <div className="grid gap-5 overflow-y-auto px-6 py-5">
+              <div className="border-b border-stone-200 pb-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                  <p className="text-xs font-medium uppercase text-stone-500">
+                    Order #{settlementTarget.orderNo}
+                  </p>
+                  <p className="mt-1 font-semibold text-stone-950">
+                    {settlementTarget.customerName}
+                  </p>
+                  </div>
+                </div>
+                <dl className="mt-4 grid grid-cols-3 gap-3">
+                  <div>
+                    <dt className="text-xs text-stone-500">Total</dt>
+                    <dd className="mt-1 text-sm font-semibold text-stone-950">
+                      {settlementTarget.paymentAmount
+                        ? formatMoney(
+                            Number(settlementTarget.paymentAmount),
+                            settlementCurrency,
+                          )
+                        : "Unavailable"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-stone-500">Collected</dt>
+                    <dd className="mt-1 text-sm font-semibold text-emerald-800">
+                      {formatMoney(
+                        Number(settlementTarget.paymentCollectedAmount),
+                        settlementCurrency,
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-stone-500">Remaining</dt>
+                    <dd className="mt-1 text-sm font-semibold text-amber-900">
+                      {settlementBalance
+                        ? formatMoney(
+                            Number(settlementBalance.remainingAmount),
+                            settlementCurrency,
+                          )
+                        : "Unavailable"}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              {settlementTarget.paymentStatus === "UNPAID" ||
+              settlementTarget.paymentStatus === "PARTIALLY_PAID" ? (
+                <>
+                  <section aria-labelledby="cash-payment-heading">
+                    <div className="flex items-center gap-2">
+                      <BanknoteIcon className="size-4 text-emerald-700" />
+                      <h3
+                        id="cash-payment-heading"
+                        className="font-semibold text-stone-950"
+                      >
+                        Cash
+                      </h3>
+                    </div>
+                    <p className="mt-1 text-sm text-stone-600">
+                      Choose how much of the remaining balance to collect, then
+                      enter the cash received.
+                    </p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <label className="min-w-0 text-sm font-medium text-stone-700">
+                        Amount to apply
+                        <Input
+                          className="mt-2"
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={cashAmount}
+                          disabled={Boolean(pendingAction)}
+                          onChange={(event) => setCashAmount(event.target.value)}
+                        />
+                      </label>
+                      <label className="min-w-0 text-sm font-medium text-stone-700">
+                        Cash received
+                        <Input
+                          className="mt-2"
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={cashTendered}
+                          disabled={Boolean(pendingAction)}
+                          onChange={(event) => setCashTendered(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={Boolean(pendingAction) || !cashAmount}
+                        onClick={() => setCashTendered(cashAmount)}
+                      >
+                        Exact cash
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex min-h-5 items-center justify-between gap-4 text-sm">
+                      <span
+                        className={
+                          cashPaymentError ? "text-rose-600" : "text-stone-600"
+                        }
+                      >
+                        {cashPaymentError ?? "Change due"}
+                      </span>
+                      {!cashPaymentError && cashChangeAmount ? (
+                        <span className="font-semibold text-stone-950">
+                          {formatMoney(
+                            Number(cashChangeAmount),
+                            settlementCurrency,
+                          )}
+                        </span>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      className="mt-4 w-full bg-stone-950 text-white hover:bg-stone-800"
+                      disabled={
+                        Boolean(pendingAction) ||
+                        !settlementBalance ||
+                        settlementBalance.remainingMinor <= 0 ||
+                        !cashChangeAmount ||
+                        Boolean(cashPaymentError)
+                      }
+                      onClick={() => void collectCashPayment()}
+                    >
+                      {pendingAction ===
+                      `cash-payment:${settlementTarget.orderId}` ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="text-white" />
+                          Recording cash...
+                        </span>
+                      ) : (
+                        <ButtonLabel icon={BanknoteIcon}>
+                          Confirm cash payment
+                        </ButtonLabel>
+                      )}
+                    </Button>
+                  </section>
+
+                  <section
+                    aria-labelledby="online-payment-heading"
+                    className="border-t border-stone-200 pt-5"
+                  >
+                    <div className="flex items-center gap-2">
+                      <CreditCardIcon className="size-4 text-sky-700" />
+                      <h3
+                        id="online-payment-heading"
+                        className="font-semibold text-stone-950"
+                      >
+                        Online payment
+                      </h3>
+                    </div>
+                    <p className="mt-1 text-sm text-stone-600">
+                      Create a Stripe Checkout link for the remaining balance of{" "}
+                      {settlementBalance
+                        ? formatMoney(
+                            Number(settlementBalance.remainingAmount),
+                            settlementCurrency,
+                          )
+                        : "this bill"}
+                      .
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4 w-full"
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => void loadStripePaymentLink()}
+                    >
+                      {pendingAction ===
+                      `stripe-payment:${settlementTarget.orderId}` ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="text-stone-700" />
+                          Creating link...
+                        </span>
+                      ) : (
+                        <ButtonLabel icon={CreditCardIcon}>
+                          Create Stripe payment link
+                        </ButtonLabel>
+                      )}
+                    </Button>
+                  </section>
+                </>
+              ) : settlementTarget.paymentStatus === "PENDING" ? (
+                <section aria-labelledby="pending-payment-heading">
+                  <div className="flex items-center gap-2">
+                    <CreditCardIcon className="size-4 text-sky-700" />
+                    <h3
+                      id="pending-payment-heading"
+                      className="font-semibold text-stone-950"
+                    >
+                      Stripe Checkout
+                    </h3>
+                  </div>
+                  <p className="mt-1 text-sm text-stone-600">
+                    The bill stays open until Stripe confirms the payment.
+                  </p>
+                  {!checkoutUrl ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-4 w-full"
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => void loadStripePaymentLink()}
+                    >
+                      {pendingAction ===
+                      `stripe-payment:${settlementTarget.orderId}` ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Spinner className="text-stone-700" />
+                          Loading link...
+                        </span>
+                      ) : (
+                        "Load payment link"
+                      )}
+                    </Button>
+                  ) : null}
+
+                  {checkoutUrl ? (
+                    <div className="mt-4">
+                      <div className="grid justify-items-center gap-3 border-y border-stone-200 py-5 text-center">
+                        <div className="grid aspect-square w-full max-w-60 place-items-center overflow-hidden rounded-lg border border-stone-200 bg-white p-3">
+                          <QRCodeSVG
+                            value={checkoutUrl}
+                            size={216}
+                            level="M"
+                            marginSize={4}
+                            title={`Stripe payment QR for order ${settlementTarget.orderNo}`}
+                            className="h-auto w-full max-w-54"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-stone-950">
+                            Scan to pay {settlementBalance
+                              ? formatMoney(
+                                  Number(settlementBalance.remainingAmount),
+                                  settlementCurrency,
+                                )
+                              : "this bill"}
+                          </p>
+                          <p className="mt-1 text-xs text-stone-500">
+                            Order #{settlementTarget.orderNo}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Button asChild className="flex-1 bg-stone-950 text-white">
+                          <a
+                            href={checkoutUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLinkIcon />
+                            Open Checkout
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => void copyCheckoutLink()}
+                        >
+                          <CopyIcon />
+                          Copy link
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-4 w-full border-stone-300 text-stone-800"
+                    disabled={Boolean(pendingAction)}
+                    onClick={() => void cancelPaymentRequest(settlementTarget)}
+                  >
+                    {pendingAction ===
+                    `cancel-payment:${settlementTarget.orderId}` ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Spinner className="text-stone-700" />
+                        Cancelling request...
+                      </span>
+                    ) : (
+                      "Cancel payment request"
+                    )}
+                  </Button>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
       <AlertDialog
         open={Boolean(cancellationTarget)}
         onOpenChange={(open) => {
@@ -628,14 +1223,14 @@ export function StaffOrderBoard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
             <AlertDialogDescription>
-              Restaurant cancellations issue a full refund. A manager can instead
-              apply up to the fee originally shown to the customer while the order
-              is still pending.
+              {cancellationHasCollectedPayment
+                ? "Collected portions are returned through their original payment methods. Return any cash portion at the counter; Stripe portions are submitted automatically. A manager can apply up to the fee shown to the customer while the order is still pending."
+                : "No payment was collected for this bill, so cancelling it does not require a refund."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {cancellationTarget ? (
             <div className="grid gap-4">
-              {cancellationTarget.paymentStatus === "PAID" ? (
+              {cancellationHasCollectedPayment ? (
                 <>
                   {orders.canManageRefunds &&
                   cancellationTarget.status === "PENDING" ? (
@@ -672,6 +1267,15 @@ export function StaffOrderBoard() {
                   ) : null}
                   <div className="grid gap-2 rounded-lg border border-stone-200 bg-stone-50 p-4 text-sm">
                     <div className="flex items-center justify-between gap-4">
+                      <span className="text-stone-600">Collected</span>
+                      <span className="font-semibold text-stone-950">
+                        {formatMoney(
+                          Number(cancellationTarget.paymentCollectedAmount),
+                          cancellationTarget.paymentCurrency ?? orders.currency,
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
                       <span className="text-stone-600">Cancellation fee</span>
                       <span className="font-semibold text-stone-950">
                         {formatMoney(
@@ -680,8 +1284,42 @@ export function StaffOrderBoard() {
                         )}
                       </span>
                     </div>
+                    {cashReturnMinor > 0 ? (
+                      <div className="flex items-center justify-between gap-4 border-t border-stone-200 pt-2">
+                        <span className="text-stone-600">Cash to return</span>
+                        <span className="font-semibold text-stone-950">
+                          {formatMoney(
+                            Number(
+                              minorUnitsToDecimal(
+                                cashReturnMinor,
+                                cancellationTarget.paymentCurrency ??
+                                  orders.currency,
+                              ),
+                            ),
+                            cancellationTarget.paymentCurrency ?? orders.currency,
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+                    {stripeRefundMinor > 0 ? (
+                      <div className="flex items-center justify-between gap-4 border-t border-stone-200 pt-2">
+                        <span className="text-stone-600">Stripe refund</span>
+                        <span className="font-semibold text-stone-950">
+                          {formatMoney(
+                            Number(
+                              minorUnitsToDecimal(
+                                stripeRefundMinor,
+                                cancellationTarget.paymentCurrency ??
+                                  orders.currency,
+                              ),
+                            ),
+                            cancellationTarget.paymentCurrency ?? orders.currency,
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex items-center justify-between gap-4 border-t border-stone-200 pt-2">
-                      <span className="text-stone-600">Refund</span>
+                      <span className="text-stone-600">Total return</span>
                       <span className="font-semibold text-stone-950">
                         {formatMoney(
                           Number(cancellationFinancials?.refundAmount ?? 0),
@@ -736,7 +1374,9 @@ export function StaffOrderBoard() {
                   Cancelling...
                 </span>
               ) : (
-                "Cancel and settle refund"
+                cancellationHasCollectedPayment
+                  ? "Cancel and settle refund"
+                  : "Cancel order"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

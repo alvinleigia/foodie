@@ -2,14 +2,16 @@ import { and, eq, isNull } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { getDb } from "@/db";
-import { orderItems, orders } from "@/db/schema";
+import { orderItems, orderPayments, orders } from "@/db/schema";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
 import {
   decimalToMinorUnits,
   getCurrencyMinorUnitFactor,
+  minorUnitsToDecimal,
 } from "@/lib/currency-money";
+import { calculatePaymentBalance } from "@/lib/order-payment-financials";
 
 export {
   decimalToMinorUnits,
@@ -89,42 +91,46 @@ export async function createOrderCheckoutSession(input: {
   amountTotalMinor: number;
   applicationFeeBps: number;
   cancelUrl: string;
-  customerEmail: string;
-  customerId: string;
+  customerEmail?: string | null;
+  customerId?: string | null;
   expiresAt: Date;
+  idempotencyKey?: string;
   lineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
   orderId: string;
+  paymentRecordId?: string | null;
   stripeAccountId: string;
   successUrl: string;
 }) {
   const applicationFeeAmount = Math.round(
     (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
   );
+  const metadata = {
+    orderId: input.orderId,
+    ...(input.customerId ? { customerId: input.customerId } : {}),
+    ...(input.paymentRecordId
+      ? { paymentRecordId: input.paymentRecordId }
+      : {}),
+  };
   const session = await getStripe().checkout.sessions.create(
     {
       cancel_url: input.cancelUrl,
       client_reference_id: input.orderId,
-      customer_email: input.customerEmail,
+      ...(input.customerEmail ? { customer_email: input.customerEmail } : {}),
       expires_at: Math.floor(input.expiresAt.getTime() / 1000),
       line_items: input.lineItems,
-      metadata: {
-        customerId: input.customerId,
-        orderId: input.orderId,
-      },
+      metadata,
       mode: "payment",
       payment_intent_data: {
         ...(applicationFeeAmount > 0
           ? { application_fee_amount: applicationFeeAmount }
           : {}),
-        metadata: {
-          customerId: input.customerId,
-          orderId: input.orderId,
-        },
+        metadata,
       },
       success_url: input.successUrl,
     },
     {
-      idempotencyKey: `order-checkout-${input.orderId}`,
+      idempotencyKey:
+        input.idempotencyKey ?? `order-checkout-${input.orderId}`,
       stripeAccount: input.stripeAccountId,
     },
   );
@@ -140,59 +146,138 @@ export async function markOrderPaymentPaid(
   session: Stripe.Checkout.Session,
   stripeConnectedAccountId: string | null = null,
 ) {
-  const [order] = await getDb()
+  const [paymentRecord] = await getDb()
     .select()
-    .from(orders)
+    .from(orderPayments)
     .where(
       and(
-        eq(orders.stripeCheckoutSessionId, session.id),
+        eq(orderPayments.stripeCheckoutSessionId, session.id),
         stripeConnectedAccountId
-          ? eq(orders.stripeConnectedAccountId, stripeConnectedAccountId)
-          : isNull(orders.stripeConnectedAccountId),
+          ? eq(
+              orderPayments.stripeConnectedAccountId,
+              stripeConnectedAccountId,
+            )
+          : isNull(orderPayments.stripeConnectedAccountId),
       ),
     )
     .limit(1);
 
-  if (!order || order.paymentStatus === "PAID") {
-    return order ?? null;
-  }
-
-  if (order.paymentStatus !== "PENDING" || session.payment_status !== "paid") {
+  if (!paymentRecord) {
     return null;
   }
 
-  const expectedAmount = order.paymentAmount
-    ? decimalToMinorUnits(order.paymentAmount, order.paymentCurrency ?? "")
-    : null;
+  if (session.payment_status !== "paid") {
+    return null;
+  }
+
+  const expectedAmount = decimalToMinorUnits(
+    paymentRecord.amount,
+    paymentRecord.currency,
+  );
 
   if (
-    expectedAmount === null ||
     session.amount_total === null ||
     expectedAmount !== session.amount_total ||
-    order.paymentCurrency?.toLowerCase() !== session.currency?.toLowerCase()
+    paymentRecord.currency.toLowerCase() !== session.currency?.toLowerCase()
   ) {
-    throw new Error(`Stripe payment amount mismatch for order ${order.id}.`);
+    throw new Error(
+      `Stripe payment amount mismatch for order ${paymentRecord.orderId}.`,
+    );
   }
 
   const paymentIntentId =
     typeof session.payment_intent === "string"
       ? session.payment_intent
       : session.payment_intent?.id ?? null;
-  const [updatedOrder] = await getDb()
-    .update(orders)
-    .set({
-      paidAt: new Date(),
-      paymentStatus: "PAID",
-      stripePaymentIntentId: paymentIntentId,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(orders.id, order.id),
-        eq(orders.paymentStatus, "PENDING"),
-      ),
-    )
-    .returning();
+  const updatedOrder = await getDb().transaction(async (tx) => {
+    const [lockedPayment] = await tx
+      .select()
+      .from(orderPayments)
+      .where(eq(orderPayments.id, paymentRecord.id))
+      .limit(1)
+      .for("update");
+    const [lockedOrder] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, paymentRecord.orderId))
+      .limit(1)
+      .for("update");
+
+    if (!lockedPayment || !lockedOrder) {
+      return null;
+    }
+
+    if (lockedPayment.status === "SUCCEEDED") {
+      return lockedOrder;
+    }
+
+    if (
+      lockedPayment.status !== "PENDING" ||
+      lockedOrder.paymentStatus !== "PENDING" ||
+      lockedOrder.stripeCheckoutSessionId !== session.id ||
+      !lockedOrder.paymentAmount ||
+      !lockedOrder.paymentCurrency
+    ) {
+      return null;
+    }
+
+    const balance = calculatePaymentBalance({
+      amount: lockedOrder.paymentAmount,
+      collectedAmount: lockedOrder.paymentCollectedAmount,
+      currency: lockedOrder.paymentCurrency,
+    });
+    const collectedMinor = balance.collectedMinor + expectedAmount;
+
+    if (collectedMinor > balance.amountMinor) {
+      throw new Error(`Stripe payment exceeds the balance for order ${lockedOrder.id}.`);
+    }
+
+    const isPaid = collectedMinor === balance.amountMinor;
+    const now = new Date();
+    const [nextOrder] = await tx
+      .update(orders)
+      .set({
+        paidAt: isPaid ? now : null,
+        paymentCollectedAmount: minorUnitsToDecimal(
+          collectedMinor,
+          lockedOrder.paymentCurrency,
+        ),
+        paymentExpiresAt: null,
+        paymentStatus: isPaid ? "PAID" : "PARTIALLY_PAID",
+        stripePaymentIntentId: paymentIntentId,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orders.id, lockedOrder.id),
+          eq(orders.paymentStatus, "PENDING"),
+          eq(orders.stripeCheckoutSessionId, session.id),
+        ),
+      )
+      .returning();
+
+    if (!nextOrder) {
+      return null;
+    }
+
+    await tx
+      .update(orderPayments)
+      .set({
+        completedAt: now,
+        status: "SUCCEEDED",
+        stripePaymentIntentId: paymentIntentId,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderPayments.id, lockedPayment.id),
+          eq(orderPayments.stripeCheckoutSessionId, session.id),
+          eq(orderPayments.status, "PENDING"),
+        ),
+      );
+
+    return nextOrder;
+  });
 
   return updatedOrder ?? null;
 }
@@ -216,7 +301,65 @@ async function cancelPendingOrderPaymentRecord(
               : isNull(orders.stripeConnectedAccountId),
           )
         : eq(orders.id, lookup.orderId);
+    const [lockedOrder] = await tx
+      .select()
+      .from(orders)
+      .where(condition)
+      .limit(1)
+      .for("update");
+
+    if (!lockedOrder || lockedOrder.paymentStatus !== "PENDING") {
+      return null;
+    }
+
     const now = new Date();
+    const paymentRecordStatus =
+      paymentStatus === "FAILED" ? "FAILED" : "CANCELLED";
+
+    if (lockedOrder.source === "STAFF_CREATED") {
+      const nextPaymentStatus =
+        Number(lockedOrder.paymentCollectedAmount) > 0
+          ? ("PARTIALLY_PAID" as const)
+          : ("UNPAID" as const);
+      const [order] = await tx
+        .update(orders)
+        .set({
+          paymentAccountOrganizationId: null,
+          paymentExpiresAt: null,
+          paymentStatus: nextPaymentStatus,
+          stripeCheckoutSessionId: null,
+          stripeConnectedAccountId: null,
+          stripePaymentIntentId: null,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orders.id, lockedOrder.id),
+            eq(orders.paymentStatus, "PENDING"),
+          ),
+        )
+        .returning();
+
+      if (!order) {
+        return null;
+      }
+
+      await tx
+        .update(orderPayments)
+        .set({
+          status: paymentRecordStatus,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orderPayments.orderId, order.id),
+            eq(orderPayments.status, "PENDING"),
+          ),
+        );
+
+      return order;
+    }
+
     const [order] = await tx
       .update(orders)
       .set({
@@ -229,7 +372,7 @@ async function cancelPendingOrderPaymentRecord(
       })
       .where(
         and(
-          condition,
+          eq(orders.id, lockedOrder.id),
           eq(orders.status, "PENDING"),
           eq(orders.paymentStatus, "PENDING"),
         ),
@@ -239,6 +382,19 @@ async function cancelPendingOrderPaymentRecord(
     if (!order) {
       return null;
     }
+
+    await tx
+      .update(orderPayments)
+      .set({
+        status: paymentRecordStatus,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderPayments.orderId, order.id),
+          eq(orderPayments.status, "PENDING"),
+        ),
+      );
 
     const tenantContext = {
       organizationId: order.organizationId,

@@ -6,6 +6,8 @@ import { getNextOrderNumber, getRestaurantBusinessDate } from "@/lib/order-numbe
 import { createOrderSchema } from "@/lib/validations/order";
 import {
   buildOrderSummary,
+  getLatestOrderPaymentsForOrders,
+  getSuccessfulOrderPaymentPortionsForOrders,
   getStaffOrders,
   getOrderItemsForOrders,
   serializeOrder,
@@ -24,6 +26,7 @@ import { getDb } from "@/db";
 import {
   orderItemModifiers,
   orderItems,
+  orderPayments,
   orders,
   organizations,
 } from "@/db/schema";
@@ -73,14 +76,30 @@ export async function GET() {
       getStaffOrders(tenantContext),
       getTenantMenuCurrency(tenantContext),
     ]);
-    const itemMap = await getOrderItemsForOrders(
-      [...activeOrders, ...pastOrders].map((order) => order.id),
-      tenantContext,
-    );
+    const orderIds = [...activeOrders, ...pastOrders].map((order) => order.id);
+    const [itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
+      getOrderItemsForOrders(orderIds, tenantContext),
+      getLatestOrderPaymentsForOrders(orderIds, tenantContext),
+      getSuccessfulOrderPaymentPortionsForOrders(orderIds, tenantContext),
+    ]);
 
     return NextResponse.json({
-      activeOrders: activeOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
-      pastOrders: pastOrders.map((order) => serializeOrder(order, itemMap.get(order.id) ?? [])),
+      activeOrders: activeOrders.map((order) =>
+        serializeOrder(
+          order,
+          itemMap.get(order.id) ?? [],
+          paymentMethodMap.get(order.id) ?? null,
+          paymentPortionMap.get(order.id) ?? [],
+        ),
+      ),
+      pastOrders: pastOrders.map((order) =>
+        serializeOrder(
+          order,
+          itemMap.get(order.id) ?? [],
+          paymentMethodMap.get(order.id) ?? null,
+          paymentPortionMap.get(order.id) ?? [],
+        ),
+      ),
       canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),
       canManageRefunds: canAccessRole(session.user.role, restaurantAdminRoles),
       currency,
@@ -329,10 +348,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let orderPricing: ReturnType<typeof buildOrderPaymentPricing> | null = null;
+
+    try {
+      orderPricing = buildOrderPaymentPricing(cartItems, currency);
+    } catch (pricingError) {
+      if (session.user.kind === "customer") {
+        throw pricingError;
+      }
+    }
+
     const paymentPricing =
-      session.user.kind === "customer"
-        ? buildOrderPaymentPricing(cartItems, currency)
-        : null;
+      session.user.kind === "customer" ? orderPricing : null;
     const paymentExpiresAt = paymentPricing
       ? new Date(Date.now() + 30 * 60 * 1000)
       : null;
@@ -365,9 +392,10 @@ export async function POST(request: NextRequest) {
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
-          paymentStatus: paymentPricing ? "PENDING" : "NOT_REQUIRED",
-          paymentAmount: paymentPricing?.amountTotal ?? null,
-          paymentCurrency: paymentPricing?.currency ?? null,
+          paymentStatus:
+            session.user.kind === "customer" ? "PENDING" : "UNPAID",
+          paymentAmount: orderPricing?.amountTotal ?? null,
+          paymentCurrency: orderPricing?.currency ?? currency,
           paymentAccountOrganizationId:
             paymentIntegration?.status === "CONFIGURED"
               ? paymentIntegration.organizationId
@@ -473,19 +501,39 @@ export async function POST(request: NextRequest) {
         checkoutSessionId = checkoutSession.id;
         checkoutUrl = checkoutSession.url;
 
-        const [updatedOrder] = await db
-          .update(orders)
-          .set({
+        const updatedOrder = await db.transaction(async (tx) => {
+          const now = new Date();
+          const [updated] = await tx
+            .update(orders)
+            .set({
+              stripeCheckoutSessionId: checkoutSession.id,
+              updatedAt: now,
+            })
+            .where(
+              and(
+                eq(orders.id, createdOrder.id),
+                eq(orders.paymentStatus, "PENDING"),
+              ),
+            )
+            .returning({ id: orders.id });
+
+          if (!updated) {
+            return null;
+          }
+
+          await tx.insert(orderPayments).values({
+            amount: paymentPricing.amountTotal,
+            currency: paymentPricing.currency,
+            method: "STRIPE_CHECKOUT",
+            orderId: createdOrder.id,
+            organizationId: createdOrder.organizationId,
+            status: "PENDING",
             stripeCheckoutSessionId: checkoutSession.id,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(orders.id, createdOrder.id),
-              eq(orders.paymentStatus, "PENDING"),
-            ),
-          )
-          .returning({ id: orders.id });
+            stripeConnectedAccountId: paymentIntegration.stripeAccountId,
+          });
+
+          return updated;
+        });
 
         if (!updatedOrder) {
           throw new Error("Payment session could not be linked to the order.");

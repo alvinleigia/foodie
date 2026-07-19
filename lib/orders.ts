@@ -1,8 +1,17 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItemModifiers, orderItems, orders } from "@/db/schema";
-import { OrderLineItem, OrderLineItemModifier, OrderStatus } from "@/lib/constants";
+import { orderItemModifiers, orderItems, orderPayments, orders } from "@/db/schema";
+import {
+  OrderLineItem,
+  OrderLineItemModifier,
+  OrderPaymentMethod,
+  OrderStatus,
+} from "@/lib/constants";
+import {
+  decimalToMinorUnits,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 
 const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
@@ -116,9 +125,52 @@ export function buildOrderSummary(items: Array<{ drinkName: string; quantity: nu
   return `${first.drinkName} + ${totalQuantity - first.quantity} more`;
 }
 
+function getDisplayedPaymentAmount(
+  order: typeof orders.$inferSelect,
+  items: OrderLineItem[],
+) {
+  if (
+    order.source !== "STAFF_CREATED" ||
+    order.paymentStatus !== "UNPAID" ||
+    order.status === "CANCELLED" ||
+    !order.paymentCurrency
+  ) {
+    return order.paymentAmount;
+  }
+
+  const currency = order.paymentCurrency;
+  let totalMinor = 0;
+
+  for (const item of items.filter((current) => current.status !== "CANCELLED")) {
+    if (item.unitPrice === null) {
+      return null;
+    }
+
+    const modifierMinor = (item.modifiers ?? []).reduce(
+      (total, modifier) =>
+        total +
+        decimalToMinorUnits(modifier.priceDelta, currency) *
+          modifier.quantity,
+      0,
+    );
+    totalMinor +=
+      (decimalToMinorUnits(item.unitPrice, currency) + modifierMinor) *
+      item.quantity;
+  }
+
+  return totalMinor > 0
+    ? minorUnitsToDecimal(totalMinor, currency)
+    : null;
+}
+
 export function serializeOrder(
   order: typeof orders.$inferSelect,
   items: OrderLineItem[] = [],
+  paymentMethod: OrderPaymentMethod | null = null,
+  paymentPortions: Array<{
+    amount: string;
+    method: OrderPaymentMethod;
+  }> = [],
 ) {
   return {
     orderId: order.id,
@@ -126,6 +178,7 @@ export function serializeOrder(
     orderDate: order.orderDate,
     organizationId: order.organizationId,
     customerName: order.customerName,
+    source: order.source,
     categoryName: order.categoryName,
     drinkName: order.drinkName,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -139,8 +192,13 @@ export function serializeOrder(
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     announcementCount: order.announcementCount,
     paymentStatus: order.paymentStatus,
-    paymentAmount: order.paymentAmount,
+    paymentMethod:
+      paymentMethod ??
+      (order.stripeCheckoutSessionId ? "STRIPE_CHECKOUT" : null),
+    paymentAmount: getDisplayedPaymentAmount(order, items),
+    paymentCollectedAmount: order.paymentCollectedAmount,
     paymentCurrency: order.paymentCurrency,
+    paymentPortions,
     customerCancellationFeeBps:
       order.customerCancellationFeeBpsSnapshot,
     cancellationFeeBpsApplied: order.cancellationFeeBpsApplied,
@@ -173,7 +231,18 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
         and(
           eq(orders.organizationId, context.organizationId),
           inArray(orders.status, activeOrderStatuses),
-          inArray(orders.paymentStatus, ["NOT_REQUIRED", "PAID"]),
+          or(
+            inArray(orders.paymentStatus, [
+              "NOT_REQUIRED",
+              "UNPAID",
+              "PARTIALLY_PAID",
+              "PAID",
+            ]),
+            and(
+              eq(orders.source, "STAFF_CREATED"),
+              eq(orders.paymentStatus, "PENDING"),
+            ),
+          ),
         ),
       )
       .orderBy(activeOrderRank(), desc(orders.createdAt)),
@@ -184,20 +253,98 @@ export async function getStaffOrders(context: TenantContext = getDefaultTenantCo
         and(
           eq(orders.organizationId, context.organizationId),
           inArray(orders.status, pastOrderStatuses),
-          inArray(orders.paymentStatus, [
-            "NOT_REQUIRED",
-            "PAID",
-            "REFUND_PENDING",
-            "PARTIALLY_REFUNDED",
-            "REFUND_FAILED",
-            "REFUNDED",
-          ]),
+          or(
+            inArray(orders.paymentStatus, [
+              "NOT_REQUIRED",
+              "UNPAID",
+              "PARTIALLY_PAID",
+              "PAID",
+              "REFUND_PENDING",
+              "PARTIALLY_REFUNDED",
+              "REFUND_FAILED",
+              "REFUNDED",
+            ]),
+            and(
+              eq(orders.source, "STAFF_CREATED"),
+              eq(orders.paymentStatus, "PENDING"),
+            ),
+          ),
         ),
       )
       .orderBy(desc(pastOrderClosedAt())),
   ]);
 
   return { activeOrders, pastOrders };
+}
+
+export async function getLatestOrderPaymentsForOrders(
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  if (orderIds.length === 0) {
+    return new Map<string, OrderPaymentMethod>();
+  }
+
+  const rows = await getDb()
+    .select({
+      method: orderPayments.method,
+      orderId: orderPayments.orderId,
+    })
+    .from(orderPayments)
+    .where(
+      and(
+        inArray(orderPayments.orderId, orderIds),
+        eq(orderPayments.organizationId, context.organizationId),
+      ),
+    )
+    .orderBy(desc(orderPayments.createdAt));
+  const methods = new Map<string, OrderPaymentMethod>();
+
+  for (const row of rows) {
+    if (!methods.has(row.orderId)) {
+      methods.set(row.orderId, row.method);
+    }
+  }
+
+  return methods;
+}
+
+export async function getSuccessfulOrderPaymentPortionsForOrders(
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const portions = new Map<
+    string,
+    Array<{ amount: string; method: OrderPaymentMethod }>
+  >();
+
+  if (orderIds.length === 0) {
+    return portions;
+  }
+
+  const rows = await getDb()
+    .select({
+      amount: orderPayments.amount,
+      method: orderPayments.method,
+      orderId: orderPayments.orderId,
+    })
+    .from(orderPayments)
+    .where(
+      and(
+        inArray(orderPayments.orderId, orderIds),
+        eq(orderPayments.organizationId, context.organizationId),
+        eq(orderPayments.status, "SUCCEEDED"),
+      ),
+    )
+    .orderBy(desc(orderPayments.completedAt), desc(orderPayments.createdAt));
+
+  for (const row of rows) {
+    const orderPortions = portions.get(row.orderId) ?? [];
+    orderPortions.push({ amount: row.amount, method: row.method });
+    portions.set(row.orderId, orderPortions);
+  }
+
+  return portions;
 }
 
 

@@ -100,6 +100,8 @@ export const orderSourceEnum = pgEnum("order_source", [
 
 export const paymentStatusEnum = pgEnum("payment_status", [
   "NOT_REQUIRED",
+  "UNPAID",
+  "PARTIALLY_PAID",
   "PENDING",
   "PAID",
   "FAILED",
@@ -129,7 +131,20 @@ export const integrationVerificationStatusEnum = pgEnum(
   ["NOT_CONFIGURED", "PENDING", "VERIFIED", "FAILED"],
 );
 
-export const paymentProviderEnum = pgEnum("payment_provider", ["STRIPE"]);
+export const paymentProviderEnum = pgEnum("payment_provider", [
+  "STRIPE",
+  "CASH",
+]);
+
+export const orderPaymentMethodEnum = pgEnum("order_payment_method", [
+  "CASH",
+  "STRIPE_CHECKOUT",
+]);
+
+export const orderPaymentRecordStatusEnum = pgEnum(
+  "order_payment_record_status",
+  ["PENDING", "SUCCEEDED", "FAILED", "CANCELLED"],
+);
 
 export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
   "GOOGLE",
@@ -858,6 +873,12 @@ export const orders = pgTable("orders", {
     .default("NOT_REQUIRED")
     .notNull(),
   paymentAmount: numeric("payment_amount", { precision: 10, scale: 2 }),
+  paymentCollectedAmount: numeric("payment_collected_amount", {
+    precision: 10,
+    scale: 2,
+  })
+    .default("0")
+    .notNull(),
   paymentCurrency: text("payment_currency"),
   paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
     () => organizations.id,
@@ -932,7 +953,11 @@ export const orders = pgTable("orders", {
   ),
   check(
     "orders_cancellation_amounts_check",
-    sql`(${table.cancellationFeeAmount} IS NULL AND ${table.refundAmount} IS NULL) OR (${table.cancellationFeeAmount} IS NOT NULL AND ${table.cancellationFeeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.paymentAmount} IS NOT NULL AND ${table.cancellationFeeAmount} + ${table.refundAmount} = ${table.paymentAmount})`,
+    sql`(${table.cancellationFeeAmount} IS NULL AND ${table.refundAmount} IS NULL) OR (${table.cancellationFeeAmount} IS NOT NULL AND ${table.cancellationFeeAmount} >= 0 AND ${table.refundAmount} IS NOT NULL AND ${table.refundAmount} >= 0 AND ${table.cancellationFeeAmount} + ${table.refundAmount} = ${table.paymentCollectedAmount})`,
+  ),
+  check(
+    "orders_payment_collected_amount_check",
+    sql`${table.paymentCollectedAmount} >= 0 AND ((${table.paymentAmount} IS NULL AND ${table.paymentCollectedAmount} = 0) OR (${table.paymentAmount} IS NOT NULL AND ${table.paymentCollectedAmount} <= ${table.paymentAmount}))`,
   ),
 ]);
 
@@ -978,6 +1003,58 @@ export const orderCancellations = pgTable(
   ],
 );
 
+export const orderPayments = pgTable(
+  "order_payments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    method: orderPaymentMethodEnum("method").notNull(),
+    status: orderPaymentRecordStatusEnum("status")
+      .default("PENDING")
+      .notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    tenderedAmount: numeric("tendered_amount", { precision: 10, scale: 2 }),
+    changeAmount: numeric("change_amount", { precision: 10, scale: 2 }),
+    receivedByUserId: uuid("received_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    stripeConnectedAccountId: text("stripe_connected_account_id"),
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    completedAt: timestamp("completed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_payments_organization_order_idx").on(
+      table.organizationId,
+      table.orderId,
+    ),
+    index("order_payments_order_status_created_idx").on(
+      table.orderId,
+      table.status,
+      table.createdAt,
+    ),
+    uniqueIndex("order_payments_stripe_checkout_session_unique").on(
+      table.stripeCheckoutSessionId,
+    ),
+    uniqueIndex("order_payments_stripe_payment_intent_unique").on(
+      table.stripePaymentIntentId,
+    ),
+    check("order_payments_amount_check", sql`${table.amount} > 0`),
+    check(
+      "order_payments_cash_amounts_check",
+      sql`(${table.method} = 'CASH' AND ${table.tenderedAmount} IS NOT NULL AND ${table.changeAmount} IS NOT NULL AND ${table.tenderedAmount} >= ${table.amount} AND ${table.changeAmount} = ${table.tenderedAmount} - ${table.amount}) OR (${table.method} = 'STRIPE_CHECKOUT' AND ${table.tenderedAmount} IS NULL AND ${table.changeAmount} IS NULL)`,
+    ),
+  ],
+);
+
 export const orderRefunds = pgTable(
   "order_refunds",
   {
@@ -991,6 +1068,9 @@ export const orderRefunds = pgTable(
     cancellationId: uuid("cancellation_id")
       .references(() => orderCancellations.id, { onDelete: "cascade" })
       .notNull(),
+    orderPaymentId: uuid("order_payment_id").references(() => orderPayments.id, {
+      onDelete: "set null",
+    }),
     provider: paymentProviderEnum("provider").default("STRIPE").notNull(),
     status: refundStatusEnum("status").default("PENDING").notNull(),
     amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
@@ -1010,12 +1090,13 @@ export const orderRefunds = pgTable(
       table.orderId,
       table.requestedAt,
     ),
+    index("order_refunds_payment_idx").on(table.orderPaymentId),
     uniqueIndex("order_refunds_stripe_refund_unique").on(table.stripeRefundId),
     uniqueIndex("order_refunds_idempotency_key_unique").on(
       table.idempotencyKey,
     ),
-    uniqueIndex("order_refunds_one_pending_per_cancellation_unique")
-      .on(table.cancellationId)
+    uniqueIndex("order_refunds_one_pending_per_payment_unique")
+      .on(table.cancellationId, table.orderPaymentId)
       .where(sql`${table.status} = 'PENDING'`),
     check("order_refunds_amount_check", sql`${table.amount} > 0`),
   ],

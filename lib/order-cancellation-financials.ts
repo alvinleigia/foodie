@@ -29,3 +29,51 @@ export function calculateCancellationAmounts(input: {
     refundMinor,
   };
 }
+
+export function allocateRefundAcrossPayments(input: {
+  currency: string;
+  payments: Array<{
+    amount: string;
+    id: string;
+    method: "CASH" | "STRIPE_CHECKOUT";
+  }>;
+  refundAmount: string;
+}) {
+  let remainingMinor = decimalToMinorUnits(
+    input.refundAmount,
+    input.currency,
+  );
+  const allocations: Array<{
+    amount: string;
+    amountMinor: number;
+    method: "CASH" | "STRIPE_CHECKOUT";
+    orderPaymentId: string;
+  }> = [];
+
+  for (const payment of input.payments) {
+    if (remainingMinor === 0) {
+      break;
+    }
+
+    const paymentMinor = decimalToMinorUnits(payment.amount, input.currency);
+    const amountMinor = Math.min(paymentMinor, remainingMinor);
+
+    if (amountMinor <= 0) {
+      continue;
+    }
+
+    allocations.push({
+      amount: minorUnitsToDecimal(amountMinor, input.currency),
+      amountMinor,
+      method: payment.method,
+      orderPaymentId: payment.id,
+    });
+    remainingMinor -= amountMinor;
+  }
+
+  if (remainingMinor > 0) {
+    throw new Error("Successful payments do not cover the refund amount.");
+  }
+
+  return allocations;
+}

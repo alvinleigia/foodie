@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   orderCancellations,
   orderItems,
+  orderPayments,
   orderRefunds,
   orders,
 } from "@/db/schema";
@@ -14,7 +15,10 @@ import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { logError } from "@/lib/logger";
 import { decimalToMinorUnits } from "@/lib/currency-money";
-import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
+import {
+  allocateRefundAcrossPayments,
+  calculateCancellationAmounts,
+} from "@/lib/order-cancellation-financials";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
 
@@ -42,8 +46,13 @@ type CancelOrderInput = {
 
 type RefundOperation = {
   order: typeof orders.$inferSelect;
+  payment: typeof orderPayments.$inferSelect | null;
   refund: typeof orderRefunds.$inferSelect;
 };
+
+type CancellationTransaction = Parameters<
+  Parameters<ReturnType<typeof getDb>["transaction"]>[0]
+>[0];
 
 export class OrderCancellationError extends Error {
   status: number;
@@ -66,23 +75,76 @@ function normalizeBps(value: number) {
   return value;
 }
 
-function getRefundPaymentStatus(
+function getCompletedRefundPaymentStatus(
   order: typeof orders.$inferSelect,
-  refund: typeof orderRefunds.$inferSelect,
+  refundedMinor: number,
 ) {
-  if (!order.paymentAmount || !order.paymentCurrency) {
+  if (!order.refundAmount || !order.paymentCurrency) {
     return "PARTIALLY_REFUNDED" as const;
   }
 
-  const grossMinor = decimalToMinorUnits(
-    order.paymentAmount,
+  const expectedRefundMinor = decimalToMinorUnits(
+    order.refundAmount,
     order.paymentCurrency,
   );
-  const refundMinor = decimalToMinorUnits(refund.amount, refund.currency);
+  const collectedMinor = decimalToMinorUnits(
+    order.paymentCollectedAmount,
+    order.paymentCurrency,
+  );
 
-  return refundMinor >= grossMinor
+  return refundedMinor >= expectedRefundMinor && expectedRefundMinor >= collectedMinor
     ? ("REFUNDED" as const)
     : ("PARTIALLY_REFUNDED" as const);
+}
+
+async function updateOrderRefundStatus(
+  tx: CancellationTransaction,
+  orderId: string,
+) {
+  const [order] = await tx
+    .select()
+    .from(orders)
+    .where(eq(orders.id, orderId))
+    .limit(1)
+    .for("update");
+
+  if (!order || !order.paymentCurrency || !order.refundAmount) {
+    return order ?? null;
+  }
+
+  const attempts = await tx
+    .select({
+      amount: orderRefunds.amount,
+      currency: orderRefunds.currency,
+      status: orderRefunds.status,
+    })
+    .from(orderRefunds)
+    .where(eq(orderRefunds.orderId, order.id));
+  const succeededMinor = attempts
+    .filter((attempt) => attempt.status === "SUCCEEDED")
+    .reduce(
+      (total, attempt) =>
+        total + decimalToMinorUnits(attempt.amount, attempt.currency),
+      0,
+    );
+  const expectedMinor = decimalToMinorUnits(
+    order.refundAmount,
+    order.paymentCurrency,
+  );
+  const nextPaymentStatus =
+    succeededMinor >= expectedMinor
+      ? getCompletedRefundPaymentStatus(order, succeededMinor)
+      : attempts.some((attempt) => attempt.status === "PENDING")
+        ? ("REFUND_PENDING" as const)
+        : ("REFUND_FAILED" as const);
+  const now = new Date();
+  const [updatedOrder] = await tx
+    .update(orders)
+    .set({ paymentStatus: nextPaymentStatus, updatedAt: now })
+    .where(eq(orders.id, order.id))
+    .returning();
+
+  return updatedOrder ?? order;
 }
 
 function mapStripeRefundStatus(status: string | null) {
@@ -101,10 +163,12 @@ async function getRefundOperation(refundId: string) {
   const [record] = await getDb()
     .select({
       order: orders,
+      payment: orderPayments,
       refund: orderRefunds,
     })
     .from(orderRefunds)
     .innerJoin(orders, eq(orders.id, orderRefunds.orderId))
+    .leftJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
     .where(eq(orderRefunds.id, refundId))
     .limit(1);
 
@@ -116,40 +180,39 @@ async function setRefundAttemptFailed(
   failureReason: string,
 ) {
   const now = new Date();
-  const [failedRefund] = await getDb()
-    .update(orderRefunds)
-    .set({
-      failureReason: failureReason.slice(0, 500),
-      processedAt: now,
-      status: "FAILED",
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(orderRefunds.id, operation.refund.id),
-        eq(orderRefunds.status, "PENDING"),
-      ),
-    )
-    .returning();
+  const result = await getDb().transaction(async (tx) => {
+    const [failedRefund] = await tx
+      .update(orderRefunds)
+      .set({
+        failureReason: failureReason.slice(0, 500),
+        processedAt: now,
+        status: "FAILED",
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(orderRefunds.id, operation.refund.id),
+          eq(orderRefunds.status, "PENDING"),
+        ),
+      )
+      .returning();
 
-  if (!failedRefund) {
+    if (!failedRefund) {
+      return { failedRefund: null, order: operation.order };
+    }
+
+    return {
+      failedRefund,
+      order:
+        (await updateOrderRefundStatus(tx, operation.order.id)) ??
+        operation.order,
+    };
+  });
+
+  if (!result.failedRefund) {
     const current = await getRefundOperation(operation.refund.id);
     return current?.order ?? operation.order;
   }
-
-  const [order] = await getDb()
-    .update(orders)
-    .set({
-      paymentStatus: "REFUND_FAILED",
-      updatedAt: now,
-    })
-    .where(
-      and(
-        eq(orders.id, operation.order.id),
-        eq(orders.paymentStatus, "REFUND_PENDING"),
-      ),
-    )
-    .returning();
 
   await writeAuditLog({
     actor: null,
@@ -166,7 +229,7 @@ async function setRefundAttemptFailed(
     },
   });
 
-  return order ?? operation.order;
+  return result.order;
 }
 
 export async function syncOrderRefundFromStripe(
@@ -183,10 +246,12 @@ export async function syncOrderRefundFromStripe(
   const [operation] = await getDb()
     .select({
       order: orders,
+      payment: orderPayments,
       refund: orderRefunds,
     })
     .from(orderRefunds)
     .innerJoin(orders, eq(orders.id, orderRefunds.orderId))
+    .leftJoin(orderPayments, eq(orderPayments.id, orderRefunds.orderPaymentId))
     .where(lookup)
     .limit(1);
 
@@ -194,7 +259,11 @@ export async function syncOrderRefundFromStripe(
     return null;
   }
 
-  if (operation.order.stripeConnectedAccountId !== stripeConnectedAccountId) {
+  const paymentAccountId =
+    operation.payment?.stripeConnectedAccountId ??
+    operation.order.stripeConnectedAccountId;
+
+  if (paymentAccountId !== stripeConnectedAccountId) {
     throw new Error("Stripe refund account does not match the order account.");
   }
 
@@ -231,25 +300,7 @@ export async function syncOrderRefundFromStripe(
       })
       .where(eq(orderRefunds.id, operation.refund.id));
 
-    const attempts = await tx
-      .select({ status: orderRefunds.status })
-      .from(orderRefunds)
-      .where(eq(orderRefunds.orderId, operation.order.id));
-    const nextPaymentStatus = attempts.some(
-      (attempt) => attempt.status === "SUCCEEDED",
-    )
-      ? getRefundPaymentStatus(operation.order, operation.refund)
-      : attempts.some((attempt) => attempt.status === "PENDING")
-        ? ("REFUND_PENDING" as const)
-        : ("REFUND_FAILED" as const);
-
-    await tx
-      .update(orders)
-      .set({
-        paymentStatus: nextPaymentStatus,
-        updatedAt: now,
-      })
-      .where(eq(orders.id, operation.order.id));
+    await updateOrderRefundStatus(tx, operation.order.id);
   });
 
   if (statusChanged) {
@@ -297,10 +348,14 @@ async function executeRefund(refundId: string) {
       throw new Error("Stripe is not configured for refunds.");
     }
 
-    if (
-      !operation.order.stripeConnectedAccountId ||
-      !operation.order.stripePaymentIntentId
-    ) {
+    const stripeConnectedAccountId =
+      operation.payment?.stripeConnectedAccountId ??
+      operation.order.stripeConnectedAccountId;
+    const stripePaymentIntentId =
+      operation.payment?.stripePaymentIntentId ??
+      operation.order.stripePaymentIntentId;
+
+    if (!stripeConnectedAccountId || !stripePaymentIntentId) {
       throw new Error("The Stripe payment reference is missing from this order.");
     }
 
@@ -315,18 +370,18 @@ async function executeRefund(refundId: string) {
           orderId: operation.order.id,
           refundRecordId: operation.refund.id,
         },
-        payment_intent: operation.order.stripePaymentIntentId,
+        payment_intent: stripePaymentIntentId,
         reason: "requested_by_customer",
         refund_application_fee: true,
       },
       {
         idempotencyKey: operation.refund.idempotencyKey,
-        stripeAccount: operation.order.stripeConnectedAccountId,
+        stripeAccount: stripeConnectedAccountId,
       },
     );
     const order = await syncOrderRefundFromStripe(
       stripeRefund,
-      operation.order.stripeConnectedAccountId,
+      stripeConnectedAccountId,
     );
 
     if (!order) {
@@ -347,6 +402,28 @@ async function executeRefund(refundId: string) {
       order: await setRefundAttemptFailed(operation, message),
     };
   }
+}
+
+async function executeRefunds(
+  refundIds: string[],
+  fallbackOrder: typeof orders.$inferSelect,
+) {
+  let order = fallbackOrder;
+  const errors: string[] = [];
+
+  for (const refundId of refundIds) {
+    const result = await executeRefund(refundId);
+    order = result.order;
+
+    if (result.error) {
+      errors.push(result.error);
+    }
+  }
+
+  return {
+    error: errors.length > 0 ? errors.join(" ") : null,
+    order,
+  };
 }
 
 async function prepareRefundRetry(input: CancelOrderInput) {
@@ -380,19 +457,40 @@ async function prepareRefundRetry(input: CancelOrderInput) {
       throw new OrderCancellationError("This order does not have a failed refund.");
     }
 
-    const [refund] = await tx
+    const attempts = await tx
       .select()
       .from(orderRefunds)
       .where(
-        and(
-          eq(orderRefunds.orderId, order.id),
-          eq(orderRefunds.status, "FAILED"),
-        ),
+        eq(orderRefunds.orderId, order.id),
       )
-      .orderBy(desc(orderRefunds.requestedAt))
-      .limit(1);
+      .orderBy(desc(orderRefunds.requestedAt));
+    const retryableRefunds: typeof orderRefunds.$inferSelect[] = [];
+    const reviewedPaymentKeys = new Set<string>();
 
-    if (!refund) {
+    for (const attempt of attempts) {
+      if (attempt.status !== "FAILED" || attempt.provider !== "STRIPE") {
+        continue;
+      }
+
+      const paymentKey = attempt.orderPaymentId ?? "legacy-stripe-payment";
+
+      if (reviewedPaymentKeys.has(paymentKey)) {
+        continue;
+      }
+
+      reviewedPaymentKeys.add(paymentKey);
+      const hasActiveOrSuccessfulReplacement = attempts.some(
+        (candidate) =>
+          (candidate.orderPaymentId ?? "legacy-stripe-payment") === paymentKey &&
+          (candidate.status === "PENDING" || candidate.status === "SUCCEEDED"),
+      );
+
+      if (!hasActiveOrSuccessfulReplacement) {
+        retryableRefunds.push(attempt);
+      }
+    }
+
+    if (retryableRefunds.length === 0) {
       throw new OrderCancellationError("No failed refund record was found.");
     }
 
@@ -412,46 +510,55 @@ async function prepareRefundRetry(input: CancelOrderInput) {
       throw new OrderCancellationError("The refund is already being retried.");
     }
 
-    if (refund.stripeRefundId) {
-      const nextRefundId = randomUUID();
-      const [nextRefund] = await tx
-        .insert(orderRefunds)
-        .values({
-          amount: refund.amount,
-          cancellationId: refund.cancellationId,
-          currency: refund.currency,
-          id: nextRefundId,
-          idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
-          orderId: order.id,
-          organizationId: order.organizationId,
-          requestedByUserId: actorUser.id,
+    const refunds: typeof orderRefunds.$inferSelect[] = [];
+
+    for (const refund of retryableRefunds) {
+      if (refund.stripeRefundId) {
+        const nextRefundId = randomUUID();
+        const [nextRefund] = await tx
+          .insert(orderRefunds)
+          .values({
+            amount: refund.amount,
+            cancellationId: refund.cancellationId,
+            currency: refund.currency,
+            id: nextRefundId,
+            idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
+            orderId: order.id,
+            orderPaymentId: refund.orderPaymentId,
+            organizationId: order.organizationId,
+            provider: "STRIPE",
+            requestedByUserId: actorUser.id,
+          })
+          .returning();
+
+        refunds.push(nextRefund);
+        continue;
+      }
+
+      const [retriedRefund] = await tx
+        .update(orderRefunds)
+        .set({
+          failureReason: null,
+          processedAt: null,
+          status: "PENDING",
+          updatedAt: now,
         })
+        .where(
+          and(
+            eq(orderRefunds.id, refund.id),
+            eq(orderRefunds.status, "FAILED"),
+          ),
+        )
         .returning();
 
-      return { order: updatedOrder, refund: nextRefund };
+      if (!retriedRefund) {
+        throw new OrderCancellationError("The refund is already being retried.");
+      }
+
+      refunds.push(retriedRefund);
     }
 
-    const [retriedRefund] = await tx
-      .update(orderRefunds)
-      .set({
-        failureReason: null,
-        processedAt: null,
-        status: "PENDING",
-        updatedAt: now,
-      })
-      .where(
-        and(
-          eq(orderRefunds.id, refund.id),
-          eq(orderRefunds.status, "FAILED"),
-        ),
-      )
-      .returning();
-
-    if (!retriedRefund) {
-      throw new OrderCancellationError("The refund is already being retried.");
-    }
-
-    return { order: updatedOrder, refund: retriedRefund };
+    return { order: updatedOrder, refunds };
   });
 }
 
@@ -459,19 +566,25 @@ export async function cancelOrder(input: CancelOrderInput) {
   if (input.retryRefund) {
     const retry = await prepareRefundRetry(input);
 
-    await writeAuditLog({
-      actor: input.actorUser ?? null,
-      organizationId: input.organizationId,
-      action: "order.refund.retry",
-      entityType: "order_refund",
-      entityId: retry.refund.id,
-      metadata: {
-        orderId: retry.order.id,
-        orderNo: retry.order.orderNo,
-      },
-    });
+    for (const refund of retry.refunds) {
+      await writeAuditLog({
+        actor: input.actorUser ?? null,
+        organizationId: input.organizationId,
+        action: "order.refund.retry",
+        entityType: "order_refund",
+        entityId: refund.id,
+        metadata: {
+          orderId: retry.order.id,
+          orderNo: retry.order.orderNo,
+          orderPaymentId: refund.orderPaymentId,
+        },
+      });
+    }
 
-    return executeRefund(retry.refund.id);
+    return executeRefunds(
+      retry.refunds.map((refund) => refund.id),
+      retry.order,
+    );
   }
 
   const prepared = await getDb().transaction(async (tx) => {
@@ -501,7 +614,7 @@ export async function cancelOrder(input: CancelOrderInput) {
     }
 
     if (order.status === "CANCELLED") {
-      return { cancellation: null, order, refund: null };
+      return { cancellation: null, order, refunds: [] };
     }
 
     const isAllowedStatus =
@@ -523,18 +636,29 @@ export async function cancelOrder(input: CancelOrderInput) {
       );
     }
 
-    if (order.paymentStatus !== "PAID" && order.paymentStatus !== "NOT_REQUIRED") {
+    if (
+      order.paymentStatus !== "PAID" &&
+      order.paymentStatus !== "PARTIALLY_PAID" &&
+      order.paymentStatus !== "UNPAID" &&
+      order.paymentStatus !== "NOT_REQUIRED"
+    ) {
       throw new OrderCancellationError(
         "This order cannot be cancelled in its current payment state.",
       );
     }
 
+    const hasCollectedPayment =
+      order.paymentStatus === "PAID" ||
+      order.paymentStatus === "PARTIALLY_PAID";
+
     if (
-      order.paymentStatus === "PAID" &&
-      (!order.paymentAmount || !order.paymentCurrency)
+      hasCollectedPayment &&
+      (!order.paymentAmount ||
+        !order.paymentCurrency ||
+        Number(order.paymentCollectedAmount) <= 0)
     ) {
       throw new OrderCancellationError(
-        "This paid order is missing payment details and must be reviewed before cancellation.",
+        "This order is missing collected payment details and must be reviewed before cancellation.",
       );
     }
 
@@ -590,15 +714,70 @@ export async function cancelOrder(input: CancelOrderInput) {
       }
     }
 
+    const successfulPayments = hasCollectedPayment
+      ? await tx
+          .select()
+          .from(orderPayments)
+          .where(
+            and(
+              eq(orderPayments.orderId, order.id),
+              eq(orderPayments.organizationId, order.organizationId),
+              eq(orderPayments.status, "SUCCEEDED"),
+            ),
+          )
+          .orderBy(desc(orderPayments.completedAt), desc(orderPayments.createdAt))
+      : [];
     const financials =
-      order.paymentStatus === "PAID" && order.paymentAmount && order.paymentCurrency
+      hasCollectedPayment && order.paymentCurrency
         ? calculateCancellationAmounts({
-            amount: order.paymentAmount,
+            amount: order.paymentCollectedAmount,
             currency: order.paymentCurrency,
             feeBps: appliedFeeBps,
           })
         : null;
-    const refundId = financials && financials.refundMinor > 0 ? randomUUID() : null;
+
+    if (hasCollectedPayment && order.paymentCurrency) {
+      const collectedMinor = decimalToMinorUnits(
+        order.paymentCollectedAmount,
+        order.paymentCurrency,
+      );
+      const recordedMinor = successfulPayments.reduce((total, payment) => {
+        if (payment.currency !== order.paymentCurrency) {
+          throw new OrderCancellationError(
+            "The payment ledger currency does not match this order.",
+          );
+        }
+
+        return (
+          total + decimalToMinorUnits(payment.amount, order.paymentCurrency)
+        );
+      }, 0);
+
+      if (recordedMinor !== collectedMinor) {
+        throw new OrderCancellationError(
+          "The collected payment ledger does not match this order and must be reviewed before cancellation.",
+        );
+      }
+    }
+
+    const refundAllocations =
+      financials && financials.refundMinor > 0 && order.paymentCurrency
+        ? allocateRefundAcrossPayments({
+            currency: order.paymentCurrency,
+            payments: successfulPayments.map((payment) => ({
+              amount: payment.amount,
+              id: payment.id,
+              method: payment.method,
+            })),
+            refundAmount: financials.refundAmount,
+          })
+        : [];
+    const hasStripeRefund = refundAllocations.some(
+      (allocation) => allocation.method === "STRIPE_CHECKOUT",
+    );
+    const hasCashRefund = refundAllocations.some(
+      (allocation) => allocation.method === "CASH",
+    );
     const now = new Date();
     const [updatedOrder] = await tx
       .update(orders)
@@ -609,7 +788,13 @@ export async function cancelOrder(input: CancelOrderInput) {
         cancelledByType: input.actorType,
         cancelledByUserId: input.actorUser?.id ?? null,
         cancelReason: input.cancelReason?.trim() || null,
-        paymentStatus: refundId ? "REFUND_PENDING" : order.paymentStatus,
+        paymentStatus: hasStripeRefund
+          ? "REFUND_PENDING"
+          : hasCashRefund
+            ? financials?.refundMinor === financials?.grossMinor
+              ? "REFUNDED"
+              : "PARTIALLY_REFUNDED"
+            : order.paymentStatus,
         refundAmount: financials?.refundAmount ?? null,
         status: "CANCELLED",
         updatedAt: now,
@@ -688,25 +873,33 @@ export async function cancelOrder(input: CancelOrderInput) {
         refundAmount: financials?.refundAmount ?? null,
       })
       .returning();
-    let refund: typeof orderRefunds.$inferSelect | null = null;
+    const refunds: typeof orderRefunds.$inferSelect[] = [];
 
-    if (refundId && financials && order.paymentCurrency) {
-      [refund] = await tx
+    for (const allocation of refundAllocations) {
+      const refundId = randomUUID();
+      const isCash = allocation.method === "CASH";
+      const [refund] = await tx
         .insert(orderRefunds)
         .values({
-          amount: financials.refundAmount,
+          amount: allocation.amount,
           cancellationId: cancellation.id,
-          currency: order.paymentCurrency,
+          currency: order.paymentCurrency!,
           id: refundId,
           idempotencyKey: `order-refund-${order.id}-${refundId}`,
           orderId: order.id,
+          orderPaymentId: allocation.orderPaymentId,
           organizationId: order.organizationId,
+          processedAt: isCash ? now : null,
+          provider: isCash ? "CASH" : "STRIPE",
           requestedByUserId: input.actorUser?.id ?? null,
+          status: isCash ? "SUCCEEDED" : "PENDING",
         })
         .returning();
+
+      refunds.push(refund);
     }
 
-    return { cancellation, order: updatedOrder, refund };
+    return { cancellation, order: updatedOrder, refunds };
   });
 
   if (!prepared.cancellation) {
@@ -731,9 +924,36 @@ export async function cancelOrder(input: CancelOrderInput) {
     },
   });
 
-  if (!prepared.refund) {
+  for (const refund of prepared.refunds.filter(
+    (current) => current.provider === "CASH",
+  )) {
+    await writeAuditLog({
+      actor: input.actorUser ?? null,
+      organizationId: input.organizationId,
+      action: "order.refund.succeeded",
+      entityType: "order_refund",
+      entityId: refund.id,
+      metadata: {
+        amount: refund.amount,
+        currency: refund.currency,
+        orderId: prepared.order.id,
+        orderNo: prepared.order.orderNo,
+        orderPaymentId: refund.orderPaymentId,
+        provider: refund.provider,
+      },
+    });
+  }
+
+  const stripeRefunds = prepared.refunds.filter(
+    (refund) => refund.provider === "STRIPE" && refund.status === "PENDING",
+  );
+
+  if (stripeRefunds.length === 0) {
     return { error: null, order: prepared.order };
   }
 
-  return executeRefund(prepared.refund.id);
+  return executeRefunds(
+    stripeRefunds.map((refund) => refund.id),
+    prepared.order,
+  );
 }

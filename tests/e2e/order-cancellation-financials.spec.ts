@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
+import {
+  allocateRefundAcrossPayments,
+  calculateCancellationAmounts,
+} from "@/lib/order-cancellation-financials";
 
 test.describe("order cancellation financials", () => {
   test("calculates a full refund when no fee applies", () => {
@@ -70,5 +73,41 @@ test.describe("order cancellation financials", () => {
         feeBps: 10_001,
       }),
     ).toThrow("Cancellation fee must be between 0% and 100%.");
+  });
+
+  test("allocates a mixed refund across the original payment portions", () => {
+    expect(
+      allocateRefundAcrossPayments({
+        currency: "GBP",
+        payments: [
+          { amount: "6.00", id: "stripe-payment", method: "STRIPE_CHECKOUT" },
+          { amount: "4.00", id: "cash-payment", method: "CASH" },
+        ],
+        refundAmount: "9.00",
+      }),
+    ).toEqual([
+      {
+        amount: "6.00",
+        amountMinor: 600,
+        method: "STRIPE_CHECKOUT",
+        orderPaymentId: "stripe-payment",
+      },
+      {
+        amount: "3.00",
+        amountMinor: 300,
+        method: "CASH",
+        orderPaymentId: "cash-payment",
+      },
+    ]);
+  });
+
+  test("rejects a refund not covered by successful payments", () => {
+    expect(() =>
+      allocateRefundAcrossPayments({
+        currency: "GBP",
+        payments: [{ amount: "4.00", id: "cash-payment", method: "CASH" }],
+        refundAmount: "4.01",
+      }),
+    ).toThrow("Successful payments do not cover the refund amount.");
   });
 });
