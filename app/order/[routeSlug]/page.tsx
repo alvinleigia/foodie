@@ -9,6 +9,7 @@ export default async function RestaurantOrderPage(
   const params = await props.params;
   const {
     customer,
+    customerAccountsEnabled,
     customerAuthProviders,
     customerOrderingEnabled,
     hasTenantContext,
@@ -19,7 +20,7 @@ export default async function RestaurantOrderPage(
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext && customerOrderingEnabled ? (
+      {hasTenantContext && customerOrderingEnabled && customerAccountsEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}

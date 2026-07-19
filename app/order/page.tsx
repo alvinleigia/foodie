@@ -25,6 +25,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const routeSlug = typeof routeValue === "string" ? routeValue : undefined;
   const {
     customer,
+    customerAccountsEnabled,
     customerAuthProviders,
     customerOrderingEnabled,
     hasTenantContext,
@@ -36,7 +37,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext && customerOrderingEnabled ? (
+      {hasTenantContext && customerOrderingEnabled && customerAccountsEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}

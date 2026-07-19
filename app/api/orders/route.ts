@@ -155,6 +155,10 @@ export async function POST(request: NextRequest) {
         tenantContext.organizationId,
         "ordering.customer",
       );
+      await assertOrganizationFeatureEnabled(
+        tenantContext.organizationId,
+        "ordering.customer_accounts",
+      );
     }
 
     const customerProfile =

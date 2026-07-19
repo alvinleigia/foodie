@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireCustomerSession, requireStaffSession } from "@/lib/auth";
 import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
+import {
   cancelOrder,
   OrderCancellationError,
 } from "@/lib/order-cancellation";
@@ -48,6 +52,10 @@ export async function POST(
       }
 
       const tenantContext = await getPublicTenantContextFromRequest(request);
+      await assertOrganizationFeatureEnabled(
+        tenantContext.organizationId,
+        "ordering.customer_accounts",
+      );
       const parsed = customerCancelOrderSchema.safeParse(body);
 
       if (!parsed.success) {
@@ -109,6 +117,8 @@ export async function POST(
       error instanceof OrderCancellationError ||
       error instanceof StaffRestaurantContextError
         ? error.status
+        : error instanceof FeatureEntitlementError
+          ? 403
         : 500;
 
     return NextResponse.json(

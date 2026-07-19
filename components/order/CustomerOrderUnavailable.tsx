@@ -17,20 +17,27 @@ export function CustomerOrderUnavailable({
 }: CustomerOrderUnavailableProps) {
   const isDisabledDomain = reason === "DOMAIN_DISABLED";
   const isOrderingDisabled = reason === "CUSTOMER_ORDERING_DISABLED";
+  const areCustomerAccountsDisabled = reason === "CUSTOMER_ACCOUNTS_DISABLED";
   const eyebrow = isDisabledDomain
     ? "Domain disabled"
     : isOrderingDisabled
       ? "Online ordering unavailable"
+      : areCustomerAccountsDisabled
+        ? "Customer accounts unavailable"
       : "Order link required";
   const title = isDisabledDomain
     ? "This ordering domain is disabled"
     : isOrderingDisabled
       ? "Customer ordering is not available"
+      : areCustomerAccountsDisabled
+        ? "Customer sign-in is not available"
       : "Open the restaurant menu link";
   const description = isDisabledDomain
     ? "This domain is still pointing to Foodie, but tenant access has been disabled in platform domain settings. Enable it again or use an active QR/menu link."
     : isOrderingDisabled
       ? "This restaurant is not currently accepting customer orders online. Contact the restaurant for assistance."
+      : areCustomerAccountsDisabled
+        ? "Customer accounts, profiles and order history are not enabled for this restaurant. Contact the restaurant for assistance."
       : "This ordering page needs a restaurant QR/menu link, a mapped customer domain, or signed-in restaurant access before it can show the menu.";
 
   return (
@@ -43,7 +50,9 @@ export function CustomerOrderUnavailable({
             ? undefined
             : {
                 orderHref: "/order",
-                ordersHref: "/order/status",
+                ordersHref: areCustomerAccountsDisabled
+                  ? undefined
+                  : "/order/status",
                 privacyHref: "/privacy",
               }
         }

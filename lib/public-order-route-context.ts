@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
-import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
+import { listOrganizationFeatureEntitlements } from "@/lib/feature-entitlements";
 import {
   getCompanyDomainRestaurants,
   getInactiveTenantDomain,
@@ -22,10 +22,26 @@ type PublicOrderRouteOptions = {
   routeSlug?: string;
 };
 
+async function getCustomerFeatureAvailability(organizationId: string) {
+  const entitlements = await listOrganizationFeatureEntitlements(organizationId);
+
+  return {
+    customerAccountsEnabled:
+      entitlements.find(
+        (entitlement) => entitlement.key === "ordering.customer_accounts",
+      )?.enabled ?? false,
+    customerOrderingEnabled:
+      entitlements.find(
+        (entitlement) => entitlement.key === "ordering.customer",
+      )?.enabled ?? false,
+  };
+}
+
 export type PublicOrderUnavailableReason =
   | "MISSING_CONTEXT"
   | "DOMAIN_DISABLED"
-  | "CUSTOMER_ORDERING_DISABLED";
+  | "CUSTOMER_ORDERING_DISABLED"
+  | "CUSTOMER_ACCOUNTS_DISABLED";
 
 export async function getPublicOrderRouteContext({
   orderingPointQrSlug,
@@ -65,7 +81,29 @@ export async function getPublicOrderRouteContext({
         ? await getTenantContextFromDomain(requestDomain, routeSlug).catch(() => null)
         : null;
 
-  if (tenantContext && session?.user.kind === "customer") {
+  const customerFeatures = tenantContext
+    ? await getCustomerFeatureAvailability(tenantContext.organizationId).catch(() => ({
+        customerAccountsEnabled: false,
+        customerOrderingEnabled: false,
+      }))
+    : {
+        customerAccountsEnabled: false,
+        customerOrderingEnabled: false,
+      };
+  const customerOrderingEnabled =
+    session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
+  const customerAccountsEnabled =
+    session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
+
+  if (!customerAccountsEnabled) {
+    customer = null;
+  }
+
+  if (
+    tenantContext &&
+    customerAccountsEnabled &&
+    session?.user.kind === "customer"
+  ) {
     const customerProfile = await getCustomerProfile(
       session.user.id,
       tenantContext,
@@ -79,18 +117,8 @@ export async function getPublicOrderRouteContext({
     };
   }
 
-  const customerOrderingEnabled = tenantContext
-    ? session?.user.kind === "staff" ||
-      (await getOrganizationFeatureEntitlement(
-        tenantContext.organizationId,
-        "ordering.customer",
-      )
-        .then((entitlement) => entitlement.enabled)
-        .catch(() => false))
-    : false;
-
   const [emailIntegration, googleIntegration, appleIntegration, facebookIntegration] =
-    tenantContext
+    tenantContext && customerAccountsEnabled
       ? await Promise.all([
           resolveOrganizationEmailIntegration(tenantContext.organizationId).catch(
             () => null,
@@ -110,24 +138,31 @@ export async function getPublicOrderRouteContext({
         ])
       : [null, null, null, null];
   const customerAuthProviders = {
-    apple: appleIntegration?.status === "CONFIGURED",
-    email: Boolean(process.env.AUTH_SECRET && emailIntegration?.status === "CONFIGURED"),
-    facebook: facebookIntegration?.status === "CONFIGURED",
-    google: googleIntegration?.status === "CONFIGURED",
+    apple: customerAccountsEnabled && appleIntegration?.status === "CONFIGURED",
+    email: Boolean(
+      customerAccountsEnabled &&
+        process.env.AUTH_SECRET &&
+        emailIntegration?.status === "CONFIGURED",
+    ),
+    facebook: customerAccountsEnabled && facebookIntegration?.status === "CONFIGURED",
+    google: customerAccountsEnabled && googleIntegration?.status === "CONFIGURED",
   };
 
   if (tenantContext) {
     return {
       hasTenantContext: true,
+      customerAccountsEnabled,
       customerOrderingEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
       restaurantChoices: [],
       tenantContext,
-      unavailableReason: customerOrderingEnabled
-        ? undefined
-        : ("CUSTOMER_ORDERING_DISABLED" as const),
+      unavailableReason: !customerOrderingEnabled
+        ? ("CUSTOMER_ORDERING_DISABLED" as const)
+        : !customerAccountsEnabled
+          ? ("CUSTOMER_ACCOUNTS_DISABLED" as const)
+          : undefined,
       user,
     };
   }
@@ -135,6 +170,7 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      customerAccountsEnabled: false,
       customerOrderingEnabled: false,
       customer,
       customerAuthProviders,
@@ -150,15 +186,21 @@ export async function getPublicOrderRouteContext({
     ? await getCompanyDomainRestaurants(requestDomain)
         .then(async (restaurants) => {
           const availability = await Promise.all(
-            restaurants.map(async (restaurant) => ({
-              enabled: await getOrganizationFeatureEntitlement(
+            restaurants.map(async (restaurant) => {
+              const features = await getCustomerFeatureAvailability(
                 restaurant.id,
-                "ordering.customer",
-              )
-                .then((entitlement) => entitlement.enabled)
-                .catch(() => false),
-              restaurant,
-            })),
+              ).catch(() => ({
+                customerAccountsEnabled: false,
+                customerOrderingEnabled: false,
+              }));
+
+              return {
+                enabled:
+                  features.customerOrderingEnabled &&
+                  features.customerAccountsEnabled,
+                restaurant,
+              };
+            }),
           );
 
           return availability
@@ -170,6 +212,7 @@ export async function getPublicOrderRouteContext({
 
   return {
     hasTenantContext: false,
+    customerAccountsEnabled: false,
     customerOrderingEnabled: false,
     customer,
     customerAuthProviders,

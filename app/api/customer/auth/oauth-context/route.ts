@@ -5,6 +5,10 @@ import {
   createCustomerOAuthContextValue,
 } from "@/lib/customer-oauth-context";
 import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
+import {
   getPlatformAdministrationOrigin,
   getPublicRequestOrigin,
 } from "@/lib/deployment-domain";
@@ -55,6 +59,10 @@ export async function POST(request: Request) {
 
   try {
     const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
     const effective = await resolveOrganizationOAuthIntegration(
       tenantContext.organizationId,
       providerMap[parsed.data.provider],
@@ -89,7 +97,11 @@ export async function POST(request: Request) {
     authorizationUrl.searchParams.set("state", state);
 
     return NextResponse.json({ authorizationUrl: authorizationUrl.toString() });
-  } catch {
+  } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     return NextResponse.json(
       { error: "This sign-in option could not be started." },
       { status: 503 },

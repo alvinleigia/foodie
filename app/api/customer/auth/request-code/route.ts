@@ -4,6 +4,10 @@ import {
   CustomerEmailOtpCooldownError,
   requestCustomerEmailOtp,
 } from "@/lib/customer-email-otp";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import { logError } from "@/lib/logger";
 import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import {
@@ -41,6 +45,10 @@ export async function POST(request: Request) {
 
   try {
     const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
     const delivery = await resolveOrganizationEmailIntegration(
       tenantContext.organizationId,
     );
@@ -59,6 +67,10 @@ export async function POST(request: Request) {
       message: "If the address can receive email, a sign-in code has been sent.",
     });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof CustomerEmailOtpCooldownError) {
       return NextResponse.json(
         { error: "Wait before requesting another code." },
