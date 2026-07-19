@@ -26,6 +26,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const {
     customer,
     customerAuthProviders,
+    customerOrderingEnabled,
     hasTenantContext,
     phoneVerificationPolicy,
     restaurantChoices,
@@ -35,7 +36,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext ? (
+      {hasTenantContext && customerOrderingEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}

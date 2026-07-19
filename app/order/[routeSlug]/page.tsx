@@ -10,6 +10,7 @@ export default async function RestaurantOrderPage(
   const {
     customer,
     customerAuthProviders,
+    customerOrderingEnabled,
     hasTenantContext,
     phoneVerificationPolicy,
     unavailableReason,
@@ -18,7 +19,7 @@ export default async function RestaurantOrderPage(
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext ? (
+      {hasTenantContext && customerOrderingEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import {
   getCompanyDomainRestaurants,
   getInactiveTenantDomain,
@@ -21,7 +22,10 @@ type PublicOrderRouteOptions = {
   routeSlug?: string;
 };
 
-export type PublicOrderUnavailableReason = "MISSING_CONTEXT" | "DOMAIN_DISABLED";
+export type PublicOrderUnavailableReason =
+  | "MISSING_CONTEXT"
+  | "DOMAIN_DISABLED"
+  | "CUSTOMER_ORDERING_DISABLED";
 
 export async function getPublicOrderRouteContext({
   orderingPointQrSlug,
@@ -75,6 +79,16 @@ export async function getPublicOrderRouteContext({
     };
   }
 
+  const customerOrderingEnabled = tenantContext
+    ? session?.user.kind === "staff" ||
+      (await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "ordering.customer",
+      )
+        .then((entitlement) => entitlement.enabled)
+        .catch(() => false))
+    : false;
+
   const [emailIntegration, googleIntegration, appleIntegration, facebookIntegration] =
     tenantContext
       ? await Promise.all([
@@ -105,11 +119,15 @@ export async function getPublicOrderRouteContext({
   if (tenantContext) {
     return {
       hasTenantContext: true,
+      customerOrderingEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
       restaurantChoices: [],
       tenantContext,
+      unavailableReason: customerOrderingEnabled
+        ? undefined
+        : ("CUSTOMER_ORDERING_DISABLED" as const),
       user,
     };
   }
@@ -117,6 +135,7 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      customerOrderingEnabled: false,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -128,11 +147,30 @@ export async function getPublicOrderRouteContext({
   }
 
   const restaurantChoices = !orderingPointQrSlug && !routeSlug
-    ? await getCompanyDomainRestaurants(requestDomain).catch(() => [])
+    ? await getCompanyDomainRestaurants(requestDomain)
+        .then(async (restaurants) => {
+          const availability = await Promise.all(
+            restaurants.map(async (restaurant) => ({
+              enabled: await getOrganizationFeatureEntitlement(
+                restaurant.id,
+                "ordering.customer",
+              )
+                .then((entitlement) => entitlement.enabled)
+                .catch(() => false),
+              restaurant,
+            })),
+          );
+
+          return availability
+            .filter((candidate) => candidate.enabled)
+            .map((candidate) => candidate.restaurant);
+        })
+        .catch(() => [])
     : [];
 
   return {
     hasTenantContext: false,
+    customerOrderingEnabled: false,
     customer,
     customerAuthProviders,
     phoneVerificationPolicy,

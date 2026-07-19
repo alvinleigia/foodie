@@ -62,6 +62,10 @@ import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integr
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 
 export async function GET() {
   try {
@@ -144,6 +148,13 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    if (session.user.kind === "customer") {
+      await assertOrganizationFeatureEnabled(
+        tenantContext.organizationId,
+        "ordering.customer",
+      );
     }
 
     const customerProfile =
@@ -570,6 +581,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof InventoryReservationError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
 
     return NextResponse.json(

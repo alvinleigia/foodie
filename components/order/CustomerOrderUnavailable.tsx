@@ -16,6 +16,22 @@ export function CustomerOrderUnavailable({
   user,
 }: CustomerOrderUnavailableProps) {
   const isDisabledDomain = reason === "DOMAIN_DISABLED";
+  const isOrderingDisabled = reason === "CUSTOMER_ORDERING_DISABLED";
+  const eyebrow = isDisabledDomain
+    ? "Domain disabled"
+    : isOrderingDisabled
+      ? "Online ordering unavailable"
+      : "Order link required";
+  const title = isDisabledDomain
+    ? "This ordering domain is disabled"
+    : isOrderingDisabled
+      ? "Customer ordering is not available"
+      : "Open the restaurant menu link";
+  const description = isDisabledDomain
+    ? "This domain is still pointing to Foodie, but tenant access has been disabled in platform domain settings. Enable it again or use an active QR/menu link."
+    : isOrderingDisabled
+      ? "This restaurant is not currently accepting customer orders online. Contact the restaurant for assistance."
+      : "This ordering page needs a restaurant QR/menu link, a mapped customer domain, or signed-in restaurant access before it can show the menu.";
 
   return (
     <>
@@ -35,17 +51,13 @@ export function CustomerOrderUnavailable({
       <Card className="rounded-xl border-stone-200 bg-stone-100/95 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardContent className="px-8 py-10">
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-brand-700">
-            {isDisabledDomain ? "Domain disabled" : "Order link required"}
+            {eyebrow}
           </p>
           <h1 className="mt-4 text-4xl font-bold tracking-tight text-stone-950">
-            {isDisabledDomain
-              ? "This ordering domain is disabled"
-              : "Open the restaurant menu link"}
+            {title}
           </h1>
           <p className="mt-4 max-w-2xl text-base text-stone-600">
-            {isDisabledDomain
-              ? "This domain is still pointing to Foodie, but tenant access has been disabled in platform domain settings. Enable it again or use an active QR/menu link."
-              : "This ordering page needs a restaurant QR/menu link, a mapped customer domain, or signed-in restaurant access before it can show the menu."}
+            {description}
           </p>
         </CardContent>
       </Card>
