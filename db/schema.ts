@@ -1062,6 +1062,32 @@ export const orders = pgTable("orders", {
     .default("0")
     .notNull(),
   paymentCurrency: text("payment_currency"),
+  subtotalAmountSnapshot: numeric("subtotal_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  discountAmountSnapshot: numeric("discount_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  taxAmountSnapshot: numeric("tax_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  chargeAmountSnapshot: numeric("charge_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  tipAmountSnapshot: numeric("tip_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  finalTotalAmountSnapshot: numeric("final_total_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  financialSnapshotCurrency: text("financial_snapshot_currency"),
+  financialSnapshotAt: timestamp("financial_snapshot_at"),
   paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
     () => organizations.id,
     { onDelete: "set null" },
@@ -1152,6 +1178,18 @@ export const orders = pgTable("orders", {
   check(
     "orders_payment_collected_amount_check",
     sql`${table.paymentCollectedAmount} >= 0 AND ((${table.paymentAmount} IS NULL AND ${table.paymentCollectedAmount} = 0) OR (${table.paymentAmount} IS NOT NULL AND ${table.paymentCollectedAmount} <= ${table.paymentAmount}))`,
+  ),
+  check(
+    "orders_financial_snapshot_completeness_check",
+    sql`(${table.subtotalAmountSnapshot} IS NULL AND ${table.discountAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL AND ${table.chargeAmountSnapshot} IS NULL AND ${table.tipAmountSnapshot} IS NULL AND ${table.finalTotalAmountSnapshot} IS NULL AND ${table.financialSnapshotCurrency} IS NULL AND ${table.financialSnapshotAt} IS NULL) OR (${table.subtotalAmountSnapshot} IS NOT NULL AND ${table.discountAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.chargeAmountSnapshot} IS NOT NULL AND ${table.tipAmountSnapshot} IS NOT NULL AND ${table.finalTotalAmountSnapshot} IS NOT NULL AND ${table.financialSnapshotCurrency} IS NOT NULL)`,
+  ),
+  check(
+    "orders_financial_snapshot_amounts_check",
+    sql`${table.subtotalAmountSnapshot} IS NULL OR (${table.subtotalAmountSnapshot} >= 0 AND ${table.discountAmountSnapshot} >= 0 AND ${table.discountAmountSnapshot} <= ${table.subtotalAmountSnapshot} AND ${table.taxAmountSnapshot} >= 0 AND ${table.chargeAmountSnapshot} >= 0 AND ${table.tipAmountSnapshot} >= 0 AND ${table.finalTotalAmountSnapshot} = ${table.subtotalAmountSnapshot} - ${table.discountAmountSnapshot} + ${table.taxAmountSnapshot} + ${table.chargeAmountSnapshot} + ${table.tipAmountSnapshot})`,
+  ),
+  check(
+    "orders_financial_snapshot_currency_check",
+    sql`${table.financialSnapshotCurrency} IS NULL OR (char_length(${table.financialSnapshotCurrency}) = 3 AND ${table.financialSnapshotCurrency} = upper(${table.financialSnapshotCurrency}))`,
   ),
 ]);
 

@@ -69,6 +69,7 @@ import {
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
+import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 
 export async function GET() {
   try {
@@ -387,6 +388,13 @@ export async function POST(request: NextRequest) {
 
     const paymentPricing =
       session.user.kind === "customer" ? orderPricing : null;
+    const customerFinancialSnapshot = paymentPricing
+      ? buildOrderFinancialSnapshot({
+          currency: paymentPricing.currency,
+          subtotalAmountMinor: paymentPricing.taxableAmountMinor,
+          taxAmountMinor: paymentPricing.taxAmountMinor,
+        })
+      : null;
     const orderLineTaxSnapshots = cartItems.map((item) =>
       buildOrderLineTaxSnapshot(item, currency, taxPricing),
     );
@@ -402,6 +410,7 @@ export async function POST(request: NextRequest) {
     const createdOrder = await db.transaction(async (tx) => {
       const orderDate = await getRestaurantBusinessDate(tx, tenantContext);
       const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
+      const now = new Date();
       const [newOrder] = await tx
         .insert(orders)
         .values({
@@ -426,6 +435,12 @@ export async function POST(request: NextRequest) {
             session.user.kind === "customer" ? "PENDING" : "UNPAID",
           paymentAmount: orderPricing?.amountTotal ?? null,
           paymentCurrency: orderPricing?.currency ?? currency,
+          ...(customerFinancialSnapshot
+            ? {
+                ...customerFinancialSnapshot,
+                financialSnapshotAt: now,
+              }
+            : {}),
           paymentAccountOrganizationId:
             paymentIntegration?.status === "CONFIGURED"
               ? paymentIntegration.organizationId
@@ -446,7 +461,6 @@ export async function POST(request: NextRequest) {
         })
         .returning();
 
-      const now = new Date();
       for (const [itemIndex, item] of cartItems.entries()) {
         const lineTaxSnapshot = orderLineTaxSnapshots[itemIndex];
         const inventoryReservedAt = item.shouldReserveInventory

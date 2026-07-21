@@ -90,6 +90,14 @@ export type LocalCustomerOrder = {
   paymentAmount?: string | null;
   paymentCollectedAmount?: string;
   paymentCurrency?: string | null;
+  subtotalAmountSnapshot?: string | null;
+  discountAmountSnapshot?: string | null;
+  taxAmountSnapshot?: string | null;
+  chargeAmountSnapshot?: string | null;
+  tipAmountSnapshot?: string | null;
+  finalTotalAmountSnapshot?: string | null;
+  financialSnapshotCurrency?: string | null;
+  financialSnapshotAt?: string | null;
   customerCancellationFeeBps?: number;
   cancellationFeeBpsApplied?: number | null;
   cancellationFeeAmount?: string | null;

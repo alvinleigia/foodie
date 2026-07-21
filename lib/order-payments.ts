@@ -12,6 +12,7 @@ import {
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
+import { emptyOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import {
   calculateTaxPricing,
   type TaxPricingMode,
@@ -325,9 +326,26 @@ export async function markOrderPaymentPaid(
 
     const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
+
+    if (
+      lockedOrder.finalTotalAmountSnapshot !== null &&
+      (lockedOrder.financialSnapshotCurrency !== lockedOrder.paymentCurrency ||
+        decimalToMinorUnits(
+          lockedOrder.finalTotalAmountSnapshot,
+          lockedOrder.paymentCurrency,
+        ) !== balance.amountMinor)
+    ) {
+      throw new Error(
+        `The financial snapshot does not match order ${lockedOrder.id}.`,
+      );
+    }
+
     const [nextOrder] = await tx
       .update(orders)
       .set({
+        financialSnapshotAt:
+          lockedOrder.financialSnapshotAt ??
+          (lockedOrder.finalTotalAmountSnapshot !== null ? now : null),
         paidAt: isPaid ? now : null,
         paymentCollectedAmount: minorUnitsToDecimal(
           collectedMinor,
@@ -412,9 +430,12 @@ async function cancelPendingOrderPaymentRecord(
         Number(lockedOrder.paymentCollectedAmount) > 0
           ? ("PARTIALLY_PAID" as const)
           : ("UNPAID" as const);
+      const clearDraftFinancials =
+        nextPaymentStatus === "UNPAID" && !lockedOrder.financialSnapshotAt;
       const [order] = await tx
         .update(orders)
         .set({
+          ...(clearDraftFinancials ? emptyOrderFinancialSnapshot : {}),
           paymentAccountOrganizationId: null,
           paymentExpiresAt: null,
           paymentStatus: nextPaymentStatus,

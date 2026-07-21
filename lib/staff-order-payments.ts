@@ -30,6 +30,11 @@ import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
 import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 import type { TaxPricingMode } from "@/lib/tax-pricing";
+import {
+  assertOrderFinancialSnapshotMatches,
+  buildOrderFinancialSnapshot,
+  getFinalizedOrderFinancialSnapshot,
+} from "@/lib/order-financial-snapshots";
 
 type StaffPaymentActor = {
   id: string;
@@ -167,6 +172,27 @@ function getPaymentBalance(
   return balance;
 }
 
+function resolveStaffOrderFinancialSnapshot(
+  order: typeof orders.$inferSelect,
+  pricing: ReturnType<typeof buildOrderPaymentPricing>,
+) {
+  const expected = buildOrderFinancialSnapshot({
+    currency: pricing.currency,
+    subtotalAmountMinor: pricing.taxableAmountMinor,
+    taxAmountMinor: pricing.taxAmountMinor,
+  });
+  const finalized = getFinalizedOrderFinancialSnapshot(order);
+
+  if (finalized) {
+    assertOrderFinancialSnapshotMatches({ current: finalized, expected });
+  }
+
+  return {
+    isFinalized: finalized !== null,
+    snapshot: finalized ?? expected,
+  };
+}
+
 export async function collectStaffCashPayment(input: {
   actor: StaffPaymentActor;
   amount: string;
@@ -225,7 +251,12 @@ export async function collectStaffCashPayment(input: {
         taxRateBps: order.taxRateBpsSnapshot,
       },
     );
-    const balance = getPaymentBalance(order, pricing.amountTotal, currency);
+    const financials = resolveStaffOrderFinancialSnapshot(order, pricing);
+    const balance = getPaymentBalance(
+      order,
+      financials.snapshot.finalTotalAmountSnapshot,
+      currency,
+    );
     const amountMinor = decimalToMinorUnits(input.amount, currency);
 
     if (amountMinor <= 0 || amountMinor > balance.remainingMinor) {
@@ -247,8 +278,11 @@ export async function collectStaffCashPayment(input: {
     const [updatedOrder] = await tx
       .update(orders)
       .set({
+        ...(!financials.isFinalized
+          ? { ...financials.snapshot, financialSnapshotAt: now }
+          : {}),
         paidAt: isPaid ? now : null,
-        paymentAmount: pricing.amountTotal,
+        paymentAmount: financials.snapshot.finalTotalAmountSnapshot,
         paymentCollectedAmount: minorUnitsToDecimal(collectedMinor, currency),
         paymentCurrency: currency,
         paymentStatus: isPaid ? "PAID" : "PARTIALLY_PAID",
@@ -448,9 +482,13 @@ export async function createStaffStripeCheckout(input: {
         taxRateBps: lockedOrder.taxRateBpsSnapshot,
       },
     );
+    const financials = resolveStaffOrderFinancialSnapshot(
+      lockedOrder,
+      pricing,
+    );
     const balance = getPaymentBalance(
       lockedOrder,
-      pricing.amountTotal,
+      financials.snapshot.finalTotalAmountSnapshot,
       currency,
     );
 
@@ -486,8 +524,9 @@ export async function createStaffStripeCheckout(input: {
     const [updatedOrder] = await tx
       .update(orders)
       .set({
+        ...(!financials.isFinalized ? financials.snapshot : {}),
         paymentAccountOrganizationId: integration.organizationId,
-        paymentAmount: pricing.amountTotal,
+        paymentAmount: financials.snapshot.finalTotalAmountSnapshot,
         paymentCurrency: currency,
         paymentExpiresAt: expiresAt,
         paymentStatus: "PENDING",
