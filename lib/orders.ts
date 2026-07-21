@@ -1,7 +1,13 @@
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItemModifiers, orderItems, orderPayments, orders } from "@/db/schema";
+import {
+  orderAdjustments,
+  orderItemModifiers,
+  orderItems,
+  orderPayments,
+  orders,
+} from "@/db/schema";
 import {
   OrderLineItem,
   OrderLineItemModifier,
@@ -14,6 +20,7 @@ import {
 } from "@/lib/currency-money";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { calculateTaxPricing } from "@/lib/tax-pricing";
+import { findActiveDiscountAdjustment } from "@/lib/order-adjustments";
 
 const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
@@ -132,7 +139,16 @@ export function buildOrderSummary(items: Array<{ drinkName: string; quantity: nu
 function getDisplayedPaymentAmount(
   order: typeof orders.$inferSelect,
   items: OrderLineItem[],
+  hasActiveAdjustment: boolean,
 ) {
+  if (
+    order.source === "STAFF_CREATED" &&
+    (order.financialSnapshotAt || hasActiveAdjustment) &&
+    order.finalTotalAmountSnapshot !== null
+  ) {
+    return order.finalTotalAmountSnapshot;
+  }
+
   if (
     order.source !== "STAFF_CREATED" ||
     order.paymentStatus !== "UNPAID" ||
@@ -180,6 +196,15 @@ export function serializeOrder(
     amount: string;
     method: OrderPaymentMethod;
   }> = [],
+  adjustment: {
+    amount: string;
+    calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+    id: string;
+    note: string | null;
+    rateBps: number | null;
+    reasonCode: string | null;
+    type: "DISCOUNT" | "COMP";
+  } | null = null,
 ) {
   return {
     orderId: order.id,
@@ -207,7 +232,7 @@ export function serializeOrder(
     paymentMethod:
       paymentMethod ??
       (order.stripeCheckoutSessionId ? "STRIPE_CHECKOUT" : null),
-    paymentAmount: getDisplayedPaymentAmount(order, items),
+    paymentAmount: getDisplayedPaymentAmount(order, items, adjustment !== null),
     paymentCollectedAmount: order.paymentCollectedAmount,
     paymentCurrency: order.paymentCurrency,
     subtotalAmountSnapshot: order.subtotalAmountSnapshot,
@@ -223,12 +248,73 @@ export function serializeOrder(
     invoiceNumber: order.invoiceNumber,
     invoiceIssuedAt: order.invoiceIssuedAt?.toISOString() ?? null,
     paymentPortions,
+    adjustment,
     customerCancellationFeeBps:
       order.customerCancellationFeeBpsSnapshot,
     cancellationFeeBpsApplied: order.cancellationFeeBpsApplied,
     cancellationFeeAmount: order.cancellationFeeAmount,
     refundAmount: order.refundAmount,
   };
+}
+
+export async function getActiveOrderAdjustmentsForOrders(
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const adjustments = new Map<
+    string,
+    {
+      amount: string;
+      calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+      id: string;
+      note: string | null;
+      rateBps: number | null;
+      reasonCode: string | null;
+      type: "DISCOUNT" | "COMP";
+    }
+  >();
+
+  if (orderIds.length === 0) {
+    return adjustments;
+  }
+
+  const rows = await getDb()
+    .select()
+    .from(orderAdjustments)
+    .where(
+      and(
+        inArray(orderAdjustments.orderId, orderIds),
+        eq(orderAdjustments.organizationId, context.organizationId),
+        eq(orderAdjustments.scope, "ORDER"),
+        inArray(orderAdjustments.type, ["DISCOUNT", "COMP"]),
+      ),
+    )
+    .orderBy(desc(orderAdjustments.createdAt));
+  const rowsByOrder = new Map<string, typeof rows>();
+
+  for (const row of rows) {
+    const orderRows = rowsByOrder.get(row.orderId) ?? [];
+    orderRows.push(row);
+    rowsByOrder.set(row.orderId, orderRows);
+  }
+
+  for (const [orderId, orderRows] of rowsByOrder) {
+    const active = findActiveDiscountAdjustment(orderRows);
+
+    if (active && (active.type === "DISCOUNT" || active.type === "COMP")) {
+      adjustments.set(orderId, {
+        amount: active.amount,
+        calculation: active.calculation,
+        id: active.id,
+        note: active.note,
+        rateBps: active.rateBps,
+        reasonCode: active.reasonCode,
+        type: active.type,
+      });
+    }
+  }
+
+  return adjustments;
 }
 
 export async function getActiveOrders(context: TenantContext = getDefaultTenantContext()) {

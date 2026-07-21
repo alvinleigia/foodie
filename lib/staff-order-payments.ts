@@ -36,6 +36,8 @@ import {
   buildOrderFinancialSnapshot,
   getFinalizedOrderFinancialSnapshot,
 } from "@/lib/order-financial-snapshots";
+import { calculateDiscountedOrderFinancials } from "@/lib/order-adjustments";
+import { getActiveStaffOrderAdjustment } from "@/lib/staff-order-adjustments";
 
 type StaffPaymentActor = {
   id: string;
@@ -173,14 +175,33 @@ function getPaymentBalance(
   return balance;
 }
 
-function resolveStaffOrderFinancialSnapshot(
+async function resolveStaffOrderFinancialSnapshot(
+  tx: PaymentTransaction,
   order: typeof orders.$inferSelect,
   pricing: ReturnType<typeof buildOrderPaymentPricing>,
 ) {
-  const expected = buildOrderFinancialSnapshot({
-    currency: pricing.currency,
+  const adjustment = await getActiveStaffOrderAdjustment(
+    tx,
+    order.id,
+    order.organizationId,
+  );
+  const adjusted = calculateDiscountedOrderFinancials({
+    adjustment: adjustment
+      ? {
+          amountMinor: decimalToMinorUnits(adjustment.amount, pricing.currency),
+          calculation: adjustment.calculation,
+          rateBps: adjustment.rateBps,
+          type: adjustment.type,
+        }
+      : null,
     subtotalAmountMinor: pricing.taxableAmountMinor,
     taxAmountMinor: pricing.taxAmountMinor,
+  });
+  const expected = buildOrderFinancialSnapshot({
+    currency: pricing.currency,
+    discountAmountMinor: adjusted.discountAmountMinor,
+    subtotalAmountMinor: pricing.taxableAmountMinor,
+    taxAmountMinor: adjusted.taxAmountMinor,
   });
   const finalized = getFinalizedOrderFinancialSnapshot(order);
 
@@ -252,7 +273,7 @@ export async function collectStaffCashPayment(input: {
         taxRateBps: order.taxRateBpsSnapshot,
       },
     );
-    const financials = resolveStaffOrderFinancialSnapshot(order, pricing);
+    const financials = await resolveStaffOrderFinancialSnapshot(tx, order, pricing);
     const balance = getPaymentBalance(
       order,
       financials.snapshot.finalTotalAmountSnapshot,
@@ -487,7 +508,8 @@ export async function createStaffStripeCheckout(input: {
         taxRateBps: lockedOrder.taxRateBpsSnapshot,
       },
     );
-    const financials = resolveStaffOrderFinancialSnapshot(
+    const financials = await resolveStaffOrderFinancialSnapshot(
+      tx,
       lockedOrder,
       pricing,
     );

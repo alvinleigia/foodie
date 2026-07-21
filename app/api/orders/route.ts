@@ -6,6 +6,7 @@ import { getNextOrderNumber, getRestaurantBusinessDate } from "@/lib/order-numbe
 import { createOrderSchema } from "@/lib/validations/order";
 import {
   buildOrderSummary,
+  getActiveOrderAdjustmentsForOrders,
   getLatestOrderPaymentsForOrders,
   getSuccessfulOrderPaymentPortionsForOrders,
   getStaffOrders,
@@ -86,7 +87,8 @@ export async function GET() {
       getTenantMenuCurrency(tenantContext),
     ]);
     const orderIds = [...activeOrders, ...pastOrders].map((order) => order.id);
-    const [itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
+    const [adjustmentMap, itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
+      getActiveOrderAdjustmentsForOrders(orderIds, tenantContext),
       getOrderItemsForOrders(orderIds, tenantContext),
       getLatestOrderPaymentsForOrders(orderIds, tenantContext),
       getSuccessfulOrderPaymentPortionsForOrders(orderIds, tenantContext),
@@ -99,6 +101,7 @@ export async function GET() {
           itemMap.get(order.id) ?? [],
           paymentMethodMap.get(order.id) ?? null,
           paymentPortionMap.get(order.id) ?? [],
+          adjustmentMap.get(order.id) ?? null,
         ),
       ),
       pastOrders: pastOrders.map((order) =>
@@ -107,6 +110,7 @@ export async function GET() {
           itemMap.get(order.id) ?? [],
           paymentMethodMap.get(order.id) ?? null,
           paymentPortionMap.get(order.id) ?? [],
+          adjustmentMap.get(order.id) ?? null,
         ),
       ),
       canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),

@@ -41,6 +41,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -69,6 +76,11 @@ import {
   getEffectiveFulfilmentTime,
   toLocalDateTimeInputValue,
 } from "@/lib/order-fulfilment-time";
+import {
+  staffOrderAdjustmentReasonCodes,
+  staffOrderAdjustmentReasonLabels,
+  type StaffOrderAdjustmentReasonCode,
+} from "@/lib/order-adjustments";
 
 type OrdersPayload = {
   activeOrders: StaffOrder[];
@@ -149,6 +161,16 @@ export function StaffOrderBoard({
     useState<StaffOrder | null>(null);
   const [promisedTimeTarget, setPromisedTimeTarget] =
     useState<StaffOrder | null>(null);
+  const [adjustmentTarget, setAdjustmentTarget] =
+    useState<StaffOrder | null>(null);
+  const [adjustmentType, setAdjustmentType] =
+    useState<"DISCOUNT" | "COMP">("DISCOUNT");
+  const [adjustmentCalculation, setAdjustmentCalculation] =
+    useState<"FIXED_AMOUNT" | "PERCENTAGE">("PERCENTAGE");
+  const [adjustmentValue, setAdjustmentValue] = useState("");
+  const [adjustmentReasonCode, setAdjustmentReasonCode] =
+    useState<StaffOrderAdjustmentReasonCode>("PROMOTION");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
   const [promisedFulfilmentAt, setPromisedFulfilmentAt] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
@@ -404,6 +426,117 @@ export function StaffOrderBoard({
         currentTime ?? new Date(Date.now() + 30 * 60 * 1000),
       ),
     );
+  }
+
+  function resetAdjustmentForm() {
+    setAdjustmentTarget(null);
+    setAdjustmentType("DISCOUNT");
+    setAdjustmentCalculation("PERCENTAGE");
+    setAdjustmentValue("");
+    setAdjustmentReasonCode("PROMOTION");
+    setAdjustmentNote("");
+  }
+
+  function openAdjustment(order: StaffOrder) {
+    const current = order.adjustment;
+    const reasonCode = current?.reasonCode;
+    setAdjustmentTarget(order);
+    setAdjustmentType(current?.type ?? "DISCOUNT");
+    setAdjustmentCalculation(current?.calculation ?? "PERCENTAGE");
+    setAdjustmentValue(
+      current?.type === "COMP"
+        ? ""
+        : current?.calculation === "PERCENTAGE" && current.rateBps
+          ? String(current.rateBps / 100)
+          : current?.amount ?? "",
+    );
+    setAdjustmentReasonCode(
+      reasonCode &&
+        staffOrderAdjustmentReasonCodes.includes(
+          reasonCode as StaffOrderAdjustmentReasonCode,
+        )
+        ? (reasonCode as StaffOrderAdjustmentReasonCode)
+        : "OTHER",
+    );
+    setAdjustmentNote(current?.note ?? "");
+  }
+
+  async function saveAdjustment() {
+    if (!adjustmentTarget) {
+      return;
+    }
+
+    const actionKey = `adjust-order:${adjustmentTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${adjustmentTarget.orderId}/adjustment`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            calculation: adjustmentCalculation,
+            note: adjustmentNote,
+            reasonCode: adjustmentReasonCode,
+            type: adjustmentType,
+            value: adjustmentType === "DISCOUNT" ? adjustmentValue : undefined,
+          }),
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The adjustment could not be saved.");
+      }
+
+      await syncOrders();
+      resetAdjustmentForm();
+      toast.success(adjustmentType === "COMP" ? "Bill comped." : "Discount applied.");
+    } catch (adjustmentError) {
+      const message =
+        adjustmentError instanceof Error
+          ? adjustmentError.message
+          : "The adjustment could not be saved.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function removeAdjustment() {
+    if (!adjustmentTarget?.adjustment) {
+      return;
+    }
+
+    const actionKey = `remove-adjustment:${adjustmentTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${adjustmentTarget.orderId}/adjustment`,
+        { method: "DELETE" },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The adjustment could not be removed.");
+      }
+
+      await syncOrders();
+      resetAdjustmentForm();
+      toast.success("Adjustment removed.");
+    } catch (adjustmentError) {
+      const message =
+        adjustmentError instanceof Error
+          ? adjustmentError.message
+          : "The adjustment could not be removed.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   async function savePromisedTime(promisedAt: string | null) {
@@ -958,6 +1091,7 @@ export function StaffOrderBoard({
               onCorrectItem={openItemCorrection}
               onSettleOrder={openSettlement}
               onSetPromisedTime={openPromisedTime}
+              onAdjustOrder={openAdjustment}
               onCancelPayment={cancelPaymentRequest}
               onEmailReceipt={emailReceipt}
               canCorrectStatuses={orders.canCorrectStatuses}
@@ -971,6 +1105,181 @@ export function StaffOrderBoard({
         </div>
       )}
       </CardContent>
+      <Dialog
+        open={Boolean(adjustmentTarget)}
+        onOpenChange={(open) => {
+          if (
+            pendingAction?.startsWith("adjust-order:") ||
+            pendingAction?.startsWith("remove-adjustment:")
+          ) {
+            return;
+          }
+
+          if (!open) {
+            resetAdjustmentForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-stone-200 px-6 py-5">
+            <DialogTitle className="text-lg font-semibold text-stone-950">
+              Discount or comp
+            </DialogTitle>
+            <DialogDescription>
+              Order #{adjustmentTarget?.orderNo}. Tax is recalculated from the
+              adjusted subtotal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 px-6 py-5">
+            <div className="grid gap-2">
+              <p className="text-sm font-medium text-stone-800">Action</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={adjustmentType === "DISCOUNT" ? "default" : "outline"}
+                  disabled={Boolean(pendingAction)}
+                  onClick={() => setAdjustmentType("DISCOUNT")}
+                >
+                  Discount
+                </Button>
+                <Button
+                  type="button"
+                  variant={adjustmentType === "COMP" ? "default" : "outline"}
+                  disabled={Boolean(pendingAction)}
+                  onClick={() => setAdjustmentType("COMP")}
+                >
+                  Comp bill
+                </Button>
+              </div>
+            </div>
+
+            {adjustmentType === "DISCOUNT" ? (
+              <>
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium text-stone-800">Method</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={
+                        adjustmentCalculation === "PERCENTAGE"
+                          ? "default"
+                          : "outline"
+                      }
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => setAdjustmentCalculation("PERCENTAGE")}
+                    >
+                      Percentage
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        adjustmentCalculation === "FIXED_AMOUNT"
+                          ? "default"
+                          : "outline"
+                      }
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => setAdjustmentCalculation("FIXED_AMOUNT")}
+                    >
+                      Fixed amount
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="adjustment-value"
+                    className="text-sm font-medium text-stone-800"
+                  >
+                    {adjustmentCalculation === "PERCENTAGE"
+                      ? "Discount (%)"
+                      : `Discount (${adjustmentTarget?.paymentCurrency ?? orders.currency})`}
+                  </label>
+                  <Input
+                    id="adjustment-value"
+                    type="number"
+                    min="0.01"
+                    max={adjustmentCalculation === "PERCENTAGE" ? "99.99" : undefined}
+                    step="0.01"
+                    value={adjustmentValue}
+                    disabled={Boolean(pendingAction)}
+                    onChange={(event) => setAdjustmentValue(event.target.value)}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            <div className="grid gap-2">
+              <p className="text-sm font-medium text-stone-800">Reason</p>
+              <Select
+                value={adjustmentReasonCode}
+                disabled={Boolean(pendingAction)}
+                onValueChange={(value) =>
+                  setAdjustmentReasonCode(value as StaffOrderAdjustmentReasonCode)
+                }
+              >
+                <SelectTrigger className="bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOrderAdjustmentReasonCodes.map((reasonCode) => (
+                    <SelectItem key={reasonCode} value={reasonCode}>
+                      {staffOrderAdjustmentReasonLabels[reasonCode]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <label
+                htmlFor="adjustment-note"
+                className="text-sm font-medium text-stone-800"
+              >
+                Note (optional)
+              </label>
+              <Textarea
+                id="adjustment-note"
+                value={adjustmentNote}
+                maxLength={200}
+                disabled={Boolean(pendingAction)}
+                onChange={(event) => setAdjustmentNote(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="border-t border-stone-200 px-6 py-4">
+            {adjustmentTarget?.adjustment ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                disabled={Boolean(pendingAction)}
+                onClick={() => void removeAdjustment()}
+              >
+                {pendingAction?.startsWith("remove-adjustment:")
+                  ? "Removing..."
+                  : "Remove adjustment"}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              disabled={
+                Boolean(pendingAction) ||
+                (adjustmentType === "DISCOUNT" &&
+                  (!adjustmentValue || Number(adjustmentValue) <= 0))
+              }
+              onClick={() => void saveAdjustment()}
+            >
+              {pendingAction?.startsWith("adjust-order:") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                "Save adjustment"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(promisedTimeTarget)}
         onOpenChange={(open) => {

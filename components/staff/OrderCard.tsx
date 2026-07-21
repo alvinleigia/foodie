@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   BanknoteIcon,
+  BadgePercentIcon,
   CheckCircleIcon,
   CirclePlayIcon,
   ClockIcon,
@@ -43,6 +44,10 @@ import {
   formatOrderFulfilmentTime,
   getEffectiveFulfilmentTime,
 } from "@/lib/order-fulfilment-time";
+import {
+  staffOrderAdjustmentReasonLabels,
+  type StaffOrderAdjustmentReasonCode,
+} from "@/lib/order-adjustments";
 
 export type StaffOrder = {
   orderId: string;
@@ -96,6 +101,16 @@ export type StaffOrder = {
     amount: string;
     method: OrderPaymentMethod;
   }>;
+  adjustment: {
+    amount: string;
+    calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+    id: string;
+    note: string | null;
+    rateBps: number | null;
+    reasonCode: string | null;
+    type: "DISCOUNT" | "COMP";
+  } | null;
+  discountAmountSnapshot: string | null;
   customerCancellationFeeBps: number;
   cancellationFeeBpsApplied: number | null;
   cancellationFeeAmount: string | null;
@@ -133,6 +148,7 @@ type OrderCardProps = {
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
   onSettleOrder: (order: StaffOrder) => void;
   onSetPromisedTime: (order: StaffOrder) => void;
+  onAdjustOrder: (order: StaffOrder) => void;
   onCancelPayment: (order: StaffOrder) => Promise<void>;
   onEmailReceipt: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
@@ -155,6 +171,7 @@ export function OrderCard({
   onCorrectItem,
   onSettleOrder,
   onSetPromisedTime,
+  onAdjustOrder,
   onCancelPayment,
   onEmailReceipt,
   canCorrectStatuses,
@@ -183,6 +200,11 @@ export function OrderCard({
     canManageRefunds &&
     order.status === "CANCELLED" &&
     order.paymentStatus === "REFUND_FAILED";
+  const canAdjustOrder =
+    order.source === "STAFF_CREATED" &&
+    ["PENDING", "PREPARING", "READY"].includes(order.status) &&
+    ["UNPAID", "NOT_REQUIRED"].includes(order.paymentStatus) &&
+    Number(order.paymentCollectedAmount) === 0;
   const paymentCurrency = order.paymentCurrency ?? currency;
   const paymentTotal = order.paymentAmount
     ? new Intl.NumberFormat(undefined, {
@@ -395,6 +417,20 @@ export function OrderCard({
               ) : (
                 <ButtonLabel icon={RotateCcwIcon}>Correct status</ButtonLabel>
               )}
+            </Button>
+          ) : null}
+
+          {canAdjustOrder ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onAdjustOrder(order)}
+              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
+            >
+              <ButtonLabel icon={BadgePercentIcon}>
+                {order.adjustment ? "Edit discount / comp" : "Discount / comp"}
+              </ButtonLabel>
             </Button>
           ) : null}
         </div>
@@ -641,6 +677,37 @@ export function OrderCard({
                 )}
               </Button>
             </div>
+          </div>
+        ) : null}
+
+        {order.adjustment ? (
+          <div className="mt-4 flex items-center justify-between gap-4 border-y border-emerald-200 px-1 py-3 text-emerald-950">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                <BadgePercentIcon className="size-4" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">
+                  {order.adjustment.type === "COMP" ? "Bill comped" : "Discount applied"}
+                </p>
+                <p className="mt-0.5 text-xs opacity-75">
+                  {staffOrderAdjustmentReasonLabels[
+                    order.adjustment.reasonCode as StaffOrderAdjustmentReasonCode
+                  ] ?? order.adjustment.reasonCode ?? "Adjustment"}
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-semibold">
+              {order.adjustment.type === "COMP"
+                ? "Full bill"
+                : order.adjustment.calculation === "PERCENTAGE" &&
+                    order.adjustment.rateBps
+                  ? `${order.adjustment.rateBps / 100}%`
+                  : `-${new Intl.NumberFormat(undefined, {
+                      currency: paymentCurrency,
+                      style: "currency",
+                    }).format(Number(order.adjustment.amount))}`}
+            </span>
           </div>
         ) : null}
 
