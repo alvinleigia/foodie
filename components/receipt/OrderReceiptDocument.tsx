@@ -1,6 +1,10 @@
 import { formatFinancialDocumentNumber } from "@/lib/financial-document-numbers";
 import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
 import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
+import {
   formatReceiptMoney,
   formatVatRate,
   getInvoiceAddressLines,
@@ -61,6 +65,7 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
     : null;
   const { customer: customerAddress, supplier: supplierAddress } =
     getInvoiceAddressLines(receipt);
+  const fulfilmentTime = getEffectiveFulfilmentTime(receipt);
 
   return (
     <article className="mx-auto w-full max-w-2xl rounded-lg border border-stone-200 bg-white p-6 text-stone-950 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
@@ -77,6 +82,14 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
           <p>Issued {issuedAt}</p>
           <p className="sm:text-right">Customer: {receipt.customerName}</p>
           <p>Fulfilment: {getOrderFulfilmentLabel(receipt.fulfilmentType)}</p>
+          <p className="sm:text-right">
+            {fulfilmentTime
+              ? `${fulfilmentTime.label}: ${formatOrderFulfilmentTime(
+                  fulfilmentTime.at,
+                  { timeZone: receipt.timezone },
+                )}`
+              : "Timing: As soon as possible"}
+          </p>
           {taxPointAt ? <p>Tax point {taxPointAt}</p> : null}
         </div>
         {hasVatInvoice ? (

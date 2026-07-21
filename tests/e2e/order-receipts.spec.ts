@@ -29,6 +29,8 @@ function receiptFixture(): OrderReceipt {
     discountAmount: "0.00",
     finalTotalAmount: "7.50",
     fulfilmentType: "COLLECTION",
+    requestedFulfilmentAt: null,
+    promisedFulfilmentAt: null,
     invoiceCustomerAddressLine1: null,
     invoiceCustomerAddressLine2: null,
     invoiceCustomerCity: null,

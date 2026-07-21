@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
+  CalendarClockIcon,
   CheckIcon,
   CreditCardIcon,
   ImageIcon,
@@ -88,6 +89,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+import { toLocalDateTimeInputValue } from "@/lib/order-fulfilment-time";
 import {
   MenuCategoryRecord,
   MenuItemRecord,
@@ -143,6 +145,8 @@ type CustomizerState = {
 type OrderDraft = {
   customerName: string;
   fulfilmentType: OrderFulfilmentType;
+  fulfilmentTiming: "ASAP" | "SCHEDULED";
+  scheduledFulfilmentAt: string;
 };
 
 type RestaurantTaxPricing = {
@@ -281,6 +285,8 @@ export function OrderForm({
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: customer?.name ?? "",
     fulfilmentType: "COLLECTION",
+    fulfilmentTiming: "ASAP",
+    scheduledFulfilmentAt: "",
   });
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -881,6 +887,21 @@ export function OrderForm({
       return;
     }
 
+    const scheduledFulfilmentAt =
+      draft.fulfilmentTiming === "SCHEDULED"
+        ? new Date(draft.scheduledFulfilmentAt)
+        : null;
+
+    if (
+      draft.fulfilmentTiming === "SCHEDULED" &&
+      (!draft.scheduledFulfilmentAt ||
+        Number.isNaN(scheduledFulfilmentAt?.getTime()) ||
+        scheduledFulfilmentAt!.getTime() <= Date.now())
+    ) {
+      setError("Choose a future fulfilment time.");
+      return;
+    }
+
     const modifierError = getModifierValidationError();
 
     if (modifierError) {
@@ -906,6 +927,7 @@ export function OrderForm({
           customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
           customerName: isStaffOrder ? draft.customerName.trim() : undefined,
           fulfilmentType: draft.fulfilmentType,
+          scheduledFulfilmentAt: scheduledFulfilmentAt?.toISOString() ?? null,
           items: cartItems.map((item) => ({
             categoryId: item.categoryId,
             drinkId: item.drinkId,
@@ -936,6 +958,8 @@ export function OrderForm({
       customerToken: payload.customerToken,
       customerName: payload.customerName,
       fulfilmentType: payload.fulfilmentType,
+      requestedFulfilmentAt: payload.requestedFulfilmentAt,
+      promisedFulfilmentAt: payload.promisedFulfilmentAt,
       categoryName: payload.categoryName,
       drinkName: payload.drinkName,
       itemCount: payload.itemCount,
@@ -957,7 +981,12 @@ export function OrderForm({
     }
 
     toast.success(`Order #${payload.orderNo} placed successfully.`);
-    setDraft({ customerName: "", fulfilmentType: "COLLECTION" });
+    setDraft({
+      customerName: "",
+      fulfilmentType: "COLLECTION",
+      fulfilmentTiming: "ASAP",
+      scheduledFulfilmentAt: "",
+    });
     setSelectedStaffCustomer(null);
     setCartItems([]);
     setIsCartOpen(false);
@@ -1449,6 +1478,63 @@ export function OrderForm({
                 setError(null);
               }}
             />
+
+            <fieldset className="grid gap-3">
+              <legend className="text-sm font-medium text-stone-800">
+                When should it be ready?
+              </legend>
+              <div className="grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
+                {(["ASAP", "SCHEDULED"] as const).map((timing) => (
+                  <button
+                    key={timing}
+                    type="button"
+                    disabled={isSubmitting}
+                    aria-pressed={draft.fulfilmentTiming === timing}
+                    onClick={() => {
+                      setDraft((currentDraft) => ({
+                        ...currentDraft,
+                        fulfilmentTiming: timing,
+                        scheduledFulfilmentAt:
+                          timing === "SCHEDULED" &&
+                          !currentDraft.scheduledFulfilmentAt
+                            ? toLocalDateTimeInputValue(
+                                new Date(Date.now() + 30 * 60 * 1000),
+                              )
+                            : currentDraft.scheduledFulfilmentAt,
+                      }));
+                      setError(null);
+                    }}
+                    className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
+                      draft.fulfilmentTiming === timing
+                        ? "bg-stone-950 text-white"
+                        : "text-stone-600 hover:bg-white hover:text-stone-950"
+                    }`}
+                  >
+                    <CalendarClockIcon className="size-4" />
+                    {timing === "ASAP" ? "As soon as possible" : "Schedule"}
+                  </button>
+                ))}
+              </div>
+              {draft.fulfilmentTiming === "SCHEDULED" ? (
+                <FormField label={isStaffOrder ? "Promised time" : "Requested time"}>
+                  <Input
+                    type="datetime-local"
+                    min={toLocalDateTimeInputValue(new Date())}
+                    value={draft.scheduledFulfilmentAt}
+                    disabled={isSubmitting}
+                    onChange={(event) => {
+                      updateDraft("scheduledFulfilmentAt", event.target.value);
+                      setError(null);
+                    }}
+                  />
+                </FormField>
+              ) : null}
+              <p className="text-xs text-stone-500">
+                {isStaffOrder
+                  ? "This is the time the restaurant is committing to fulfil the order."
+                  : "The restaurant may confirm or revise your requested time."}
+              </p>
+            </fieldset>
 
             {!isStaffOrder && !customer ? (
               <CustomerLoginForm

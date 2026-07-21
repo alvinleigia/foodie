@@ -9,6 +9,10 @@ import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
 import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
 import { formatOrderDisplay } from "@/lib/order-display";
 import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
+import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -384,6 +388,7 @@ export function CustomerOrderStatus({
         <div className="grid gap-4">
           {visibleOrders.map((order) => {
             const orderDisplay = formatOrderDisplay(order);
+            const fulfilmentTime = getEffectiveFulfilmentTime(order);
 
             return (
             <Card
@@ -405,6 +410,11 @@ export function CustomerOrderStatus({
                   </p>
                   <p className="mt-1 text-sm font-medium text-stone-700">
                     {getOrderFulfilmentLabel(order.fulfilmentType)}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    {fulfilmentTime
+                      ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                      : "As soon as possible"}
                   </p>
                 </div>
                 <OrderStatusBadge status={order.status} />

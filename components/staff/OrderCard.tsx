@@ -39,6 +39,10 @@ import {
   getOrderFulfilmentLabel,
   type OrderFulfilmentType,
 } from "@/lib/order-fulfilment";
+import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
 
 export type StaffOrder = {
   orderId: string;
@@ -47,6 +51,8 @@ export type StaffOrder = {
   customerName: string;
   source: "CUSTOMER_SELF_SERVICE" | "STAFF_CREATED";
   fulfilmentType: OrderFulfilmentType;
+  requestedFulfilmentAt: string | null;
+  promisedFulfilmentAt: string | null;
   categoryName: string;
   drinkName: string;
   itemCount?: number;
@@ -126,6 +132,7 @@ type OrderCardProps = {
   onCorrectOrder: (order: StaffOrder) => void;
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
   onSettleOrder: (order: StaffOrder) => void;
+  onSetPromisedTime: (order: StaffOrder) => void;
   onCancelPayment: (order: StaffOrder) => Promise<void>;
   onEmailReceipt: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
@@ -147,6 +154,7 @@ export function OrderCard({
   onCorrectOrder,
   onCorrectItem,
   onSettleOrder,
+  onSetPromisedTime,
   onCancelPayment,
   onEmailReceipt,
   canCorrectStatuses,
@@ -161,6 +169,7 @@ export function OrderCard({
   const itemCount =
     order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1;
   const placedTime = new Date(order.createdAt).toLocaleTimeString();
+  const fulfilmentTime = getEffectiveFulfilmentTime(order);
   const canCorrectOrder =
     canCorrectStatuses &&
     ![
@@ -351,6 +360,22 @@ export function OrderCard({
               ) : (
                 <ButtonLabel icon={XIcon}>Cancel whole order</ButtonLabel>
               )}
+            </Button>
+          ) : null}
+
+          {order.status === "PENDING" ||
+          order.status === "PREPARING" ||
+          order.status === "READY" ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onSetPromisedTime(order)}
+              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
+            >
+              <ButtonLabel icon={ClockIcon}>
+                {order.promisedFulfilmentAt ? "Change promised time" : "Set promised time"}
+              </ButtonLabel>
             </Button>
           ) : null}
 
@@ -548,6 +573,12 @@ export function OrderCard({
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
                   <ClockIcon className="size-3.5" />
                   Placed {placedTime}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
+                  <ClockIcon className="size-3.5" />
+                  {fulfilmentTime
+                    ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                    : "ASAP"}
                 </span>
               </div>
             </div>

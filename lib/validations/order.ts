@@ -12,6 +12,7 @@ export const createOrderSchema = z
       .max(80, "Name is too long")
       .optional(),
     fulfilmentType: z.enum(orderFulfilmentTypes),
+    scheduledFulfilmentAt: z.iso.datetime().nullable().optional(),
     items: z
       .array(
         z.object({

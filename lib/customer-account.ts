@@ -168,6 +168,8 @@ export async function getCustomerOrderHistory(
       createdAt: orders.createdAt,
       currency: organizations.currency,
       fulfilmentType: orders.fulfilmentType,
+      requestedFulfilmentAt: orders.requestedFulfilmentAt,
+      promisedFulfilmentAt: orders.promisedFulfilmentAt,
       orderId: orders.id,
       orderNo: orders.orderNo,
       organizationName: organizations.name,
@@ -211,6 +213,8 @@ export async function getCustomerOrderHistory(
   return customerOrders.map((order) => ({
     ...order,
     createdAt: order.createdAt.toISOString(),
+    requestedFulfilmentAt: order.requestedFulfilmentAt?.toISOString() ?? null,
+    promisedFulfilmentAt: order.promisedFulfilmentAt?.toISOString() ?? null,
     items: itemsByOrderId.get(order.orderId) ?? [],
   }));
 }

@@ -70,6 +70,7 @@ import {
 } from "@/lib/feature-entitlements";
 import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
 import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
+import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 
 export async function GET() {
   try {
@@ -152,6 +153,17 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const scheduledFulfilmentAt = parsed.data.scheduledFulfilmentAt
+      ? new Date(parsed.data.scheduledFulfilmentAt)
+      : null;
+    const fulfilmentTimeError = scheduledFulfilmentAt
+      ? validateFutureFulfilmentTime(scheduledFulfilmentAt)
+      : null;
+
+    if (fulfilmentTimeError) {
+      return NextResponse.json({ error: fulfilmentTimeError }, { status: 400 });
     }
 
     if (session.user.kind === "customer") {
@@ -432,6 +444,10 @@ export async function POST(request: NextRequest) {
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
           fulfilmentType: parsed.data.fulfilmentType,
+          requestedFulfilmentAt:
+            session.user.kind === "customer" ? scheduledFulfilmentAt : null,
+          promisedFulfilmentAt:
+            session.user.kind === "staff" ? scheduledFulfilmentAt : null,
           paymentStatus:
             session.user.kind === "customer" ? "PENDING" : "UNPAID",
           paymentAmount: orderPricing?.amountTotal ?? null,

@@ -1095,6 +1095,8 @@ export const orders = pgTable("orders", {
   fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type")
     .default("COLLECTION")
     .notNull(),
+  requestedFulfilmentAt: timestamp("requested_fulfilment_at"),
+  promisedFulfilmentAt: timestamp("promised_fulfilment_at"),
   paymentStatus: paymentStatusEnum("payment_status")
     .default("NOT_REQUIRED")
     .notNull(),
@@ -1219,6 +1221,10 @@ export const orders = pgTable("orders", {
     table.organizationId,
     table.orderDate,
     table.orderNo,
+  ),
+  index("orders_restaurant_promised_fulfilment_idx").on(
+    table.organizationId,
+    table.promisedFulfilmentAt,
   ),
   uniqueIndex("orders_restaurant_receipt_number_unique").on(
     table.organizationId,

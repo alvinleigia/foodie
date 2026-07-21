@@ -85,6 +85,8 @@ export type LocalCustomerOrder = {
   customerToken: string;
   customerName: string;
   fulfilmentType: OrderFulfilmentType;
+  requestedFulfilmentAt?: string | null;
+  promisedFulfilmentAt?: string | null;
   categoryName: string;
   drinkName: string;
   itemCount?: number;

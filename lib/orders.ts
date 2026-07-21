@@ -189,6 +189,8 @@ export function serializeOrder(
     customerName: order.customerName,
     source: order.source,
     fulfilmentType: order.fulfilmentType,
+    requestedFulfilmentAt: order.requestedFulfilmentAt?.toISOString() ?? null,
+    promisedFulfilmentAt: order.promisedFulfilmentAt?.toISOString() ?? null,
     categoryName: order.categoryName,
     drinkName: order.drinkName,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),

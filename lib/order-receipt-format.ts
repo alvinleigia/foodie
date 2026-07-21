@@ -7,6 +7,10 @@ import {
   getOrderFulfilmentLabel,
   type OrderFulfilmentType,
 } from "@/lib/order-fulfilment";
+import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
 
 export type OrderReceiptItem = {
   drinkName: string;
@@ -41,6 +45,8 @@ export type OrderReceipt = {
   discountAmount: string;
   finalTotalAmount: string;
   fulfilmentType: OrderFulfilmentType;
+  requestedFulfilmentAt: Date | null;
+  promisedFulfilmentAt: Date | null;
   invoiceCustomerAddressLine1: string | null;
   invoiceCustomerAddressLine2: string | null;
   invoiceCustomerCity: string | null;
@@ -190,6 +196,12 @@ export function buildOrderReceiptEmail(receipt: OrderReceipt) {
   const { customer: customerAddress, supplier: supplierAddress } =
     getInvoiceAddressLines(receipt);
   const fulfilmentLabel = getOrderFulfilmentLabel(receipt.fulfilmentType);
+  const fulfilmentTime = getEffectiveFulfilmentTime(receipt);
+  const fulfilmentTimeLine = fulfilmentTime
+    ? `${fulfilmentTime.label}: ${formatOrderFulfilmentTime(fulfilmentTime.at, {
+        timeZone: receipt.timezone,
+      })}`
+    : "Timing: As soon as possible";
   const itemLines = receipt.items.map((item) => {
     const total = getReceiptItemTotal(item, receipt.currency);
     const netUnitPrice = getVatNetUnitPrice(item, receipt.currency);
@@ -239,6 +251,7 @@ export function buildOrderReceiptEmail(receipt: OrderReceipt) {
         : []),
       `Order #${receipt.orderNo}`,
       `Fulfilment: ${fulfilmentLabel}`,
+      fulfilmentTimeLine,
       `Issued ${issuedAt}`,
       ...(taxPointAt ? [`Tax point ${taxPointAt}`] : []),
       ...(receipt.vatInvoiceType === "FULL" && receipt.invoiceCustomerName
@@ -262,6 +275,6 @@ export function buildOrderReceiptEmail(receipt: OrderReceipt) {
       "",
       "Thank you for your order.",
     ].join("\n"),
-    htmlBody: `<div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#1c1917"><h1 style="font-size:24px;margin-bottom:4px">${escapeHtml(receipt.invoiceSupplierName ?? receipt.restaurantName)}</h1><p style="margin-top:0;color:#78716c">${escapeHtml(documentLabel)} ${escapeHtml(documentReference)} &middot; Order #${receipt.orderNo}<br>Fulfilment: ${escapeHtml(fulfilmentLabel)}<br>Issued ${escapeHtml(issuedAt)}${taxPointAt ? `<br>Tax point ${escapeHtml(taxPointAt)}` : ""}</p>${hasVatInvoice ? `<p style="color:#57534e">${supplierAddress.map(escapeHtml).join("<br>")}<br>VAT registration number: ${escapeHtml(receipt.invoiceSupplierVatNumber!)}</p>` : ""}${receipt.vatInvoiceType === "FULL" && receipt.invoiceCustomerName ? `<div style="margin-top:20px"><strong>Customer</strong><br>${escapeHtml(receipt.invoiceCustomerName)}<br>${customerAddress.map(escapeHtml).join("<br>")}</div>` : ""}<table style="width:100%;border-collapse:collapse;margin:24px 0"><thead><tr><th style="padding:8px 0;text-align:left;border-bottom:2px solid #1c1917">Item</th><th style="padding:8px 12px;text-align:center;border-bottom:2px solid #1c1917">Qty</th><th style="padding:8px 0;text-align:right;border-bottom:2px solid #1c1917">Amount</th></tr></thead><tbody>${itemLines.map((line) => line.html).join("")}</tbody></table><table style="width:100%;border-collapse:collapse">${summaryRows.map(([label, amount]) => `<tr><td style="padding:4px 0;color:#57534e">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right">${escapeHtml(formatReceiptMoney(amount, receipt.currency))}</td></tr>`).join("")}<tr><td style="padding:12px 0 4px;border-top:2px solid #1c1917;font-size:18px;font-weight:bold">Total</td><td style="padding:12px 0 4px;border-top:2px solid #1c1917;text-align:right;font-size:18px;font-weight:bold">${escapeHtml(formatReceiptMoney(receipt.finalTotalAmount, receipt.currency))}</td></tr>${receipt.refundAmount ? `<tr><td style="padding:4px 0;color:#57534e">Refunded</td><td style="padding:4px 0;text-align:right">${escapeHtml(formatReceiptMoney(receipt.refundAmount, receipt.currency))}</td></tr>` : ""}</table><p style="margin-top:28px;color:#57534e">Thank you for your order.</p></div>`,
+    htmlBody: `<div style="max-width:600px;margin:0 auto;font-family:Arial,sans-serif;color:#1c1917"><h1 style="font-size:24px;margin-bottom:4px">${escapeHtml(receipt.invoiceSupplierName ?? receipt.restaurantName)}</h1><p style="margin-top:0;color:#78716c">${escapeHtml(documentLabel)} ${escapeHtml(documentReference)} &middot; Order #${receipt.orderNo}<br>Fulfilment: ${escapeHtml(fulfilmentLabel)}<br>${escapeHtml(fulfilmentTimeLine)}<br>Issued ${escapeHtml(issuedAt)}${taxPointAt ? `<br>Tax point ${escapeHtml(taxPointAt)}` : ""}</p>${hasVatInvoice ? `<p style="color:#57534e">${supplierAddress.map(escapeHtml).join("<br>")}<br>VAT registration number: ${escapeHtml(receipt.invoiceSupplierVatNumber!)}</p>` : ""}${receipt.vatInvoiceType === "FULL" && receipt.invoiceCustomerName ? `<div style="margin-top:20px"><strong>Customer</strong><br>${escapeHtml(receipt.invoiceCustomerName)}<br>${customerAddress.map(escapeHtml).join("<br>")}</div>` : ""}<table style="width:100%;border-collapse:collapse;margin:24px 0"><thead><tr><th style="padding:8px 0;text-align:left;border-bottom:2px solid #1c1917">Item</th><th style="padding:8px 12px;text-align:center;border-bottom:2px solid #1c1917">Qty</th><th style="padding:8px 0;text-align:right;border-bottom:2px solid #1c1917">Amount</th></tr></thead><tbody>${itemLines.map((line) => line.html).join("")}</tbody></table><table style="width:100%;border-collapse:collapse">${summaryRows.map(([label, amount]) => `<tr><td style="padding:4px 0;color:#57534e">${escapeHtml(label)}</td><td style="padding:4px 0;text-align:right">${escapeHtml(formatReceiptMoney(amount, receipt.currency))}</td></tr>`).join("")}<tr><td style="padding:12px 0 4px;border-top:2px solid #1c1917;font-size:18px;font-weight:bold">Total</td><td style="padding:12px 0 4px;border-top:2px solid #1c1917;text-align:right;font-size:18px;font-weight:bold">${escapeHtml(formatReceiptMoney(receipt.finalTotalAmount, receipt.currency))}</td></tr>${receipt.refundAmount ? `<tr><td style="padding:4px 0;color:#57534e">Refunded</td><td style="padding:4px 0;text-align:right">${escapeHtml(formatReceiptMoney(receipt.refundAmount, receipt.currency))}</td></tr>` : ""}</table><p style="margin-top:28px;color:#57534e">Thank you for your order.</p></div>`,
   };
 }

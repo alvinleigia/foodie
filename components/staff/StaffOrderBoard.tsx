@@ -65,6 +65,10 @@ import {
   orderItemCorrectionTargets,
   statusCorrectionLabels,
 } from "@/lib/order-corrections";
+import {
+  getEffectiveFulfilmentTime,
+  toLocalDateTimeInputValue,
+} from "@/lib/order-fulfilment-time";
 
 type OrdersPayload = {
   activeOrders: StaffOrder[];
@@ -143,6 +147,9 @@ export function StaffOrderBoard({
   const [cancellationFeePercent, setCancellationFeePercent] = useState(0);
   const [settlementTarget, setSettlementTarget] =
     useState<StaffOrder | null>(null);
+  const [promisedTimeTarget, setPromisedTimeTarget] =
+    useState<StaffOrder | null>(null);
+  const [promisedFulfilmentAt, setPromisedFulfilmentAt] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -386,6 +393,60 @@ export function StaffOrderBoard({
       deliver: "Order marked delivered.",
     }[action];
     toast.success(successMessage);
+    setPendingAction(null);
+  }
+
+  function openPromisedTime(order: StaffOrder) {
+    const currentTime = getEffectiveFulfilmentTime(order)?.at;
+    setPromisedTimeTarget(order);
+    setPromisedFulfilmentAt(
+      toLocalDateTimeInputValue(
+        currentTime ?? new Date(Date.now() + 30 * 60 * 1000),
+      ),
+    );
+  }
+
+  async function savePromisedTime(promisedAt: string | null) {
+    if (!promisedTimeTarget) {
+      return;
+    }
+
+    const actionKey = `promise-order:${promisedTimeTarget.orderId}`;
+    const parsedDate = promisedAt ? new Date(promisedAt) : null;
+
+    if (
+      parsedDate &&
+      (Number.isNaN(parsedDate.getTime()) || parsedDate.getTime() <= Date.now())
+    ) {
+      setError("Choose a future promised time.");
+      toast.error("Choose a future promised time.");
+      return;
+    }
+
+    setPendingAction(actionKey);
+    const response = await fetch(
+      `/api/orders/${promisedTimeTarget.orderId}/fulfilment-time`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          promisedFulfilmentAt: parsedDate?.toISOString() ?? null,
+        }),
+      },
+    );
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.error ?? "Failed to update promised time.");
+      toast.error(payload.error ?? "Failed to update promised time.");
+      setPendingAction(null);
+      return;
+    }
+
+    await syncOrders();
+    setPromisedTimeTarget(null);
+    setPromisedFulfilmentAt("");
+    toast.success(parsedDate ? "Promised time updated." : "Promised time cleared.");
     setPendingAction(null);
   }
 
@@ -896,6 +957,7 @@ export function StaffOrderBoard({
               onCorrectOrder={openOrderCorrection}
               onCorrectItem={openItemCorrection}
               onSettleOrder={openSettlement}
+              onSetPromisedTime={openPromisedTime}
               onCancelPayment={cancelPaymentRequest}
               onEmailReceipt={emailReceipt}
               canCorrectStatuses={orders.canCorrectStatuses}
@@ -909,6 +971,82 @@ export function StaffOrderBoard({
         </div>
       )}
       </CardContent>
+      <Dialog
+        open={Boolean(promisedTimeTarget)}
+        onOpenChange={(open) => {
+          if (pendingAction?.startsWith("promise-order:")) {
+            return;
+          }
+
+          if (!open) {
+            setPromisedTimeTarget(null);
+            setPromisedFulfilmentAt("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-stone-200 px-6 py-5">
+            <DialogTitle className="text-lg font-semibold text-stone-950">
+              Set promised fulfilment time
+            </DialogTitle>
+            <DialogDescription>
+              Confirm when the restaurant expects to fulfil order #
+              {promisedTimeTarget?.orderNo}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 py-5">
+            {promisedTimeTarget?.requestedFulfilmentAt ? (
+              <p className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600">
+                The customer requested this time. Adjust it before saving if the
+                restaurant cannot commit to it.
+              </p>
+            ) : null}
+            <div className="grid gap-2">
+              <label
+                htmlFor="promised-fulfilment-at"
+                className="text-sm font-medium text-stone-800"
+              >
+                Promised time
+              </label>
+              <Input
+                id="promised-fulfilment-at"
+                type="datetime-local"
+                min={toLocalDateTimeInputValue(new Date())}
+                value={promisedFulfilmentAt}
+                disabled={Boolean(pendingAction)}
+                onChange={(event) => setPromisedFulfilmentAt(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="border-t border-stone-200 px-6 py-4">
+            {promisedTimeTarget?.promisedFulfilmentAt ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={Boolean(pendingAction)}
+                onClick={() => void savePromisedTime(null)}
+              >
+                Clear promise
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              disabled={Boolean(pendingAction) || !promisedFulfilmentAt}
+              onClick={() => void savePromisedTime(promisedFulfilmentAt)}
+            >
+              {pendingAction ===
+              `promise-order:${promisedTimeTarget?.orderId}` ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                "Save promised time"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(settlementTarget)}
         onOpenChange={(open) => {
