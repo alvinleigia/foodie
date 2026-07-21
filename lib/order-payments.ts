@@ -13,6 +13,7 @@ import {
 } from "@/lib/currency-money";
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
 import { emptyOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
+import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
 import {
   calculateTaxPricing,
   type TaxPricingMode,
@@ -325,6 +326,9 @@ export async function markOrderPaymentPaid(
 
     const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
+    const financialDocumentUpdate = isPaid
+      ? await getFinancialDocumentNumberUpdate(tx, lockedOrder, now)
+      : {};
 
     if (
       lockedOrder.finalTotalAmountSnapshot !== null &&
@@ -342,6 +346,7 @@ export async function markOrderPaymentPaid(
     const [nextOrder] = await tx
       .update(orders)
       .set({
+        ...financialDocumentUpdate,
         financialSnapshotAt:
           lockedOrder.financialSnapshotAt ??
           (lockedOrder.finalTotalAmountSnapshot !== null ? now : null),

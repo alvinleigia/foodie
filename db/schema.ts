@@ -171,6 +171,11 @@ export const orderAdjustmentActorTypeEnum = pgEnum(
   ["CUSTOMER", "STAFF", "SYSTEM"],
 );
 
+export const financialDocumentTypeEnum = pgEnum("financial_document_type", [
+  "RECEIPT",
+  "INVOICE",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -496,6 +501,30 @@ export const saasPlans = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [uniqueIndex("saas_plans_slug_unique").on(table.slug)],
+);
+
+export const restaurantDocumentCounters = pgTable(
+  "restaurant_document_counters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    documentType: financialDocumentTypeEnum("document_type").notNull(),
+    lastNumber: integer("last_number").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("restaurant_document_counters_org_type_unique").on(
+      table.organizationId,
+      table.documentType,
+    ),
+    check(
+      "restaurant_document_counters_last_number_check",
+      sql`${table.lastNumber} >= 0`,
+    ),
+  ],
 );
 
 export const organizationTaxProfiles = pgTable(
@@ -1097,6 +1126,10 @@ export const orders = pgTable("orders", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   paymentExpiresAt: timestamp("payment_expires_at"),
   paidAt: timestamp("paid_at"),
+  receiptNumber: integer("receipt_number"),
+  receiptIssuedAt: timestamp("receipt_issued_at"),
+  invoiceNumber: integer("invoice_number"),
+  invoiceIssuedAt: timestamp("invoice_issued_at"),
   taxPricingModeSnapshot: taxPricingModeEnum("tax_pricing_mode_snapshot")
     .default("INCLUSIVE")
     .notNull(),
@@ -1155,6 +1188,14 @@ export const orders = pgTable("orders", {
     table.orderDate,
     table.orderNo,
   ),
+  uniqueIndex("orders_restaurant_receipt_number_unique").on(
+    table.organizationId,
+    table.receiptNumber,
+  ),
+  uniqueIndex("orders_restaurant_invoice_number_unique").on(
+    table.organizationId,
+    table.invoiceNumber,
+  ),
   uniqueIndex("orders_id_organization_unique").on(
     table.id,
     table.organizationId,
@@ -1190,6 +1231,14 @@ export const orders = pgTable("orders", {
   check(
     "orders_financial_snapshot_currency_check",
     sql`${table.financialSnapshotCurrency} IS NULL OR (char_length(${table.financialSnapshotCurrency}) = 3 AND ${table.financialSnapshotCurrency} = upper(${table.financialSnapshotCurrency}))`,
+  ),
+  check(
+    "orders_receipt_issuance_check",
+    sql`(${table.receiptNumber} IS NULL AND ${table.receiptIssuedAt} IS NULL) OR (${table.receiptNumber} > 0 AND ${table.receiptIssuedAt} IS NOT NULL)`,
+  ),
+  check(
+    "orders_invoice_issuance_check",
+    sql`(${table.invoiceNumber} IS NULL AND ${table.invoiceIssuedAt} IS NULL) OR (${table.invoiceNumber} > 0 AND ${table.invoiceIssuedAt} IS NOT NULL)`,
   ),
 ]);
 

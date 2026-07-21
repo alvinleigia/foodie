@@ -215,6 +215,10 @@ export function serializeOrder(
     finalTotalAmountSnapshot: order.finalTotalAmountSnapshot,
     financialSnapshotCurrency: order.financialSnapshotCurrency,
     financialSnapshotAt: order.financialSnapshotAt?.toISOString() ?? null,
+    receiptNumber: order.receiptNumber,
+    receiptIssuedAt: order.receiptIssuedAt?.toISOString() ?? null,
+    invoiceNumber: order.invoiceNumber,
+    invoiceIssuedAt: order.invoiceIssuedAt?.toISOString() ?? null,
     paymentPortions,
     customerCancellationFeeBps:
       order.customerCancellationFeeBpsSnapshot,

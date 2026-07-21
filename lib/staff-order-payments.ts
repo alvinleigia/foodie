@@ -29,6 +29,7 @@ import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integr
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
 import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
+import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
 import type { TaxPricingMode } from "@/lib/tax-pricing";
 import {
   assertOrderFinancialSnapshotMatches,
@@ -275,9 +276,13 @@ export async function collectStaffCashPayment(input: {
     const collectedMinor = balance.collectedMinor + amountMinor;
     const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
+    const financialDocumentUpdate = isPaid
+      ? await getFinancialDocumentNumberUpdate(tx, order, now)
+      : {};
     const [updatedOrder] = await tx
       .update(orders)
       .set({
+        ...financialDocumentUpdate,
         ...(!financials.isFinalized
           ? { ...financials.snapshot, financialSnapshotAt: now }
           : {}),
