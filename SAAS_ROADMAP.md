@@ -140,7 +140,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add a typed order-adjustments ledger for discounts, comps, service charges and tips.
 - [x] Store immutable subtotal, discount, tax, charge, tip and final-total snapshots.
 - [x] Add consistent monetary rounding rules per currency.
-- [ ] Reconcile financial reports from order, adjustment, payment and refund ledgers.
+- [x] Reconcile financial reports from order, adjustment, payment and refund ledgers.
 - [ ] Add sequential receipt and invoice numbers per restaurant.
 - [ ] Add printable and email receipts.
 - [ ] Add UK simplified VAT invoice support and full VAT invoice data when required.
