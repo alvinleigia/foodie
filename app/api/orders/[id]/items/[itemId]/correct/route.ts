@@ -358,6 +358,9 @@ export async function POST(
       entityType: "order_item",
       entityId: result.updatedItem.id,
       metadata: {
+        approvedByUserId: session.user.id,
+        approvedByUsername: session.user.username,
+        approvalMode: "MANAGER_SESSION",
         orderId: result.updatedOrder.id,
         orderNo: result.updatedOrder.orderNo,
         drinkName: result.updatedItem.drinkName,

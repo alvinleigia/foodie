@@ -8,6 +8,10 @@ import { getDb } from "@/db";
 import { orderAdjustments, orderItems, orders } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
+  assertManagerApproval,
+  type ManagerApproval,
+} from "@/lib/manager-approval";
+import {
   calculateBasisPointsAmount,
   decimalToMinorUnits,
   minorUnitsToDecimal,
@@ -178,12 +182,15 @@ export async function applyStaffOrderAdjustment(input: {
   actor: StaffAdjustmentActor;
   calculation: "FIXED_AMOUNT" | "PERCENTAGE";
   note?: string;
+  managerApproval: ManagerApproval;
   orderId: string;
   organizationId: string;
   reasonCode: StaffOrderAdjustmentReasonCode;
   type: "DISCOUNT" | "COMP";
   value?: string;
 }) {
+  assertManagerApproval(input.managerApproval, input.organizationId);
+
   const result = await getDb().transaction(async (tx) => {
     const [order] = await tx
       .select()
@@ -330,6 +337,9 @@ export async function applyStaffOrderAdjustment(input: {
       reasonCode: result.adjustment.reasonCode,
       replacedAdjustmentId: result.previousAdjustment?.id ?? null,
       type: result.adjustment.type,
+      approvedByUserId: input.managerApproval.approvedByUserId,
+      approvedByUsername: input.managerApproval.approvedByUsername,
+      approvalMode: input.managerApproval.mode,
     },
   });
 
@@ -338,9 +348,12 @@ export async function applyStaffOrderAdjustment(input: {
 
 export async function removeStaffOrderAdjustment(input: {
   actor: StaffAdjustmentActor;
+  managerApproval: ManagerApproval;
   orderId: string;
   organizationId: string;
 }) {
+  assertManagerApproval(input.managerApproval, input.organizationId);
+
   const result = await getDb().transaction(async (tx) => {
     const [order] = await tx
       .select()
@@ -424,6 +437,9 @@ export async function removeStaffOrderAdjustment(input: {
       orderNo: result.order.orderNo,
       reasonCode: result.adjustment.reasonCode,
       type: result.adjustment.type,
+      approvedByUserId: input.managerApproval.approvedByUserId,
+      approvedByUsername: input.managerApproval.approvedByUsername,
+      approvalMode: input.managerApproval.mode,
     },
   });
 

@@ -14,6 +14,10 @@ import {
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { logError } from "@/lib/logger";
+import {
+  assertManagerApproval,
+  type ManagerApproval,
+} from "@/lib/manager-approval";
 import { decimalToMinorUnits } from "@/lib/currency-money";
 import {
   allocateRefundAcrossPayments,
@@ -38,6 +42,7 @@ type CancelOrderInput = {
   cancelReason?: string | null;
   customerId?: string;
   customerToken?: string;
+  managerApproval?: ManagerApproval;
   orderId: string;
   organizationId: string;
   overrideReason?: string | null;
@@ -437,11 +442,10 @@ async function executeRefunds(
 async function prepareRefundRetry(input: CancelOrderInput) {
   const actorUser = input.actorUser;
 
-  if (actorUser?.role !== "RESTAURANT_MANAGER") {
-    throw new OrderCancellationError(
-      "Only a restaurant manager can retry a failed refund.",
-      403,
-    );
+  assertManagerApproval(input.managerApproval, input.organizationId);
+
+  if (!actorUser) {
+    throw new OrderCancellationError("Staff authorization is required.", 401);
   }
 
   return getDb().transaction(async (tx) => {
@@ -582,6 +586,9 @@ export async function cancelOrder(input: CancelOrderInput) {
         entityType: "order_refund",
         entityId: refund.id,
         metadata: {
+          approvedByUserId: input.managerApproval?.approvedByUserId ?? null,
+          approvedByUsername: input.managerApproval?.approvedByUsername ?? null,
+          approvalMode: input.managerApproval?.mode ?? null,
           orderId: retry.order.id,
           orderNo: retry.order.orderNo,
           orderPaymentId: refund.orderPaymentId,
@@ -593,6 +600,10 @@ export async function cancelOrder(input: CancelOrderInput) {
       retry.refunds.map((refund) => refund.id),
       retry.order,
     );
+  }
+
+  if (input.actorType === "STAFF") {
+    assertManagerApproval(input.managerApproval, input.organizationId);
   }
 
   const prepared = await getDb().transaction(async (tx) => {
@@ -686,13 +697,6 @@ export async function cancelOrder(input: CancelOrderInput) {
     let appliedFeeBps = input.actorType === "CUSTOMER" ? disclosedFeeBps : 0;
 
     if (input.actorType === "STAFF" && input.applyCustomerCancellationFee) {
-      if (input.actorUser?.role !== "RESTAURANT_MANAGER") {
-        throw new OrderCancellationError(
-          "Only a restaurant manager can apply a customer cancellation fee.",
-          403,
-        );
-      }
-
       if (order.status !== "PENDING") {
         throw new OrderCancellationError(
           "A customer cancellation fee can be applied only before preparation starts.",
@@ -929,6 +933,9 @@ export async function cancelOrder(input: CancelOrderInput) {
       feeAmount: prepared.cancellation.feeAmount,
       orderNo: prepared.order.orderNo,
       refundAmount: prepared.cancellation.refundAmount,
+      approvedByUserId: input.managerApproval?.approvedByUserId ?? null,
+      approvedByUsername: input.managerApproval?.approvedByUsername ?? null,
+      approvalMode: input.managerApproval?.mode ?? null,
     },
   });
 

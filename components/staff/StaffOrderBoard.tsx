@@ -14,6 +14,11 @@ import { toast } from "sonner";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import {
+  hasManagerApprovalCredentials,
+  ManagerApprovalFields,
+  type ManagerApprovalCredentials,
+} from "@/components/staff/ManagerApprovalFields";
+import {
   OrderCard,
   type StaffOrder,
   type StaffOrderItem,
@@ -91,6 +96,10 @@ type OrdersPayload = {
 };
 
 type StaffTab = "active" | "past";
+type ItemVoidTarget = {
+  itemId: string;
+  orderId: string;
+};
 type CorrectionTarget =
   | {
       scope: "order";
@@ -171,12 +180,23 @@ export function StaffOrderBoard({
   const [adjustmentReasonCode, setAdjustmentReasonCode] =
     useState<StaffOrderAdjustmentReasonCode>("PROMOTION");
   const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [itemVoidTarget, setItemVoidTarget] =
+    useState<ItemVoidTarget | null>(null);
+  const [managerApproval, setManagerApproval] =
+    useState<ManagerApprovalCredentials>({ identifier: "", password: "" });
   const [promisedFulfilmentAt, setPromisedFulfilmentAt] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const ordersRequestRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(false);
+  const managerApprovalRequired = !orders.canManageRefunds;
+  const managerApprovalComplete =
+    !managerApprovalRequired || hasManagerApprovalCredentials(managerApproval);
+
+  function resetManagerApproval() {
+    setManagerApproval({ identifier: "", password: "" });
+  }
 
   async function syncOrders(options: { showRefreshing?: boolean } = {}) {
     ordersRequestRef.current?.abort();
@@ -250,7 +270,14 @@ export function StaffOrderBoard({
     orderId: string,
     itemId: string,
     action: "start" | "ready" | "deliver" | "cancel",
+    approval?: ManagerApprovalCredentials,
   ) {
+    if (action === "cancel" && managerApprovalRequired && !approval) {
+      resetManagerApproval();
+      setItemVoidTarget({ itemId, orderId });
+      return;
+    }
+
     setPendingAction(`${action}-item:${itemId}`);
 
     const response = await fetch(
@@ -258,7 +285,10 @@ export function StaffOrderBoard({
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          managerApproval: action === "cancel" ? approval : undefined,
+        }),
       },
     );
     const payload = await response.json();
@@ -278,6 +308,10 @@ export function StaffOrderBoard({
       cancel: "Item cancelled.",
     }[action];
     toast.success(successMessage);
+    if (action === "cancel") {
+      setItemVoidTarget(null);
+      resetManagerApproval();
+    }
     setPendingAction(null);
   }
 
@@ -384,6 +418,7 @@ export function StaffOrderBoard({
       );
 
       if (order) {
+        resetManagerApproval();
         setCancellationTarget(order);
         setCancellationReason("");
         setApplyCustomerCancellationFee(false);
@@ -429,6 +464,7 @@ export function StaffOrderBoard({
   }
 
   function resetAdjustmentForm() {
+    resetManagerApproval();
     setAdjustmentTarget(null);
     setAdjustmentType("DISCOUNT");
     setAdjustmentCalculation("PERCENTAGE");
@@ -438,6 +474,7 @@ export function StaffOrderBoard({
   }
 
   function openAdjustment(order: StaffOrder) {
+    resetManagerApproval();
     const current = order.adjustment;
     const reasonCode = current?.reasonCode;
     setAdjustmentTarget(order);
@@ -481,6 +518,9 @@ export function StaffOrderBoard({
             reasonCode: adjustmentReasonCode,
             type: adjustmentType,
             value: adjustmentType === "DISCOUNT" ? adjustmentValue : undefined,
+            managerApproval: managerApprovalRequired
+              ? managerApproval
+              : undefined,
           }),
         },
       );
@@ -516,7 +556,15 @@ export function StaffOrderBoard({
     try {
       const response = await fetch(
         `/api/orders/${adjustmentTarget.orderId}/adjustment`,
-        { method: "DELETE" },
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            managerApproval: managerApprovalRequired
+              ? managerApproval
+              : undefined,
+          }),
+        },
       );
       const payload = await response.json();
 
@@ -604,6 +652,9 @@ export function StaffOrderBoard({
           overrideReason: applyCustomerCancellationFee
             ? cancellationReason
             : undefined,
+          managerApproval: managerApprovalRequired
+            ? managerApproval
+            : undefined,
         }),
       },
     );
@@ -620,6 +671,7 @@ export function StaffOrderBoard({
     setCancellationTarget(null);
     setCancellationReason("");
     setApplyCustomerCancellationFee(false);
+    resetManagerApproval();
 
     if (payload.refundError) {
       toast.error("Order cancelled, but its refund needs attention.");
@@ -1244,6 +1296,13 @@ export function StaffOrderBoard({
                 onChange={(event) => setAdjustmentNote(event.target.value)}
               />
             </div>
+            <ManagerApprovalFields
+              credentials={managerApproval}
+              disabled={Boolean(pendingAction)}
+              idPrefix="adjustment"
+              onChange={setManagerApproval}
+              required={managerApprovalRequired}
+            />
           </div>
           <DialogFooter className="border-t border-stone-200 px-6 py-4">
             {adjustmentTarget?.adjustment ? (
@@ -1251,7 +1310,7 @@ export function StaffOrderBoard({
                 type="button"
                 variant="outline"
                 className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
-                disabled={Boolean(pendingAction)}
+                disabled={Boolean(pendingAction) || !managerApprovalComplete}
                 onClick={() => void removeAdjustment()}
               >
                 {pendingAction?.startsWith("remove-adjustment:")
@@ -1263,6 +1322,7 @@ export function StaffOrderBoard({
               type="button"
               disabled={
                 Boolean(pendingAction) ||
+                !managerApprovalComplete ||
                 (adjustmentType === "DISCOUNT" &&
                   (!adjustmentValue || Number(adjustmentValue) <= 0))
               }
@@ -1700,6 +1760,7 @@ export function StaffOrderBoard({
             setCancellationTarget(null);
             setCancellationReason("");
             setApplyCustomerCancellationFee(false);
+            resetManagerApproval();
           }
         }}
       >
@@ -1826,6 +1887,13 @@ export function StaffOrderBoard({
                   placeholder="Optional reason"
                 />
               </div>
+              <ManagerApprovalFields
+                credentials={managerApproval}
+                disabled={Boolean(pendingAction)}
+                idPrefix="cancellation"
+                onChange={setManagerApproval}
+                required={managerApprovalRequired}
+              />
             </div>
           ) : null}
           <AlertDialogFooter>
@@ -1837,6 +1905,7 @@ export function StaffOrderBoard({
               disabled={
                 !cancellationTarget ||
                 Boolean(pendingAction) ||
+                !managerApprovalComplete ||
                 (applyCustomerCancellationFee &&
                   (!Number.isFinite(cancellationFeePercent) ||
                     cancellationFeePercent < 0 ||
@@ -1861,6 +1930,72 @@ export function StaffOrderBoard({
                 cancellationHasCollectedPayment
                   ? "Cancel and settle refund"
                   : "Cancel order"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={Boolean(itemVoidTarget)}
+        onOpenChange={(open) => {
+          if (pendingAction?.startsWith("cancel-item:")) {
+            return;
+          }
+
+          if (!open) {
+            setItemVoidTarget(null);
+            resetManagerApproval();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The item will be removed from fulfilment and any reserved stock
+              will be restored.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ManagerApprovalFields
+            credentials={managerApproval}
+            disabled={Boolean(pendingAction)}
+            idPrefix="item-void"
+            onChange={setManagerApproval}
+            required={managerApprovalRequired}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(pendingAction)}>
+              Keep item
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={
+                !itemVoidTarget ||
+                Boolean(pendingAction) ||
+                !managerApprovalComplete
+              }
+              onClick={(event) => {
+                event.preventDefault();
+
+                if (!itemVoidTarget) {
+                  return;
+                }
+
+                void runItemAction(
+                  itemVoidTarget.orderId,
+                  itemVoidTarget.itemId,
+                  "cancel",
+                  managerApproval,
+                );
+              }}
+            >
+              {pendingAction?.startsWith("cancel-item:") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-rose-700" />
+                  Voiding...
+                </span>
+              ) : (
+                "Void item"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

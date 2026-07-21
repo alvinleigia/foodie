@@ -9,6 +9,10 @@ import {
   cancelOrder,
   OrderCancellationError,
 } from "@/lib/order-cancellation";
+import {
+  authorizeManagerAction,
+  ManagerApprovalError,
+} from "@/lib/manager-approval";
 import { serializeOrder } from "@/lib/orders";
 import {
   checkRateLimit,
@@ -92,9 +96,16 @@ export async function POST(
       );
     }
 
+    const managerApproval = await authorizeManagerAction({
+      actor: session.user,
+      credentials: parsed.data.managerApproval,
+      organizationId: tenantContext.organizationId,
+    });
+
     const result = await cancelOrder({
       actorType: "STAFF",
       actorUser: session.user,
+      managerApproval,
       applyCustomerCancellationFee:
         parsed.data.applyCustomerCancellationFee,
       cancellationFeeBps:
@@ -115,6 +126,7 @@ export async function POST(
   } catch (error) {
     const status =
       error instanceof OrderCancellationError ||
+      error instanceof ManagerApprovalError ||
       error instanceof StaffRestaurantContextError
         ? error.status
         : error instanceof FeatureEntitlementError

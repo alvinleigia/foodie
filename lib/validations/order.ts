@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
+import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
 
 export const createOrderSchema = z
   .object({
@@ -45,6 +46,7 @@ export const staffCancelOrderSchema = z.object({
   cancellationFeePercent: z.coerce.number().min(0).max(100).optional(),
   cancelReason: z.string().trim().max(200).optional(),
   overrideReason: z.string().trim().max(200).optional(),
+  managerApproval: optionalManagerApprovalSchema,
   retryRefund: z.boolean().default(false),
 });
 

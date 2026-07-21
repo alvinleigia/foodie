@@ -3,6 +3,10 @@ import { z } from "zod";
 
 import { requireStaffSession } from "@/lib/auth";
 import { logError } from "@/lib/logger";
+import {
+  authorizeManagerAction,
+  ManagerApprovalError,
+} from "@/lib/manager-approval";
 import { staffOrderAdjustmentReasonCodes } from "@/lib/order-adjustments";
 import {
   applyStaffOrderAdjustment,
@@ -10,10 +14,12 @@ import {
   StaffOrderAdjustmentError,
 } from "@/lib/staff-order-adjustments";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
 
 const adjustmentSchema = z
   .object({
     calculation: z.enum(["FIXED_AMOUNT", "PERCENTAGE"]),
+    managerApproval: optionalManagerApprovalSchema,
     note: z.string().trim().max(200).optional(),
     reasonCode: z.enum(staffOrderAdjustmentReasonCodes),
     type: z.enum(["DISCOUNT", "COMP"]),
@@ -66,11 +72,24 @@ export async function PATCH(
 
     const { id } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    const managerApproval = await authorizeManagerAction({
+      actor: session.user,
+      credentials: parsed.data.managerApproval,
+      organizationId: tenantContext.organizationId,
+    });
+    const adjustment = {
+      calculation: parsed.data.calculation,
+      note: parsed.data.note,
+      reasonCode: parsed.data.reasonCode,
+      type: parsed.data.type,
+      value: parsed.data.value,
+    };
     const result = await applyStaffOrderAdjustment({
       actor: session.user,
+      managerApproval,
       orderId: id,
       organizationId: tenantContext.organizationId,
-      ...parsed.data,
+      ...adjustment,
     });
 
     return NextResponse.json({
@@ -79,7 +98,10 @@ export async function PATCH(
       paymentStatus: result.order.paymentStatus,
     });
   } catch (error) {
-    if (error instanceof StaffOrderAdjustmentError) {
+    if (
+      error instanceof StaffOrderAdjustmentError ||
+      error instanceof ManagerApprovalError
+    ) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status },
@@ -96,7 +118,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -108,8 +130,26 @@ export async function DELETE(
 
     const { id } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    const body = await request.json().catch(() => ({}));
+    const parsed = z
+      .object({ managerApproval: optionalManagerApprovalSchema })
+      .safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Choose valid manager approval credentials." },
+        { status: 400 },
+      );
+    }
+
+    const managerApproval = await authorizeManagerAction({
+      actor: session.user,
+      credentials: parsed.data.managerApproval,
+      organizationId: tenantContext.organizationId,
+    });
     const result = await removeStaffOrderAdjustment({
       actor: session.user,
+      managerApproval,
       orderId: id,
       organizationId: tenantContext.organizationId,
     });
@@ -119,7 +159,10 @@ export async function DELETE(
       paymentStatus: result.order.paymentStatus,
     });
   } catch (error) {
-    if (error instanceof StaffOrderAdjustmentError) {
+    if (
+      error instanceof StaffOrderAdjustmentError ||
+      error instanceof ManagerApprovalError
+    ) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status },

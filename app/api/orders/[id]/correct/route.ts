@@ -277,6 +277,9 @@ export async function POST(
       entityType: "order",
       entityId: transition.updatedOrder.id,
       metadata: {
+        approvedByUserId: session.user.id,
+        approvedByUsername: session.user.username,
+        approvalMode: "MANAGER_SESSION",
         orderNo: transition.updatedOrder.orderNo,
         previousStatus: transition.previousOrder.status,
         nextStatus: transition.updatedOrder.status,
