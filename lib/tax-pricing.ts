@@ -1,3 +1,5 @@
+import { multiplyAndRoundMinorUnits } from "@/lib/currency-money";
+
 export type TaxPricingMode = "INCLUSIVE" | "EXCLUSIVE";
 
 export type TaxPricing = {
@@ -30,8 +32,10 @@ export function calculateTaxPricing(
   }
 
   if (pricingMode === "EXCLUSIVE") {
-    const taxAmountMinor = Math.round(
-      (listedAmountMinor * taxRateBps) / 10_000,
+    const taxAmountMinor = multiplyAndRoundMinorUnits(
+      listedAmountMinor,
+      taxRateBps,
+      10_000,
     );
 
     return {
@@ -42,8 +46,10 @@ export function calculateTaxPricing(
     };
   }
 
-  const taxAmountMinor = Math.round(
-    (listedAmountMinor * taxRateBps) / (10_000 + taxRateBps),
+  const taxAmountMinor = multiplyAndRoundMinorUnits(
+    listedAmountMinor,
+    taxRateBps,
+    10_000 + taxRateBps,
   );
 
   return {

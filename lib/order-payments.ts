@@ -7,8 +7,8 @@ import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
 import {
+  calculateBasisPointsAmount,
   decimalToMinorUnits,
-  getCurrencyMinorUnitFactor,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
@@ -163,10 +163,8 @@ export function buildOrderPaymentPricing(
     (total, line) => total + (line.price_data?.unit_amount ?? 0) * (line.quantity ?? 1),
     0,
   );
-  const factor = getCurrencyMinorUnitFactor(normalizedCurrency);
-
   return {
-    amountTotal: (amountTotalMinor / factor).toFixed(factor === 1 ? 0 : 2),
+    amountTotal: minorUnitsToDecimal(amountTotalMinor, normalizedCurrency),
     amountTotalMinor,
     currency: normalizedCurrency,
     listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, normalizedCurrency),
@@ -193,8 +191,9 @@ export async function createOrderCheckoutSession(input: {
   stripeAccountId: string;
   successUrl: string;
 }) {
-  const applicationFeeAmount = Math.round(
-    (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
+  const applicationFeeAmount = calculateBasisPointsAmount(
+    input.amountTotalMinor,
+    input.applicationFeeBps,
   );
   const metadata = {
     orderId: input.orderId,

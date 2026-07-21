@@ -29,6 +29,15 @@ test.describe("tax pricing modes", () => {
     });
   });
 
+  test("uses the shared half-away-from-zero rule at a minor-unit tie", () => {
+    expect(calculateTaxPricing(5, 1_000, "EXCLUSIVE")).toEqual({
+      listedAmountMinor: 5,
+      taxableAmountMinor: 5,
+      taxAmountMinor: 1,
+      totalAmountMinor: 6,
+    });
+  });
+
   test("preserves existing totals when the tax rate is zero", () => {
     expect(calculateTaxPricing(1_000, 0, "EXCLUSIVE")).toEqual({
       listedAmountMinor: 1_000,

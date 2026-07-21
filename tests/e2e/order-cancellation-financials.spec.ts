@@ -36,6 +36,21 @@ test.describe("order cancellation financials", () => {
     });
   });
 
+  test("uses the shared half-away-from-zero rule at a minor-unit tie", () => {
+    expect(
+      calculateCancellationAmounts({
+        amount: "0.05",
+        currency: "GBP",
+        feeBps: 1_000,
+      }),
+    ).toMatchObject({
+      feeAmount: "0.01",
+      feeMinor: 1,
+      refundAmount: "0.04",
+      refundMinor: 4,
+    });
+  });
+
   test("supports zero-decimal currencies", () => {
     expect(
       calculateCancellationAmounts({
