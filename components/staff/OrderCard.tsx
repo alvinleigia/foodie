@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   BanknoteIcon,
   CheckCircleIcon,
@@ -10,6 +11,7 @@ import {
   MegaphoneIcon,
   PackageIcon,
   RefreshCwIcon,
+  ReceiptTextIcon,
   RotateCcwIcon,
   UserRoundIcon,
   XIcon,
@@ -86,6 +88,8 @@ export type StaffOrder = {
   cancellationFeeBpsApplied: number | null;
   cancellationFeeAmount: string | null;
   refundAmount: string | null;
+  receiptNumber: number | null;
+  receiptIssuedAt: string | null;
 };
 
 export type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
@@ -93,6 +97,7 @@ export type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
 type OrderCardProps = {
   currency: string;
   order: StaffOrder;
+  restaurantSlug: string;
   onItemAction: (
     orderId: string,
     itemId: string,
@@ -127,6 +132,7 @@ type OrderCardProps = {
 export function OrderCard({
   currency,
   order,
+  restaurantSlug,
   onItemAction,
   onItemAnnounce,
   onOrderAnnounce,
@@ -559,6 +565,24 @@ export function OrderCard({
           >
             {refundMessage}
           </p>
+        ) : null}
+
+        {order.receiptNumber ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-stone-200 py-3">
+            <div>
+              <p className="text-sm font-semibold text-stone-900">Receipt available</p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                View or print the finalized payment receipt.
+              </p>
+            </div>
+            <Button asChild variant="outline">
+              <Link
+                href={`/restaurants/${encodeURIComponent(restaurantSlug)}/orders/${encodeURIComponent(order.orderId)}/receipt`}
+              >
+                <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+              </Link>
+            </Button>
+          </div>
         ) : null}
 
         {order.source === "STAFF_CREATED" &&

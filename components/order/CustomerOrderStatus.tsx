@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { XIcon } from "lucide-react";
+import { ReceiptTextIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
@@ -40,6 +41,8 @@ type ApiOrder = LocalCustomerOrder & {
   readyAt?: string | null;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  receiptIssuedAt?: string | null;
+  receiptNumber?: number | null;
 };
 
 type CustomerOrderStatusProps = {
@@ -453,6 +456,19 @@ export function CustomerOrderStatus({
                   ].includes(order.paymentStatus ?? "") &&
                   "This order was cancelled."}
               </p>
+
+              {order.receiptNumber ? (
+                <Button asChild variant="outline" className="mt-4">
+                  <Link
+                    href={withPublicContext(
+                      `/order/receipt/${encodeURIComponent(order.orderId)}`,
+                      { orderingPointQrSlug, routeSlug },
+                    )}
+                  >
+                    <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+                  </Link>
+                </Button>
+              ) : null}
 
               {order.status === "PENDING" && order.paymentStatus === "PAID" ? (
                 <Button

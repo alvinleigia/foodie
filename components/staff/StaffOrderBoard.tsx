@@ -112,9 +112,11 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export function StaffOrderBoard({
+  restaurantSlug,
   staffBillingEnabled = true,
   stripePaymentsEnabled = true,
 }: {
+  restaurantSlug: string;
   staffBillingEnabled?: boolean;
   stripePaymentsEnabled?: boolean;
 }) {
@@ -862,6 +864,7 @@ export function StaffOrderBoard({
               key={order.orderId}
               currency={orders.currency}
               order={order}
+              restaurantSlug={restaurantSlug}
               onItemAction={runItemAction}
               onItemAnnounce={announceItem}
               onOrderAction={runOrderAction}

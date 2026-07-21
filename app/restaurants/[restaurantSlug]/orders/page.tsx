@@ -42,6 +42,7 @@ export default async function RestaurantOrdersPage({
       }}
     >
       <StaffOrderBoard
+        restaurantSlug={access.restaurant.slug}
         staffBillingEnabled={staffBillingEnabled}
         stripePaymentsEnabled={stripePaymentsEnabled}
       />
