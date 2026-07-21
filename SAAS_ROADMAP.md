@@ -148,7 +148,7 @@ These changes should be designed before real tenants build transaction history.
 ## Now: Core Restaurant Operations
 
 - [x] Add fulfilment types: dine-in, takeaway, collection and delivery.
-- [ ] Add promised or scheduled fulfilment time.
+- [x] Add promised or scheduled fulfilment time.
 - [ ] Add basic discount and comp actions with reason codes.
 - [ ] Add granular staff permissions instead of role-only action access.
 - [ ] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
