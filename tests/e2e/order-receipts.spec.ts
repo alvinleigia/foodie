@@ -88,4 +88,17 @@ test.describe("order receipts", () => {
     expect(customerPage).toContain("requireCustomerSession");
     expect(customerPage).toContain("profile.id");
   });
+
+  test("emails only the linked verified customer through tenant delivery", () => {
+    const loader = source("lib/order-receipts.ts");
+    const sender = source("lib/order-receipt-email.ts");
+    const route = source("app/api/orders/[id]/receipt/email/route.ts");
+
+    expect(loader).toContain("customers.emailVerifiedAt");
+    expect(loader).toContain("record.customerEmailVerifiedAt");
+    expect(sender).toContain("resolveOrganizationEmailIntegration");
+    expect(sender).toContain("to: receipt.customerEmail");
+    expect(route).toContain('action: "order.receipt.email"');
+    expect(route).not.toContain("request.json");
+  });
 });

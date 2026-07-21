@@ -8,6 +8,7 @@ import {
   ClockIcon,
   CookingPotIcon,
   CreditCardIcon,
+  MailIcon,
   MegaphoneIcon,
   PackageIcon,
   RefreshCwIcon,
@@ -121,6 +122,7 @@ type OrderCardProps = {
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
   onSettleOrder: (order: StaffOrder) => void;
   onCancelPayment: (order: StaffOrder) => Promise<void>;
+  onEmailReceipt: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
   canSettleBills: boolean;
@@ -141,6 +143,7 @@ export function OrderCard({
   onCorrectItem,
   onSettleOrder,
   onCancelPayment,
+  onEmailReceipt,
   canCorrectStatuses,
   canManageRefunds,
   canSettleBills,
@@ -575,13 +578,30 @@ export function OrderCard({
                 View or print the finalized payment receipt.
               </p>
             </div>
-            <Button asChild variant="outline">
-              <Link
-                href={`/restaurants/${encodeURIComponent(restaurantSlug)}/orders/${encodeURIComponent(order.orderId)}/receipt`}
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link
+                  href={`/restaurants/${encodeURIComponent(restaurantSlug)}/orders/${encodeURIComponent(order.orderId)}/receipt`}
+                >
+                  <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onEmailReceipt(order)}
               >
-                <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
-              </Link>
-            </Button>
+                {pendingAction === `email-receipt:${order.orderId}` ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner className="text-stone-700" />
+                    Sending...
+                  </span>
+                ) : (
+                  <ButtonLabel icon={MailIcon}>Email receipt</ButtonLabel>
+                )}
+              </Button>
+            </div>
           </div>
         ) : null}
 

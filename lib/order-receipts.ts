@@ -35,6 +35,7 @@ export async function getOrderReceipt(
       createdAt: orders.createdAt,
       currency: orders.financialSnapshotCurrency,
       customerEmail: customers.email,
+      customerEmailVerifiedAt: customers.emailVerifiedAt,
       customerName: orders.customerName,
       discountAmount: orders.discountAmountSnapshot,
       finalTotalAmount: orders.finalTotalAmountSnapshot,
@@ -101,6 +102,9 @@ export async function getOrderReceipt(
     cancellationFeeAmount: record.cancellationFeeAmount ?? null,
     chargeAmount: record.chargeAmount,
     currency: record.currency,
+    customerEmail: record.customerEmailVerifiedAt
+      ? record.customerEmail
+      : null,
     discountAmount: record.discountAmount,
     finalTotalAmount: record.finalTotalAmount,
     items: items.map((item) => ({

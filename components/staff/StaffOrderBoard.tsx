@@ -252,6 +252,30 @@ export function StaffOrderBoard({
     setPendingAction(null);
   }
 
+  async function emailReceipt(order: StaffOrder) {
+    const actionKey = `email-receipt:${order.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(order.orderId)}/receipt/email`,
+        { method: "POST" },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        toast.error(payload.error ?? "The receipt email could not be sent.");
+        return;
+      }
+
+      toast.success(`Receipt sent to ${payload.recipientEmail}.`);
+    } catch {
+      toast.error("The receipt email could not be sent.");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   function openOrderCorrection(order: StaffOrder) {
     const options = orderCorrectionTargets[order.status];
 
@@ -873,6 +897,7 @@ export function StaffOrderBoard({
               onCorrectItem={openItemCorrection}
               onSettleOrder={openSettlement}
               onCancelPayment={cancelPaymentRequest}
+              onEmailReceipt={emailReceipt}
               canCorrectStatuses={orders.canCorrectStatuses}
               canManageRefunds={orders.canManageRefunds}
               canSettleBills={staffBillingEnabled}
