@@ -11,11 +11,7 @@ type TransactionClient = Parameters<Parameters<DbClient["transaction"]>[0]>[0];
 
 type FinancialDocumentOrder = Pick<
   typeof orders.$inferSelect,
-  | "invoiceIssuedAt"
-  | "invoiceNumber"
-  | "organizationId"
-  | "receiptIssuedAt"
-  | "receiptNumber"
+  "organizationId" | "receiptIssuedAt" | "receiptNumber"
 >;
 
 async function getNextDocumentNumber(
@@ -57,16 +53,18 @@ export async function getFinancialDocumentNumberUpdate(
   const receiptNumber =
     order.receiptNumber ??
     (await getNextDocumentNumber(tx, order.organizationId, "RECEIPT"));
-  const invoiceNumber =
-    order.invoiceNumber ??
-    (await getNextDocumentNumber(tx, order.organizationId, "INVOICE"));
 
   return {
-    invoiceIssuedAt: order.invoiceIssuedAt ?? issuedAt,
-    invoiceNumber,
     receiptIssuedAt: order.receiptIssuedAt ?? issuedAt,
     receiptNumber,
   };
+}
+
+export async function getNextInvoiceNumber(
+  tx: TransactionClient,
+  organizationId: string,
+) {
+  return getNextDocumentNumber(tx, organizationId, "INVOICE");
 }
 
 export function formatFinancialDocumentNumber(

@@ -3,6 +3,7 @@ import { ArrowLeftIcon } from "lucide-react";
 
 import { OrderReceiptDocument } from "@/components/receipt/OrderReceiptDocument";
 import { PrintReceiptButton } from "@/components/receipt/PrintReceiptButton";
+import { VatInvoicePanel } from "@/components/receipt/VatInvoicePanel";
 import { AppShell } from "@/components/shared/AppShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,11 @@ import type { OrderReceipt } from "@/lib/order-receipt-format";
 
 export function ReceiptPage({
   backHref,
+  canIssueVatInvoice = false,
   receipt,
 }: {
   backHref: string;
+  canIssueVatInvoice?: boolean;
   receipt: OrderReceipt;
 }) {
   return (
@@ -29,6 +32,7 @@ export function ReceiptPage({
         </Button>
         <PrintReceiptButton />
       </div>
+      {canIssueVatInvoice ? <VatInvoicePanel receipt={receipt} /> : null}
       <OrderReceiptDocument receipt={receipt} />
     </AppShell>
   );

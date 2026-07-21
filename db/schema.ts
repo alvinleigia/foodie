@@ -176,6 +176,11 @@ export const financialDocumentTypeEnum = pgEnum("financial_document_type", [
   "INVOICE",
 ]);
 
+export const vatInvoiceTypeEnum = pgEnum("vat_invoice_type", [
+  "SIMPLIFIED",
+  "FULL",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -1130,6 +1135,23 @@ export const orders = pgTable("orders", {
   receiptIssuedAt: timestamp("receipt_issued_at"),
   invoiceNumber: integer("invoice_number"),
   invoiceIssuedAt: timestamp("invoice_issued_at"),
+  vatInvoiceType: vatInvoiceTypeEnum("vat_invoice_type"),
+  invoiceTaxPointAt: timestamp("invoice_tax_point_at"),
+  invoiceSupplierName: text("invoice_supplier_name"),
+  invoiceSupplierAddressLine1: text("invoice_supplier_address_line_1"),
+  invoiceSupplierAddressLine2: text("invoice_supplier_address_line_2"),
+  invoiceSupplierCity: text("invoice_supplier_city"),
+  invoiceSupplierRegion: text("invoice_supplier_region"),
+  invoiceSupplierPostalCode: text("invoice_supplier_postal_code"),
+  invoiceSupplierCountryCode: text("invoice_supplier_country_code"),
+  invoiceSupplierVatNumber: text("invoice_supplier_vat_number"),
+  invoiceCustomerName: text("invoice_customer_name"),
+  invoiceCustomerAddressLine1: text("invoice_customer_address_line_1"),
+  invoiceCustomerAddressLine2: text("invoice_customer_address_line_2"),
+  invoiceCustomerCity: text("invoice_customer_city"),
+  invoiceCustomerRegion: text("invoice_customer_region"),
+  invoiceCustomerPostalCode: text("invoice_customer_postal_code"),
+  invoiceCustomerCountryCode: text("invoice_customer_country_code"),
   taxPricingModeSnapshot: taxPricingModeEnum("tax_pricing_mode_snapshot")
     .default("INCLUSIVE")
     .notNull(),
@@ -1238,7 +1260,48 @@ export const orders = pgTable("orders", {
   ),
   check(
     "orders_invoice_issuance_check",
-    sql`(${table.invoiceNumber} IS NULL AND ${table.invoiceIssuedAt} IS NULL) OR (${table.invoiceNumber} > 0 AND ${table.invoiceIssuedAt} IS NOT NULL)`,
+    sql`(
+      ${table.invoiceNumber} IS NULL
+      AND ${table.invoiceIssuedAt} IS NULL
+      AND ${table.vatInvoiceType} IS NULL
+      AND ${table.invoiceTaxPointAt} IS NULL
+      AND ${table.invoiceSupplierName} IS NULL
+      AND ${table.invoiceSupplierAddressLine1} IS NULL
+      AND ${table.invoiceSupplierAddressLine2} IS NULL
+      AND ${table.invoiceSupplierCity} IS NULL
+      AND ${table.invoiceSupplierRegion} IS NULL
+      AND ${table.invoiceSupplierPostalCode} IS NULL
+      AND ${table.invoiceSupplierCountryCode} IS NULL
+      AND ${table.invoiceSupplierVatNumber} IS NULL
+      AND ${table.invoiceCustomerName} IS NULL
+      AND ${table.invoiceCustomerAddressLine1} IS NULL
+      AND ${table.invoiceCustomerAddressLine2} IS NULL
+      AND ${table.invoiceCustomerCity} IS NULL
+      AND ${table.invoiceCustomerRegion} IS NULL
+      AND ${table.invoiceCustomerPostalCode} IS NULL
+      AND ${table.invoiceCustomerCountryCode} IS NULL
+    ) OR (
+      ${table.invoiceNumber} > 0
+      AND ${table.invoiceIssuedAt} IS NOT NULL
+      AND ${table.vatInvoiceType} IS NOT NULL
+      AND ${table.invoiceTaxPointAt} IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierName}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierAddressLine1}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierCity}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierPostalCode}), '') IS NOT NULL
+      AND ${table.invoiceSupplierCountryCode} ~ '^[A-Z]{2}$'
+      AND NULLIF(BTRIM(${table.invoiceSupplierVatNumber}), '') IS NOT NULL
+      AND (
+        ${table.vatInvoiceType} = 'SIMPLIFIED'
+        OR (
+          NULLIF(BTRIM(${table.invoiceCustomerName}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerAddressLine1}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerCity}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerPostalCode}), '') IS NOT NULL
+          AND ${table.invoiceCustomerCountryCode} ~ '^[A-Z]{2}$'
+        )
+      )
+    )`,
   ),
 ]);
 

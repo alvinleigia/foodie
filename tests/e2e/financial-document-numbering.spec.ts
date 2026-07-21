@@ -26,7 +26,7 @@ test.describe("restaurant financial document numbering", () => {
     expect(helper).toContain("restaurantDocumentCounters.lastNumber} + 1");
   });
 
-  test("issues documents only when cash or Stripe completes the bill", () => {
+  test("issues receipts only when cash or Stripe completes the bill", () => {
     for (const file of [
       "lib/order-payments.ts",
       "lib/staff-order-payments.ts",
@@ -39,6 +39,17 @@ test.describe("restaurant financial document numbering", () => {
     }
   });
 
+  test("issues VAT invoices separately from paid receipts", () => {
+    const service = source("lib/vat-invoices.ts");
+    const route = source("app/api/orders/[id]/vat-invoice/route.ts");
+
+    expect(service).toContain("getNextInvoiceNumber");
+    expect(service).toContain("simplifiedVatInvoiceLimitMinor");
+    expect(service).toContain('profile.registrationStatus !== "REGISTERED"');
+    expect(route).toContain("issueVatInvoice");
+    expect(route).toContain('action: "order.vat_invoice.issue"');
+  });
+
   test("protects issued numbers with database constraints and immutability", () => {
     const migration = source(
       "drizzle/0045_restaurant_financial_document_numbers.sql",
@@ -49,5 +60,14 @@ test.describe("restaurant financial document numbering", () => {
     expect(migration).toContain("prevent_issued_financial_document_update");
     expect(migration).toContain("Issued receipt numbers cannot be changed.");
     expect(migration).toContain("Issued invoice numbers cannot be changed.");
+  });
+
+  test("freezes UK VAT invoice identity and enforces full customer data", () => {
+    const migration = source("drizzle/0046_uk_vat_invoices.sql");
+
+    expect(migration).toContain('CREATE TYPE "vat_invoice_type"');
+    expect(migration).toContain('"invoice_supplier_vat_number"');
+    expect(migration).toContain('"invoice_customer_address_line_1"');
+    expect(migration).toContain("Issued VAT invoices cannot be changed.");
   });
 });

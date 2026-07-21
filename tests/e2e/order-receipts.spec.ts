@@ -8,6 +8,7 @@ import {
   getReceiptItemTotal,
   type OrderReceipt,
 } from "@/lib/order-receipt-format";
+import { vatInvoiceRequestSchema } from "@/lib/validations/vat-invoice";
 
 const root = process.cwd();
 
@@ -17,6 +18,8 @@ function source(relativePath: string) {
 
 function receiptFixture(): OrderReceipt {
   return {
+    canIssueSimplifiedVatInvoice: false,
+    canIssueVatInvoice: false,
     cancellationFeeAmount: null,
     chargeAmount: "0.00",
     createdAt: new Date("2026-07-21T10:00:00.000Z"),
@@ -25,6 +28,24 @@ function receiptFixture(): OrderReceipt {
     customerName: "A & B",
     discountAmount: "0.00",
     finalTotalAmount: "7.50",
+    invoiceCustomerAddressLine1: null,
+    invoiceCustomerAddressLine2: null,
+    invoiceCustomerCity: null,
+    invoiceCustomerCountryCode: null,
+    invoiceCustomerName: null,
+    invoiceCustomerPostalCode: null,
+    invoiceCustomerRegion: null,
+    invoiceIssuedAt: null,
+    invoiceNumber: null,
+    invoiceSupplierAddressLine1: null,
+    invoiceSupplierAddressLine2: null,
+    invoiceSupplierCity: null,
+    invoiceSupplierCountryCode: null,
+    invoiceSupplierName: null,
+    invoiceSupplierPostalCode: null,
+    invoiceSupplierRegion: null,
+    invoiceSupplierVatNumber: null,
+    invoiceTaxPointAt: null,
     items: [
       {
         drinkName: "Lunch <special>",
@@ -32,6 +53,9 @@ function receiptFixture(): OrderReceipt {
           { modifierName: "Extra sauce", priceDelta: "0.50", quantity: 1 },
         ],
         quantity: 2,
+        taxableAmount: "7.50",
+        taxAmount: "0.00",
+        taxRateBps: 0,
         unitPrice: "3.25",
       },
     ],
@@ -54,8 +78,10 @@ function receiptFixture(): OrderReceipt {
     restaurantSlug: "cafe-co",
     subtotalAmount: "7.50",
     taxAmount: "0.00",
+    taxRateBps: 0,
     timezone: "Europe/London",
     tipAmount: "0.00",
+    vatInvoiceType: null,
   };
 }
 
@@ -73,6 +99,64 @@ test.describe("order receipts", () => {
     expect(email.textBody).toContain("Total: £7.50");
     expect(email.htmlBody).toContain("Lunch &lt;special&gt;");
     expect(email.htmlBody).not.toContain("Lunch <special>");
+  });
+
+  test("builds a simplified VAT invoice from immutable snapshots", () => {
+    const receipt = receiptFixture();
+    receipt.invoiceIssuedAt = new Date("2026-07-21T10:01:00.000Z");
+    receipt.invoiceNumber = 4;
+    receipt.invoiceSupplierAddressLine1 = "1 High Street";
+    receipt.invoiceSupplierCity = "London";
+    receipt.invoiceSupplierCountryCode = "GB";
+    receipt.invoiceSupplierName = "Cafe Limited";
+    receipt.invoiceSupplierPostalCode = "SW1A 1AA";
+    receipt.invoiceSupplierVatNumber = "GB123456789";
+    receipt.invoiceTaxPointAt = new Date("2026-07-21T10:01:00.000Z");
+    receipt.taxAmount = "1.25";
+    receipt.taxRateBps = 2000;
+    receipt.vatInvoiceType = "SIMPLIFIED";
+
+    const email = buildOrderReceiptEmail(receipt);
+
+    expect(email.subject).toBe(
+      "Cafe & Co simplified vat invoice INV-000004",
+    );
+    expect(email.textBody).toContain("VAT registration number: GB123456789");
+    expect(email.textBody).toContain("Tax point 21 Jul 2026");
+    expect(email.textBody).toContain("Net unit");
+    expect(email.textBody).toContain("VAT total");
+  });
+
+  test("requires and normalizes customer details for full VAT invoices", () => {
+    expect(
+      vatInvoiceRequestSchema.safeParse({ type: "FULL" }).success,
+    ).toBe(false);
+
+    const result = vatInvoiceRequestSchema.safeParse({
+      customer: {
+        addressLine1: " 1 High Street ",
+        addressLine2: "",
+        city: " London ",
+        countryCode: "gb",
+        name: " Example Limited ",
+        postalCode: " SW1A 1AA ",
+        region: "",
+      },
+      type: "FULL",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === "FULL") {
+      expect(result.data.customer).toEqual({
+        addressLine1: "1 High Street",
+        addressLine2: null,
+        city: "London",
+        countryCode: "GB",
+        name: "Example Limited",
+        postalCode: "SW1A 1AA",
+        region: null,
+      });
+    }
   });
 
   test("scopes staff and customer receipt reads", () => {

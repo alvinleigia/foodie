@@ -1,7 +1,10 @@
 import { formatFinancialDocumentNumber } from "@/lib/financial-document-numbers";
 import {
   formatReceiptMoney,
+  formatVatRate,
+  getInvoiceAddressLines,
   getReceiptItemTotal,
+  getVatNetUnitPrice,
   type OrderReceipt,
 } from "@/lib/order-receipt-format";
 
@@ -29,25 +32,72 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
     "RECEIPT",
     receipt.receiptNumber,
   );
+  const hasVatInvoice = Boolean(
+    receipt.vatInvoiceType &&
+      receipt.invoiceNumber &&
+      receipt.invoiceIssuedAt &&
+      receipt.invoiceTaxPointAt &&
+      receipt.invoiceSupplierName &&
+      receipt.invoiceSupplierVatNumber,
+  );
+  const invoiceReference = hasVatInvoice
+    ? formatFinancialDocumentNumber("INVOICE", receipt.invoiceNumber!)
+    : null;
+  const documentLabel = hasVatInvoice
+    ? `${receipt.vatInvoiceType === "FULL" ? "Full" : "Simplified"} VAT invoice`
+    : "Receipt";
   const issuedAt = new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: receipt.timezone,
-  }).format(receipt.receiptIssuedAt);
+  }).format(receipt.invoiceIssuedAt ?? receipt.receiptIssuedAt);
+  const taxPointAt = receipt.invoiceTaxPointAt
+    ? new Intl.DateTimeFormat("en-GB", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: receipt.timezone,
+      }).format(receipt.invoiceTaxPointAt)
+    : null;
+  const { customer: customerAddress, supplier: supplierAddress } =
+    getInvoiceAddressLines(receipt);
 
   return (
     <article className="mx-auto w-full max-w-2xl rounded-lg border border-stone-200 bg-white p-6 text-stone-950 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
       <header className="border-b-2 border-stone-950 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-          Receipt
+          {documentLabel}
         </p>
-        <h1 className="mt-2 text-2xl font-semibold">{receipt.restaurantName}</h1>
+        <h1 className="mt-2 text-2xl font-semibold">
+          {receipt.invoiceSupplierName ?? receipt.restaurantName}
+        </h1>
         <div className="mt-3 grid gap-1 text-sm text-stone-600 sm:grid-cols-2">
-          <p>{receiptReference}</p>
+          <p>{invoiceReference ?? receiptReference}</p>
           <p className="sm:text-right">Order #{receipt.orderNo}</p>
           <p>Issued {issuedAt}</p>
           <p className="sm:text-right">Customer: {receipt.customerName}</p>
+          {taxPointAt ? <p>Tax point {taxPointAt}</p> : null}
         </div>
+        {hasVatInvoice ? (
+          <div className="mt-4 grid gap-4 text-sm text-stone-600 sm:grid-cols-2">
+            <div>
+              <p className="font-medium text-stone-950">Supplier</p>
+              {supplierAddress.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+              <p>VAT registration: {receipt.invoiceSupplierVatNumber}</p>
+            </div>
+            {receipt.vatInvoiceType === "FULL" &&
+            receipt.invoiceCustomerName ? (
+              <div className="sm:text-right">
+                <p className="font-medium text-stone-950">Customer</p>
+                <p>{receipt.invoiceCustomerName}</p>
+                {customerAddress.map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </header>
 
       <section className="py-5">
@@ -58,6 +108,7 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
         </div>
         {receipt.items.map((item, index) => {
           const itemTotal = getReceiptItemTotal(item, receipt.currency);
+          const netUnitPrice = getVatNetUnitPrice(item, receipt.currency);
 
           return (
             <div
@@ -76,6 +127,17 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
                       .join(", ")}
                   </p>
                 ) : null}
+                {hasVatInvoice &&
+                netUnitPrice !== null &&
+                item.taxableAmount !== null &&
+                item.taxAmount !== null ? (
+                  <p className="mt-1 text-xs text-stone-500">
+                    Net unit {formatReceiptMoney(netUnitPrice, receipt.currency)};
+                    net line {formatReceiptMoney(item.taxableAmount, receipt.currency)};
+                    VAT {formatVatRate(item.taxRateBps)}{" "}
+                    {formatReceiptMoney(item.taxAmount, receipt.currency)}
+                  </p>
+                ) : null}
               </div>
               <span>{item.quantity}</span>
               <span className="min-w-20 text-right">
@@ -92,7 +154,7 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
         <SummaryRow
           amount={receipt.subtotalAmount}
           currency={receipt.currency}
-          label="Subtotal"
+          label={hasVatInvoice ? "Net total" : "Subtotal"}
         />
         {Number(receipt.discountAmount) > 0 ? (
           <SummaryRow
@@ -105,8 +167,16 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
           <SummaryRow
             amount={receipt.taxAmount}
             currency={receipt.currency}
-            label="Tax"
+            label={hasVatInvoice ? "VAT total" : "Tax"}
           />
+        ) : null}
+        {hasVatInvoice ? (
+          <div className="flex items-center justify-between gap-6 py-1.5 text-sm">
+            <span className="text-stone-600">VAT rate</span>
+            <span className="font-medium text-stone-950">
+              {formatVatRate(receipt.taxRateBps)}
+            </span>
+          </div>
         ) : null}
         {Number(receipt.chargeAmount) > 0 ? (
           <SummaryRow

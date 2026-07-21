@@ -8,6 +8,7 @@ import {
   orderPayments,
   orders,
   organizationCustomers,
+  organizationTaxProfiles,
   organizations,
 } from "@/db/schema";
 import type { OrderReceipt } from "@/lib/order-receipt-format";
@@ -39,6 +40,24 @@ export async function getOrderReceipt(
       customerName: orders.customerName,
       discountAmount: orders.discountAmountSnapshot,
       finalTotalAmount: orders.finalTotalAmountSnapshot,
+      invoiceCustomerAddressLine1: orders.invoiceCustomerAddressLine1,
+      invoiceCustomerAddressLine2: orders.invoiceCustomerAddressLine2,
+      invoiceCustomerCity: orders.invoiceCustomerCity,
+      invoiceCustomerCountryCode: orders.invoiceCustomerCountryCode,
+      invoiceCustomerName: orders.invoiceCustomerName,
+      invoiceCustomerPostalCode: orders.invoiceCustomerPostalCode,
+      invoiceCustomerRegion: orders.invoiceCustomerRegion,
+      invoiceIssuedAt: orders.invoiceIssuedAt,
+      invoiceNumber: orders.invoiceNumber,
+      invoiceSupplierAddressLine1: orders.invoiceSupplierAddressLine1,
+      invoiceSupplierAddressLine2: orders.invoiceSupplierAddressLine2,
+      invoiceSupplierCity: orders.invoiceSupplierCity,
+      invoiceSupplierCountryCode: orders.invoiceSupplierCountryCode,
+      invoiceSupplierName: orders.invoiceSupplierName,
+      invoiceSupplierPostalCode: orders.invoiceSupplierPostalCode,
+      invoiceSupplierRegion: orders.invoiceSupplierRegion,
+      invoiceSupplierVatNumber: orders.invoiceSupplierVatNumber,
+      invoiceTaxPointAt: orders.invoiceTaxPointAt,
       orderDate: orders.orderDate,
       orderId: orders.id,
       orderNo: orders.orderNo,
@@ -50,11 +69,21 @@ export async function getOrderReceipt(
       restaurantSlug: organizations.slug,
       subtotalAmount: orders.subtotalAmountSnapshot,
       taxAmount: orders.taxAmountSnapshot,
+      taxRateBps: orders.taxRateBpsSnapshot,
       timezone: organizations.timezone,
       tipAmount: orders.tipAmountSnapshot,
+      vatInvoiceType: orders.vatInvoiceType,
+      vatRegistrationCountryCode: organizationTaxProfiles.countryCode,
+      vatRegistrationNumber: organizationTaxProfiles.registrationNumber,
+      vatRegistrationStatus: organizationTaxProfiles.registrationStatus,
+      vatTaxSystem: organizationTaxProfiles.taxSystem,
     })
     .from(orders)
     .innerJoin(organizations, eq(organizations.id, orders.organizationId))
+    .leftJoin(
+      organizationTaxProfiles,
+      eq(organizationTaxProfiles.organizationId, orders.organizationId),
+    )
     .leftJoin(
       organizationCustomers,
       eq(organizationCustomers.id, orders.organizationCustomerId),
@@ -99,6 +128,23 @@ export async function getOrderReceipt(
 
   return {
     ...record,
+    canIssueSimplifiedVatInvoice:
+      !record.invoiceNumber &&
+      record.vatTaxSystem === "VAT" &&
+      record.vatRegistrationStatus === "REGISTERED" &&
+      record.vatRegistrationCountryCode === "GB" &&
+      Boolean(record.vatRegistrationNumber) &&
+      record.currency === "GBP" &&
+      record.taxRateBps > 0 &&
+      Number(record.finalTotalAmount) <= 250,
+    canIssueVatInvoice:
+      !record.invoiceNumber &&
+      record.vatTaxSystem === "VAT" &&
+      record.vatRegistrationStatus === "REGISTERED" &&
+      record.vatRegistrationCountryCode === "GB" &&
+      Boolean(record.vatRegistrationNumber) &&
+      record.currency === "GBP" &&
+      record.taxRateBps > 0,
     cancellationFeeAmount: record.cancellationFeeAmount ?? null,
     chargeAmount: record.chargeAmount,
     currency: record.currency,
@@ -115,6 +161,9 @@ export async function getOrderReceipt(
         quantity: modifier.quantity,
       })),
       quantity: item.quantity,
+      taxableAmount: item.taxableAmountSnapshot,
+      taxAmount: item.taxAmountSnapshot,
+      taxRateBps: item.taxRateBpsSnapshot,
       unitPrice: item.unitPrice,
     })),
     payments,

@@ -26,6 +26,7 @@ export default async function StaffReceiptPage({ params }: StaffReceiptPageProps
   return (
     <ReceiptPage
       backHref={getRestaurantWorkspaceHref(access.restaurant.slug, "orders")}
+      canIssueVatInvoice
       receipt={receipt}
     />
   );
