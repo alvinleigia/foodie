@@ -143,7 +143,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Reconcile financial reports from order, adjustment, payment and refund ledgers.
 - [x] Add sequential receipt and invoice numbers per restaurant.
 - [x] Add printable and email receipts.
-- [ ] Add UK simplified VAT invoice support and full VAT invoice data when required.
+- [x] Add UK simplified VAT invoice support and full VAT invoice data when required.
 
 ## Now: Core Restaurant Operations
 
