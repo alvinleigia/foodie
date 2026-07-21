@@ -1,4 +1,5 @@
 import { formatFinancialDocumentNumber } from "@/lib/financial-document-numbers";
+import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
 import {
   formatReceiptMoney,
   formatVatRate,
@@ -75,6 +76,7 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
           <p className="sm:text-right">Order #{receipt.orderNo}</p>
           <p>Issued {issuedAt}</p>
           <p className="sm:text-right">Customer: {receipt.customerName}</p>
+          <p>Fulfilment: {getOrderFulfilmentLabel(receipt.fulfilmentType)}</p>
           {taxPointAt ? <p>Tax point {taxPointAt}</p> : null}
         </div>
         {hasVatInvoice ? (

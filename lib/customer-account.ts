@@ -167,6 +167,7 @@ export async function getCustomerOrderHistory(
     .select({
       createdAt: orders.createdAt,
       currency: organizations.currency,
+      fulfilmentType: orders.fulfilmentType,
       orderId: orders.id,
       orderNo: orders.orderNo,
       organizationName: organizations.name,

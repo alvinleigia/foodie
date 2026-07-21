@@ -40,6 +40,7 @@ export async function getOrderReceipt(
       customerName: orders.customerName,
       discountAmount: orders.discountAmountSnapshot,
       finalTotalAmount: orders.finalTotalAmountSnapshot,
+      fulfilmentType: orders.fulfilmentType,
       invoiceCustomerAddressLine1: orders.invoiceCustomerAddressLine1,
       invoiceCustomerAddressLine2: orders.invoiceCustomerAddressLine2,
       invoiceCustomerCity: orders.invoiceCustomerCity,

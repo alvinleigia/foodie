@@ -51,6 +51,7 @@ import {
   type CustomerAuthProviders,
 } from "@/components/order/CustomerLoginForm";
 import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerification";
+import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -86,6 +87,7 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 import {
   MenuCategoryRecord,
   MenuItemRecord,
@@ -140,6 +142,7 @@ type CustomizerState = {
 
 type OrderDraft = {
   customerName: string;
+  fulfilmentType: OrderFulfilmentType;
 };
 
 type RestaurantTaxPricing = {
@@ -277,6 +280,7 @@ export function OrderForm({
   const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: customer?.name ?? "",
+    fulfilmentType: "COLLECTION",
   });
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -901,6 +905,7 @@ export function OrderForm({
         body: JSON.stringify({
           customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
           customerName: isStaffOrder ? draft.customerName.trim() : undefined,
+          fulfilmentType: draft.fulfilmentType,
           items: cartItems.map((item) => ({
             categoryId: item.categoryId,
             drinkId: item.drinkId,
@@ -930,6 +935,7 @@ export function OrderForm({
       orderDate: payload.orderDate,
       customerToken: payload.customerToken,
       customerName: payload.customerName,
+      fulfilmentType: payload.fulfilmentType,
       categoryName: payload.categoryName,
       drinkName: payload.drinkName,
       itemCount: payload.itemCount,
@@ -951,7 +957,7 @@ export function OrderForm({
     }
 
     toast.success(`Order #${payload.orderNo} placed successfully.`);
-    setDraft({ customerName: "" });
+    setDraft({ customerName: "", fulfilmentType: "COLLECTION" });
     setSelectedStaffCustomer(null);
     setCartItems([]);
     setIsCartOpen(false);
@@ -1426,11 +1432,23 @@ export function OrderForm({
                   setSelectedStaffCustomer(nextCustomer);
 
                   if (nextCustomer) {
-                    setDraft({ customerName: nextCustomer.name });
+                    setDraft((currentDraft) => ({
+                      ...currentDraft,
+                      customerName: nextCustomer.name,
+                    }));
                   }
                 }}
               />
             ) : null}
+
+            <FulfilmentTypeSelector
+              disabled={isSubmitting}
+              value={draft.fulfilmentType}
+              onChange={(fulfilmentType) => {
+                updateDraft("fulfilmentType", fulfilmentType);
+                setError(null);
+              }}
+            />
 
             {!isStaffOrder && !customer ? (
               <CustomerLoginForm

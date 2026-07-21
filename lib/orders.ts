@@ -188,6 +188,7 @@ export function serializeOrder(
     organizationId: order.organizationId,
     customerName: order.customerName,
     source: order.source,
+    fulfilmentType: order.fulfilmentType,
     categoryName: order.categoryName,
     drinkName: order.drinkName,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
+
 export const createOrderSchema = z
   .object({
     customerId: z.string().uuid("Choose a valid customer").nullable().optional(),
@@ -9,6 +11,7 @@ export const createOrderSchema = z
       .min(2, "Name is required")
       .max(80, "Name is too long")
       .optional(),
+    fulfilmentType: z.enum(orderFulfilmentTypes),
     items: z
       .array(
         z.object({

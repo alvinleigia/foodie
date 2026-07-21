@@ -99,6 +99,13 @@ export const orderSourceEnum = pgEnum("order_source", [
   "STAFF_CREATED",
 ]);
 
+export const orderFulfilmentTypeEnum = pgEnum("order_fulfilment_type", [
+  "DINE_IN",
+  "TAKEAWAY",
+  "COLLECTION",
+  "DELIVERY",
+]);
+
 export const paymentStatusEnum = pgEnum("payment_status", [
   "NOT_REQUIRED",
   "UNPAID",
@@ -1085,6 +1092,9 @@ export const orders = pgTable("orders", {
     onDelete: "set null",
   }),
   source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
+  fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type")
+    .default("COLLECTION")
+    .notNull(),
   paymentStatus: paymentStatusEnum("payment_status")
     .default("NOT_REQUIRED")
     .notNull(),

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
 import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
 import { formatOrderDisplay } from "@/lib/order-display";
+import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -402,6 +403,9 @@ export function CustomerOrderStatus({
                   <p className="text-sm text-stone-600">
                     {order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1} item(s) for {order.customerName}
                   </p>
+                  <p className="mt-1 text-sm font-medium text-stone-700">
+                    {getOrderFulfilmentLabel(order.fulfilmentType)}
+                  </p>
                 </div>
                 <OrderStatusBadge status={order.status} />
               </div>
@@ -428,8 +432,17 @@ export function CustomerOrderStatus({
                 {order.status === "PREPARING" &&
                   "Preparation has started. Cancellation is locked."}
                 {order.status === "READY" &&
-                  "Your drink is ready. Please collect it."}
-                {order.status === "DELIVERED" && "Collected successfully."}
+                  (order.fulfilmentType === "DELIVERY"
+                    ? "Your order is ready for delivery."
+                    : order.fulfilmentType === "DINE_IN"
+                      ? "Your order is ready to be served."
+                      : "Your order is ready for collection.")}
+                {order.status === "DELIVERED" &&
+                  (order.fulfilmentType === "DELIVERY"
+                    ? "Delivered successfully."
+                    : order.fulfilmentType === "DINE_IN"
+                      ? "Served successfully."
+                      : "Collected successfully.")}
                 {order.status === "CANCELLED" &&
                   order.paymentStatus === "REFUND_PENDING" &&
                   "This order was cancelled. Your refund is being processed."}

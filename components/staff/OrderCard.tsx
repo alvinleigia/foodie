@@ -35,6 +35,10 @@ import {
   orderItemCorrectionTargets,
 } from "@/lib/order-corrections";
 import { formatOrderDisplay } from "@/lib/order-display";
+import {
+  getOrderFulfilmentLabel,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
 
 export type StaffOrder = {
   orderId: string;
@@ -42,6 +46,7 @@ export type StaffOrder = {
   orderDate?: string | null;
   customerName: string;
   source: "CUSTOMER_SELF_SERVICE" | "STAFF_CREATED";
+  fulfilmentType: OrderFulfilmentType;
   categoryName: string;
   drinkName: string;
   itemCount?: number;
@@ -536,6 +541,9 @@ export function OrderCard({
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
                   <PackageIcon className="size-3.5" />
                   {itemCount} item(s)
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
+                  {getOrderFulfilmentLabel(order.fulfilmentType)}
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
                   <ClockIcon className="size-3.5" />

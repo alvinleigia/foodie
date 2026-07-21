@@ -1,3 +1,5 @@
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+
 export const CUSTOMER_ORDERS_STORAGE_KEY = "bar_customer_orders";
 export const CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY = "bar_customer_orders_reset_marker";
 export const CUSTOMER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -42,6 +44,8 @@ export const orderPaymentMethods = ["CASH", "STRIPE_CHECKOUT"] as const;
 
 export type OrderPaymentMethod = (typeof orderPaymentMethods)[number];
 
+export type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+
 export type OrderLineItem = {
   id?: string;
   organizationId?: string;
@@ -80,6 +84,7 @@ export type LocalCustomerOrder = {
   organizationId?: string;
   customerToken: string;
   customerName: string;
+  fulfilmentType: OrderFulfilmentType;
   categoryName: string;
   drinkName: string;
   itemCount?: number;

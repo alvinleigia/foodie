@@ -431,6 +431,7 @@ export async function POST(request: NextRequest) {
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
+          fulfilmentType: parsed.data.fulfilmentType,
           paymentStatus:
             session.user.kind === "customer" ? "PENDING" : "UNPAID",
           paymentAmount: orderPricing?.amountTotal ?? null,
