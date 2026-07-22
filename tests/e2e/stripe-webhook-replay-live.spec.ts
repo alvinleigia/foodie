@@ -144,4 +144,63 @@ test.describe("live Stripe webhook replay", () => {
         .where(eq(stripeWebhookEvents.eventId, eventId));
     }
   });
+
+  test("reclaims a delayed redelivery after abandoned processing", async () => {
+    test.skip(
+      !databaseUrl,
+      "Set E2E_DATABASE_URL to a migrated UAT database to run webhook replay tests.",
+    );
+
+    const eventId = `evt_test_codex_delayed_${Date.now()}`;
+    const staleAt = new Date(Date.now() - 10 * 60_000);
+    let processCount = 0;
+
+    try {
+      await getDb().insert(stripeWebhookEvents).values({
+        attemptCount: 1,
+        endpoint: "CONNECT",
+        eventId,
+        eventType: "checkout.session.completed",
+        processingStartedAt: staleAt,
+        status: "PROCESSING",
+        stripeAccountId: "acct_test_replay",
+        updatedAt: staleAt,
+      });
+
+      await expect(
+        processStripeWebhookEvent(
+          {
+            endpoint: "CONNECT",
+            eventId,
+            eventType: "checkout.session.completed",
+            stripeAccountId: "acct_test_replay",
+          },
+          async () => {
+            processCount += 1;
+          },
+        ),
+      ).resolves.toEqual({ state: "PROCESSED" });
+
+      const [journal] = await getDb()
+        .select({
+          attemptCount: stripeWebhookEvents.attemptCount,
+          lastError: stripeWebhookEvents.lastError,
+          status: stripeWebhookEvents.status,
+        })
+        .from(stripeWebhookEvents)
+        .where(eq(stripeWebhookEvents.eventId, eventId))
+        .limit(1);
+
+      expect(processCount).toBe(1);
+      expect(journal).toMatchObject({
+        attemptCount: 2,
+        lastError: null,
+        status: "SUCCEEDED",
+      });
+    } finally {
+      await getDb()
+        .delete(stripeWebhookEvents)
+        .where(eq(stripeWebhookEvents.eventId, eventId));
+    }
+  });
 });
