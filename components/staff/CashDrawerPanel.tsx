@@ -7,6 +7,7 @@ import {
   Banknote,
   CheckCircle2,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +29,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import {
+  fetchJson,
+  getCaughtErrorMessage,
+  requestJson,
+} from "@/lib/api-client";
 import {
   cashDrawerMovementReasons,
   type CashDrawerMovementType,
@@ -46,11 +51,31 @@ type OpenCashDrawerSession = {
 
 type CashDrawerPanelProps = {
   canAdjust: boolean;
+  canClose: boolean;
   currency: string;
   initialMovements: CashDrawerMovement[];
+  initialReconciliation: CashDrawerReconciliation | null;
   initialSession: OpenCashDrawerSession | null;
   orderingPoint: { id: string; name: string } | null;
   timezone: string;
+};
+
+type CashDrawerReconciliation = {
+  cashRefundsAmount: string;
+  cashSalesAmount: string;
+  currency: string;
+  expectedCashAmount: string;
+  openingFloat: string;
+  paidInAmount: string;
+  paidOutAmount: string;
+  sessionId: string;
+};
+
+type ClosedCashDrawerReconciliation = CashDrawerReconciliation & {
+  closingNote: string | null;
+  countedCashAmount: string;
+  id: string;
+  varianceAmount: string;
 };
 
 type OpenSessionResponse = {
@@ -70,6 +95,14 @@ type CashDrawerMovement = {
 
 type MovementResponse = {
   movement: Omit<CashDrawerMovement, "createdAtLabel"> & { createdAt: string };
+};
+
+type ReconciliationResponse = {
+  reconciliation: CashDrawerReconciliation;
+};
+
+type CloseSessionResponse = {
+  reconciliation: ClosedCashDrawerReconciliation;
 };
 
 function formatMoney(amount: string, currency: string) {
@@ -95,8 +128,10 @@ function formatMovementAmount(movement: CashDrawerMovement) {
 
 export function CashDrawerPanel({
   canAdjust,
+  canClose,
   currency,
   initialMovements,
+  initialReconciliation,
   initialSession,
   orderingPoint,
   timezone,
@@ -113,6 +148,13 @@ export function CashDrawerPanel({
   );
   const [movements, setMovements] = useState(initialMovements);
   const [session, setSession] = useState(initialSession);
+  const [reconciliation, setReconciliation] = useState(initialReconciliation);
+  const [countedCashAmount, setCountedCashAmount] = useState("");
+  const [closingNote, setClosingNote] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+  const [lastClosed, setLastClosed] =
+    useState<ClosedCashDrawerReconciliation | null>(null);
 
   if (!orderingPoint) {
     return (
@@ -128,6 +170,31 @@ export function CashDrawerPanel({
   }
 
   const activeOrderingPoint = orderingPoint;
+
+  async function refreshReconciliation(orderingPointId?: string) {
+    const activeOrderingPointId = orderingPointId ?? session?.orderingPointId;
+
+    if (!canClose || !activeOrderingPointId) {
+      return;
+    }
+
+    setIsRefreshing(true);
+
+    try {
+      const payload = await fetchJson<ReconciliationResponse>(
+        `/api/cash-drawer/reconciliation?orderingPointId=${encodeURIComponent(activeOrderingPointId)}`,
+        { fallbackError: "Drawer totals could not be refreshed." },
+      );
+
+      setReconciliation(payload.reconciliation);
+    } catch (error) {
+      toast.error(
+        getCaughtErrorMessage(error, "Drawer totals could not be refreshed."),
+      );
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
 
   async function openDrawer() {
     setIsSubmitting(true);
@@ -150,6 +217,23 @@ export function CashDrawerPanel({
         status: "OPEN",
       });
       setMovements([]);
+      setLastClosed(null);
+      setCountedCashAmount("");
+      setClosingNote("");
+
+      if (canClose) {
+        setReconciliation({
+          cashRefundsAmount: "0.00",
+          cashSalesAmount: "0.00",
+          currency: payload.session.currency,
+          expectedCashAmount: payload.session.openingFloat,
+          openingFloat: payload.session.openingFloat,
+          paidInAmount: "0.00",
+          paidOutAmount: "0.00",
+          sessionId: payload.session.id,
+        });
+      }
+
       toast.success("Cash drawer opened.");
     } catch (error) {
       toast.error(
@@ -196,6 +280,7 @@ export function CashDrawerPanel({
       ]);
       setMovementAmount("");
       setMovementNote("");
+      await refreshReconciliation(session.orderingPointId);
       toast.success(
         movementType === "PAID_IN" ? "Cash paid in." : "Cash paid out.",
       );
@@ -208,7 +293,50 @@ export function CashDrawerPanel({
     }
   }
 
+  async function closeDrawer() {
+    if (!session) {
+      return;
+    }
+
+    setIsClosing(true);
+
+    try {
+      const payload = await requestJson<CloseSessionResponse>(
+        "/api/cash-drawer/reconciliation",
+        {
+          body: {
+            closingNote,
+            countedCashAmount,
+            orderingPointId: session.orderingPointId,
+          },
+          fallbackError: "Cash drawer could not be closed.",
+        },
+      );
+
+      setLastClosed(payload.reconciliation);
+      setSession(null);
+      setMovements([]);
+      setReconciliation(null);
+      setCountedCashAmount("");
+      setClosingNote("");
+      toast.success("Cash drawer reconciled and closed.");
+    } catch (error) {
+      toast.error(
+        getCaughtErrorMessage(error, "Cash drawer could not be closed."),
+      );
+    } finally {
+      setIsClosing(false);
+    }
+  }
+
   if (session) {
+    const countedCash = Number(countedCashAmount);
+    const expectedCash = Number(reconciliation?.expectedCashAmount ?? 0);
+    const displayedVariance =
+      countedCashAmount && Number.isFinite(countedCash)
+        ? countedCash - expectedCash
+        : null;
+
     return (
       <div className="max-w-3xl space-y-6">
         <Card className="border-emerald-200 bg-emerald-50/70">
@@ -386,12 +514,167 @@ export function CashDrawerPanel({
             </div>
           </CardContent>
         </Card>
+
+        {canClose ? (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Close and reconcile</CardTitle>
+                  <CardDescription>
+                    Count the till, compare it with the ledger and close this
+                    drawer session.
+                  </CardDescription>
+                </div>
+                <Button
+                  disabled={isRefreshing}
+                  onClick={() => refreshReconciliation()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <ButtonLabel icon={RefreshCw}>
+                    {isRefreshing ? "Refreshing" : "Refresh totals"}
+                  </ButtonLabel>
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {reconciliation ? (
+                <dl className="divide-y rounded-lg border px-4">
+                  {[
+                    ["Opening float", reconciliation.openingFloat],
+                    ["Cash sales", reconciliation.cashSalesAmount],
+                    ["Cash refunds", `-${reconciliation.cashRefundsAmount}`],
+                    ["Paid in", reconciliation.paidInAmount],
+                    ["Paid out", `-${reconciliation.paidOutAmount}`],
+                  ].map(([label, amount]) => (
+                    <div
+                      className="flex items-center justify-between gap-4 py-3 text-sm"
+                      key={label}
+                    >
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="font-medium">
+                        {formatMoney(amount, reconciliation.currency)}
+                      </dd>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-4 py-4">
+                    <dt className="font-semibold">Expected cash</dt>
+                    <dd className="text-lg font-semibold">
+                      {formatMoney(
+                        reconciliation.expectedCashAmount,
+                        reconciliation.currency,
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Refresh the drawer totals before closing.
+                </p>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium" htmlFor="counted-cash">
+                    Counted cash ({session.currency})
+                  </label>
+                  <Input
+                    id="counted-cash"
+                    inputMode="decimal"
+                    min="0"
+                    onChange={(event) => setCountedCashAmount(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={countedCashAmount}
+                  />
+                </div>
+                <div className="rounded-lg bg-muted px-4 py-3">
+                  <p className="text-sm text-muted-foreground">Variance</p>
+                  <p className="mt-1 text-lg font-semibold">
+                    {displayedVariance === null
+                      ? "Enter counted cash"
+                      : formatMoney(
+                          displayedVariance.toFixed(2),
+                          session.currency,
+                        )}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="closing-note">
+                  Closing note{" "}
+                  <span className="text-muted-foreground">(optional)</span>
+                </label>
+                <Textarea
+                  className="min-h-20"
+                  id="closing-note"
+                  maxLength={500}
+                  onChange={(event) => setClosingNote(event.target.value)}
+                  value={closingNote}
+                />
+              </div>
+              <Button
+                disabled={
+                  isClosing || !reconciliation || !countedCashAmount.trim()
+                }
+                onClick={closeDrawer}
+                type="button"
+              >
+                <ButtonLabel icon={isClosing ? Loader2 : CheckCircle2}>
+                  {isClosing ? "Closing drawer" : "Close and reconcile"}
+                </ButtonLabel>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     );
   }
 
   return (
-    <Card className="max-w-2xl">
+    <div className="max-w-2xl space-y-6">
+      {lastClosed ? (
+        <Card className="border-emerald-200 bg-emerald-50/70">
+          <CardHeader>
+            <CardTitle>Drawer reconciled</CardTitle>
+            <CardDescription>
+              The session is closed and its cash totals are locked.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <dl className="grid gap-4 border-t border-emerald-200 pt-4 sm:grid-cols-3">
+              <div>
+                <dt className="text-xs text-muted-foreground">Expected</dt>
+                <dd className="font-semibold">
+                  {formatMoney(
+                    lastClosed.expectedCashAmount,
+                    lastClosed.currency,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Counted</dt>
+                <dd className="font-semibold">
+                  {formatMoney(
+                    lastClosed.countedCashAmount,
+                    lastClosed.currency,
+                  )}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">Variance</dt>
+                <dd className="font-semibold">
+                  {formatMoney(lastClosed.varianceAmount, lastClosed.currency)}
+                </dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
       <CardHeader>
         <CardTitle>Open cash drawer</CardTitle>
         <CardDescription>
@@ -420,6 +703,7 @@ export function CashDrawerPanel({
           </ButtonLabel>
         </Button>
       </CardContent>
-    </Card>
+      </Card>
+    </div>
   );
 }

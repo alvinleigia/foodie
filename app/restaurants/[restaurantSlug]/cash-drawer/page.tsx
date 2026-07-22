@@ -1,5 +1,6 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { CashDrawerPanel } from "@/components/staff/CashDrawerPanel";
+import { getOpenCashDrawerReconciliation } from "@/lib/cash-drawer-reconciliation";
 import {
   getCashDrawerOpeningContext,
   getOpenCashDrawerSession,
@@ -47,6 +48,14 @@ export default async function RestaurantCashDrawerPage({
         organizationId: access.restaurant.id,
       })
     : [];
+  const canClose = session.user.permissions.includes("cash_drawer.close");
+  const reconciliation =
+    openingContext && openSession && canClose
+      ? await getOpenCashDrawerReconciliation({
+          orderingPointId: openingContext.id,
+          organizationId: access.restaurant.id,
+        })
+      : null;
 
   return (
     <SaasAdminShell
@@ -66,6 +75,7 @@ export default async function RestaurantCashDrawerPage({
     >
       <CashDrawerPanel
         canAdjust={session.user.permissions.includes("cash_drawer.adjust")}
+        canClose={canClose}
         currency={openingContext?.currency ?? ""}
         initialMovements={movements.map((movement) => ({
           ...movement,
@@ -90,6 +100,7 @@ export default async function RestaurantCashDrawerPage({
               }
             : null
         }
+        initialReconciliation={reconciliation}
         orderingPoint={
           openingContext
             ? { id: openingContext.id, name: openingContext.name }

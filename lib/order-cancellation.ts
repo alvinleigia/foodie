@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 
 import { getDb } from "@/db";
 import {
+  cashDrawerSessions,
   orderCancellations,
   orderItems,
   orderPayments,
@@ -809,6 +810,39 @@ export async function cancelOrder(input: CancelOrderInput) {
     const hasCashRefund = refundAllocations.some(
       (allocation) => allocation.method === "CASH",
     );
+    let cashRefundDrawerSession: typeof cashDrawerSessions.$inferSelect | null =
+      null;
+
+    if (hasCashRefund) {
+      if (!order.orderingPointId) {
+        throw new OrderCancellationError(
+          "This cash order has no ordering point and must be reviewed before refunding.",
+        );
+      }
+
+      const [openDrawerSession] = await tx
+        .select()
+        .from(cashDrawerSessions)
+        .where(
+          and(
+            eq(cashDrawerSessions.organizationId, order.organizationId),
+            eq(cashDrawerSessions.orderingPointId, order.orderingPointId),
+            eq(cashDrawerSessions.status, "OPEN"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!openDrawerSession) {
+        throw new OrderCancellationError(
+          "Open the cash drawer before issuing a cash refund.",
+          409,
+        );
+      }
+
+      cashRefundDrawerSession = openDrawerSession;
+    }
+
     const now = new Date();
     const [updatedOrder] = await tx
       .update(orders)
@@ -913,6 +947,9 @@ export async function cancelOrder(input: CancelOrderInput) {
         .insert(orderRefunds)
         .values({
           amount: allocation.amount,
+          cashDrawerSessionId: isCash
+            ? cashRefundDrawerSession?.id ?? null
+            : null,
           cancellationId: cancellation.id,
           currency: order.paymentCurrency!,
           id: refundId,

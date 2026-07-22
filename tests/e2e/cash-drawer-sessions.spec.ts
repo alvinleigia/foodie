@@ -87,6 +87,50 @@ test.describe("cash drawer session foundation", () => {
     expect(migrationSource).toContain(
       'CREATE INDEX "order_refunds_cash_drawer_session_idx"',
     );
+
+    const cancellationSource = readFileSync(
+      "lib/order-cancellation.ts",
+      "utf8",
+    );
+
+    expect(cancellationSource).toContain(
+      'eq(cashDrawerSessions.status, "OPEN")',
+    );
+    expect(cancellationSource).toContain(
+      '"Open the cash drawer before issuing a cash refund."',
+    );
+    expect(cancellationSource).toContain(
+      "cashDrawerSessionId: isCash",
+    );
+    expect(cancellationSource).toContain('.for("update")');
+  });
+
+  test("closes a drawer from an atomic reconciliation snapshot", () => {
+    const routeSource = readFileSync(
+      "app/api/cash-drawer/reconciliation/route.ts",
+      "utf8",
+    );
+    const serviceSource = readFileSync(
+      "lib/cash-drawer-reconciliation.ts",
+      "utf8",
+    );
+    const panelSource = readFileSync(
+      "components/staff/CashDrawerPanel.tsx",
+      "utf8",
+    );
+
+    expect(routeSource).toContain(
+      'requireStaffPermission("cash_drawer.close")',
+    );
+    expect(serviceSource).toContain('.for("update")');
+    expect(serviceSource).toContain('eq(orderPayments.status, "SUCCEEDED")');
+    expect(serviceSource).toContain('eq(orderRefunds.status, "SUCCEEDED")');
+    expect(serviceSource).toContain(".insert(cashDrawerReconciliations)");
+    expect(serviceSource).toContain('eq(cashDrawerSessions.status, "OPEN")');
+    expect(serviceSource).toContain('action: "cash_drawer.session.closed"');
+    expect(panelSource).toContain("Close and reconcile");
+    expect(panelSource).toContain("Expected cash");
+    expect(panelSource).toContain("Counted cash");
   });
 
   test("records manager-authorized drawer movements against an open session", () => {

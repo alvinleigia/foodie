@@ -12,6 +12,7 @@ export const staffPermissions = [
   "payments.refund",
   "cash_drawer.open",
   "cash_drawer.adjust",
+  "cash_drawer.close",
   "customers.search",
   "menu.manage",
   "inventory.manage",
@@ -100,6 +101,12 @@ export const staffPermissionDefinitions: StaffPermissionDefinition[] = [
     group: "Payments",
     label: "Adjust cash drawer",
     description: "Record paid-in and paid-out cash movements with a reason.",
+  },
+  {
+    permission: "cash_drawer.close",
+    group: "Payments",
+    label: "Close and reconcile cash drawer",
+    description: "Count cash, review the variance and close a drawer session.",
   },
   {
     permission: "customers.search",

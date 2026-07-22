@@ -25,6 +25,9 @@ test.describe("restaurant staff permissions", () => {
     expect(hasStaffPermission("ORDER_OPERATOR", {}, "cash_drawer.adjust")).toBe(
       false,
     );
+    expect(hasStaffPermission("ORDER_OPERATOR", {}, "cash_drawer.close")).toBe(
+      false,
+    );
   });
 
   test("supports explicit grants and denials over role defaults", () => {

@@ -154,7 +154,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
 - [x] Add cash drawer sessions with opening float.
 - [x] Add cash paid-in and paid-out movements with reasons.
-- [ ] Add expected-versus-counted cash reconciliation.
+- [x] Add expected-versus-counted cash reconciliation.
 - [ ] Add shift and end-of-day close reports.
 - [ ] Add basic prep stations and route products to kitchen or bar stations.
 - [ ] Add kitchen ticket printing or a dedicated KDS station view.
