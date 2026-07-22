@@ -15,7 +15,10 @@ import { calculatePaymentBalance } from "@/lib/order-payment-financials";
 import { emptyOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
 import {
+  calculateMultiTaxPricing,
   calculateTaxPricing,
+  getTaxRateSummary,
+  type TaxComponentInput,
   type TaxPricingMode,
 } from "@/lib/tax-pricing";
 
@@ -33,10 +36,17 @@ export type OrderPaymentLine = {
     quantity: number;
   }>;
   quantity: number;
+  taxes?: TaxComponentInput[];
   unitPrice: string | null;
 };
 
+export type OrderLineTaxComponentSnapshot = TaxComponentInput & {
+  taxAmountSnapshot: string;
+  taxableAmountSnapshot: string;
+};
+
 export type OrderLineTaxSnapshot = {
+  components: OrderLineTaxComponentSnapshot[];
   taxAmountSnapshot: string | null;
   taxableAmountSnapshot: string | null;
   taxRateBpsSnapshot: number;
@@ -67,11 +77,39 @@ function calculateOrderLineUnitTaxPricing(
   const listedUnitAmount =
     decimalToMinorUnits(line.unitPrice, currency) + modifierAmount;
 
-  return calculateTaxPricing(
+  if (line.taxes !== undefined) {
+    return calculateMultiTaxPricing(
+      listedUnitAmount,
+      line.taxes,
+      taxPricing.pricingMode,
+    );
+  }
+
+  const legacyPricing = calculateTaxPricing(
     listedUnitAmount,
     taxPricing.taxRateBps,
     taxPricing.pricingMode,
   );
+
+  return {
+    ...legacyPricing,
+    components:
+      taxPricing.taxRateBps > 0
+        ? [
+            {
+              calculationOrder: 0,
+              code: "DEFAULT",
+              definitionId: null,
+              isCompound: false,
+              name: "Tax",
+              rateBps: taxPricing.taxRateBps,
+              treatment: "TAXABLE" as const,
+              taxableAmountMinor: legacyPricing.taxableAmountMinor,
+              taxAmountMinor: legacyPricing.taxAmountMinor,
+            },
+          ]
+        : [],
+  };
 }
 
 export function buildOrderLineTaxSnapshot(
@@ -91,13 +129,34 @@ export function buildOrderLineTaxSnapshot(
 
   if (!unitPricing) {
     return {
+      components: [],
       taxAmountSnapshot: null,
       taxableAmountSnapshot: null,
-      taxRateBpsSnapshot: taxPricing.taxRateBps,
+      taxRateBpsSnapshot:
+        line.taxes !== undefined
+          ? getTaxRateSummary(line.taxes)
+          : taxPricing.taxRateBps,
     };
   }
 
   return {
+    components: unitPricing.components.map((component) => ({
+      calculationOrder: component.calculationOrder,
+      code: component.code,
+      definitionId: component.definitionId,
+      isCompound: component.isCompound,
+      name: component.name,
+      rateBps: component.rateBps,
+      treatment: component.treatment,
+      taxAmountSnapshot: minorUnitsToDecimal(
+        component.taxAmountMinor * line.quantity,
+        normalizedCurrency,
+      ),
+      taxableAmountSnapshot: minorUnitsToDecimal(
+        component.taxableAmountMinor * line.quantity,
+        normalizedCurrency,
+      ),
+    })),
     taxAmountSnapshot: minorUnitsToDecimal(
       unitPricing.taxAmountMinor * line.quantity,
       normalizedCurrency,
@@ -106,8 +165,21 @@ export function buildOrderLineTaxSnapshot(
       unitPricing.taxableAmountMinor * line.quantity,
       normalizedCurrency,
     ),
-    taxRateBpsSnapshot: taxPricing.taxRateBps,
+    taxRateBpsSnapshot:
+      line.taxes !== undefined
+        ? getTaxRateSummary(line.taxes)
+        : taxPricing.taxRateBps,
   };
+}
+
+export function getOrderTaxRateSnapshot(
+  lineSnapshots: OrderLineTaxSnapshot[],
+) {
+  const rates = new Set(
+    lineSnapshots.map((snapshot) => snapshot.taxRateBpsSnapshot),
+  );
+
+  return rates.size === 1 ? lineSnapshots[0]?.taxRateBpsSnapshot ?? 0 : 0;
 }
 
 export function buildOrderPaymentPricing(

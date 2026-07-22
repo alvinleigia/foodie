@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import {
   cashDrawerSessions,
   orderItemModifiers,
+  orderItemTaxComponents,
   orderItems,
   orderPayments,
   orders,
@@ -100,6 +101,18 @@ async function getCollectiblePricing(
         eq(orderItemModifiers.organizationId, organizationId),
       ),
     );
+  const taxComponents = await tx
+    .select()
+    .from(orderItemTaxComponents)
+    .where(
+      and(
+        inArray(
+          orderItemTaxComponents.orderItemId,
+          items.map((item) => item.id),
+        ),
+        eq(orderItemTaxComponents.organizationId, organizationId),
+      ),
+    );
   const modifiersByItemId = new Map<
     string,
     Array<{
@@ -118,15 +131,38 @@ async function getCollectiblePricing(
     });
     modifiersByItemId.set(modifier.orderItemId, list);
   }
+  const taxComponentsByItemId = new Map<string, typeof taxComponents>();
+
+  for (const component of taxComponents) {
+    const list = taxComponentsByItemId.get(component.orderItemId) ?? [];
+    list.push(component);
+    taxComponentsByItemId.set(component.orderItemId, list);
+  }
 
   try {
     return buildOrderPaymentPricing(
-      items.map((item) => ({
-        drinkName: item.drinkName,
-        modifiers: modifiersByItemId.get(item.id) ?? [],
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      })),
+      items.map((item) => {
+        const itemTaxComponents = taxComponentsByItemId.get(item.id);
+
+        return {
+          drinkName: item.drinkName,
+          modifiers: modifiersByItemId.get(item.id) ?? [],
+          quantity: item.quantity,
+          taxes:
+            itemTaxComponents && itemTaxComponents.length > 0
+              ? itemTaxComponents.map((component) => ({
+                  calculationOrder: component.calculationOrderSnapshot,
+                  code: component.taxCodeSnapshot,
+                  definitionId: component.taxDefinitionId,
+                  isCompound: component.isCompoundSnapshot,
+                  name: component.taxNameSnapshot,
+                  rateBps: component.rateBpsSnapshot,
+                  treatment: component.treatmentSnapshot,
+                }))
+              : undefined,
+          unitPrice: item.unitPrice,
+        };
+      }),
       currency,
       taxPricing,
     );

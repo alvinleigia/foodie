@@ -26,6 +26,7 @@ import {
 import { getDb } from "@/db";
 import {
   orderItemModifiers,
+  orderItemTaxComponents,
   orderItems,
   orderPayments,
   orders,
@@ -52,6 +53,7 @@ import {
   buildOrderPaymentPricing,
   cancelPendingOrderPaymentByOrderId,
   createOrderCheckoutSession,
+  getOrderTaxRateSnapshot,
 } from "@/lib/order-payments";
 import { getStripe } from "@/lib/stripe";
 import { logError } from "@/lib/logger";
@@ -64,7 +66,7 @@ import {
   FeatureEntitlementError,
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
-import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
+import { getResolvedRestaurantTaxes } from "@/lib/restaurant-taxes";
 import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 
@@ -395,7 +397,8 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
-    const [currency, restaurantPolicy, taxPricing] = await Promise.all([
+    const orderDate = await getRestaurantBusinessDate(db, tenantContext);
+    const [currency, restaurantPolicy, resolvedTaxes] = await Promise.all([
       getTenantMenuCurrency(tenantContext),
       db
         .select({
@@ -406,7 +409,11 @@ export async function POST(request: NextRequest) {
         .where(eq(organizations.id, tenantContext.organizationId))
         .limit(1)
         .then((rows) => rows[0] ?? null),
-      getRestaurantTaxPricing(tenantContext.organizationId),
+      getResolvedRestaurantTaxes(
+        tenantContext.organizationId,
+        cartItems.map((item) => item.drinkId),
+        orderDate,
+      ),
     ]);
 
     if (!restaurantPolicy) {
@@ -417,9 +424,21 @@ export async function POST(request: NextRequest) {
     }
 
     let orderPricing: ReturnType<typeof buildOrderPaymentPricing> | null = null;
+    const taxPricing = {
+      pricingMode: resolvedTaxes.pricingMode,
+      taxRateBps: 0,
+    };
+    const pricedCartItems = cartItems.map((item) => ({
+      ...item,
+      taxes: resolvedTaxes.taxesByMenuItemId.get(item.drinkId) ?? [],
+    }));
 
     try {
-      orderPricing = buildOrderPaymentPricing(cartItems, currency, taxPricing);
+      orderPricing = buildOrderPaymentPricing(
+        pricedCartItems,
+        currency,
+        taxPricing,
+      );
     } catch (pricingError) {
       if (session.user.kind === "customer") {
         throw pricingError;
@@ -435,8 +454,11 @@ export async function POST(request: NextRequest) {
           taxAmountMinor: paymentPricing.taxAmountMinor,
         })
       : null;
-    const orderLineTaxSnapshots = cartItems.map((item) =>
+    const orderLineTaxSnapshots = pricedCartItems.map((item) =>
       buildOrderLineTaxSnapshot(item, currency, taxPricing),
+    );
+    const orderTaxRateSnapshot = getOrderTaxRateSnapshot(
+      orderLineTaxSnapshots,
     );
     const paymentExpiresAt = paymentPricing
       ? new Date(Date.now() + 30 * 60 * 1000)
@@ -448,7 +470,6 @@ export async function POST(request: NextRequest) {
     );
 
     const createdOrder = await db.transaction(async (tx) => {
-      const orderDate = await getRestaurantBusinessDate(tx, tenantContext);
       const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
       const now = new Date();
       const [newOrder] = await tx
@@ -496,7 +517,7 @@ export async function POST(request: NextRequest) {
               : null,
           paymentExpiresAt,
           taxPricingModeSnapshot: taxPricing.pricingMode,
-          taxRateBpsSnapshot: taxPricing.taxRateBps,
+          taxRateBpsSnapshot: orderTaxRateSnapshot,
           customerCancellationFeeBpsSnapshot:
             restaurantPolicy.customerCancellationFeeBps,
           categoryId: cartItems[0].categoryId,
@@ -535,6 +556,26 @@ export async function POST(request: NextRequest) {
             updatedAt: now,
           })
           .returning({ id: orderItems.id });
+
+        if (newOrderItem && lineTaxSnapshot.components.length > 0) {
+          await tx.insert(orderItemTaxComponents).values(
+            lineTaxSnapshot.components.map((component) => ({
+              organizationId: tenantContext.organizationId,
+              orderId: newOrder.id,
+              orderItemId: newOrderItem.id,
+              taxDefinitionId: component.definitionId,
+              taxCodeSnapshot: component.code,
+              taxNameSnapshot: component.name,
+              treatmentSnapshot: component.treatment,
+              pricingModeSnapshot: taxPricing.pricingMode,
+              rateBpsSnapshot: component.rateBps,
+              isCompoundSnapshot: component.isCompound,
+              calculationOrderSnapshot: component.calculationOrder,
+              taxableAmountSnapshot: component.taxableAmountSnapshot,
+              taxAmountSnapshot: component.taxAmountSnapshot,
+            })),
+          );
+        }
 
         if (item.modifiers.length > 0 && newOrderItem) {
           await tx.insert(orderItemModifiers).values(
