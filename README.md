@@ -158,6 +158,19 @@ Verify regional deployment settings:
 npm run verify:deployment
 ```
 
+After Vercel deploys an approved commit, verify that the exact Git `HEAD`, deployment
+cell and function region are live on the configured `APP_ROOT_DOMAIN`:
+
+```bash
+npm run verify:release -- --runtime-region <vercel-region-code>
+```
+
+For the current cells, use `hnd1` for staging and `lhr1` for UK production. The
+command reads the expected URL, cell and configured region from the current deployment
+environment and reads the approved SHA from local Git. It fails if `/api/version`, its
+deployment headers or its no-cache policy do not match. CI can supply
+`EXPECTED_VERCEL_RUNTIME_REGION`, `EXPECTED_VERCEL_ENV` and `RELEASE_GIT_SHA` instead.
+
 Start development:
 
 ```bash

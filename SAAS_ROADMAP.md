@@ -179,7 +179,8 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Add Stripe webhook failure alerts and verify platform-owned email delivery in staging.
 - [x] Add deduplicated unhandled server-error monitoring and expose operational alert ownership to platform admins.
 - [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
-- [ ] Verify Vercel deployment SHA after each staging and production release.
+- [x] Add an automated live release verifier for SHA, deployment cell, response headers and Vercel runtime region.
+- [ ] Run the live release verifier against staging and production for every approved release.
 - [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
 - [x] Complete paid checkout, cancellation and refund UAT.
 - [x] Add automated duplicate, concurrent and failed Stripe webhook replay gates.
@@ -306,9 +307,19 @@ npx playwright test
 npm run build
 ```
 
-After deploying a candidate, open `/api/version` on the exact staging or production
-domain and compare `deployment.sha` with the approved Git commit. Also confirm that
-`deployment.runtimeRegion` is the expected Vercel function region.
+After deploying a candidate, load that cell's environment and run the verifier against
+the exact platform domain. It compares `/api/version` and deployment response headers
+with the approved local Git commit and configured deployment cell:
+
+```powershell
+# Current staging cell (Tokyo Vercel Functions)
+npm run verify:release -- --runtime-region hnd1
+
+# Current UK production cell (London Vercel Functions)
+npm run verify:release -- --runtime-region lhr1
+```
+
+The command must pass separately after every staging and production deployment.
 
 The following live tests are opt-in because they create UAT data or require direct
 database access:
