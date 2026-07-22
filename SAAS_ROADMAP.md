@@ -311,6 +311,7 @@ The following live tests are opt-in because they create UAT data or require dire
 database access:
 
 - `tests/e2e/order-status-concurrency-live.spec.ts`
+- `tests/e2e/domain-routing-live.spec.ts`
 - `tests/e2e/stripe-webhook-replay-live.spec.ts`
 - `tests/e2e/staff-session-revocation-live.spec.ts`
 - `tests/e2e/tenant-isolation.spec.ts`
