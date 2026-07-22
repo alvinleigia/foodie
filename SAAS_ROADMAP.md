@@ -196,7 +196,8 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [ ] Add and validate the DMARC record for the sending domain.
 - [x] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
 - [x] Verify every staff/admin route redirects away from customer domains.
-- [ ] Review Vercel environment variables and function regions in every deployment cell.
+- [x] Add a redacted launch environment inventory with provider-pair and production-safety validation.
+- [ ] Run `verify:environment` and `verify:release` against every staging and production deployment cell and retain the result.
 - [ ] Consider Supabase Row Level Security as defence in depth.
 
 ## Now: Compliance And Tenant Operations
@@ -301,6 +302,7 @@ Complete these alongside product work when touching the affected modules:
 Run the local regression gate on every release candidate:
 
 ```powershell
+npm run verify:environment -- --profile staging # or production
 npm run lint
 npx tsc --noEmit
 npx playwright test
