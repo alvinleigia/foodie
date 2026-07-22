@@ -164,7 +164,9 @@ test.describe("order adjustment ledger", () => {
     expect(adjustmentSource).toContain("order.discount_applied");
     expect(adjustmentSource).toContain("order.comp_applied");
     expect(paymentSource).toContain("getActiveStaffOrderAdjustment");
-    expect(routeSource).toContain("requireStaffSession");
+    expect(routeSource).toContain(
+      'requireStaffPermission("orders.adjust")',
+    );
     expect(routeSource).toContain("removeStaffOrderAdjustment");
   });
 });
