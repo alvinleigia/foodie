@@ -1646,16 +1646,25 @@ export const orderRefunds = pgTable(
     requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    cashDrawerSessionId: uuid("cash_drawer_session_id"),
     requestedAt: timestamp("requested_at").defaultNow().notNull(),
     processedAt: timestamp("processed_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "order_refunds_cash_drawer_session_organization_fk",
+    }).onDelete("no action"),
     index("order_refunds_order_requested_idx").on(
       table.orderId,
       table.requestedAt,
     ),
     index("order_refunds_payment_idx").on(table.orderPaymentId),
+    index("order_refunds_cash_drawer_session_idx").on(
+      table.cashDrawerSessionId,
+    ),
     uniqueIndex("order_refunds_stripe_refund_unique").on(table.stripeRefundId),
     uniqueIndex("order_refunds_idempotency_key_unique").on(
       table.idempotencyKey,

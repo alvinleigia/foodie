@@ -68,6 +68,27 @@ test.describe("cash drawer session foundation", () => {
     expect(migrationSource).not.toContain('"updated_at"');
   });
 
+  test("attributes cash refunds to the drawer that paid them", () => {
+    const schemaSource = readFileSync("db/schema.ts", "utf8");
+    const migrationSource = readFileSync(
+      "drizzle/0053_cash_refund_drawer_attribution.sql",
+      "utf8",
+    );
+
+    expect(schemaSource).toContain(
+      'name: "order_refunds_cash_drawer_session_organization_fk"',
+    );
+    expect(migrationSource).toContain(
+      'ADD COLUMN "cash_drawer_session_id" uuid',
+    );
+    expect(migrationSource).toContain(
+      'FOREIGN KEY ("cash_drawer_session_id", "organization_id")',
+    );
+    expect(migrationSource).toContain(
+      'CREATE INDEX "order_refunds_cash_drawer_session_idx"',
+    );
+  });
+
   test("records manager-authorized drawer movements against an open session", () => {
     const routeSource = readFileSync(
       "app/api/cash-drawer/movements/route.ts",
