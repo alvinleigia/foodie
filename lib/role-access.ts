@@ -1,4 +1,5 @@
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 
 export const platformAdminRoles = ["PLATFORM_ADMIN"] satisfies MembershipRole[];
 
@@ -35,7 +36,13 @@ export function canAccessRole(
 export function canAccessNavigation(
   role: MembershipRole,
   access: StaffNavigationAccess,
+  permission?: StaffPermission,
+  permissions?: StaffPermission[],
 ) {
+  if (permission) {
+    return permissions?.includes(permission) ?? false;
+  }
+
   if (access === "PLATFORM_ADMIN") {
     return canAccessRole(role, platformAdminRoles);
   }

@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { TenantOrderingPointSettingsForm } from "@/components/admin/TenantAdminForms";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -15,8 +14,8 @@ export default async function RestaurantOrderingPointPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "orderingPoint",
+      requiredPermission: "ordering_point.manage",
       restaurantSlug,
     });
   const dashboardHref = getRestaurantWorkspaceHref(
@@ -40,6 +39,7 @@ export default async function RestaurantOrderingPointPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

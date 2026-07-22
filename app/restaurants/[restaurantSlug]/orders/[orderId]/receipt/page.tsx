@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 
 import { ReceiptPage } from "@/components/receipt/ReceiptPage";
 import { getOrderReceipt } from "@/lib/order-receipts";
-import { operationalRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
 
@@ -13,8 +12,8 @@ type StaffReceiptPageProps = {
 export default async function StaffReceiptPage({ params }: StaffReceiptPageProps) {
   const { orderId, restaurantSlug } = await params;
   const { access } = await requireRestaurantWorkspaceAccess({
-    allowedRoles: operationalRoles,
     destination: "orders",
+    requiredPermission: "orders.view",
     restaurantSlug,
   });
   const receipt = await getOrderReceipt(orderId, access.tenantContext);

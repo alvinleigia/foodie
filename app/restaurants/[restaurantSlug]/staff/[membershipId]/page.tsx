@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { TenantStaffAccessForm } from "@/components/admin/TenantAdminForms";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -19,8 +18,8 @@ export default async function RestaurantStaffAccessPage({
   const { membershipId, restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "staff",
+      requiredPermission: "staff.manage",
       restaurantSlug,
     });
   const staff = snapshot.staff.find((item) => item.membershipId === membershipId);
@@ -40,6 +39,7 @@ export default async function RestaurantStaffAccessPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

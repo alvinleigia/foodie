@@ -1,6 +1,5 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { MenuManager } from "@/components/staff/MenuManager";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -12,8 +11,8 @@ export default async function RestaurantMenuPage({
 }: RestaurantWorkspacePageProps) {
   const { restaurantSlug } = await params;
   const { access, session } = await requireRestaurantWorkspaceAccess({
-    allowedRoles: restaurantAdminRoles,
     destination: "menu",
+    requiredPermission: "menu.manage",
     restaurantSlug,
   });
 
@@ -27,6 +26,7 @@ export default async function RestaurantMenuPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

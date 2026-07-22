@@ -1,6 +1,5 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StaffOrderBoard } from "@/components/staff/StaffOrderBoard";
-import { operationalRoles } from "@/lib/role-access";
 import { listOrganizationFeatureEntitlements } from "@/lib/feature-entitlements";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
@@ -13,8 +12,8 @@ export default async function RestaurantOrdersPage({
 }: RestaurantWorkspacePageProps) {
   const { restaurantSlug } = await params;
   const { access, session } = await requireRestaurantWorkspaceAccess({
-    allowedRoles: operationalRoles,
     destination: "orders",
+    requiredPermission: "orders.view",
     restaurantSlug,
   });
   const entitlements = await listOrganizationFeatureEntitlements(
@@ -38,6 +37,7 @@ export default async function RestaurantOrdersPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

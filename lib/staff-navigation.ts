@@ -7,12 +7,14 @@ import {
   type RestaurantWorkspaceDestination,
 } from "@/lib/restaurant-workspace";
 import type { StaffNavigationAccess } from "@/lib/role-access";
+import type { StaffPermission } from "@/lib/staff-permissions";
 
 export type StaffNavigationItem = {
   access: StaffNavigationAccess;
   href: string;
   label: string;
   description: string;
+  permission?: StaffPermission;
 };
 
 type NavigationDefinition<Destination extends string> = Omit<
@@ -99,54 +101,63 @@ const restaurantNavigation: Array<
     destination: "dashboard",
     label: "Restaurant",
     description: "Restaurant dashboard.",
+    permission: "restaurant.dashboard",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "staff",
     label: "Restaurant Staff",
     description: "Manage restaurant staff.",
+    permission: "staff.manage",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "orderingPoint",
     label: "Ordering Point",
     description: "Manage the restaurant QR entry point.",
+    permission: "ordering_point.manage",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "integrations",
     label: "Restaurant Integrations",
     description: "Inherited and custom services.",
+    permission: "integrations.manage",
   },
   {
     access: "RESTAURANT_OPERATIONS",
     destination: "order",
     label: "Take order",
     description: "Create a restaurant order.",
+    permission: "orders.create",
   },
   {
     access: "RESTAURANT_OPERATIONS",
     destination: "orders",
     label: "Orders",
     description: "Live order operations.",
+    permission: "orders.view",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "menu",
     label: "Menu Manager",
     description: "Categories and products.",
+    permission: "menu.manage",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "inventory",
     label: "Inventory",
     description: "Stock control.",
+    permission: "inventory.manage",
   },
   {
     access: "RESTAURANT_ADMIN",
     destination: "auditLogs",
     label: "Audit logs",
     description: "Security and change history.",
+    permission: "audit.view",
   },
 ];
 

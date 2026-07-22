@@ -18,6 +18,7 @@ import {
 } from "@/lib/staff-navigation";
 import { isUatDatabaseResetEnabled } from "@/lib/uat-reset";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import { getStaffHomePathForOrganization } from "@/lib/staff-home";
 
 type SaasAdminShellProps = {
@@ -30,6 +31,7 @@ type SaasAdminShellProps = {
   user: {
     name?: string | null;
     organizationId?: string | null;
+    permissions?: StaffPermission[];
     role: MembershipRole;
   };
 };
@@ -88,7 +90,11 @@ export async function SaasAdminShell({
     ? [...scopedNavigationItems, uatResetNavigationItem]
     : scopedNavigationItems;
   const brandHref =
-    getStaffHomePathForOrganization(user.role, organizationContext) ?? "/";
+    getStaffHomePathForOrganization(
+      user.role,
+      organizationContext,
+      user.permissions,
+    ) ?? "/";
   const content = commercialAccess.allowed ? (
     children
   ) : (
@@ -104,6 +110,7 @@ export async function SaasAdminShell({
         user={{
           contextName: organizationContext?.name,
           name: user.name,
+          permissions: user.permissions,
           role: user.role,
         }}
       />

@@ -2,7 +2,6 @@ import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -15,8 +14,8 @@ export default async function RestaurantSettingsPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "settings",
+      requiredPermission: "restaurant.settings",
       restaurantSlug,
     });
   const dashboardHref = getRestaurantWorkspaceHref(
@@ -34,6 +33,7 @@ export default async function RestaurantSettingsPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

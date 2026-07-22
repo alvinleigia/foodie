@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -12,8 +11,8 @@ export default async function RestaurantStaffNewPage({
 }: RestaurantWorkspacePageProps) {
   const { restaurantSlug } = await params;
   const { access } = await requireRestaurantWorkspaceAccess({
-    allowedRoles: restaurantAdminRoles,
     destination: "staffInvite",
+    requiredPermission: "staff.manage",
     restaurantSlug,
   });
 

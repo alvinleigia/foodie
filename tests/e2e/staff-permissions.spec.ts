@@ -101,4 +101,28 @@ test.describe("restaurant staff permissions", () => {
       expect(readFileSync(fileName, "utf8"), fileName).toContain(expectedCheck);
     }
   });
+
+  test("enforces permissions in restaurant pages and navigation", () => {
+    const workspaceAccessSource = readFileSync(
+      "lib/restaurant-workspace-access.ts",
+      "utf8",
+    );
+    const navigationSource = readFileSync("lib/staff-navigation.ts", "utf8");
+    const ordersPageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/orders/page.tsx",
+      "utf8",
+    );
+    const menuPageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/menu/page.tsx",
+      "utf8",
+    );
+
+    expect(workspaceAccessSource).toContain(
+      "session.user.permissions.includes(requiredPermission)",
+    );
+    expect(navigationSource).toContain('permission: "orders.view"');
+    expect(navigationSource).toContain('permission: "menu.manage"');
+    expect(ordersPageSource).toContain('requiredPermission: "orders.view"');
+    expect(menuPageSource).toContain('requiredPermission: "menu.manage"');
+  });
 });

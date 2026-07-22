@@ -7,7 +7,6 @@ import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { getRequestOrigin } from "@/lib/request-origin";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -20,8 +19,8 @@ export default async function RestaurantIntegrationsPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "integrations",
+      requiredPermission: "integrations.manage",
       restaurantSlug,
     });
   const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot, stripePayments] =
@@ -50,6 +49,7 @@ export default async function RestaurantIntegrationsPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import { CustomerOrderPage } from "@/components/order/CustomerOrderPage";
 import { AppShell } from "@/components/shared/AppShell";
 import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
-import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
-import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
+import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 
 const noCustomerAuthProviders = {
   apple: false,
@@ -28,21 +27,16 @@ export default async function StaffRestaurantOrderPage({
     redirect("/order");
   }
 
-  const staffAccess = await getCurrentStaffRestaurantAccess().catch(() => null);
-
-  if (!staffAccess) {
-    redirect("/staff/login");
-  }
-
   const { restaurantSlug } = await params;
-
-  if (staffAccess.restaurant.slug !== restaurantSlug.trim().toLowerCase()) {
-    redirect(getStaffRestaurantOrderHref(staffAccess.restaurant.slug));
-  }
+  const { access, session } = await requireRestaurantWorkspaceAccess({
+    destination: "order",
+    requiredPermission: "orders.create",
+    restaurantSlug,
+  });
 
   const inventoryEnabled = (
     await getOrganizationFeatureEntitlement(
-      staffAccess.restaurant.id,
+      access.restaurant.id,
       "operations.inventory",
     )
   ).enabled;
@@ -54,13 +48,13 @@ export default async function StaffRestaurantOrderPage({
         inventoryEnabled={inventoryEnabled}
         phoneVerificationPolicy={noCustomerPhoneVerification}
         staffRestaurant={{
-          id: staffAccess.restaurant.id,
-          name: staffAccess.restaurant.name,
-          slug: staffAccess.restaurant.slug,
+          id: access.restaurant.id,
+          name: access.restaurant.name,
+          slug: access.restaurant.slug,
         }}
         user={{
-          name: staffAccess.user.name,
-          role: staffAccess.role,
+          name: session.user.name,
+          role: session.user.role,
         }}
       />
     </AppShell>

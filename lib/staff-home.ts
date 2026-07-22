@@ -5,6 +5,10 @@ import { organizations } from "@/db/schema";
 import { getCompanyWorkspaceHref } from "@/lib/company-workspace";
 import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
 import type { MembershipRole } from "@/lib/staff-auth";
+import {
+  resolveStaffPermissions,
+  type StaffPermission,
+} from "@/lib/staff-permissions";
 
 type StaffHomeOrganization = {
   slug: string;
@@ -13,12 +17,14 @@ type StaffHomeOrganization = {
 
 type StaffHomeAccess = {
   organizationId?: string | null;
+  permissions?: StaffPermission[];
   role: MembershipRole;
 };
 
 export function getStaffHomePathForOrganization(
   role: MembershipRole,
   organization?: StaffHomeOrganization | null,
+  permissions?: StaffPermission[],
 ) {
   if (role === "PLATFORM_ADMIN") {
     return "/platform";
@@ -32,12 +38,27 @@ export function getStaffHomePathForOrganization(
     return null;
   }
 
-  if (role === "RESTAURANT_MANAGER") {
+  const effectivePermissions =
+    permissions ?? resolveStaffPermissions(role, null);
+
+  if (effectivePermissions.includes("restaurant.dashboard")) {
     return getRestaurantWorkspaceHref(organization.slug, "dashboard");
   }
 
-  if (role === "ORDER_OPERATOR") {
+  if (effectivePermissions.includes("orders.view")) {
     return getRestaurantWorkspaceHref(organization.slug, "orders");
+  }
+
+  if (effectivePermissions.includes("orders.create")) {
+    return getRestaurantWorkspaceHref(organization.slug, "order");
+  }
+
+  if (effectivePermissions.includes("staff.manage")) {
+    return getRestaurantWorkspaceHref(organization.slug, "staff");
+  }
+
+  if (effectivePermissions.includes("menu.manage")) {
+    return getRestaurantWorkspaceHref(organization.slug, "menu");
   }
 
   return null;
@@ -45,6 +66,7 @@ export function getStaffHomePathForOrganization(
 
 export async function resolveStaffHomePath({
   organizationId,
+  permissions,
   role,
 }: StaffHomeAccess) {
   if (role === "PLATFORM_ADMIN") {
@@ -69,5 +91,5 @@ export async function resolveStaffHomePath({
     )
     .limit(1);
 
-  return getStaffHomePathForOrganization(role, organization);
+  return getStaffHomePathForOrganization(role, organization, permissions);
 }
