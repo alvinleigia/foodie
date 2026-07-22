@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BellRingIcon, SendIcon } from "lucide-react";
+import { toast } from "sonner";
 
-import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
+import {
+  fetchJson,
+  getCaughtErrorMessage,
+  requestJson,
+} from "@/lib/api-client";
 import {
   ReportBreakdown,
   type ReportBreakdownRow,
 } from "@/components/admin/ReportBreakdown";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { Spinner } from "@/components/shared/Spinner";
+import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 type PlatformSummary = {
@@ -41,6 +49,7 @@ export function PlatformDashboardPanel() {
   const [breakdown, setBreakdown] = useState<PlatformReport[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isTestingAlerts, setIsTestingAlerts] = useState(false);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -60,6 +69,23 @@ export function PlatformDashboardPanel() {
 
     void loadDashboard();
   }, []);
+
+  async function sendTestAlert() {
+    setIsTestingAlerts(true);
+
+    try {
+      await requestJson("/api/platform/operational-alerts/test", {
+        fallbackError: "The operational alert could not be sent.",
+      });
+      toast.success("Test alert sent.");
+    } catch (caught) {
+      toast.error(
+        getCaughtErrorMessage(caught, "The operational alert could not be sent."),
+      );
+    } finally {
+      setIsTestingAlerts(false);
+    }
+  }
 
   return (
     <div className="grid gap-6">
@@ -130,6 +156,27 @@ export function PlatformDashboardPanel() {
           ]}
         />
       ) : null}
+
+      <Card className="rounded-xl border-stone-200 bg-white">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="flex items-center gap-3">
+            <BellRingIcon className="size-5 text-stone-600" />
+            <h2 className="text-base font-semibold text-stone-950">
+              Operational alerts
+            </h2>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isTestingAlerts}
+            onClick={() => void sendTestAlert()}
+          >
+            <ButtonLabel icon={SendIcon}>
+              {isTestingAlerts ? "Sending..." : "Send test alert"}
+            </ButtonLabel>
+          </Button>
+        </CardContent>
+      </Card>
 
       <ReportBreakdown
         title="Company activity"
