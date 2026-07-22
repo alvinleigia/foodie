@@ -181,6 +181,8 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
 - [x] Add an automated live release verifier for SHA, deployment cell, response headers and Vercel runtime region.
 - [ ] Run the live release verifier against staging and production for every approved release.
+  - Staging verified on 22 July 2026 at `1b96e06` (`uk-uat-1`, Vercel `production`, `hnd1`).
+  - UK production verification remains pending for this release.
 - [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
 - [x] Complete paid checkout, cancellation and refund UAT.
 - [x] Add automated duplicate, concurrent and failed Stripe webhook replay gates.
