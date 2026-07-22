@@ -153,7 +153,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add granular staff permissions instead of role-only action access.
 - [x] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
 - [x] Add cash drawer sessions with opening float.
-- [ ] Add cash paid-in and paid-out movements with reasons.
+- [x] Add cash paid-in and paid-out movements with reasons.
 - [ ] Add expected-versus-counted cash reconciliation.
 - [ ] Add shift and end-of-day close reports.
 - [ ] Add basic prep stations and route products to kitchen or bar stations.

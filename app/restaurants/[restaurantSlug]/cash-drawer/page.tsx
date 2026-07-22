@@ -4,6 +4,7 @@ import {
   getCashDrawerOpeningContext,
   getOpenCashDrawerSession,
 } from "@/lib/cash-drawer-sessions";
+import { listOpenCashDrawerMovements } from "@/lib/cash-drawer-movements";
 import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspacePageProps,
@@ -40,6 +41,12 @@ export default async function RestaurantCashDrawerPage({
         organizationId: access.restaurant.id,
       })
     : null;
+  const movements = openingContext
+    ? await listOpenCashDrawerMovements({
+        orderingPointId: openingContext.id,
+        organizationId: access.restaurant.id,
+      })
+    : [];
 
   return (
     <SaasAdminShell
@@ -58,7 +65,15 @@ export default async function RestaurantCashDrawerPage({
       }}
     >
       <CashDrawerPanel
+        canAdjust={session.user.permissions.includes("cash_drawer.adjust")}
         currency={openingContext?.currency ?? ""}
+        initialMovements={movements.map((movement) => ({
+          ...movement,
+          createdAtLabel: formatOpenedAt(
+            movement.createdAt,
+            openingContext?.timezone ?? "UTC",
+          ),
+        }))}
         initialSession={
           openSession && openingContext
             ? {

@@ -48,6 +48,42 @@ test.describe("cash drawer session foundation", () => {
     expect(migrationSource).not.toContain('"updated_at"');
   });
 
+  test("records manager-authorized drawer movements against an open session", () => {
+    const routeSource = readFileSync(
+      "app/api/cash-drawer/movements/route.ts",
+      "utf8",
+    );
+    const serviceSource = readFileSync(
+      "lib/cash-drawer-movements.ts",
+      "utf8",
+    );
+
+    expect(routeSource).toContain(
+      'requireStaffPermission("cash_drawer.adjust")',
+    );
+    expect(routeSource).toContain("getCurrentTenantContext()");
+    expect(serviceSource).toContain('eq(cashDrawerSessions.status, "OPEN")');
+    expect(serviceSource).toContain('.for("update")');
+    expect(serviceSource).toContain("cashDrawerSessionId: openSession.id");
+    expect(serviceSource).toContain("cash_drawer.movement.");
+  });
+
+  test("keeps movement reasons type-specific and exposes current-session history", () => {
+    const reasonsSource = readFileSync(
+      "lib/cash-drawer-movement-reasons.ts",
+      "utf8",
+    );
+    const panelSource = readFileSync(
+      "components/staff/CashDrawerPanel.tsx",
+      "utf8",
+    );
+
+    expect(reasonsSource).toContain('PAID_IN: ["Float top-up"');
+    expect(reasonsSource).toContain('"Supplier payment"');
+    expect(panelSource).toContain("Current session history");
+    expect(panelSource).toContain("canAdjust");
+  });
+
   test("normalizes the opening float in restaurant currency units", () => {
     expect(normalizeOpeningFloat("25", "GBP")).toBe("25.00");
     expect(normalizeOpeningFloat("501", "JPY")).toBe("501");
