@@ -7,40 +7,20 @@ import {
 } from "@/lib/order-payments";
 import { syncOrderRefundFromStripe } from "@/lib/order-cancellation";
 import { syncStripeAccountFromWebhook } from "@/lib/organization-payment-settings";
+import { logError } from "@/lib/logger";
 import { getStripe } from "@/lib/stripe";
+import { processStripeWebhookEvent } from "@/lib/stripe-webhook-events";
 
-export async function POST(request: Request) {
-  const signature = request.headers.get("stripe-signature");
-  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
-
-  if (!signature || !webhookSecret) {
-    return NextResponse.json(
-      { error: "Stripe Connect webhook is not configured." },
-      { status: 400 },
-    );
-  }
-
-  let event: Stripe.Event;
-
-  try {
-    event = getStripe().webhooks.constructEvent(
-      await request.text(),
-      signature,
-      webhookSecret,
-    );
-  } catch {
-    return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
-  }
-
+async function handleStripeConnectEvent(event: Stripe.Event) {
   if (event.type === "account.updated") {
     await syncStripeAccountFromWebhook(event.data.object as Stripe.Account);
-    return NextResponse.json({ received: true });
+    return;
   }
 
   const stripeConnectedAccountId = event.account ?? null;
 
   if (!stripeConnectedAccountId) {
-    return NextResponse.json({ received: true });
+    return;
   }
 
   if (
@@ -52,7 +32,7 @@ export async function POST(request: Request) {
       event.data.object as Stripe.Refund,
       stripeConnectedAccountId,
     );
-    return NextResponse.json({ received: true });
+    return;
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
@@ -80,6 +60,63 @@ export async function POST(request: Request) {
       stripeConnectedAccountId,
     );
   }
+}
 
-  return NextResponse.json({ received: true });
+export async function POST(request: Request) {
+  const signature = request.headers.get("stripe-signature");
+  const webhookSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+
+  if (!signature || !webhookSecret) {
+    return NextResponse.json(
+      { error: "Stripe Connect webhook is not configured." },
+      { status: 400 },
+    );
+  }
+
+  let event: Stripe.Event;
+
+  try {
+    event = getStripe().webhooks.constructEvent(
+      await request.text(),
+      signature,
+      webhookSecret,
+    );
+  } catch {
+    return NextResponse.json({ error: "Invalid Stripe signature." }, { status: 400 });
+  }
+
+  try {
+    const result = await processStripeWebhookEvent(
+      {
+        endpoint: "CONNECT",
+        eventId: event.id,
+        eventType: event.type,
+        stripeAccountId: event.account ?? null,
+      },
+      () => handleStripeConnectEvent(event),
+    );
+
+    if (result.state === "IN_PROGRESS") {
+      return NextResponse.json(
+        { error: "Stripe webhook is already being processed." },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json({
+      duplicate: result.state === "DUPLICATE",
+      received: true,
+    });
+  } catch (error) {
+    logError("stripe.webhook.processing_failed", error, {
+      endpoint: "CONNECT",
+      eventId: event.id,
+      eventType: event.type,
+      stripeAccountId: event.account ?? null,
+    });
+    return NextResponse.json(
+      { error: "Stripe webhook processing failed." },
+      { status: 500 },
+    );
+  }
 }

@@ -218,6 +218,17 @@ export const orderPaymentRecordStatusEnum = pgEnum(
   ["PENDING", "SUCCEEDED", "FAILED", "CANCELLED"],
 );
 
+export const stripeWebhookEndpointEnum = pgEnum("stripe_webhook_endpoint", [
+  "PLATFORM",
+  "CONNECT",
+]);
+
+export const stripeWebhookStatusEnum = pgEnum("stripe_webhook_status", [
+  "PROCESSING",
+  "SUCCEEDED",
+  "FAILED",
+]);
+
 export const cashDrawerSessionStatusEnum = pgEnum(
   "cash_drawer_session_status",
   ["OPEN", "CLOSED"],
@@ -900,6 +911,43 @@ export const rateLimitWindows = pgTable(
       .notNull(),
   },
   (table) => [index("rate_limit_windows_reset_at_idx").on(table.resetAt)],
+);
+
+export const stripeWebhookEvents = pgTable(
+  "stripe_webhook_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    endpoint: stripeWebhookEndpointEnum("endpoint").notNull(),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    stripeAccountId: text("stripe_account_id"),
+    status: stripeWebhookStatusEnum("status").default("PROCESSING").notNull(),
+    attemptCount: integer("attempt_count").default(1).notNull(),
+    lastError: text("last_error"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    processingStartedAt: timestamp("processing_started_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("stripe_webhook_events_endpoint_event_unique").on(
+      table.endpoint,
+      table.eventId,
+    ),
+    index("stripe_webhook_events_status_updated_idx").on(
+      table.status,
+      table.updatedAt,
+    ),
+    index("stripe_webhook_events_account_idx").on(table.stripeAccountId),
+  ],
 );
 
 export const appState = pgTable("app_state", {
