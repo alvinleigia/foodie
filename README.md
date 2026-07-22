@@ -62,6 +62,7 @@ AUTH_FACEBOOK_ID="facebook-app-id"
 AUTH_FACEBOOK_SECRET="facebook-app-secret"
 SMTP2GO_API_KEY="api-..."
 EMAIL_FROM="Foodie Orders <orders@example.com>"
+OPERATIONAL_ALERT_EMAIL="ops@example.com"
 TENANT_CREDENTIALS_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
@@ -87,6 +88,8 @@ Foodie returns the customer to the ordering domain with a short-lived, single-us
 Staff login, operations and administration run only on `APP_ROOT_DOMAIN`. Company subdomains and custom tenant domains are customer-facing and serve ordering, customer account and payment views. Privileged paths opened on a tenant domain redirect to the platform domain.
 
 Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
+
+`OPERATIONAL_ALERT_EMAIL` is the monitored platform operations inbox. Stripe sends one alert there when an event first fails processing; later Stripe retries remain recorded in the webhook journal without generating duplicate email alerts. Alert delivery uses the platform `SMTP2GO_API_KEY` and `EMAIL_FROM` values and never changes the webhook response returned to Stripe.
 
 `/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `refund.created`, `refund.updated` and `refund.failed`, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 

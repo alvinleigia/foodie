@@ -52,4 +52,16 @@ test.describe("Stripe webhook durability", () => {
       expect(routeSource).toContain("status: 500");
     }
   });
+
+  test("alerts operations once without blocking Stripe retries", () => {
+    const journalSource = source("lib", "stripe-webhook-events.ts");
+    const alertSource = source("lib", "operational-alerts.ts");
+
+    expect(journalSource).toContain("claim.attemptCount === 1");
+    expect(journalSource).toContain("sendStripeWebhookFailureAlert");
+    expect(journalSource).toContain("stripe.webhook.alert_failed");
+    expect(alertSource).toContain("OPERATIONAL_ALERT_EMAIL");
+    expect(alertSource).toContain("SMTP2GO_API_KEY");
+    expect(alertSource).toContain("Stripe will retry this event");
+  });
 });

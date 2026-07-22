@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { stripeWebhookEvents } from "@/db/schema";
 import { logError } from "@/lib/logger";
+import { sendStripeWebhookFailureAlert } from "@/lib/operational-alerts";
 
 export type StripeWebhookEndpoint = "PLATFORM" | "CONNECT";
 
@@ -184,6 +185,20 @@ export async function processStripeWebhookEvent(
         eventId: input.eventId,
       });
     });
+
+    if (claim.attemptCount === 1) {
+      await sendStripeWebhookFailureAlert({
+        ...input,
+        attemptCount: claim.attemptCount,
+        error,
+      }).catch((alertError) => {
+        logError("stripe.webhook.alert_failed", alertError, {
+          endpoint: input.endpoint,
+          eventId: input.eventId,
+        });
+      });
+    }
+
     throw error;
   }
 }
