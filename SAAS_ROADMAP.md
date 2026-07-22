@@ -186,7 +186,7 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [ ] Test duplicate, delayed and failed webhooks.
 - [ ] Test disabled-staff and password-reset session revocation end to end.
 - [x] Add credential-driven live order-race and two-restaurant isolation gates.
-- [ ] Test two-restaurant isolation using real manager accounts.
+- [x] Test two-restaurant isolation using real manager accounts.
 - [ ] Test email OTP and Google login from a white-label customer domain.
 - [ ] Test OTP delivery to Gmail and Outlook and inspect SPF and DKIM results.
 - [ ] Add and validate the DMARC record for the sending domain.
@@ -338,7 +338,7 @@ Foodie is ready for live quick-service tenants only when:
 - [ ] Refund and duplicate-webhook tests pass.
 - [ ] Sensitive staff actions require the correct permission or approval.
 - [ ] Kitchen or bar routing is reliable during a busy-order test.
-- [ ] Two-restaurant isolation tests pass.
+- [x] Two-restaurant isolation tests pass.
 - [ ] Authentication and session revocation tests pass.
 - [ ] Backup restoration is demonstrated.
 - [ ] Monitoring and webhook alerts have an owner.
