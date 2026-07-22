@@ -61,6 +61,23 @@ const navigationPolicies: NavigationPolicy[] = [
 ];
 
 test.describe("staff navigation URL policy", () => {
+  test("restaurant actions are grouped by workflow", () => {
+    const navigation = getStaffNavigationItemsForRestaurant(
+      "example-restaurant",
+    );
+    const groupFor = (label: string) =>
+      navigation.find((item) => item.label === label)?.group;
+
+    expect(groupFor("Restaurant")).toBe("overview");
+    expect(groupFor("Take order")).toBe("operations");
+    expect(groupFor("Orders")).toBe("operations");
+    expect(groupFor("Kitchen display")).toBe("operations");
+    expect(groupFor("Cash drawer")).toBe("operations");
+    expect(groupFor("Restaurant Staff")).toBe("management");
+    expect(groupFor("Menu Manager")).toBe("management");
+    expect(groupFor("Audit logs")).toBe("security");
+  });
+
   for (const policy of navigationPolicies) {
     test(`${policy.role} links stay in the scoped workspace`, () => {
       const visibleItems = getVisibleNavigationItems(policy);
