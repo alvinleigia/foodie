@@ -57,6 +57,8 @@ function groupItemsByOrder(
     list.push({
       id: item.id,
       organizationId: item.organizationId,
+      prepStationId: item.prepStationId,
+      prepStationNameSnapshot: item.prepStationNameSnapshot,
       categoryId: item.categoryId,
       categoryName: item.categoryName,
       drinkId: item.drinkId,

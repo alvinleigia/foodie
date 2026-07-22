@@ -49,6 +49,8 @@ export type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 export type OrderLineItem = {
   id?: string;
   organizationId?: string;
+  prepStationId?: string | null;
+  prepStationNameSnapshot?: string | null;
   categoryId: string;
   categoryName: string;
   drinkId: string;

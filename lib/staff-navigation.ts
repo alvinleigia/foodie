@@ -140,6 +140,13 @@ const restaurantNavigation: Array<
   },
   {
     access: "RESTAURANT_OPERATIONS",
+    destination: "kds",
+    label: "Kitchen display",
+    description: "Kitchen and bar preparation tickets.",
+    permission: "orders.view",
+  },
+  {
+    access: "RESTAURANT_OPERATIONS",
     destination: "cashDrawer",
     label: "Cash drawer",
     description: "Open and manage the active till.",

@@ -4,6 +4,7 @@ export type RestaurantWorkspaceDestination =
   | "dashboard"
   | "integrations"
   | "inventory"
+  | "kds"
   | "menu"
   | "order"
   | "orderingPoint"
@@ -23,6 +24,7 @@ const destinationPaths: Record<RestaurantWorkspaceDestination, string> = {
   dashboard: "",
   integrations: "integrations",
   inventory: "inventory",
+  kds: "kds",
   menu: "menu",
   order: "order",
   orderingPoint: "ordering-point",

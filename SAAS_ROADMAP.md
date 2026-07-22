@@ -157,7 +157,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add expected-versus-counted cash reconciliation.
 - [x] Add shift and end-of-day close reports.
 - [x] Add basic prep stations and route products to kitchen or bar stations.
-- [ ] Add kitchen ticket printing or a dedicated KDS station view.
+- [x] Add kitchen ticket printing or a dedicated KDS station view.
 - [ ] Add expeditor or final-assembly status where required.
 
 ## Now: Launch Decisions
@@ -281,7 +281,7 @@ Complete these alongside product work when touching the affected modules:
 - [ ] Split `lib/saas-reports.ts` into financial and operational report modules.
 - [ ] Split `components/order/OrderForm.tsx` into focused cart, menu and review components.
 - [ ] Split `components/staff/MenuManager.tsx` into focused forms and product-list components.
-- [ ] Split `components/staff/StaffOrderBoard.tsx` before adding KDS, cash close or table workflows.
+- [ ] Split `components/staff/StaffOrderBoard.tsx` before adding further complex order-panel workflows.
 - [ ] Add broader tenant-isolation tests for menus, inventory, orders and reports.
 - [ ] Add workflow tests before extending order, check or kitchen states.
 - [ ] Consolidate repeated authenticated API validation, logging and error responses carefully.
