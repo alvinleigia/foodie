@@ -43,6 +43,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         name: item.name,
         slug: item.slug,
         categoryId: item.categoryId,
+        prepStationId: item.prepStationId,
         isActive: item.isActive,
         isSoldOut: item.isSoldOut,
       },

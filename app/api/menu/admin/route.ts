@@ -8,6 +8,7 @@ import {
   getTenantMenuCurrency,
 } from "@/lib/menu";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { getPrepStations } from "@/lib/prep-stations";
 
 export async function GET() {
   try {
@@ -18,13 +19,14 @@ export async function GET() {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const [categories, currency, tags, modifierGroups] = await Promise.all([
+    const [categories, currency, tags, modifierGroups, prepStations] = await Promise.all([
       getAdminMenu(tenantContext),
       getTenantMenuCurrency(tenantContext),
       getActiveMenuTags(),
       getMenuModifierGroups(tenantContext),
+      getPrepStations(tenantContext),
     ]);
-    return NextResponse.json({ categories, currency, modifierGroups, tags });
+    return NextResponse.json({ categories, currency, modifierGroups, prepStations, tags });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch admin menu." },

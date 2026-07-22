@@ -61,6 +61,7 @@ import {
   MenuItemRecord,
   MenuModifierGroupRecord,
   MenuTagRecord,
+  PrepStationRecord,
 } from "@/types/menu";
 
 type CategoryDraft = {
@@ -74,6 +75,7 @@ type CategoryDraft = {
 type ItemDraft = {
   id: string | null;
   categoryId: string;
+  prepStationId: string;
   name: string;
   description: string;
   price: string;
@@ -121,6 +123,7 @@ const emptyCategoryDraft: CategoryDraft = {
 const emptyItemDraft: ItemDraft = {
   id: null,
   categoryId: "",
+  prepStationId: "",
   name: "",
   description: "",
   price: "",
@@ -155,6 +158,7 @@ const emptyModifierOptionDraft: ModifierOptionDraft = {
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
   const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
+  const [prepStations, setPrepStations] = useState<PrepStationRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [isLoading, setIsLoading] = useState(true);
@@ -201,12 +205,14 @@ export function MenuManager() {
         setError(payload.error ?? "Failed to load menu.");
         setCategories([]);
         setModifierGroups([]);
+        setPrepStations([]);
         setIsLoading(false);
         return;
       }
 
       setCategories(payload.categories ?? []);
       setModifierGroups(payload.modifierGroups ?? []);
+      setPrepStations(payload.prepStations ?? []);
       setTags(payload.tags ?? []);
       setCurrency(payload.currency ?? DEFAULT_CURRENCY);
       setError(null);
@@ -250,6 +256,7 @@ export function MenuManager() {
     setItemDraft({
       id: item.id,
       categoryId: item.categoryId,
+      prepStationId: item.prepStationId ?? "",
       name: item.name,
       description: item.description ?? "",
       price: item.price ?? "",
@@ -414,6 +421,7 @@ export function MenuManager() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         categoryId: itemDraft.categoryId,
+        prepStationId: itemDraft.prepStationId,
         name: itemDraft.name,
         description: itemDraft.description,
         price: itemDraft.price,
@@ -912,6 +920,11 @@ export function MenuManager() {
                                     Sold out
                                   </span>
                                 ) : null}
+                                {item.prepStationId ? (
+                                  <span className="rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">
+                                    {prepStations.find((station) => station.id === item.prepStationId)?.name ?? "Prep station"}
+                                  </span>
+                                ) : null}
                               </div>
                               <p className="mt-1 text-sm text-stone-600">
                                 {item.description || "No description yet."}
@@ -1283,6 +1296,30 @@ export function MenuManager() {
                 {sortedCategories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </FormField>
+
+            <FormField
+              label="Preparation station"
+              error={getFieldError(itemFieldErrors, "prepStationId")}
+              errorId="menu-item-prep-station-error"
+            >
+              <NativeSelect
+                value={itemDraft.prepStationId}
+                onChange={(event) => {
+                  clearItemFieldError("prepStationId");
+                  setItemDraft((current) => ({
+                    ...current,
+                    prepStationId: event.target.value,
+                  }));
+                }}
+              >
+                <option value="">Unassigned</option>
+                {prepStations.map((station) => (
+                  <option key={station.id} value={station.id}>
+                    {station.name}
                   </option>
                 ))}
               </NativeSelect>

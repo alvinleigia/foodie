@@ -47,4 +47,46 @@ test.describe("prep station foundation", () => {
     );
     expect(migrationSource).toContain("ON DELETE restrict");
   });
+
+  test("assigns products only to active stations in the same restaurant", () => {
+    const menuSource = readFileSync("lib/menu.ts", "utf8");
+    const validationSource = readFileSync("lib/validations/menu.ts", "utf8");
+    const adminApiSource = readFileSync("app/api/menu/admin/route.ts", "utf8");
+    const managerSource = readFileSync("components/staff/MenuManager.tsx", "utf8");
+
+    expect(validationSource).toContain("prepStationId: z");
+    expect(menuSource).toContain(
+      "getActivePrepStation(input.prepStationId, context)",
+    );
+    expect(menuSource).toContain('throw new Error("Preparation station not found.")');
+    expect(adminApiSource).toContain("getPrepStations(tenantContext)");
+    expect(managerSource).toContain('label="Preparation station"');
+    expect(managerSource).toContain('<option value="">Unassigned</option>');
+    expect(managerSource).toContain("prepStationId: itemDraft.prepStationId");
+  });
+
+  test("snapshots server-resolved routing when an order is created", () => {
+    const orderSource = readFileSync("app/api/orders/route.ts", "utf8");
+    const orderValidationSource = readFileSync(
+      "lib/validations/order.ts",
+      "utf8",
+    );
+    const restaurantAdminSource = readFileSync("lib/saas-admin.ts", "utf8");
+
+    expect(orderSource).toContain(
+      "const { category, inventory, item, prepStation } = await getMenuSelectionSnapshot",
+    );
+    expect(orderSource).toContain("prepStationId: prepStation?.id ?? null");
+    expect(orderSource).toContain(
+      "prepStationNameSnapshot: prepStation?.name ?? null",
+    );
+    expect(orderSource).toContain("prepStationId: item.prepStationId");
+    expect(orderSource).toContain(
+      "prepStationNameSnapshot: item.prepStationNameSnapshot",
+    );
+    expect(orderValidationSource).not.toContain("prepStationId");
+    expect(restaurantAdminSource).toContain(
+      "getDefaultPrepStationValues(restaurant.id)",
+    );
+  });
 });

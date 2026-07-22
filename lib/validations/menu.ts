@@ -31,6 +31,14 @@ export const menuCategorySchema = z.object({
 
 export const menuItemSchema = z.object({
   categoryId: z.string().uuid("Choose a valid category"),
+  prepStationId: z
+    .union([
+      z.string().uuid("Choose a valid preparation station"),
+      z.literal(""),
+      z.null(),
+    ])
+    .optional()
+    .transform((value) => value || null),
   name: z.string().trim().min(2, "Product name is required").max(80, "Product name is too long"),
   description: z.string().max(1000, "Description is too long").optional().transform(emptyToNull),
   price: z

@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import {
   memberships,
   orderingPoints,
+  prepStations,
   organizationSubscriptions,
   organizations,
   saasPlans,
@@ -41,6 +42,7 @@ import {
 import { buildStaffPermissionOverrides } from "@/lib/staff-permissions";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { TenantContext } from "@/lib/tenant-context";
+import { getDefaultPrepStationValues } from "@/lib/prep-stations";
 
 type ReassignExistingUserOptions = {
   allowedOrganizationIds?: string[];
@@ -594,6 +596,13 @@ export async function createChildRestaurant(
         updatedAt: new Date(),
       })
       .returning();
+
+    await tx
+      .insert(prepStations)
+      .values(getDefaultPrepStationValues(restaurant.id))
+      .onConflictDoNothing({
+        target: [prepStations.organizationId, prepStations.slug],
+      });
 
     return { ...restaurant, defaultOrderingPoint };
   });

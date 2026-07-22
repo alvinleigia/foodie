@@ -304,6 +304,8 @@ export async function POST(request: NextRequest) {
       quantity: number;
       notes: string | null;
       unitPrice: string | null;
+      prepStationId: string | null;
+      prepStationNameSnapshot: string | null;
       status: "PENDING";
       shouldReserveInventory: boolean;
       modifiers: Array<{
@@ -321,7 +323,7 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const requestedItem of parsed.data.items) {
-      const { category, inventory, item } = await getMenuSelectionSnapshot(
+      const { category, inventory, item, prepStation } = await getMenuSelectionSnapshot(
         requestedItem.categoryId,
         requestedItem.drinkId,
         tenantContext,
@@ -330,6 +332,13 @@ export async function POST(request: NextRequest) {
 
       if (!category || !item) {
         return NextResponse.json({ error: "Invalid drink selection." }, { status: 400 });
+      }
+
+      if (item.prepStationId && !prepStation) {
+        return NextResponse.json(
+          { error: `${item.name} is assigned to an unavailable preparation station.` },
+          { status: 409 },
+        );
       }
 
       const totalRequestedQuantity = requestedQuantityByDrinkId.get(item.id) ?? requestedItem.quantity;
@@ -356,6 +365,8 @@ export async function POST(request: NextRequest) {
         quantity: requestedItem.quantity,
         notes: requestedItem.notes?.trim() || null,
         unitPrice: item.price ?? null,
+        prepStationId: prepStation?.id ?? null,
+        prepStationNameSnapshot: prepStation?.name ?? null,
         status: "PENDING",
         shouldReserveInventory: Boolean(inventory?.isTracked),
         modifiers,
@@ -499,6 +510,8 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             notes: item.notes,
             unitPrice: item.unitPrice,
+            prepStationId: item.prepStationId,
+            prepStationNameSnapshot: item.prepStationNameSnapshot,
             taxRateBpsSnapshot: lineTaxSnapshot.taxRateBpsSnapshot,
             taxableAmountSnapshot: lineTaxSnapshot.taxableAmountSnapshot,
             taxAmountSnapshot: lineTaxSnapshot.taxAmountSnapshot,
