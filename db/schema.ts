@@ -990,6 +990,87 @@ export const cashDrawerMovements = pgTable(
   ],
 );
 
+export const cashDrawerReconciliations = pgTable(
+  "cash_drawer_reconciliations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").notNull(),
+    currency: text("currency").notNull(),
+    openingFloat: numeric("opening_float", { precision: 10, scale: 2 })
+      .notNull(),
+    cashSalesAmount: numeric("cash_sales_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    cashRefundsAmount: numeric("cash_refunds_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    paidInAmount: numeric("paid_in_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    paidOutAmount: numeric("paid_out_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    expectedCashAmount: numeric("expected_cash_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    countedCashAmount: numeric("counted_cash_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    varianceAmount: numeric("variance_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    closingNote: text("closing_note"),
+    closedByMembershipId: uuid("closed_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "cash_drawer_reconciliations_session_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("cash_drawer_reconciliations_session_unique").on(
+      table.cashDrawerSessionId,
+    ),
+    index("cash_drawer_reconciliations_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    check(
+      "cash_drawer_reconciliations_nonnegative_amounts_check",
+      sql`${table.openingFloat} >= 0 AND ${table.cashSalesAmount} >= 0 AND ${table.cashRefundsAmount} >= 0 AND ${table.paidInAmount} >= 0 AND ${table.paidOutAmount} >= 0 AND ${table.expectedCashAmount} >= 0 AND ${table.countedCashAmount} >= 0`,
+    ),
+    check(
+      "cash_drawer_reconciliations_expected_cash_check",
+      sql`${table.expectedCashAmount} = ${table.openingFloat} + ${table.cashSalesAmount} + ${table.paidInAmount} - ${table.cashRefundsAmount} - ${table.paidOutAmount}`,
+    ),
+    check(
+      "cash_drawer_reconciliations_variance_check",
+      sql`${table.varianceAmount} = ${table.countedCashAmount} - ${table.expectedCashAmount}`,
+    ),
+    check(
+      "cash_drawer_reconciliations_closing_note_check",
+      sql`${table.closingNote} IS NULL OR char_length(${table.closingNote}) <= 500`,
+    ),
+  ],
+);
+
 export const menuCategories = pgTable("menu_categories", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")

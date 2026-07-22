@@ -48,6 +48,26 @@ test.describe("cash drawer session foundation", () => {
     expect(migrationSource).not.toContain('"updated_at"');
   });
 
+  test("stores one immutable reconciliation snapshot per drawer session", () => {
+    const schemaSource = readFileSync("db/schema.ts", "utf8");
+    const migrationSource = readFileSync(
+      "drizzle/0052_cash_drawer_reconciliations.sql",
+      "utf8",
+    );
+
+    expect(schemaSource).toContain("cashDrawerReconciliations");
+    expect(migrationSource).toContain(
+      'CREATE UNIQUE INDEX "cash_drawer_reconciliations_session_unique"',
+    );
+    expect(migrationSource).toContain(
+      '"expected_cash_amount" = "opening_float" + "cash_sales_amount" + "paid_in_amount" - "cash_refunds_amount" - "paid_out_amount"',
+    );
+    expect(migrationSource).toContain(
+      '"variance_amount" = "counted_cash_amount" - "expected_cash_amount"',
+    );
+    expect(migrationSource).not.toContain('"updated_at"');
+  });
+
   test("records manager-authorized drawer movements against an open session", () => {
     const routeSource = readFileSync(
       "app/api/cash-drawer/movements/route.ts",
