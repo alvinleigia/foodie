@@ -174,10 +174,10 @@ test.describe.serial("live white-label customer authentication", () => {
 
         const session = (await response.json()) as {
           user?: { email?: string; kind?: string };
-        };
+        } | null;
 
-        return session.user;
-      })
+        return session?.user ?? null;
+      }, { timeout: 20_000 })
       .toMatchObject({
         email: config.email,
         kind: "customer",
