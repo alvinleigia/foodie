@@ -4,6 +4,7 @@ import {
   allocateRefundAcrossPayments,
   calculateCancellationAmounts,
 } from "@/lib/order-cancellation-financials";
+import { getStripeApplicationFeeRefundParams } from "@/lib/stripe-refund-policy";
 
 test.describe("order cancellation financials", () => {
   test("calculates a full refund when no fee applies", () => {
@@ -124,5 +125,16 @@ test.describe("order cancellation financials", () => {
         refundAmount: "4.01",
       }),
     ).toThrow("Successful payments do not cover the refund amount.");
+  });
+
+  test("does not request an application fee refund when no fee was collected", () => {
+    expect(getStripeApplicationFeeRefundParams(null)).toEqual({});
+    expect(getStripeApplicationFeeRefundParams(0)).toEqual({});
+  });
+
+  test("refunds a collected Stripe application fee with the charge", () => {
+    expect(getStripeApplicationFeeRefundParams(25)).toEqual({
+      refund_application_fee: true,
+    });
   });
 });

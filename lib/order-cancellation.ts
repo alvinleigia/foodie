@@ -26,6 +26,7 @@ import {
 } from "@/lib/order-cancellation-financials";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
+import { getStripeApplicationFeeRefundParams } from "@/lib/stripe-refund-policy";
 
 type CancellationActorUser = {
   id: string;
@@ -374,7 +375,13 @@ async function executeRefund(refundId: string) {
       throw new Error("The Stripe payment reference is missing from this order.");
     }
 
-    const stripeRefund = await getStripe().refunds.create(
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(
+      stripePaymentIntentId,
+      {},
+      { stripeAccount: stripeConnectedAccountId },
+    );
+    const stripeRefund = await stripe.refunds.create(
       {
         amount: decimalToMinorUnits(
           operation.refund.amount,
@@ -387,7 +394,9 @@ async function executeRefund(refundId: string) {
         },
         payment_intent: stripePaymentIntentId,
         reason: "requested_by_customer",
-        refund_application_fee: true,
+        ...getStripeApplicationFeeRefundParams(
+          paymentIntent.application_fee_amount,
+        ),
       },
       {
         idempotencyKey: operation.refund.idempotencyKey,
