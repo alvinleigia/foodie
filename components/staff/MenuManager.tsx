@@ -1301,7 +1301,7 @@ export function MenuManager() {
       </AlertDialog>
 
       <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-4xl rounded-xl border border-white/70 bg-white p-0">
+        <DialogContent className="max-w-4xl rounded-xl border border-white/70 bg-white p-0 sm:max-w-4xl">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-stone-950">
               {itemDraft.id ? "Edit product" : "Add product"}
