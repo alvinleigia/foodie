@@ -535,50 +535,26 @@ async function prepareRefundRetry(input: CancelOrderInput) {
 
     const refunds: typeof orderRefunds.$inferSelect[] = [];
 
+    // Stripe can retain failed idempotent requests, so an operator retry is a new attempt.
     for (const refund of retryableRefunds) {
-      if (refund.stripeRefundId) {
-        const nextRefundId = randomUUID();
-        const [nextRefund] = await tx
-          .insert(orderRefunds)
-          .values({
-            amount: refund.amount,
-            cancellationId: refund.cancellationId,
-            currency: refund.currency,
-            id: nextRefundId,
-            idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
-            orderId: order.id,
-            orderPaymentId: refund.orderPaymentId,
-            organizationId: order.organizationId,
-            provider: "STRIPE",
-            requestedByUserId: actorUser.id,
-          })
-          .returning();
-
-        refunds.push(nextRefund);
-        continue;
-      }
-
-      const [retriedRefund] = await tx
-        .update(orderRefunds)
-        .set({
-          failureReason: null,
-          processedAt: null,
-          status: "PENDING",
-          updatedAt: now,
+      const nextRefundId = randomUUID();
+      const [nextRefund] = await tx
+        .insert(orderRefunds)
+        .values({
+          amount: refund.amount,
+          cancellationId: refund.cancellationId,
+          currency: refund.currency,
+          id: nextRefundId,
+          idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
+          orderId: order.id,
+          orderPaymentId: refund.orderPaymentId,
+          organizationId: order.organizationId,
+          provider: "STRIPE",
+          requestedByUserId: actorUser.id,
         })
-        .where(
-          and(
-            eq(orderRefunds.id, refund.id),
-            eq(orderRefunds.status, "FAILED"),
-          ),
-        )
         .returning();
 
-      if (!retriedRefund) {
-        throw new OrderCancellationError("The refund is already being retried.");
-      }
-
-      refunds.push(retriedRefund);
+      refunds.push(nextRefund);
     }
 
     return { order: updatedOrder, refunds };
