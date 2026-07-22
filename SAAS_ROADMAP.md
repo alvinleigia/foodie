@@ -155,7 +155,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add cash drawer sessions with opening float.
 - [x] Add cash paid-in and paid-out movements with reasons.
 - [x] Add expected-versus-counted cash reconciliation.
-- [ ] Add shift and end-of-day close reports.
+- [x] Add shift and end-of-day close reports.
 - [ ] Add basic prep stations and route products to kitchen or bar stations.
 - [ ] Add kitchen ticket printing or a dedicated KDS station view.
 - [ ] Add expeditor or final-assembly status where required.

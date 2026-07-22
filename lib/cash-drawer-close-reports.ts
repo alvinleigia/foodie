@@ -20,6 +20,7 @@ import {
   decimalToMinorUnits,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
+import type { CashDrawerCloseReport } from "@/lib/cash-drawer-close-report-types";
 
 export class CashDrawerCloseReportError extends Error {
   status: number;
@@ -132,7 +133,7 @@ function normalizeAmountRows(rows: AmountRow[]) {
 export async function getCashDrawerCloseReport(input: {
   businessDate?: string;
   organizationId: string;
-}) {
+}): Promise<CashDrawerCloseReport> {
   const db = getDb();
   const [restaurant] = await db
     .select({

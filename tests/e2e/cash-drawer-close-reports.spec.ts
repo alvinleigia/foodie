@@ -50,4 +50,26 @@ test.describe("cash drawer close reports", () => {
     expect(serviceSource).toContain("isReadyToClose: openDrawers.length === 0");
     expect(serviceSource).toContain("exportCashDrawerCloseReportCsv");
   });
+
+  test("shows a permission-gated manager close workspace with CSV export", () => {
+    const pageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/cash-drawer/page.tsx",
+      "utf8",
+    );
+    const componentSource = readFileSync(
+      "components/staff/CashDrawerCloseReportsPanel.tsx",
+      "utf8",
+    );
+
+    expect(pageSource).toContain('includes("reports.view")');
+    expect(pageSource).toContain("getCashDrawerCloseReport");
+    expect(pageSource).toContain("CashDrawerCloseReportsPanel");
+    expect(componentSource).toContain("Shift and day close reports");
+    expect(componentSource).toContain("Ready to close");
+    expect(componentSource).toContain("Close ${report.openDrawers.length} open drawer");
+    expect(componentSource).toContain("/api/cash-drawer/reports?date=");
+    expect(componentSource).toContain("&format=csv");
+    expect(componentSource).toContain("Cash reconciliation");
+    expect(componentSource).toContain("Closed shifts");
+  });
 });

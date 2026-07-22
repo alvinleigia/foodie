@@ -1,5 +1,7 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { CashDrawerCloseReportsPanel } from "@/components/staff/CashDrawerCloseReportsPanel";
 import { CashDrawerPanel } from "@/components/staff/CashDrawerPanel";
+import { getCashDrawerCloseReport } from "@/lib/cash-drawer-close-reports";
 import { getOpenCashDrawerReconciliation } from "@/lib/cash-drawer-reconciliation";
 import {
   getCashDrawerOpeningContext,
@@ -49,6 +51,7 @@ export default async function RestaurantCashDrawerPage({
       })
     : [];
   const canClose = session.user.permissions.includes("cash_drawer.close");
+  const canViewReports = session.user.permissions.includes("reports.view");
   const reconciliation =
     openingContext && openSession && canClose
       ? await getOpenCashDrawerReconciliation({
@@ -56,6 +59,11 @@ export default async function RestaurantCashDrawerPage({
           organizationId: access.restaurant.id,
         })
       : null;
+  const closeReport = canViewReports
+    ? await getCashDrawerCloseReport({
+        organizationId: access.restaurant.id,
+      })
+    : null;
 
   return (
     <SaasAdminShell
@@ -73,41 +81,46 @@ export default async function RestaurantCashDrawerPage({
         role: session.user.role,
       }}
     >
-      <CashDrawerPanel
-        canAdjust={session.user.permissions.includes("cash_drawer.adjust")}
-        canClose={canClose}
-        currency={openingContext?.currency ?? ""}
-        initialMovements={movements.map((movement) => ({
-          ...movement,
-          createdAtLabel: formatOpenedAt(
-            movement.createdAt,
-            openingContext?.timezone ?? "UTC",
-          ),
-        }))}
-        initialSession={
-          openSession && openingContext
-            ? {
-                currency: openSession.currency,
-                id: openSession.id,
-                openedAtLabel: formatOpenedAt(
-                  openSession.openedAt,
-                  openingContext.timezone,
-                ),
-                openingFloat: openSession.openingFloat,
-                orderingPointId: openSession.orderingPointId,
-                orderingPointName: openSession.orderingPointName,
-                status: "OPEN",
-              }
-            : null
-        }
-        initialReconciliation={reconciliation}
-        orderingPoint={
-          openingContext
-            ? { id: openingContext.id, name: openingContext.name }
-            : null
-        }
-        timezone={openingContext?.timezone ?? ""}
-      />
+      <div className="space-y-8">
+        <CashDrawerPanel
+          canAdjust={session.user.permissions.includes("cash_drawer.adjust")}
+          canClose={canClose}
+          currency={openingContext?.currency ?? ""}
+          initialMovements={movements.map((movement) => ({
+            ...movement,
+            createdAtLabel: formatOpenedAt(
+              movement.createdAt,
+              openingContext?.timezone ?? "UTC",
+            ),
+          }))}
+          initialSession={
+            openSession && openingContext
+              ? {
+                  currency: openSession.currency,
+                  id: openSession.id,
+                  openedAtLabel: formatOpenedAt(
+                    openSession.openedAt,
+                    openingContext.timezone,
+                  ),
+                  openingFloat: openSession.openingFloat,
+                  orderingPointId: openSession.orderingPointId,
+                  orderingPointName: openSession.orderingPointName,
+                  status: "OPEN",
+                }
+              : null
+          }
+          initialReconciliation={reconciliation}
+          orderingPoint={
+            openingContext
+              ? { id: openingContext.id, name: openingContext.name }
+              : null
+          }
+          timezone={openingContext?.timezone ?? ""}
+        />
+        {closeReport ? (
+          <CashDrawerCloseReportsPanel initialReport={closeReport} />
+        ) : null}
+      </div>
     </SaasAdminShell>
   );
 }
