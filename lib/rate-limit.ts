@@ -25,6 +25,14 @@ type RateLimitRow = {
   resetAt: Date;
 };
 
+type RateLimitUpsertInput = {
+  keyHash: string;
+  limit: number;
+  windowMs: number;
+};
+
+type RateLimitDatabase = Pick<ReturnType<typeof getDb>, "insert">;
+
 function hashRateLimitKey(key: string) {
   const authSecret = process.env.AUTH_SECRET;
 
@@ -43,6 +51,39 @@ export function getRequestRateLimitKey(request: Request, scope: string) {
   return `${scope}:${ip}`;
 }
 
+export function buildRateLimitUpsert(
+  db: RateLimitDatabase,
+  { keyHash, limit, windowMs }: RateLimitUpsertInput,
+) {
+  const nextResetAt = sql`now() + (${windowMs} * interval '1 millisecond')`;
+
+  return db
+    .insert(rateLimitWindows)
+    .values({
+      keyHash,
+      requestCount: 1,
+      resetAt: nextResetAt,
+    })
+    .onConflictDoUpdate({
+      target: rateLimitWindows.keyHash,
+      set: {
+        requestCount: sql<number>`CASE
+          WHEN ${rateLimitWindows.resetAt} <= now() THEN 1
+          ELSE least(${rateLimitWindows.requestCount} + 1, ${limit + 1})
+        END`,
+        resetAt: sql<Date>`CASE
+          WHEN ${rateLimitWindows.resetAt} <= now() THEN ${nextResetAt}
+          ELSE ${rateLimitWindows.resetAt}
+        END`,
+        updatedAt: sql`now()`,
+      },
+    })
+    .returning({
+      requestCount: rateLimitWindows.requestCount,
+      resetAt: rateLimitWindows.resetAt,
+    });
+}
+
 export async function checkRateLimit({
   key,
   limit,
@@ -53,36 +94,11 @@ export async function checkRateLimit({
   }
 
   const keyHash = hashRateLimitKey(key);
-  const result = await getDb().execute(sql<RateLimitRow>`
-    INSERT INTO ${rateLimitWindows} (
-      ${rateLimitWindows.keyHash},
-      ${rateLimitWindows.requestCount},
-      ${rateLimitWindows.resetAt},
-      ${rateLimitWindows.updatedAt}
-    )
-    VALUES (
-      ${keyHash},
-      1,
-      now() + (${windowMs} * interval '1 millisecond'),
-      now()
-    )
-    ON CONFLICT (${rateLimitWindows.keyHash}) DO UPDATE
-    SET
-      ${rateLimitWindows.requestCount} = CASE
-        WHEN ${rateLimitWindows.resetAt} <= now() THEN 1
-        ELSE least(${rateLimitWindows.requestCount} + 1, ${limit + 1})
-      END,
-      ${rateLimitWindows.resetAt} = CASE
-        WHEN ${rateLimitWindows.resetAt} <= now()
-          THEN now() + (${windowMs} * interval '1 millisecond')
-        ELSE ${rateLimitWindows.resetAt}
-      END,
-      ${rateLimitWindows.updatedAt} = now()
-    RETURNING
-      ${rateLimitWindows.requestCount} AS "requestCount",
-      ${rateLimitWindows.resetAt} AS "resetAt"
-  `);
-  const row = result[0] as RateLimitRow | undefined;
+  const [row] = (await buildRateLimitUpsert(getDb(), {
+    keyHash,
+    limit,
+    windowMs,
+  })) as RateLimitRow[];
 
   if (!row) {
     throw new Error("Shared rate limiter did not return a result.");

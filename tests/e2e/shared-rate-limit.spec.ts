@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
+import { drizzle } from "drizzle-orm/postgres-js";
+
+import * as schema from "@/db/schema";
+import { buildRateLimitUpsert } from "@/lib/rate-limit";
 
 function source(...segments: string[]) {
   return readFileSync(resolve(process.cwd(), ...segments), "utf8");
@@ -27,11 +31,25 @@ test.describe("shared rate limiting", () => {
     const migrationSource = source("drizzle", "0056_shared_rate_limits.sql");
 
     expect(limiterSource).toContain('createHmac("sha256"');
-    expect(limiterSource).toContain("ON CONFLICT");
+    expect(limiterSource).toContain("onConflictDoUpdate");
     expect(limiterSource).toContain("least(");
     expect(limiterSource).not.toContain("new Map");
     expect(migrationSource).toContain('CREATE TABLE IF NOT EXISTS "rate_limit_windows"');
     expect(migrationSource).toContain('PRIMARY KEY NOT NULL');
+  });
+
+  test("generates valid unqualified insert and conflict targets", () => {
+    const db = drizzle.mock({ schema });
+    const query = buildRateLimitUpsert(db, {
+      keyHash: "test-key",
+      limit: 10,
+      windowMs: 60_000,
+    }).toSQL();
+
+    expect(query.sql).toContain('insert into "rate_limit_windows"');
+    expect(query.sql).toContain('on conflict ("key_hash") do update');
+    expect(query.sql).not.toContain('("rate_limit_windows"."key_hash"');
+    expect(query.sql).not.toContain('set "rate_limit_windows".');
   });
 
   test("awaits every shared rate-limit check", () => {
