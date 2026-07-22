@@ -26,6 +26,28 @@ test.describe("cash drawer session foundation", () => {
     );
   });
 
+  test("stores immutable paid-in and paid-out drawer movements", () => {
+    const schemaSource = readFileSync("db/schema.ts", "utf8");
+    const migrationSource = readFileSync(
+      "drizzle/0051_cash_drawer_movements.sql",
+      "utf8",
+    );
+
+    expect(schemaSource).toContain("cashDrawerMovements");
+    expect(schemaSource).toContain('["PAID_IN", "PAID_OUT"]');
+    expect(migrationSource).toContain(
+      '"cash_drawer_session_id" uuid NOT NULL',
+    );
+    expect(migrationSource).toContain(
+      'FOREIGN KEY ("cash_drawer_session_id", "organization_id")',
+    );
+    expect(migrationSource).toContain('CHECK ("amount" > 0)');
+    expect(migrationSource).toContain(
+      'CHECK (char_length(btrim("reason")) BETWEEN 1 AND 120)',
+    );
+    expect(migrationSource).not.toContain('"updated_at"');
+  });
+
   test("normalizes the opening float in restaurant currency units", () => {
     expect(normalizeOpeningFloat("25", "GBP")).toBe("25.00");
     expect(normalizeOpeningFloat("501", "JPY")).toBe("501");

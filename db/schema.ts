@@ -216,6 +216,11 @@ export const cashDrawerSessionStatusEnum = pgEnum(
   ["OPEN", "CLOSED"],
 );
 
+export const cashDrawerMovementTypeEnum = pgEnum(
+  "cash_drawer_movement_type",
+  ["PAID_IN", "PAID_OUT"],
+);
+
 export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
   "GOOGLE",
   "APPLE",
@@ -919,6 +924,10 @@ export const cashDrawerSessions = pgTable(
       table.orderingPointId,
       table.openedAt,
     ),
+    uniqueIndex("cash_drawer_sessions_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
     uniqueIndex("cash_drawer_sessions_ordering_point_open_unique")
       .on(table.orderingPointId)
       .where(sql`${table.status} = 'OPEN'`),
@@ -929,6 +938,54 @@ export const cashDrawerSessions = pgTable(
     check(
       "cash_drawer_sessions_closed_at_check",
       sql`(${table.status} = 'OPEN' AND ${table.closedAt} IS NULL) OR (${table.status} = 'CLOSED' AND ${table.closedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const cashDrawerMovements = pgTable(
+  "cash_drawer_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").notNull(),
+    type: cashDrawerMovementTypeEnum("type").notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    recordedByMembershipId: uuid("recorded_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "cash_drawer_movements_session_organization_fk",
+    }).onDelete("cascade"),
+    index("cash_drawer_movements_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    index("cash_drawer_movements_session_created_idx").on(
+      table.cashDrawerSessionId,
+      table.createdAt,
+    ),
+    check("cash_drawer_movements_amount_check", sql`${table.amount} > 0`),
+    check(
+      "cash_drawer_movements_reason_check",
+      sql`char_length(btrim(${table.reason})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "cash_drawer_movements_note_check",
+      sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`,
     ),
   ],
 );
