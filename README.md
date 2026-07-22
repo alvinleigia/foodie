@@ -119,7 +119,11 @@ Customer email OTP resolves restaurant, company and optional platform SMTP2GO se
 
 Each regional installation is an independent deployment cell with its own Vercel project, database and environment variables. `DEPLOYMENT_CELL_ID`, `DEPLOYMENT_REGION`, `APP_ROOT_DOMAIN`, `NEXT_PUBLIC_DEFAULT_LOCALE`, `NEXT_PUBLIC_DEFAULT_TIMEZONE` and `NEXT_PUBLIC_DEFAULT_CURRENCY` are required. There are no regional fallbacks: verification and production builds fail when the cell configuration is missing or invalid. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
 
-`AUTH_TRUST_HOST` must be `true` for hosted cells. `EXPECTED_VERCEL_RUNTIME_REGION` records the Vercel function region that must match the database locality, while `EXPECTED_VERCEL_ENV` records the expected Vercel environment (`production`, `preview` or `development`). These values are identifiers, not secrets.
+`AUTH_TRUST_HOST` must be `true` for hosted cells. The optional
+`EXPECTED_VERCEL_RUNTIME_REGION` and `EXPECTED_VERCEL_ENV` values provide defaults
+for automated release verification; they do not configure Vercel or affect the
+running application. They can instead be supplied to `verify:release` as command
+options.
 
 For example, a UK UAT installation can use:
 

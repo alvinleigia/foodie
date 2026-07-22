@@ -70,6 +70,18 @@ test("accepts a complete staging launch environment without exposing secrets", (
   assert.match(output, /No environment variable values were printed/);
 });
 
+test("does not require release-check defaults in a deployed application", () => {
+  const report = inspectEnvironment({
+    env: completeEnvironment({
+      EXPECTED_VERCEL_ENV: undefined,
+      EXPECTED_VERCEL_RUNTIME_REGION: undefined,
+    }),
+    profile: "staging",
+  });
+
+  assert.equal(report.errors.length, 0);
+});
+
 test("production blocks UAT reset and incomplete privacy configuration", () => {
   const report = inspectEnvironment({
     env: completeEnvironment({
