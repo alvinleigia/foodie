@@ -1,5 +1,6 @@
 export type RestaurantWorkspaceDestination =
   | "auditLogs"
+  | "cashDrawer"
   | "dashboard"
   | "integrations"
   | "inventory"
@@ -18,6 +19,7 @@ export type RestaurantWorkspacePageProps = {
 
 const destinationPaths: Record<RestaurantWorkspaceDestination, string> = {
   auditLogs: "audit-logs",
+  cashDrawer: "cash-drawer",
   dashboard: "",
   integrations: "integrations",
   inventory: "inventory",

@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 
 import { getDb } from "@/db";
 import {
+  cashDrawerSessions,
   orderItemModifiers,
   orderItems,
   orderPayments,
@@ -263,6 +264,37 @@ export async function collectStaffCashPayment(input: {
       throw new StaffOrderPaymentError("This order is missing its currency.");
     }
 
+    if (!order.orderingPointId) {
+      throw new StaffOrderPaymentError(
+        "This order is not assigned to an ordering point.",
+      );
+    }
+
+    const [drawerSession] = await tx
+      .select()
+      .from(cashDrawerSessions)
+      .where(
+        and(
+          eq(cashDrawerSessions.organizationId, order.organizationId),
+          eq(cashDrawerSessions.orderingPointId, order.orderingPointId),
+          eq(cashDrawerSessions.status, "OPEN"),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (!drawerSession) {
+      throw new StaffOrderPaymentError(
+        "Open the cash drawer before recording a cash payment.",
+      );
+    }
+
+    if (drawerSession.currency !== currency) {
+      throw new StaffOrderPaymentError(
+        "The open cash drawer currency does not match this order.",
+      );
+    }
+
     const pricing = await getCollectiblePricing(
       tx,
       order.id,
@@ -333,6 +365,7 @@ export async function collectStaffCashPayment(input: {
       .insert(orderPayments)
       .values({
         amount,
+        cashDrawerSessionId: drawerSession.id,
         changeAmount: cash.changeAmount,
         completedAt: now,
         currency,

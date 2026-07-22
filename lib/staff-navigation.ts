@@ -139,6 +139,13 @@ const restaurantNavigation: Array<
     permission: "orders.view",
   },
   {
+    access: "RESTAURANT_OPERATIONS",
+    destination: "cashDrawer",
+    label: "Cash drawer",
+    description: "Open and manage the active till.",
+    permission: "cash_drawer.open",
+  },
+  {
     access: "RESTAURANT_ADMIN",
     destination: "menu",
     label: "Menu Manager",

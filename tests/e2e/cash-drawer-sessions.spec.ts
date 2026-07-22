@@ -52,4 +52,31 @@ test.describe("cash drawer session foundation", () => {
       '"This ordering point already has an open cash drawer."',
     );
   });
+
+  test("exposes the drawer only through its scoped staff workspace", () => {
+    const navigationSource = readFileSync("lib/staff-navigation.ts", "utf8");
+    const pageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/cash-drawer/page.tsx",
+      "utf8",
+    );
+
+    expect(navigationSource).toContain('destination: "cashDrawer"');
+    expect(navigationSource).toContain('permission: "cash_drawer.open"');
+    expect(pageSource).toContain('requiredPermission: "cash_drawer.open"');
+    expect(pageSource).toContain("getCashDrawerOpeningContext");
+  });
+
+  test("requires and links an open drawer when collecting cash", () => {
+    const paymentSource = readFileSync("lib/staff-order-payments.ts", "utf8");
+
+    expect(paymentSource).toContain(
+      'eq(cashDrawerSessions.status, "OPEN")',
+    );
+    expect(paymentSource).toContain(
+      '"Open the cash drawer before recording a cash payment."',
+    );
+    expect(paymentSource).toContain(
+      "cashDrawerSessionId: drawerSession.id",
+    );
+  });
 });

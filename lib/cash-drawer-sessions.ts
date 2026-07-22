@@ -28,6 +28,41 @@ type OpenCashDrawerSessionInput = {
   organizationId: string;
 };
 
+export async function getCashDrawerOpeningContext(input: {
+  orderingPointId: string;
+  organizationId: string;
+}) {
+  const [orderingPoint] = await getDb()
+    .select({
+      currency: organizations.currency,
+      id: orderingPoints.id,
+      name: orderingPoints.name,
+      timezone: organizations.timezone,
+    })
+    .from(orderingPoints)
+    .innerJoin(organizations, eq(organizations.id, orderingPoints.organizationId))
+    .where(
+      and(
+        eq(orderingPoints.id, input.orderingPointId),
+        eq(orderingPoints.organizationId, input.organizationId),
+        eq(orderingPoints.isActive, true),
+        eq(organizations.id, input.organizationId),
+        eq(organizations.type, "RESTAURANT"),
+        eq(organizations.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  if (!orderingPoint) {
+    throw new CashDrawerSessionError("Ordering point not found.", 404);
+  }
+
+  return {
+    ...orderingPoint,
+    currency: orderingPoint.currency.trim().toUpperCase(),
+  };
+}
+
 export class CashDrawerSessionError extends Error {
   status: number;
 
@@ -102,29 +137,10 @@ export async function getOpenCashDrawerSession(input: {
 export async function openCashDrawerSession(
   input: OpenCashDrawerSessionInput,
 ) {
-  const [orderingPoint] = await getDb()
-    .select({
-      currency: organizations.currency,
-      id: orderingPoints.id,
-      name: orderingPoints.name,
-    })
-    .from(orderingPoints)
-    .innerJoin(organizations, eq(organizations.id, orderingPoints.organizationId))
-    .where(
-      and(
-        eq(orderingPoints.id, input.orderingPointId),
-        eq(orderingPoints.organizationId, input.organizationId),
-        eq(orderingPoints.isActive, true),
-        eq(organizations.id, input.organizationId),
-        eq(organizations.type, "RESTAURANT"),
-        eq(organizations.isActive, true),
-      ),
-    )
-    .limit(1);
-
-  if (!orderingPoint) {
-    throw new CashDrawerSessionError("Ordering point not found.", 404);
-  }
+  const orderingPoint = await getCashDrawerOpeningContext({
+    orderingPointId: input.orderingPointId,
+    organizationId: input.organizationId,
+  });
 
   const openingFloat = normalizeOpeningFloat(
     input.openingFloat,
@@ -137,7 +153,7 @@ export async function openCashDrawerSession(
     const [createdSession] = await getDb()
       .insert(cashDrawerSessions)
       .values({
-        currency: orderingPoint.currency.trim().toUpperCase(),
+        currency: orderingPoint.currency,
         openedByMembershipId: input.actor.membershipId,
         openedByUserId: input.actor.id,
         openingFloat,
