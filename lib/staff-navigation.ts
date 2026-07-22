@@ -133,6 +133,14 @@ const restaurantNavigation: Array<
   {
     access: "RESTAURANT_ADMIN",
     group: "management",
+    destination: "settings",
+    label: "Restaurant settings",
+    description: "Restaurant details and tax configuration.",
+    permission: "restaurant.settings",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    group: "management",
     destination: "orderingPoint",
     label: "Ordering Point",
     description: "Manage the restaurant QR entry point.",
