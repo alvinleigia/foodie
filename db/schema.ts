@@ -95,6 +95,12 @@ export const orderingPointTypeEnum = pgEnum("ordering_point_type", [
   "COUNTER",
 ]);
 
+export const prepStationTypeEnum = pgEnum("prep_station_type", [
+  "KITCHEN",
+  "BAR",
+  "OTHER",
+]);
+
 export const orderSourceEnum = pgEnum("order_source", [
   "CUSTOMER_SELF_SERVICE",
   "STAFF_CREATED",
@@ -1091,6 +1097,46 @@ export const menuCategories = pgTable("menu_categories", {
   ),
 ]);
 
+export const prepStations = pgTable(
+  "prep_stations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    type: prepStationTypeEnum("type").default("OTHER").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("prep_stations_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("prep_stations_organization_slug_unique").on(
+      table.organizationId,
+      table.slug,
+    ),
+    index("prep_stations_organization_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.sortOrder,
+    ),
+    check(
+      "prep_stations_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "prep_stations_slug_check",
+      sql`${table.slug} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`,
+    ),
+  ],
+);
+
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -1099,6 +1145,7 @@ export const menuItems = pgTable("menu_items", {
   categoryId: uuid("category_id")
     .references(() => menuCategories.id, { onDelete: "cascade" })
     .notNull(),
+  prepStationId: uuid("prep_station_id"),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
@@ -1111,6 +1158,15 @@ export const menuItems = pgTable("menu_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("menu_items_organization_idx").on(table.organizationId),
+  index("menu_items_prep_station_idx").on(
+    table.organizationId,
+    table.prepStationId,
+  ),
+  foreignKey({
+    columns: [table.prepStationId, table.organizationId],
+    foreignColumns: [prepStations.id, prepStations.organizationId],
+    name: "menu_items_prep_station_organization_fk",
+  }).onDelete("restrict"),
   uniqueIndex("menu_items_org_slug_unique").on(
     table.organizationId,
     table.slug,
@@ -1688,6 +1744,8 @@ export const orderItems = pgTable("order_items", {
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
   drinkName: text("drink_name").notNull(),
+  prepStationId: uuid("prep_station_id"),
+  prepStationNameSnapshot: text("prep_station_name_snapshot"),
   quantity: integer("quantity").default(1).notNull(),
   notes: text("notes"),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
@@ -1717,6 +1775,21 @@ export const orderItems = pgTable("order_items", {
     table.id,
     table.orderId,
     table.organizationId,
+  ),
+  index("order_items_prep_station_status_idx").on(
+    table.organizationId,
+    table.prepStationId,
+    table.status,
+    table.createdAt,
+  ),
+  foreignKey({
+    columns: [table.prepStationId, table.organizationId],
+    foreignColumns: [prepStations.id, prepStations.organizationId],
+    name: "order_items_prep_station_organization_fk",
+  }).onDelete("restrict"),
+  check(
+    "order_items_prep_station_snapshot_check",
+    sql`(${table.prepStationId} IS NULL AND ${table.prepStationNameSnapshot} IS NULL) OR (${table.prepStationId} IS NOT NULL AND char_length(btrim(${table.prepStationNameSnapshot})) BETWEEN 1 AND 80)`,
   ),
   check(
     "order_items_tax_rate_bps_snapshot_check",
