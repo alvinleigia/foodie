@@ -189,7 +189,7 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Test two-restaurant isolation using real manager accounts.
 - [x] Add a credential-driven live white-label email and Google authentication gate.
 - [x] Test email OTP end to end from a white-label customer domain.
-- [ ] Test Google login end to end from a white-label customer domain.
+- [x] Test Google login end to end from a white-label customer domain.
 - [ ] Test OTP delivery to Gmail and Outlook and inspect SPF and DKIM results.
 - [ ] Add and validate the DMARC record for the sending domain.
 - [x] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
