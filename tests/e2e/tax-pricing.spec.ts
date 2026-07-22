@@ -204,6 +204,11 @@ test.describe("tax pricing modes", () => {
     const orderRouteSource = readSource("app", "api", "orders", "route.ts");
     const staffPaymentSource = readSource("lib", "staff-order-payments.ts");
     const menuRouteSource = readSource("app", "api", "menu", "route.ts");
+    const orderFormSource = readSource(
+      "components",
+      "order",
+      "OrderForm.tsx",
+    );
 
     expect(orderRouteSource).toContain("taxPricingModeSnapshot");
     expect(orderRouteSource).toContain("taxRateBpsSnapshot");
@@ -214,7 +219,9 @@ test.describe("tax pricing modes", () => {
     expect(staffPaymentSource).toContain("order.taxPricingModeSnapshot");
     expect(staffPaymentSource).toContain("order.taxRateBpsSnapshot");
     expect(staffPaymentSource).toContain("orderItemTaxComponents");
-    expect(menuRouteSource).toContain("getRestaurantTaxPricing");
-    expect(menuRouteSource).toContain("taxPricing");
+    expect(menuRouteSource).toContain("getResolvedRestaurantTaxes");
+    expect(menuRouteSource).toContain("taxesByMenuItemId");
+    expect(orderFormSource).toContain("calculateMultiTaxPricing");
+    expect(orderFormSource).toContain("item.taxes");
   });
 });

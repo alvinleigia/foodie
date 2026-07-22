@@ -34,7 +34,8 @@ import {
 } from "@/lib/currency-money";
 import { getCustomerPrivacyHref } from "@/lib/customer-navigation";
 import {
-  calculateTaxPricing,
+  calculateMultiTaxPricing,
+  type TaxComponentInput,
   type TaxPricingMode,
 } from "@/lib/tax-pricing";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
@@ -124,6 +125,7 @@ type CartItem = {
   notes: string;
   unitPrice: string | null;
   stockLimit: number | null;
+  taxes: TaxComponentInput[];
   modifierGroups: MenuModifierGroupRecord[];
   modifierSelections: CartModifierSelection[];
 };
@@ -152,12 +154,52 @@ type OrderDraft = {
 type RestaurantTaxPricing = {
   pricingMode: TaxPricingMode;
   taxRateBps: number;
+  taxesByMenuItemId: Record<string, TaxComponentInput[]>;
 };
 
 const defaultTaxPricing: RestaurantTaxPricing = {
   pricingMode: "INCLUSIVE",
   taxRateBps: 0,
+  taxesByMenuItemId: {},
 };
+
+function getMenuItemTaxes(
+  taxPricing: RestaurantTaxPricing,
+  menuItemId: string,
+) {
+  const resolvedTaxes = taxPricing.taxesByMenuItemId?.[menuItemId];
+
+  if (resolvedTaxes !== undefined) {
+    return resolvedTaxes;
+  }
+
+  return taxPricing.taxRateBps > 0
+    ? [
+        {
+          calculationOrder: 0,
+          code: "DEFAULT",
+          definitionId: null,
+          isCompound: false,
+          name: "Tax",
+          rateBps: taxPricing.taxRateBps,
+          treatment: "TAXABLE" as const,
+        },
+      ]
+    : [];
+}
+
+function formatCartTaxLabel(component: TaxComponentInput) {
+  if (component.treatment === "EXEMPT") {
+    return `${component.name} (exempt)`;
+  }
+
+  if (component.treatment === "OUT_OF_SCOPE") {
+    return `${component.name} (out of scope)`;
+  }
+
+  const rate = (component.rateBps / 100).toFixed(2).replace(/\.00$/, "");
+  return `${component.name} (${rate}%)`;
+}
 
 function withOrderContext(
   path: string,
@@ -493,6 +535,13 @@ export function OrderForm({
     let listedSubtotalMinor = 0;
     let taxAmountMinor = 0;
     let totalAmountMinor = 0;
+    const taxComponents = new Map<
+      string,
+      TaxComponentInput & {
+        taxableAmountMinor: number;
+        taxAmountMinor: number;
+      }
+    >();
 
     for (const item of cartItems) {
       const listedUnitTotal = getCartItemUnitTotal(item);
@@ -502,14 +551,35 @@ export function OrderForm({
       }
 
       hasAnyPrice = true;
-      const unitPricing = calculateTaxPricing(
+      const unitPricing = calculateMultiTaxPricing(
         decimalToMinorUnits(String(listedUnitTotal), currency),
-        taxPricing.taxRateBps,
+        item.taxes,
         taxPricing.pricingMode,
       );
       listedSubtotalMinor += unitPricing.listedAmountMinor * item.quantity;
       taxAmountMinor += unitPricing.taxAmountMinor * item.quantity;
       totalAmountMinor += unitPricing.totalAmountMinor * item.quantity;
+
+      for (const component of unitPricing.components) {
+        const key = [
+          component.code,
+          component.name,
+          component.treatment,
+          component.rateBps,
+          component.isCompound,
+          component.calculationOrder,
+        ].join("|");
+        const summary = taxComponents.get(key) ?? {
+          ...component,
+          taxableAmountMinor: 0,
+          taxAmountMinor: 0,
+        };
+
+        summary.taxableAmountMinor +=
+          component.taxableAmountMinor * item.quantity;
+        summary.taxAmountMinor += component.taxAmountMinor * item.quantity;
+        taxComponents.set(key, summary);
+      }
     }
 
     if (!hasAnyPrice) {
@@ -519,11 +589,24 @@ export function OrderForm({
     return {
       listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, currency),
       taxAmount: minorUnitsToDecimal(taxAmountMinor, currency),
+      taxComponents: [...taxComponents.values()]
+        .sort(
+          (left, right) =>
+            left.calculationOrder - right.calculationOrder ||
+            left.code.localeCompare(right.code),
+        )
+        .map((component) => ({
+          ...component,
+          taxableAmount: minorUnitsToDecimal(
+            component.taxableAmountMinor,
+            currency,
+          ),
+          taxAmount: minorUnitsToDecimal(component.taxAmountMinor, currency),
+        })),
       totalAmount: minorUnitsToDecimal(totalAmountMinor, currency),
     };
   }, [cartItems, currency, taxPricing]);
   const totalAmount = cartPricing?.totalAmount ?? null;
-  const taxRateLabel = `${taxPricing.taxRateBps / 100}%`;
 
   const customerNameError =
     isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
@@ -549,6 +632,7 @@ export function OrderForm({
       notes: "",
       unitPrice: drink.price ?? null,
       stockLimit: getStockLimit(drink),
+      taxes: getMenuItemTaxes(taxPricing, drink.id),
       modifierGroups: drink.modifierGroups ?? [],
       modifierSelections: [],
     };
@@ -1741,7 +1825,7 @@ export function OrderForm({
                   <span>Pricing</span>
                   <span>{totalAmount ? "Calculated" : "Price on request"}</span>
                 </div>
-                {cartPricing && taxPricing.taxRateBps > 0 ? (
+                {cartPricing && cartPricing.taxComponents.length > 0 ? (
                   <>
                     {taxPricing.pricingMode === "EXCLUSIVE" ? (
                       <div className="flex items-center justify-between gap-4 text-stone-600">
@@ -1749,14 +1833,25 @@ export function OrderForm({
                         <span>{formatPrice(cartPricing.listedSubtotal, { currency })}</span>
                       </div>
                     ) : null}
-                    <div className="flex items-center justify-between gap-4 text-stone-600">
-                      <span>
-                        {taxPricing.pricingMode === "INCLUSIVE"
-                          ? `Includes tax (${taxRateLabel})`
-                          : `Tax (${taxRateLabel})`}
-                      </span>
-                      <span>{formatPrice(cartPricing.taxAmount, { currency })}</span>
-                    </div>
+                    {cartPricing.taxComponents.map((component) => (
+                      <div
+                        key={[
+                          component.code,
+                          component.name,
+                          component.treatment,
+                          component.rateBps,
+                          component.calculationOrder,
+                        ].join("-")}
+                        className="flex items-center justify-between gap-4 text-stone-600"
+                      >
+                        <span>
+                          {taxPricing.pricingMode === "INCLUSIVE"
+                            ? `Includes ${formatCartTaxLabel(component)}`
+                            : formatCartTaxLabel(component)}
+                        </span>
+                        <span>{formatPrice(component.taxAmount, { currency })}</span>
+                      </div>
+                    ))}
                   </>
                 ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
