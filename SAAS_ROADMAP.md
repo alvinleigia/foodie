@@ -190,8 +190,8 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [ ] Test email OTP and Google login from a white-label customer domain.
 - [ ] Test OTP delivery to Gmail and Outlook and inspect SPF and DKIM results.
 - [ ] Add and validate the DMARC record for the sending domain.
-- [ ] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
-- [ ] Verify every staff/admin route redirects away from customer domains.
+- [x] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
+- [x] Verify every staff/admin route redirects away from customer domains.
 - [ ] Review Vercel environment variables and function regions in every deployment cell.
 - [ ] Consider Supabase Row Level Security as defence in depth.
 
