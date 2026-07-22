@@ -44,19 +44,35 @@ type PlatformSummaryResponse = {
   summary?: PlatformSummary;
 };
 
+type OperationalAlertStatus = {
+  configured: boolean;
+  owner: string | null;
+  missingConfiguration: string[];
+  coverage: Array<"STRIPE_WEBHOOK_FAILURE" | "UNHANDLED_SERVER_ERROR">;
+};
+
 export function PlatformDashboardPanel() {
   const [summary, setSummary] = useState<PlatformSummary | null>(null);
   const [breakdown, setBreakdown] = useState<PlatformReport[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isTestingAlerts, setIsTestingAlerts] = useState(false);
+  const [alertStatus, setAlertStatus] = useState<OperationalAlertStatus | null>(
+    null,
+  );
 
   useEffect(() => {
     async function loadDashboard() {
       try {
-        const payload = await fetchJson<PlatformSummaryResponse>("/api/platform/summary");
+        const [payload, operationalAlerts] = await Promise.all([
+          fetchJson<PlatformSummaryResponse>("/api/platform/summary"),
+          fetchJson<OperationalAlertStatus>("/api/platform/operational-alerts").catch(
+            () => null,
+          ),
+        ]);
         setSummary(payload.summary ?? null);
         setBreakdown(payload.breakdown ?? []);
+        setAlertStatus(operationalAlerts);
         setError(null);
       } catch (caught) {
         setError(getCaughtErrorMessage(caught));
@@ -161,9 +177,23 @@ export function PlatformDashboardPanel() {
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3">
             <BellRingIcon className="size-5 text-stone-600" />
-            <h2 className="text-base font-semibold text-stone-950">
-              Operational alerts
-            </h2>
+            <div>
+              <h2 className="text-base font-semibold text-stone-950">
+                Operational alerts
+              </h2>
+              <p className="text-sm text-stone-600">
+                {alertStatus?.configured
+                  ? `Owner: ${alertStatus.owner}`
+                  : alertStatus
+                    ? "Configuration incomplete"
+                    : "Status unavailable"}
+              </p>
+              {alertStatus?.configured ? (
+                <p className="text-xs text-stone-500">
+                  Stripe webhook failures and unhandled server errors
+                </p>
+              ) : null}
+            </div>
           </div>
           <Button
             type="button"
