@@ -32,6 +32,7 @@ import {
   getRestaurantWorkspaceHref,
 } from "@/lib/restaurant-workspace";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 
 type StaffRole = Exclude<MembershipRole, "PLATFORM_ADMIN">;
 
@@ -63,6 +64,7 @@ type TenantAdminSnapshot = {
     status: "INVITED" | "ACTIVE" | "DISABLED";
     role: StaffRole | "PLATFORM_ADMIN";
     isActive: boolean;
+    permissions: StaffPermission[];
     createdAt: string;
   }>;
 };

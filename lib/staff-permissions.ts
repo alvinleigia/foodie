@@ -208,3 +208,23 @@ export function resolveStaffPermissions(
     hasStaffPermission(role, permissionOverrides, permission),
   );
 }
+
+export function buildStaffPermissionOverrides(
+  role: MembershipRole,
+  permissions: readonly StaffPermission[],
+) {
+  const enabledPermissions = new Set(permissions);
+
+  return staffPermissions.reduce<StaffPermissionOverrides>(
+    (overrides, permission) => {
+      const enabled = enabledPermissions.has(permission);
+
+      if (enabled !== isPermissionEnabledByRole(role, permission)) {
+        overrides[permission] = enabled;
+      }
+
+      return overrides;
+    },
+    {},
+  );
+}

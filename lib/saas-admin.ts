@@ -38,6 +38,7 @@ import {
   updateOrganizationAdminSchema,
   updateStaffMembershipSchema,
 } from "@/lib/validations/tenant-admin";
+import { buildStaffPermissionOverrides } from "@/lib/staff-permissions";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { TenantContext } from "@/lib/tenant-context";
 
@@ -858,11 +859,21 @@ export async function updateCompanyUserMembership(
     throw new Error("Choose a restaurant staff role for this access.");
   }
 
+  const permissionOverrides =
+    isRestaurantMembership &&
+    "permissions" in parsed &&
+    parsed.permissions !== undefined
+      ? buildStaffPermissionOverrides(parsed.role, parsed.permissions)
+      : isRestaurantMembership && current.membership.role !== parsed.role
+        ? {}
+        : current.membership.permissionOverrides;
+
   const [membership] = await db
     .update(memberships)
     .set({
       role: parsed.role,
       isActive: parsed.isActive,
+      permissionOverrides,
       updatedAt: new Date(),
     })
     .where(eq(memberships.id, membershipId))

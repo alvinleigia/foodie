@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  buildStaffPermissionOverrides,
   hasStaffPermission,
   normalizeStaffPermissionOverrides,
   resolveStaffPermissions,
@@ -38,6 +39,23 @@ test.describe("restaurant staff permissions", () => {
         "payments.refund",
       ),
     ).toBe(false);
+  });
+
+  test("stores only differences from role defaults", () => {
+    expect(
+      buildStaffPermissionOverrides("ORDER_OPERATOR", [
+        ...resolveStaffPermissions("ORDER_OPERATOR", null),
+        "menu.manage",
+      ]),
+    ).toEqual({ "menu.manage": true });
+    expect(
+      buildStaffPermissionOverrides(
+        "RESTAURANT_MANAGER",
+        staffPermissions.filter(
+          (permission) => permission !== "payments.refund",
+        ),
+      ),
+    ).toEqual({ "payments.refund": false });
   });
 
   test("ignores unknown or malformed stored overrides", () => {
@@ -124,5 +142,34 @@ test.describe("restaurant staff permissions", () => {
     expect(navigationSource).toContain('permission: "menu.manage"');
     expect(ordersPageSource).toContain('requiredPermission: "orders.view"');
     expect(menuPageSource).toContain('requiredPermission: "menu.manage"');
+  });
+
+  test("exposes manager controls and prevents self lockout", () => {
+    const snapshotSource = readFileSync("lib/tenant-admin.ts", "utf8");
+    const validationSource = readFileSync(
+      "lib/validations/tenant-admin.ts",
+      "utf8",
+    );
+    const staffFormSource = readFileSync(
+      "components/admin/TenantAdminForms.tsx",
+      "utf8",
+    );
+    const updateRouteSource = readFileSync(
+      "app/api/tenant/admin/staff/[membershipId]/route.ts",
+      "utf8",
+    );
+
+    expect(snapshotSource).toContain(
+      "permissions: resolveStaffPermissions(item.role, item.permissionOverrides)",
+    );
+    expect(staffFormSource).toContain("staffPermissionDefinitions");
+    expect(staffFormSource).toContain("permissions: staff.permissions");
+    expect(validationSource).toContain(".array(z.enum(staffPermissions))");
+    expect(updateRouteSource).toContain(
+      "membershipId === session.user.membershipId",
+    );
+    expect(updateRouteSource).toContain(
+      '!effectivePermissions.includes("staff.manage")',
+    );
   });
 });

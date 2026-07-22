@@ -13,6 +13,10 @@ import {
 } from "@/lib/billing";
 import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
+import {
+  buildStaffPermissionOverrides,
+  resolveStaffPermissions,
+} from "@/lib/staff-permissions";
 import { TenantContext } from "@/lib/tenant-context";
 import {
   createStaffUserSchema,
@@ -54,6 +58,7 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
       email: users.email,
       status: users.status,
       role: memberships.role,
+      permissionOverrides: memberships.permissionOverrides,
       isActive: memberships.isActive,
       createdAt: memberships.createdAt,
     })
@@ -67,6 +72,7 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
     staff: staff.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
+      permissions: resolveStaffPermissions(item.role, item.permissionOverrides),
     })),
   };
 }
@@ -239,11 +245,16 @@ export async function updateStaffMembership(
 ) {
   const parsed = updateStaffMembershipSchema.parse(input);
   const db = getDb();
+  const permissionOverrides =
+    parsed.permissions === undefined
+      ? undefined
+      : buildStaffPermissionOverrides(parsed.role, parsed.permissions);
   const [membership] = await db
     .update(memberships)
     .set({
       role: parsed.role,
       isActive: parsed.isActive,
+      ...(permissionOverrides === undefined ? {} : { permissionOverrides }),
       updatedAt: new Date(),
     })
     .where(

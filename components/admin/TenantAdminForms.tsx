@@ -23,6 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { MembershipRole } from "@/lib/staff-auth";
+import {
+  resolveStaffPermissions,
+  staffPermissionDefinitions,
+  type StaffPermission,
+} from "@/lib/staff-permissions";
 
 type StaffRole = Extract<MembershipRole, "RESTAURANT_MANAGER" | "ORDER_OPERATOR">;
 
@@ -48,6 +53,7 @@ type StaffAccess = {
   name: string;
   role: MembershipRole;
   isActive: boolean;
+  permissions: StaffPermission[];
 };
 
 type TenantRestaurantField =
@@ -57,7 +63,14 @@ type TenantRestaurantField =
   | "name"
   | "timezone";
 type TenantOrderingPointField = "isActive" | "label" | "name" | "qrSlug";
-type TenantStaffAccessField = "isActive" | "role";
+type TenantStaffAccessField = "isActive" | "permissions" | "role";
+
+const staffPermissionGroups = [
+  "Orders",
+  "Payments",
+  "Customers",
+  "Administration",
+] as const;
 
 async function submitJson(path: string, method: "POST" | "PATCH", body: unknown) {
   return requestJson(path, {
@@ -535,9 +548,14 @@ export function TenantStaffAccessForm({
   const router = useRouter();
   const initialRole =
     staff.role === "ORDER_OPERATOR" ? "ORDER_OPERATOR" : "RESTAURANT_MANAGER";
-  const [draft, setDraft] = useState<{ role: StaffRole; isActive: boolean }>({
+  const [draft, setDraft] = useState<{
+    role: StaffRole;
+    isActive: boolean;
+    permissions: StaffPermission[];
+  }>({
     role: initialRole,
     isActive: staff.isActive,
+    permissions: staff.permissions,
   });
   const [isSaving, setIsSaving] = useState(false);
   const validation = useFormValidation<TenantStaffAccessField>();
@@ -585,10 +603,76 @@ export function TenantStaffAccessForm({
               value={draft.role}
               onChange={(role) => {
                 validation.clearFieldError("role");
-                setDraft((current) => ({ ...current, role }));
+                validation.clearFieldError("permissions");
+                setDraft((current) => ({
+                  ...current,
+                  role,
+                  permissions: resolveStaffPermissions(role, null),
+                }));
               }}
             />
           </FormField>
+          <div className="grid gap-4 border-t border-stone-200 pt-4">
+            <div>
+              <h4 className="font-semibold text-stone-950">Permissions</h4>
+              <p className="mt-1 text-sm text-stone-500">
+                Choose the restaurant actions available to this staff member.
+              </p>
+            </div>
+            {staffPermissionGroups.map((group) => (
+              <fieldset key={group} className="grid gap-3">
+                <legend className="text-sm font-semibold text-stone-800">
+                  {group}
+                </legend>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {staffPermissionDefinitions
+                    .filter((definition) => definition.group === group)
+                    .map((definition) => (
+                      <label
+                        key={definition.permission}
+                        className="flex min-w-0 items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={draft.permissions.includes(
+                            definition.permission,
+                          )}
+                          onChange={(event) => {
+                            validation.clearFieldError("permissions");
+                            setDraft((current) => ({
+                              ...current,
+                              permissions: event.target.checked
+                                ? [
+                                    ...current.permissions,
+                                    definition.permission,
+                                  ]
+                                : current.permissions.filter(
+                                    (permission) =>
+                                      permission !== definition.permission,
+                                  ),
+                            }));
+                          }}
+                          className="mt-0.5 size-4 shrink-0 rounded border-stone-300"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-stone-900">
+                            {definition.label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-stone-500">
+                            {definition.description}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                </div>
+              </fieldset>
+            ))}
+            {validation.getError("permissions") ? (
+              <p className="text-sm text-rose-600">
+                {validation.getError("permissions")}
+              </p>
+            ) : null}
+          </div>
           <div className="grid gap-2">
             <label className="flex items-center gap-2 text-sm text-stone-700">
               <input

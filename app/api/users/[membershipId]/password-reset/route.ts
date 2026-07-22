@@ -1,23 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { createPasswordResetLink } from "@/lib/password-reset";
-import {
-  companyAdminRoles,
-  platformAdminRoles,
-  restaurantAdminRoles,
-} from "@/lib/role-access";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ membershipId: string }> },
 ) {
-  const session = await requireRole([
-    ...platformAdminRoles,
-    ...companyAdminRoles,
-    ...restaurantAdminRoles,
-  ]);
+  const session = await requireStaffPermission("staff.manage");
 
   if (!session?.user?.role) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

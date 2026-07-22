@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+import { staffPermissions } from "@/lib/staff-permissions";
 
 export const staffRoles = [
   "COMPANY_OWNER",
@@ -89,6 +90,14 @@ export const createRestaurantStaffInvitationSchema = createStaffInvitationSchema
 export const updateStaffMembershipSchema = z.object({
   role: z.enum(staffRoles),
   isActive: z.boolean(),
+  permissions: z
+    .array(z.enum(staffPermissions))
+    .max(staffPermissions.length)
+    .refine(
+      (permissions) => new Set(permissions).size === permissions.length,
+      "Choose each permission only once",
+    )
+    .optional(),
 });
 
 export const updateCompanyStaffMembershipSchema = z.object({
