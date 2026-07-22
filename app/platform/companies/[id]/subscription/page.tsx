@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CompanyFeatureEntitlementsForm } from "@/components/admin/CompanyFeatureEntitlementsForm";
 import { CompanySubscriptionForm } from "@/components/admin/CompanySubscriptionForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { listActiveSaasPlans } from "@/lib/billing";
 import { listOrganizationFeatureEntitlements } from "@/lib/feature-entitlements";
 import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
 import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
@@ -20,10 +21,11 @@ export default async function PlatformCompanySubscriptionPage(
       destination: "subscription",
       identifier: id,
     });
-  const [company, restaurants, initialEntitlements] = await Promise.all([
+  const [company, restaurants, initialEntitlements, plans] = await Promise.all([
     getPlatformCompanyWithSubscription(companyRecord.id),
     listCompanyRestaurants(companyRecord.id),
     listOrganizationFeatureEntitlements(companyRecord.id),
+    listActiveSaasPlans(),
   ]);
 
   if (!company || !company.subscription) {
@@ -47,7 +49,9 @@ export default async function PlatformCompanySubscriptionPage(
           apiPath={`/api/platform/companies/${company.id}/subscription`}
           backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
           companyName={company.name}
+          currentPlanSlug={company.subscription.plan?.slug ?? ""}
           currentStatus={company.subscription.status}
+          plans={plans}
         />
         <CompanyFeatureEntitlementsForm
           apiPath={`/api/platform/companies/${company.id}/features`}

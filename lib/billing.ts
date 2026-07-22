@@ -12,6 +12,8 @@ import {
 
 export class PlanLimitError extends Error {}
 
+export class SaasPlanUnavailableError extends Error {}
+
 export function getTrialEndDate() {
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
@@ -81,6 +83,22 @@ export async function getCommercialMetrics() {
     cancelledCompanies: Number(cancelledCompanies[0]?.value ?? 0),
     monthlyOrders: Number(monthlyOrders[0]?.value ?? 0),
   };
+}
+
+export async function listActiveSaasPlans() {
+  return getDb()
+    .select({
+      slug: saasPlans.slug,
+      name: saasPlans.name,
+      monthlyPrice: saasPlans.monthlyPrice,
+      maxRestaurants: saasPlans.maxRestaurants,
+      maxUsers: saasPlans.maxUsers,
+      maxMonthlyOrders: saasPlans.maxMonthlyOrders,
+      storageMb: saasPlans.storageMb,
+    })
+    .from(saasPlans)
+    .where(eq(saasPlans.isActive, true))
+    .orderBy(saasPlans.maxRestaurants);
 }
 
 export async function listCompanyCommercialStatus() {
@@ -208,20 +226,37 @@ export async function assertCompanyUserCapacity(
   }
 }
 
-export async function updateCompanySubscriptionStatus(
+export async function updateCompanySubscription(
   companyOrganizationId: string,
-  status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED",
+  input: {
+    planSlug: string;
+    status: "TRIALING" | "ACTIVE" | "PAST_DUE" | "SUSPENDED" | "CANCELLED";
+  },
 ) {
+  const [plan] = await getDb()
+    .select({
+      id: saasPlans.id,
+      slug: saasPlans.slug,
+    })
+    .from(saasPlans)
+    .where(and(eq(saasPlans.slug, input.planSlug), eq(saasPlans.isActive, true)))
+    .limit(1);
+
+  if (!plan) {
+    throw new SaasPlanUnavailableError("Selected subscription plan is unavailable.");
+  }
+
   const [subscription] = await getDb()
     .update(organizationSubscriptions)
     .set({
-      status,
+      planId: plan.id,
+      status: input.status,
       updatedAt: new Date(),
     })
     .where(eq(organizationSubscriptions.organizationId, companyOrganizationId))
     .returning();
 
-  return subscription ?? null;
+  return subscription ? { plan, subscription } : null;
 }
 
 export async function getCommercialOwnerOrganizationId(organizationId: string) {

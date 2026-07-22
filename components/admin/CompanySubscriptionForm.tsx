@@ -31,18 +31,28 @@ type CompanySubscriptionFormProps = {
   apiPath: string;
   backHref: string;
   companyName: string;
+  currentPlanSlug: string;
   currentStatus: SubscriptionStatus;
+  plans: Array<{
+    slug: string;
+    name: string;
+    maxRestaurants: number;
+    maxUsers: number;
+  }>;
 };
 
-type CompanySubscriptionField = "status";
+type CompanySubscriptionField = "planSlug" | "status";
 
 export function CompanySubscriptionForm({
   apiPath,
   backHref,
   companyName,
+  currentPlanSlug,
   currentStatus,
+  plans,
 }: CompanySubscriptionFormProps) {
   const router = useRouter();
+  const [planSlug, setPlanSlug] = useState(currentPlanSlug);
   const [status, setStatus] = useState<SubscriptionStatus>(currentStatus);
   const validation = useFormValidation<CompanySubscriptionField>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,7 +63,7 @@ export function CompanySubscriptionForm({
 
     try {
       await requestJson(apiPath, {
-        body: { status },
+        body: { planSlug, status },
         method: "PATCH",
       });
     } catch (caught) {
@@ -77,7 +87,7 @@ export function CompanySubscriptionForm({
           Update subscription
         </h3>
         <p className="text-sm text-stone-500">
-          Change the commercial access status for {companyName}.
+          Change the plan and commercial access status for {companyName}.
         </p>
       </CardHeader>
       <CardContent className="px-5 pb-5">
@@ -91,6 +101,31 @@ export function CompanySubscriptionForm({
           {validation.formError ? (
             <p className="text-sm text-rose-600">{validation.formError}</p>
           ) : null}
+          <FormField
+            label="Subscription plan"
+            error={validation.getError("planSlug")}
+            errorId="subscription-plan-error"
+          >
+            <Select
+              value={planSlug}
+              onValueChange={(nextPlanSlug) => {
+                validation.clearFieldError("planSlug");
+                setPlanSlug(nextPlanSlug);
+              }}
+            >
+              <SelectTrigger className="bg-white">
+                <SelectValue placeholder="Choose a plan" />
+              </SelectTrigger>
+              <SelectContent>
+                {plans.map((plan) => (
+                  <SelectItem key={plan.slug} value={plan.slug}>
+                    {plan.name} - {plan.maxRestaurants} restaurant
+                    {plan.maxRestaurants === 1 ? "" : "s"}, {plan.maxUsers} staff
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormField>
           <FormField
             label="Subscription status"
             error={validation.getError("status")}

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsPlatformOwner, optionalEnv } from "./helpers";
+import { updateCompanySubscriptionSchema } from "../../lib/validations/tenant-admin";
 
 const liveBaseUrl = optionalEnv("PLAYWRIGHT_BASE_URL");
 const platformCredentialsConfigured = Boolean(
@@ -77,5 +78,25 @@ test.describe("platform company forms", () => {
     await expect(page.getByText(companyName, { exact: true })).toBeVisible({
       timeout: 15000,
     });
+  });
+});
+
+test.describe("platform subscription validation", () => {
+  test("accepts a plan and commercial status together", () => {
+    const result = updateCompanySubscriptionSchema.safeParse({
+      planSlug: "growth",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("requires a plan when changing subscription settings", () => {
+    const result = updateCompanySubscriptionSchema.safeParse({
+      planSlug: "",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(false);
   });
 });
