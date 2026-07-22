@@ -59,6 +59,7 @@ export async function getPublicOrderRouteContext({
     session?.user.kind === "staff"
       ? {
           name: session.user.name,
+          permissions: session.user.permissions,
           role: session.user.role as MembershipRole,
         }
       : null;

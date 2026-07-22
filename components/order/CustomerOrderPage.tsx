@@ -13,6 +13,7 @@ import {
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 
 type CustomerOrderPageProps = {
@@ -35,6 +36,7 @@ type CustomerOrderPageProps = {
   };
   user?: {
     name?: string | null;
+    permissions: StaffPermission[];
     role: MembershipRole;
   } | null;
 };

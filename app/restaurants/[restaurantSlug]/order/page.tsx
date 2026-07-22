@@ -54,6 +54,7 @@ export default async function StaffRestaurantOrderPage({
         }}
         user={{
           name: session.user.name,
+          permissions: session.user.permissions,
           role: session.user.role,
         }}
       />
