@@ -18,6 +18,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { StaffPermissionOverrides } from "@/lib/staff-permissions";
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "STAFF"]);
 
@@ -808,6 +809,10 @@ export const memberships = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
     role: membershipRoleEnum("role").notNull(),
+    permissionOverrides: jsonb("permission_overrides")
+      .$type<StaffPermissionOverrides>()
+      .default({})
+      .notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
