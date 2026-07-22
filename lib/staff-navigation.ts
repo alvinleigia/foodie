@@ -189,6 +189,14 @@ const restaurantNavigation: Array<
   {
     access: "RESTAURANT_ADMIN",
     group: "management",
+    destination: "reports",
+    label: "Reports",
+    description: "Operational and financial reporting.",
+    permission: "reports.view",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    group: "management",
     destination: "menu",
     label: "Menu Manager",
     description: "Categories and products.",
@@ -221,12 +229,22 @@ export function getStaffNavigationItemsForCompany(companySlug: string) {
 
 export function getStaffNavigationItemsForRestaurant(
   restaurantSlug: string,
-  options: { inventoryEnabled?: boolean } = {},
+  options: {
+    inventoryEnabled?: boolean;
+    reportsEnabled?: boolean;
+  } = {},
 ) {
-  const navigation =
-    options.inventoryEnabled === false
-      ? restaurantNavigation.filter(({ destination }) => destination !== "inventory")
-      : restaurantNavigation;
+  const navigation = restaurantNavigation.filter(({ destination }) => {
+    if (destination === "inventory" && options.inventoryEnabled === false) {
+      return false;
+    }
+
+    if (destination === "reports" && options.reportsEnabled === false) {
+      return false;
+    }
+
+    return true;
+  });
 
   return navigation.map(({ destination, ...item }) => ({
     ...item,

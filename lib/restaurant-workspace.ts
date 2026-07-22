@@ -9,6 +9,7 @@ export type RestaurantWorkspaceDestination =
   | "order"
   | "orderingPoint"
   | "orders"
+  | "reports"
   | "settings"
   | "staff"
   | "staffInvite"
@@ -29,6 +30,7 @@ const destinationPaths: Record<RestaurantWorkspaceDestination, string> = {
   order: "order",
   orderingPoint: "ordering-point",
   orders: "orders",
+  reports: "reports",
   settings: "settings",
   staff: "staff",
   staffInvite: "staff/invite",

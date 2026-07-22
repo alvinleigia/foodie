@@ -3,7 +3,9 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { organizations } from "@/db/schema";
 import { getCompanyWorkspaceHref } from "@/lib/company-workspace";
-import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
+import { canAccessNavigation } from "@/lib/role-access";
+import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 import {
   resolveStaffPermissions,
@@ -21,10 +23,16 @@ type StaffHomeAccess = {
   role: MembershipRole;
 };
 
+type StaffHomeOptions = {
+  inventoryEnabled?: boolean;
+  reportsEnabled?: boolean;
+};
+
 export function getStaffHomePathForOrganization(
   role: MembershipRole,
   organization?: StaffHomeOrganization | null,
   permissions?: StaffPermission[],
+  options: StaffHomeOptions = {},
 ) {
   if (role === "PLATFORM_ADMIN") {
     return "/platform";
@@ -41,27 +49,17 @@ export function getStaffHomePathForOrganization(
   const effectivePermissions =
     permissions ?? resolveStaffPermissions(role, null);
 
-  if (effectivePermissions.includes("restaurant.dashboard")) {
-    return getRestaurantWorkspaceHref(organization.slug, "dashboard");
-  }
-
-  if (effectivePermissions.includes("orders.view")) {
-    return getRestaurantWorkspaceHref(organization.slug, "orders");
-  }
-
-  if (effectivePermissions.includes("orders.create")) {
-    return getRestaurantWorkspaceHref(organization.slug, "order");
-  }
-
-  if (effectivePermissions.includes("staff.manage")) {
-    return getRestaurantWorkspaceHref(organization.slug, "staff");
-  }
-
-  if (effectivePermissions.includes("menu.manage")) {
-    return getRestaurantWorkspaceHref(organization.slug, "menu");
-  }
-
-  return null;
+  return (
+    getStaffNavigationItemsForRestaurant(organization.slug, options).find(
+      (item) =>
+        canAccessNavigation(
+          role,
+          item.access,
+          item.permission,
+          effectivePermissions,
+        ),
+    )?.href ?? null
+  );
 }
 
 export async function resolveStaffHomePath({
@@ -91,5 +89,27 @@ export async function resolveStaffHomePath({
     )
     .limit(1);
 
-  return getStaffHomePathForOrganization(role, organization, permissions);
+  const featureOptions =
+    organization.type === "RESTAURANT"
+      ? await Promise.all([
+          getOrganizationFeatureEntitlement(
+            organizationId,
+            "operations.inventory",
+          ),
+          getOrganizationFeatureEntitlement(
+            organizationId,
+            "reports.operational",
+          ),
+        ]).then(([inventory, reports]) => ({
+          inventoryEnabled: inventory.enabled,
+          reportsEnabled: reports.enabled,
+        }))
+      : {};
+
+  return getStaffHomePathForOrganization(
+    role,
+    organization,
+    permissions,
+    featureOptions,
+  );
 }
