@@ -211,6 +211,11 @@ export const orderPaymentRecordStatusEnum = pgEnum(
   ["PENDING", "SUCCEEDED", "FAILED", "CANCELLED"],
 );
 
+export const cashDrawerSessionStatusEnum = pgEnum(
+  "cash_drawer_session_status",
+  ["OPEN", "CLOSED"],
+);
+
 export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
   "GOOGLE",
   "APPLE",
@@ -878,6 +883,56 @@ export const appState = pgTable("app_state", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const cashDrawerSessions = pgTable(
+  "cash_drawer_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderingPointId: uuid("ordering_point_id")
+      .references(() => orderingPoints.id, { onDelete: "restrict" })
+      .notNull(),
+    openedByMembershipId: uuid("opened_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    openedByUserId: uuid("opened_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    openingFloat: numeric("opening_float", { precision: 10, scale: 2 })
+      .default("0")
+      .notNull(),
+    currency: text("currency").notNull(),
+    status: cashDrawerSessionStatusEnum("status").default("OPEN").notNull(),
+    openedAt: timestamp("opened_at").defaultNow().notNull(),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("cash_drawer_sessions_organization_status_idx").on(
+      table.organizationId,
+      table.status,
+    ),
+    index("cash_drawer_sessions_ordering_point_opened_idx").on(
+      table.orderingPointId,
+      table.openedAt,
+    ),
+    uniqueIndex("cash_drawer_sessions_ordering_point_open_unique")
+      .on(table.orderingPointId)
+      .where(sql`${table.status} = 'OPEN'`),
+    check(
+      "cash_drawer_sessions_opening_float_check",
+      sql`${table.openingFloat} >= 0`,
+    ),
+    check(
+      "cash_drawer_sessions_closed_at_check",
+      sql`(${table.status} = 'OPEN' AND ${table.closedAt} IS NULL) OR (${table.status} = 'CLOSED' AND ${table.closedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
 export const menuCategories = pgTable("menu_categories", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -1389,6 +1444,10 @@ export const orderPayments = pgTable(
     receivedByUserId: uuid("received_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").references(
+      () => cashDrawerSessions.id,
+      { onDelete: "set null" },
+    ),
     stripeConnectedAccountId: text("stripe_connected_account_id"),
     stripeCheckoutSessionId: text("stripe_checkout_session_id"),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
@@ -1405,6 +1464,9 @@ export const orderPayments = pgTable(
       table.orderId,
       table.status,
       table.createdAt,
+    ),
+    index("order_payments_cash_drawer_session_idx").on(
+      table.cashDrawerSessionId,
     ),
     uniqueIndex("order_payments_stripe_checkout_session_unique").on(
       table.stripeCheckoutSessionId,
