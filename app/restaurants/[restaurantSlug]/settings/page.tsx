@@ -1,5 +1,6 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
+import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
@@ -46,6 +47,7 @@ export default async function RestaurantSettingsPage({
           apiPath="/api/tenant/admin/tax-profile"
           profile={taxProfile}
         />
+        <RestaurantTaxesManager apiPath="/api/tenant/admin/taxes" />
       </div>
     </SaasAdminShell>
   );
