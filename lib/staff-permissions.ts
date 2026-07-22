@@ -10,6 +10,7 @@ export const staffPermissions = [
   "orders.adjust",
   "payments.collect",
   "payments.refund",
+  "cash_drawer.open",
   "customers.search",
   "menu.manage",
   "inventory.manage",
@@ -88,6 +89,12 @@ export const staffPermissionDefinitions: StaffPermissionDefinition[] = [
     description: "Request full or partial refunds subject to manager approval rules.",
   },
   {
+    permission: "cash_drawer.open",
+    group: "Payments",
+    label: "Open cash drawer",
+    description: "View and open the cash drawer with its opening float.",
+  },
+  {
     permission: "customers.search",
     group: "Customers",
     label: "Search customers",
@@ -153,6 +160,7 @@ const orderOperatorDefaults = new Set<StaffPermission>([
   "orders.adjust",
   "payments.collect",
   "payments.refund",
+  "cash_drawer.open",
   "customers.search",
 ]);
 
