@@ -181,7 +181,7 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
 - [ ] Verify Vercel deployment SHA after each staging and production release.
 - [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
-- [ ] Complete paid checkout, cancellation and refund UAT.
+- [x] Complete paid checkout, cancellation and refund UAT.
 - [x] Add automated duplicate, concurrent and failed Stripe webhook replay gates.
 - [ ] Test duplicate, delayed and failed webhooks.
 - [x] Test disabled-staff and password-reset session revocation end to end.
