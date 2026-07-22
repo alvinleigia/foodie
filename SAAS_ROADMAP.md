@@ -152,6 +152,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Support restaurant-default and item-specific tax assignments.
 - [x] Snapshot every applied tax component on each order line.
 - [x] Show immutable tax-component breakdowns on receipts, VAT invoices and reports.
+- [x] Preview effective item-level tax components in the customer cart while keeping server-side order pricing authoritative.
 
 ## Now: Core Restaurant Operations
 
@@ -250,6 +251,9 @@ Move this section into **Now** before onboarding full-service table restaurants.
 - [ ] Add allergen and dietary information.
 - [ ] Add customer-facing and kitchen printer configuration.
 - [ ] Add accounting export or accounting-provider integrations.
+- [ ] Add jurisdiction-specific tax filing and accounting mappings.
+- [ ] Add modifier-specific tax overrides where a modifier is taxed differently from its parent item.
+- [ ] Include item-tax assignments in bulk menu import and export workflows.
 - [ ] Add tenant-scoped image uploads and storage limits.
 - [ ] Automate Vercel custom-domain registration after manual routing is proven.
 - [ ] Build a guided company and restaurant onboarding flow.
