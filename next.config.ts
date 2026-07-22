@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
+import {
+  getDeploymentResponseHeaders,
+  resolveDeploymentIdentity,
+} from "./lib/deployment-version";
+
 const isDevelopment = process.env.NODE_ENV === "development";
+const deploymentHeaders = Object.entries(
+  getDeploymentResponseHeaders(resolveDeploymentIdentity()),
+).map(([key, value]) => ({ key, value }));
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -41,6 +49,7 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   },
+  ...deploymentHeaders,
 ];
 
 const nextConfig: NextConfig = {
