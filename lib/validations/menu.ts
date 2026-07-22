@@ -29,37 +29,49 @@ export const menuCategorySchema = z.object({
   isSoldOut: z.boolean().default(false),
 });
 
-export const menuItemSchema = z.object({
-  categoryId: z.string().uuid("Choose a valid category"),
-  prepStationId: z
-    .union([
-      z.string().uuid("Choose a valid preparation station"),
-      z.literal(""),
-      z.null(),
-    ])
-    .optional()
-    .transform((value) => value || null),
-  name: z.string().trim().min(2, "Product name is required").max(80, "Product name is too long"),
-  description: z.string().max(1000, "Description is too long").optional().transform(emptyToNull),
-  price: z
-    .string()
-    .optional()
-    .transform(parseOptionalPrice)
-    .refine((value) => value === null || value !== "__invalid__", "Enter a valid price")
-    .transform((value) => (value === "__invalid__" ? null : value)),
-  imageUrl: z
-    .string()
-    .optional()
-    .transform(emptyToNull)
-    .refine(
-      (value) => value === null || /^https?:\/\//i.test(value),
-      "Image must be a valid URL",
-    ),
-  sortOrder: z.coerce.number().int().min(0).default(0),
-  isActive: z.boolean().default(true),
-  tagIds: z.array(z.string().uuid("Choose a valid tag")).default([]),
-  modifierGroupIds: z.array(z.string().uuid("Choose a valid add-on group")).default([]),
-});
+export const menuItemSchema = z
+  .object({
+    categoryId: z.string().uuid("Choose a valid category"),
+    prepStationId: z
+      .union([
+        z.string().uuid("Choose a valid preparation station"),
+        z.literal(""),
+        z.null(),
+      ])
+      .optional()
+      .transform((value) => value || null),
+    name: z.string().trim().min(2, "Product name is required").max(80, "Product name is too long"),
+    description: z.string().max(1000, "Description is too long").optional().transform(emptyToNull),
+    price: z
+      .string()
+      .optional()
+      .transform(parseOptionalPrice)
+      .refine((value) => value === null || value !== "__invalid__", "Enter a valid price")
+      .transform((value) => (value === "__invalid__" ? null : value)),
+    imageUrl: z
+      .string()
+      .optional()
+      .transform(emptyToNull)
+      .refine(
+        (value) => value === null || /^https?:\/\//i.test(value),
+        "Image must be a valid URL",
+      ),
+    sortOrder: z.coerce.number().int().min(0).default(0),
+    isActive: z.boolean().default(true),
+    tagIds: z.array(z.string().uuid("Choose a valid tag")).default([]),
+    modifierGroupIds: z.array(z.string().uuid("Choose a valid add-on group")).default([]),
+    taxAssignmentMode: z.enum(["DEFAULT", "CUSTOM"]).default("DEFAULT"),
+    taxDefinitionIds: z.array(z.string().uuid("Choose a valid tax")).default([]),
+  })
+  .superRefine((item, context) => {
+    if (item.taxAssignmentMode === "CUSTOM" && item.taxDefinitionIds.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose at least one tax for this product",
+        path: ["taxDefinitionIds"],
+      });
+    }
+  });
 
 export const menuModifierGroupSchema = z
   .object({
