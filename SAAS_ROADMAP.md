@@ -177,7 +177,7 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Replace the in-memory rate limiter with a shared PostgreSQL limiter.
 - [ ] Add and test database backup and restore procedures.
 - [x] Add Stripe webhook failure alerts and verify platform-owned email delivery in staging.
-- [ ] Add application error monitoring and operational alert ownership.
+- [x] Add deduplicated unhandled server-error monitoring and expose operational alert ownership to platform admins.
 - [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
 - [ ] Verify Vercel deployment SHA after each staging and production release.
 - [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
