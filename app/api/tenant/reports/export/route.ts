@@ -1,9 +1,8 @@
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   assertOrganizationFeatureEnabled,
   FeatureEntitlementError,
 } from "@/lib/feature-entitlements";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import {
   exportOperationalReportCsv,
   getRestaurantOperationalReport,
@@ -23,7 +22,7 @@ function getReportRange(request: Request): ReportRange {
 
 export async function GET(request: Request) {
   try {
-    const session = await requireRole([...restaurantAdminRoles]);
+    const session = await requireStaffPermission("reports.view");
 
     if (!session) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });

@@ -31,16 +31,11 @@ import {
   orders,
   organizations,
 } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   getCustomerProfile,
   getStaffVisibleCustomer,
 } from "@/lib/customer-account";
-import {
-  canAccessRole,
-  operationalRoles,
-  restaurantAdminRoles,
-} from "@/lib/role-access";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
@@ -75,7 +70,7 @@ import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 
 export async function GET() {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.view");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -113,8 +108,10 @@ export async function GET() {
           adjustmentMap.get(order.id) ?? null,
         ),
       ),
-      canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),
-      canManageRefunds: canAccessRole(session.user.role, restaurantAdminRoles),
+      canCorrectStatuses: session.user.permissions.includes(
+        "orders.correct_status",
+      ),
+      canManageRefunds: session.user.permissions.includes("payments.refund"),
       currency,
     });
   } catch (error) {
@@ -136,7 +133,7 @@ export async function POST(request: NextRequest) {
     if (
       session.user.kind === "staff" &&
       (!isPlatformAdministrationRequest(request) ||
-        !canAccessRole(session.user.role, operationalRoles))
+        !session.user.permissions.includes("orders.create"))
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }

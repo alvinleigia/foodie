@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireCustomerSession, requireStaffSession } from "@/lib/auth";
+import { requireCustomerSession, requireStaffPermission } from "@/lib/auth";
 import {
   assertOrganizationFeatureEnabled,
   FeatureEntitlementError,
@@ -36,7 +36,7 @@ export async function POST(
   try {
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.cancel");
 
     if (!session) {
       const customerSession = await requireCustomerSession();
@@ -106,6 +106,7 @@ export async function POST(
       actorType: "STAFF",
       actorUser: session.user,
       managerApproval,
+      canIssueRefund: session.user.permissions.includes("payments.refund"),
       applyCustomerCancellationFee:
         parsed.data.applyCustomerCancellationFee,
       cancellationFeeBps:

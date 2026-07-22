@@ -29,6 +29,7 @@ export async function validateStaffSessionAccess({
     .select({
       membershipId: memberships.id,
       organizationId: memberships.organizationId,
+      permissionOverrides: memberships.permissionOverrides,
       role: memberships.role,
       sessionVersion: users.sessionVersion,
     })

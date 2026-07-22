@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import {
   getRestaurantOperationalReport,
   getRestaurantSummary,
@@ -22,7 +21,7 @@ function getReportRange(request: Request): ReportRange {
 
 export async function GET(request: Request) {
   try {
-    const session = await requireRole([...restaurantAdminRoles]);
+    const session = await requireStaffPermission("restaurant.dashboard");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

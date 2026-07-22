@@ -6,6 +6,7 @@ import {
   resolveStaffPermissions,
   staffPermissions,
 } from "@/lib/staff-permissions";
+import { readFileSync } from "node:fs";
 
 test.describe("restaurant staff permissions", () => {
   test("preserves the current manager and order operator role defaults", () => {
@@ -49,5 +50,55 @@ test.describe("restaurant staff permissions", () => {
     ).toEqual({ "orders.create": false });
     expect(normalizeStaffPermissionOverrides(null)).toEqual({});
     expect(normalizeStaffPermissionOverrides([])).toEqual({});
+  });
+
+  test("refreshes effective permissions from the validated membership", () => {
+    const staffSessionSource = readFileSync("lib/staff-session.ts", "utf8");
+    const authSource = readFileSync("auth.ts", "utf8");
+
+    expect(staffSessionSource).toContain(
+      "permissionOverrides: memberships.permissionOverrides",
+    );
+    expect(authSource).toContain("resolveStaffPermissions(");
+    expect(authSource).toContain("permissions: (token.permissions ?? [])");
+  });
+
+  test("enforces permissions at operational API entry points", () => {
+    const expectations = [
+      ["app/api/orders/route.ts", 'requireStaffPermission("orders.view")'],
+      [
+        "app/api/orders/[id]/start/route.ts",
+        'requireStaffPermission("orders.update_status")',
+      ],
+      [
+        "app/api/orders/[id]/correct/route.ts",
+        'requireStaffPermission("orders.correct_status")',
+      ],
+      [
+        "app/api/orders/[id]/adjustment/route.ts",
+        'requireStaffPermission("orders.adjust")',
+      ],
+      [
+        "app/api/orders/[id]/payments/route.ts",
+        'requireStaffPermission("payments.collect")',
+      ],
+      ["app/api/inventory/route.ts", 'requireStaffPermission("inventory.manage")'],
+      [
+        "app/api/tenant/admin/staff/route.ts",
+        'requireStaffPermission("staff.manage")',
+      ],
+      [
+        "app/api/tenant/admin/organization/route.ts",
+        'requireStaffPermission("restaurant.settings")',
+      ],
+      [
+        "app/api/tenant/admin/integrations/stripe/route.ts",
+        'requireStaffPermission("integrations.manage")',
+      ],
+    ] as const;
+
+    for (const [fileName, expectedCheck] of expectations) {
+      expect(readFileSync(fileName, "utf8"), fileName).toContain(expectedCheck);
+    }
   });
 });

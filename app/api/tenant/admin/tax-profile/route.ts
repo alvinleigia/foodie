@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { updateRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export async function PATCH(request: Request) {
-  const session = await requireRole([...restaurantAdminRoles]);
+  const session = await requireStaffPermission("restaurant.settings");
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

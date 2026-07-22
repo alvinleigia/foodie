@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   PaymentIntegrationConfigurationError,
@@ -9,7 +9,6 @@ import {
   syncOrganizationStripeAccount,
   updateOrganizationPaymentSettings,
 } from "@/lib/organization-payment-settings";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
 import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
 import {
@@ -22,7 +21,7 @@ import {
 } from "@/lib/feature-entitlements";
 
 async function getRestaurantSessionAndContext() {
-  const session = await requireRole([...restaurantAdminRoles]);
+  const session = await requireStaffPermission("integrations.manage");
 
   if (!session?.user.email) {
     return null;

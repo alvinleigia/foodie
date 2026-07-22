@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   orderItemStatuses,
   orderStatuses,
@@ -19,7 +19,6 @@ import {
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
 import { serializeOrder } from "@/lib/orders";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
@@ -102,7 +101,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireRole(restaurantAdminRoles);
+    const session = await requireStaffPermission("orders.correct_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

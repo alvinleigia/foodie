@@ -6,6 +6,8 @@ import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
 import { validateStaffSessionAccess } from "@/lib/staff-session";
+import { resolveStaffPermissions } from "@/lib/staff-permissions";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() => {
@@ -107,6 +109,7 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           delete token.role;
           delete token.membershipId;
           delete token.organizationId;
+          delete token.permissions;
           delete token.sessionVersion;
           delete token.username;
 
@@ -165,6 +168,10 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
       token.membershipId = access.membershipId;
       token.role = access.role;
       token.organizationId = access.organizationId;
+      token.permissions = resolveStaffPermissions(
+        access.role,
+        access.permissionOverrides,
+      );
       token.sessionVersion = access.sessionVersion;
 
       return token;
@@ -197,6 +204,7 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
           membershipId: token.membershipId as string,
           role: token.role as MembershipRole,
           organizationId: token.organizationId as string,
+          permissions: (token.permissions ?? []) as StaffPermission[],
           username: typeof token.username === "string" ? token.username : undefined,
         },
       };

@@ -38,6 +38,7 @@ type CancelOrderInput = {
   actorType: "CUSTOMER" | "STAFF";
   actorUser?: CancellationActorUser | null;
   applyCustomerCancellationFee?: boolean;
+  canIssueRefund?: boolean;
   cancellationFeeBps?: number;
   cancelReason?: string | null;
   customerId?: string;
@@ -576,6 +577,13 @@ async function prepareRefundRetry(input: CancelOrderInput) {
 
 export async function cancelOrder(input: CancelOrderInput) {
   if (input.retryRefund) {
+    if (input.actorType === "STAFF" && !input.canIssueRefund) {
+      throw new OrderCancellationError(
+        "You do not have permission to issue refunds.",
+        403,
+      );
+    }
+
     const retry = await prepareRefundRetry(input);
 
     for (const refund of retry.refunds) {
@@ -669,6 +677,17 @@ export async function cancelOrder(input: CancelOrderInput) {
     const hasCollectedPayment =
       order.paymentStatus === "PAID" ||
       order.paymentStatus === "PARTIALLY_PAID";
+
+    if (
+      input.actorType === "STAFF" &&
+      hasCollectedPayment &&
+      !input.canIssueRefund
+    ) {
+      throw new OrderCancellationError(
+        "You do not have permission to issue refunds.",
+        403,
+      );
+    }
 
     if (
       hasCollectedPayment &&

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   getTenantAdminSnapshot,
@@ -9,18 +9,12 @@ import {
 } from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
-const tenantAdminRoles = [
-  "PLATFORM_ADMIN",
-  "COMPANY_OWNER",
-  "RESTAURANT_MANAGER",
-] as const;
-
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ membershipId: string }> },
 ) {
   try {
-    const session = await requireRole([...tenantAdminRoles]);
+    const session = await requireStaffPermission("staff.manage");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

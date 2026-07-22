@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getInventoryRecords, upsertInventoryItem } from "@/lib/inventory";
 import {
   assertOrganizationFeatureEnabled,
   FeatureEntitlementError,
 } from "@/lib/feature-entitlements";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export async function GET() {
   try {
-    const session = await requireRole([...restaurantAdminRoles]);
+    const session = await requireStaffPermission("inventory.manage");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,7 +40,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await requireRole([...restaurantAdminRoles]);
+    const session = await requireStaffPermission("inventory.manage");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

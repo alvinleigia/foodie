@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   OrderTransitionConflictError,
@@ -17,7 +17,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.update_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
