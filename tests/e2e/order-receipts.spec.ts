@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
+  aggregateReceiptTaxComponents,
   buildOrderReceiptEmail,
   getReceiptItemTotal,
   type OrderReceipt,
@@ -59,6 +60,7 @@ function receiptFixture(): OrderReceipt {
         taxableAmount: "7.50",
         taxAmount: "0.00",
         taxRateBps: 0,
+        taxComponents: [],
         unitPrice: "3.25",
       },
     ],
@@ -82,6 +84,7 @@ function receiptFixture(): OrderReceipt {
     subtotalAmount: "7.50",
     taxAmount: "0.00",
     taxRateBps: 0,
+    taxSummary: [],
     timezone: "Europe/London",
     tipAmount: "0.00",
     vatInvoiceType: null,
@@ -118,6 +121,25 @@ test.describe("order receipts", () => {
     receipt.invoiceTaxPointAt = new Date("2026-07-21T10:01:00.000Z");
     receipt.taxAmount = "1.25";
     receipt.taxRateBps = 2000;
+    receipt.items[0].taxAmount = "1.25";
+    receipt.items[0].taxRateBps = 2000;
+    receipt.items[0].taxComponents = [
+      {
+        calculationOrder: 0,
+        code: "VAT_STD",
+        isCompound: false,
+        name: "VAT",
+        pricingMode: "INCLUSIVE",
+        rateBps: 2000,
+        taxableAmount: "6.25",
+        taxAmount: "1.25",
+        treatment: "TAXABLE",
+      },
+    ];
+    receipt.taxSummary = aggregateReceiptTaxComponents(
+      receipt.items,
+      receipt.currency,
+    );
     receipt.vatInvoiceType = "SIMPLIFIED";
 
     const email = buildOrderReceiptEmail(receipt);
@@ -128,7 +150,69 @@ test.describe("order receipts", () => {
     expect(email.textBody).toContain("VAT registration number: GB123456789");
     expect(email.textBody).toContain("Tax point 21 Jul 2026");
     expect(email.textBody).toContain("Net unit");
-    expect(email.textBody).toContain("VAT total");
+    expect(email.textBody).toContain("VAT (20%)");
+  });
+
+  test("aggregates named tax components without merging different rates", () => {
+    const receipt = receiptFixture();
+    receipt.items.push({
+      ...receipt.items[0],
+      drinkName: "Dinner",
+      taxComponents: [
+        {
+          calculationOrder: 0,
+          code: "VAT_STD",
+          isCompound: false,
+          name: "VAT",
+          pricingMode: "EXCLUSIVE",
+          rateBps: 2000,
+          taxableAmount: "5.00",
+          taxAmount: "1.00",
+          treatment: "TAXABLE",
+        },
+        {
+          calculationOrder: 1,
+          code: "CITY",
+          isCompound: false,
+          name: "City levy",
+          pricingMode: "EXCLUSIVE",
+          rateBps: 500,
+          taxableAmount: "5.00",
+          taxAmount: "0.25",
+          treatment: "TAXABLE",
+        },
+      ],
+    });
+    receipt.items[0].taxComponents = [
+      {
+        calculationOrder: 0,
+        code: "VAT_STD",
+        isCompound: false,
+        name: "VAT",
+        pricingMode: "EXCLUSIVE",
+        rateBps: 2000,
+        taxableAmount: "7.50",
+        taxAmount: "1.50",
+        treatment: "TAXABLE",
+      },
+    ];
+
+    const summary = aggregateReceiptTaxComponents(
+      receipt.items,
+      receipt.currency,
+    );
+
+    expect(summary).toHaveLength(2);
+    expect(summary[0]).toMatchObject({
+      code: "VAT_STD",
+      taxableAmount: "12.50",
+      taxAmount: "2.50",
+    });
+    expect(summary[1]).toMatchObject({
+      code: "CITY",
+      taxableAmount: "5.00",
+      taxAmount: "0.25",
+    });
   });
 
   test("requires and normalizes customer details for full VAT invoices", () => {
@@ -172,6 +256,8 @@ test.describe("order receipts", () => {
 
     expect(loader).toContain("eq(orders.organizationId, context.organizationId)");
     expect(loader).toContain("eq(orders.organizationCustomerId, organizationCustomerId)");
+    expect(loader).toContain("orderItemTaxComponents.taxCodeSnapshot");
+    expect(loader).toContain("aggregateReceiptTaxComponents");
     expect(staffPage).toContain("requireRestaurantWorkspaceAccess");
     expect(customerPage).toContain("requireCustomerSession");
     expect(customerPage).toContain("profile.id");
@@ -188,5 +274,13 @@ test.describe("order receipts", () => {
     expect(sender).toContain("to: receipt.customerEmail");
     expect(route).toContain('action: "order.receipt.email"');
     expect(route).not.toContain("request.json");
+  });
+
+  test("exports issued receipt tax components in operational reports", () => {
+    const reports = source("lib/saas-reports.ts");
+
+    expect(reports).toContain('csvRow(["Issued receipt tax breakdown"])');
+    expect(reports).toContain("isNotNull(orders.receiptIssuedAt)");
+    expect(reports).toContain("orderItemTaxComponents.taxNameSnapshot");
   });
 });

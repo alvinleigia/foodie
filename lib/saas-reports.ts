@@ -1,4 +1,14 @@
-import { and, count, desc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  ne,
+  sql,
+} from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -7,6 +17,7 @@ import {
   menuCategories,
   menuItems,
   orderAdjustments,
+  orderItemTaxComponents,
   orderItems,
   orderPayments,
   orderRefunds,
@@ -88,7 +99,19 @@ export type CancelledItemReportRow = {
 export type RevenueReport = {
   financials: FinancialReconciliationRow[];
   missingSnapshotOrders: number;
+  taxComponents: RevenueTaxComponentReportRow[];
   unpricedLines: number;
+};
+
+export type RevenueTaxComponentReportRow = {
+  calculationOrder: number;
+  code: string;
+  currency: string;
+  name: string;
+  rateBps: number;
+  taxableTotal: string;
+  taxTotal: string;
+  treatment: "TAXABLE" | "ZERO_RATED" | "EXEMPT" | "OUT_OF_SCOPE";
 };
 
 export type LowStockReportRow = {
@@ -400,6 +423,7 @@ async function getRevenueReport(
     return {
       financials: [],
       missingSnapshotOrders: 0,
+      taxComponents: [],
       unpricedLines: 0,
     };
   }
@@ -416,7 +440,14 @@ async function getRevenueReport(
   }
 
   const db = getDb();
-  const [financialOrders, adjustments, payments, refunds, unpricedRows] =
+  const [
+    financialOrders,
+    adjustments,
+    payments,
+    refunds,
+    taxComponentRows,
+    unpricedRows,
+  ] =
     await Promise.all([
       db
         .select({
@@ -487,6 +518,49 @@ async function getRevenueReport(
         .where(and(...orderConditions)),
       db
         .select({
+          calculationOrder:
+            orderItemTaxComponents.calculationOrderSnapshot,
+          code: orderItemTaxComponents.taxCodeSnapshot,
+          currency: orders.financialSnapshotCurrency,
+          name: orderItemTaxComponents.taxNameSnapshot,
+          rateBps: orderItemTaxComponents.rateBpsSnapshot,
+          taxableTotal: sql<string>`sum(${orderItemTaxComponents.taxableAmountSnapshot})`,
+          taxTotal: sql<string>`sum(${orderItemTaxComponents.taxAmountSnapshot})`,
+          treatment: orderItemTaxComponents.treatmentSnapshot,
+        })
+        .from(orderItemTaxComponents)
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderItemTaxComponents.orderId),
+            eq(
+              orders.organizationId,
+              orderItemTaxComponents.organizationId,
+            ),
+          ),
+        )
+        .where(
+          and(
+            ...orderConditions,
+            isNotNull(orders.receiptIssuedAt),
+            isNotNull(orders.financialSnapshotCurrency),
+          ),
+        )
+        .groupBy(
+          orders.financialSnapshotCurrency,
+          orderItemTaxComponents.taxCodeSnapshot,
+          orderItemTaxComponents.taxNameSnapshot,
+          orderItemTaxComponents.treatmentSnapshot,
+          orderItemTaxComponents.rateBpsSnapshot,
+          orderItemTaxComponents.calculationOrderSnapshot,
+        )
+        .orderBy(
+          orders.financialSnapshotCurrency,
+          orderItemTaxComponents.calculationOrderSnapshot,
+          orderItemTaxComponents.taxCodeSnapshot,
+        ),
+      db
+        .select({
           value: sql<number>`count(*) filter (where ${orderItems.unitPrice} is null)`,
         })
         .from(orderItems)
@@ -502,6 +576,22 @@ async function getRevenueReport(
   return {
     financials: reconciliation.rows,
     missingSnapshotOrders: reconciliation.missingSnapshotOrders,
+    taxComponents: taxComponentRows.flatMap((component) =>
+      component.currency
+        ? [
+            {
+              calculationOrder: component.calculationOrder,
+              code: component.code,
+              currency: component.currency,
+              name: component.name,
+              rateBps: component.rateBps,
+              taxableTotal: component.taxableTotal,
+              taxTotal: component.taxTotal,
+              treatment: component.treatment,
+            },
+          ]
+        : [],
+    ),
     unpricedLines: Number(unpricedRows[0]?.value ?? 0),
   };
 }
@@ -1128,6 +1218,28 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     ),
     csvRow(["Unpriced entries", report.revenue.unpricedLines]),
     csvRow(["Orders without financial snapshots", report.revenue.missingSnapshotOrders]),
+    "",
+    csvRow(["Issued receipt tax breakdown"]),
+    csvRow([
+      "Currency",
+      "Code",
+      "Name",
+      "Treatment",
+      "Rate (%)",
+      "Taxable amount",
+      "Tax amount",
+    ]),
+    ...report.revenue.taxComponents.map((component) =>
+      csvRow([
+        component.currency,
+        component.code,
+        component.name,
+        component.treatment,
+        (component.rateBps / 100).toFixed(2),
+        component.taxableTotal,
+        component.taxTotal,
+      ]),
+    ),
     "",
     csvRow(["Timing"]),
     csvRow(["Prepared items", "Average prep minutes", "Delivered items", "Average collection minutes"]),

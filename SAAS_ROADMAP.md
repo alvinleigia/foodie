@@ -148,6 +148,10 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add sequential receipt and invoice numbers per restaurant.
 - [x] Add printable and email receipts.
 - [x] Add UK simplified VAT invoice support and full VAT invoice data when required.
+- [x] Add multiple named restaurant taxes with effective-dated rates.
+- [x] Support restaurant-default and item-specific tax assignments.
+- [x] Snapshot every applied tax component on each order line.
+- [x] Show immutable tax-component breakdowns on receipts, VAT invoices and reports.
 
 ## Now: Core Restaurant Operations
 
