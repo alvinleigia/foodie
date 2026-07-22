@@ -90,15 +90,17 @@ course and split-check module is complete.
 - [x] Automatic Stripe refund requests and recorded cash-return portions.
 - [x] Refund retry and failed-refund visibility.
 - [x] Payment and refund idempotency and database integrity constraints.
+- [x] Durable Stripe webhook journal with safe duplicate, in-progress and failed-event replay handling.
 
 Deployment note:
 
 - [ ] Confirm migration `0038_order_refund_payment_integrity.sql` is recorded in every live database.
+- [ ] Confirm migrations `0056_shared_rate_limits.sql` and `0057_stripe_webhook_events.sql` are recorded in every live database.
 - [ ] Complete duplicate, delayed and out-of-order Stripe webhook UAT.
 
 ## Done: Operations And Reporting
 
-- [x] Staff order board with item-level actions.
+- [x] Staff order board with item-level actions, bounded history pagination and adaptive polling.
 - [x] Restaurant product-level inventory quantities.
 - [x] Low-stock and out-of-stock warnings.
 - [x] Inventory deduction after item delivery.
@@ -112,7 +114,7 @@ Deployment note:
 
 - [x] Tenant-scoped route authorization.
 - [x] Revalidation of active staff membership and session version.
-- [x] Rate-limiting foundation for public and credential endpoints.
+- [x] Shared database-backed rate limiting for public and credential endpoints.
 - [x] Content Security Policy.
 - [x] Anti-framing, nosniff, Referrer Policy and Permissions Policy headers.
 - [x] Disabled `X-Powered-By` response header.
@@ -172,15 +174,18 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 
 ## Now: Production Readiness
 
-- [ ] Replace the in-memory rate limiter with a shared Redis or equivalent store before serious traffic.
+- [x] Replace the in-memory rate limiter with a shared PostgreSQL limiter.
 - [ ] Add and test database backup and restore procedures.
 - [ ] Add Stripe webhook failure alerts.
 - [ ] Add application error monitoring and operational alert ownership.
+- [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
 - [ ] Verify Vercel deployment SHA after each staging and production release.
-- [ ] Replace constant polling with adaptive polling or realtime updates before heavier traffic.
+- [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
 - [ ] Complete paid checkout, cancellation and refund UAT.
+- [x] Add automated duplicate, concurrent and failed Stripe webhook replay gates.
 - [ ] Test duplicate, delayed and failed webhooks.
 - [ ] Test disabled-staff and password-reset session revocation end to end.
+- [x] Add credential-driven live order-race and two-restaurant isolation gates.
 - [ ] Test two-restaurant isolation using real manager accounts.
 - [ ] Test email OTP and Google login from a white-label customer domain.
 - [ ] Test OTP delivery to Gmail and Outlook and inspect SPF and DKIM results.
@@ -286,6 +291,31 @@ Complete these alongside product work when touching the affected modules:
 - [ ] Add workflow tests before extending order, check or kitchen states.
 - [ ] Consolidate repeated authenticated API validation, logging and error responses carefully.
 - [ ] Extend shared money formatting and minor-unit calculations into every financial report.
+
+## Launch Automation Commands
+
+Run the local regression gate on every release candidate:
+
+```powershell
+npm run lint
+npx tsc --noEmit
+npx playwright test
+npm run build
+```
+
+After deploying a candidate, open `/api/version` on the exact staging or production
+domain and compare `deployment.sha` with the approved Git commit. Also confirm that
+`deployment.runtimeRegion` is the expected Vercel function region.
+
+The following live tests are opt-in because they create UAT data or require direct
+database access:
+
+- `tests/e2e/order-status-concurrency-live.spec.ts`
+- `tests/e2e/stripe-webhook-replay-live.spec.ts`
+- `tests/e2e/tenant-isolation.spec.ts`
+
+Keep their credentials and database URLs in the test runner environment. Never add
+them to this repository.
 
 ## Recommended Execution Order
 
