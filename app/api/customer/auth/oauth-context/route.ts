@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: getRequestRateLimitKey(request, "customer:oauth-context"),
     limit: 20,
     windowMs: 15 * 60 * 1000,

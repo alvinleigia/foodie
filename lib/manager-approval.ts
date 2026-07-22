@@ -65,7 +65,7 @@ export async function authorizeManagerAction(input: {
     throw new ManagerApprovalError("Restaurant manager approval is required.");
   }
 
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: `manager-approval:${input.organizationId}:${identifier}`,
     limit: 10,
     windowMs: 15 * 60_000,

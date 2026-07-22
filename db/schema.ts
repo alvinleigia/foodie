@@ -889,6 +889,19 @@ export const passwordResetTokens = pgTable(
   ],
 );
 
+export const rateLimitWindows = pgTable(
+  "rate_limit_windows",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    requestCount: integer("request_count").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("rate_limit_windows_reset_at_idx").on(table.resetAt)],
+);
+
 export const appState = pgTable("app_state", {
   key: text("key").primaryKey(),
   ordersResetAt: timestamp("orders_reset_at"),

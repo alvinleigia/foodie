@@ -23,7 +23,7 @@ import { orderStatusRequestSchema } from "@/lib/validations/order";
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-status"),
       limit: 45,
       windowMs: 60_000,

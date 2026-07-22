@@ -45,7 +45,7 @@ export async function POST(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const rateLimit = checkRateLimit({
+      const rateLimit = await checkRateLimit({
         key: getRequestRateLimitKey(request, "public:order-cancel"),
         limit: 20,
         windowMs: 60_000,

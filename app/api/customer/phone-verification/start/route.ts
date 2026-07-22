@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const ipRateLimit = checkRateLimit({
+  const ipRateLimit = await checkRateLimit({
     key: getRequestRateLimitKey(request, "customer:phone-verification:start"),
     limit: 5,
     windowMs: 10 * 60 * 1000,
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return rateLimitResponse(ipRateLimit);
   }
 
-  const customerRateLimit = checkRateLimit({
+  const customerRateLimit = await checkRateLimit({
     key: `customer:phone-verification:start:${session.user.id}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,
