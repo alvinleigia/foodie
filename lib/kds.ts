@@ -32,7 +32,7 @@ export async function getKdsBoard(
   context: TenantContext = getDefaultTenantContext(),
 ): Promise<KdsBoardPayload> {
   const [{ activeOrders }, configuredStations] = await Promise.all([
-    getStaffOrders(context),
+    getStaffOrders(context, { view: "active" }),
     getPrepStations(context),
   ]);
   const itemMap = await getOrderItemsForOrders(

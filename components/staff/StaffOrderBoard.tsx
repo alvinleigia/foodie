@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BanknoteIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CopyIcon,
   CreditCardIcon,
   ExternalLinkIcon,
@@ -88,11 +90,15 @@ import {
 } from "@/lib/order-adjustments";
 
 type OrdersPayload = {
+  activeHasMore: boolean;
   activeOrders: StaffOrder[];
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
   currency: string;
+  pastPage: number;
   pastOrders: StaffOrder[];
+  pastTotal: number;
+  pastTotalPages: number;
 };
 
 type StaffTab = "active" | "past";
@@ -146,16 +152,24 @@ export function StaffOrderBoard({
   stripePaymentsEnabled?: boolean;
 }) {
   const [orders, setOrders] = useState<OrdersPayload>({
+    activeHasMore: false,
     activeOrders: [],
     canCorrectStatuses: false,
     canManageRefunds: false,
     currency: DEFAULT_CURRENCY,
+    pastPage: 1,
     pastOrders: [],
+    pastTotal: 0,
+    pastTotalPages: 1,
   });
   const [activeTab, setActiveTab] = useState<StaffTab>("active");
+  const [pastPage, setPastPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [loadedTabs, setLoadedTabs] = useState<Record<StaffTab, boolean>>({
+    active: false,
+    past: false,
+  });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionTarget | null>(null);
   const [correctionStatus, setCorrectionStatus] = useState<OrderStatus | OrderItemStatus | "">("");
@@ -190,6 +204,11 @@ export function StaffOrderBoard({
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const ordersRequestRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(false);
+  const activeOrderCountRef = useRef(0);
+  const loadedTabsRef = useRef<Record<StaffTab, boolean>>({
+    active: false,
+    past: false,
+  });
   const managerApprovalRequired = !orders.canManageRefunds;
   const managerApprovalComplete =
     !managerApprovalRequired || hasManagerApprovalCredentials(managerApproval);
@@ -198,7 +217,11 @@ export function StaffOrderBoard({
     setManagerApproval({ identifier: "", password: "" });
   }
 
-  async function syncOrders(options: { showRefreshing?: boolean } = {}) {
+  const syncOrders = useCallback(async (options: {
+    page?: number;
+    showRefreshing?: boolean;
+    view: StaffTab;
+  }) => {
     ordersRequestRef.current?.abort();
     const controller = new AbortController();
     ordersRequestRef.current = controller;
@@ -208,7 +231,14 @@ export function StaffOrderBoard({
     }
 
     try {
-      const response = await fetch("/api/orders", {
+      const searchParams = new URLSearchParams({ view: options.view });
+
+      if (options.view === "past") {
+        searchParams.set("page", String(options.page ?? 1));
+      }
+
+      const response = await fetch(`/api/orders?${searchParams.toString()}`, {
+        cache: "no-store",
         signal: controller.signal,
       });
       const payload = await response.json();
@@ -222,13 +252,48 @@ export function StaffOrderBoard({
         return;
       }
 
-      setOrders({
-        activeOrders: payload.activeOrders ?? [],
+      const pageInfo = payload.pageInfo ?? {};
+      const nextActiveOrders = payload.activeOrders ?? [];
+
+      if (options.view === "active") {
+        activeOrderCountRef.current = nextActiveOrders.length;
+      } else {
+        const resolvedPage = Number(pageInfo.page ?? options.page ?? 1);
+        setPastPage((current) =>
+          current === resolvedPage ? current : resolvedPage,
+        );
+      }
+
+      setOrders((current) => ({
+        ...current,
+        activeHasMore:
+          options.view === "active"
+            ? Boolean(pageInfo.activeHasMore)
+            : current.activeHasMore,
+        activeOrders:
+          options.view === "active"
+            ? nextActiveOrders
+            : current.activeOrders,
         canCorrectStatuses: Boolean(payload.canCorrectStatuses),
         canManageRefunds: Boolean(payload.canManageRefunds),
         currency: payload.currency ?? DEFAULT_CURRENCY,
-        pastOrders: payload.pastOrders ?? [],
-      });
+        pastPage:
+          options.view === "past"
+            ? Number(pageInfo.page ?? options.page ?? 1)
+            : current.pastPage,
+        pastOrders:
+          options.view === "past"
+            ? payload.pastOrders ?? []
+            : current.pastOrders,
+        pastTotal:
+          options.view === "past"
+            ? Number(pageInfo.total ?? 0)
+            : current.pastTotal,
+        pastTotalPages:
+          options.view === "past"
+            ? Number(pageInfo.totalPages ?? 1)
+            : current.pastTotalPages,
+      }));
       setError(null);
     } catch (fetchError) {
       if (!controller.signal.aborted && isMountedRef.current) {
@@ -243,28 +308,84 @@ export function StaffOrderBoard({
         ordersRequestRef.current = null;
         if (isMountedRef.current) {
           setIsRefreshing(false);
-          setHasLoadedOnce(true);
+          loadedTabsRef.current[options.view] = true;
+          setLoadedTabs((current) => ({
+            ...current,
+            [options.view]: true,
+          }));
         }
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
-    const initialLoad = window.setTimeout(() => {
-      void syncOrders();
-    }, 0);
-    const interval = window.setInterval(() => {
-      void syncOrders({ showRefreshing: false });
-    }, 4000);
 
     return () => {
       isMountedRef.current = false;
       ordersRequestRef.current?.abort();
-      window.clearTimeout(initialLoad);
-      window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    let stopped = false;
+    let timeoutId: number | null = null;
+
+    const scheduleActiveRefresh = () => {
+      if (stopped || document.visibilityState === "hidden") {
+        return;
+      }
+
+      timeoutId = window.setTimeout(
+        run,
+        activeOrderCountRef.current > 0 ? 4_000 : 10_000,
+      );
+    };
+
+    const run = async () => {
+      await syncOrders({
+        page: activeTab === "past" ? pastPage : 1,
+        showRefreshing: !loadedTabsRef.current[activeTab],
+        view: activeTab,
+      });
+
+      if (activeTab === "active") {
+        scheduleActiveRefresh();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      if (document.visibilityState === "visible") {
+        void run();
+      }
+    };
+
+    void run();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopped = true;
+      ordersRequestRef.current?.abort();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeTab, pastPage, syncOrders]);
+
+  function syncVisibleOrders(options: { showRefreshing?: boolean } = {}) {
+    return syncOrders({
+      page: activeTab === "past" ? pastPage : 1,
+      showRefreshing: options.showRefreshing,
+      view: activeTab,
+    });
+  }
 
   async function runItemAction(
     orderId: string,
@@ -300,7 +421,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     const successMessage = {
       start: "Item preparation started.",
       ready: "Item marked ready.",
@@ -400,7 +521,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     setCorrectionTarget(null);
     setCorrectionStatus("");
     setCorrectionReason("");
@@ -443,7 +564,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     const successMessage = {
       start: "Order preparation started.",
       ready: "Order marked ready.",
@@ -530,7 +651,7 @@ export function StaffOrderBoard({
         throw new Error(payload.error ?? "The adjustment could not be saved.");
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       resetAdjustmentForm();
       toast.success(adjustmentType === "COMP" ? "Bill comped." : "Discount applied.");
     } catch (adjustmentError) {
@@ -572,7 +693,7 @@ export function StaffOrderBoard({
         throw new Error(payload.error ?? "The adjustment could not be removed.");
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       resetAdjustmentForm();
       toast.success("Adjustment removed.");
     } catch (adjustmentError) {
@@ -624,7 +745,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     setPromisedTimeTarget(null);
     setPromisedFulfilmentAt("");
     toast.success(parsedDate ? "Promised time updated." : "Promised time cleared.");
@@ -667,7 +788,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     setCancellationTarget(null);
     setCancellationReason("");
     setApplyCustomerCancellationFee(false);
@@ -699,7 +820,7 @@ export function StaffOrderBoard({
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
 
     if (payload.refundError) {
       toast.error("Refund failed again. Check the Stripe account and retry.");
@@ -800,7 +921,7 @@ export function StaffOrderBoard({
         throw new Error(payload.error ?? "Cash payment could not be recorded.");
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       const currency = settlementTarget.paymentCurrency ?? orders.currency;
       const changeMessage = `Change due: ${formatMoney(
         Number(payload.changeAmount ?? 0),
@@ -875,7 +996,7 @@ export function StaffOrderBoard({
         );
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
 
       if (payload.paymentStatus === "PAID") {
         toast.success("This bill has already been paid.");
@@ -945,7 +1066,7 @@ export function StaffOrderBoard({
         );
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       setSettlementTarget(null);
       setCashAmount("");
       setCashTendered("");
@@ -1073,7 +1194,11 @@ export function StaffOrderBoard({
                   Refreshing panel...
                 </span>
               ) : (
-                "Live polling every 4 seconds"
+                activeTab === "active"
+                  ? orders.activeOrders.length > 0
+                    ? "Live updates every 4 seconds"
+                    : "Live updates every 10 seconds"
+                  : "History loaded on demand"
               )}
             </p>
           }
@@ -1087,16 +1212,17 @@ export function StaffOrderBoard({
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as StaffTab)}>
           <TabsList>
             <TabsTrigger value="active" disabled={Boolean(pendingAction)}>
-              Active Orders ({orders.activeOrders.length})
+              Active Orders ({orders.activeOrders.length}
+              {orders.activeHasMore ? "+" : ""})
             </TabsTrigger>
             <TabsTrigger value="past" disabled={Boolean(pendingAction)}>
-              Past Orders ({orders.pastOrders.length})
+              Past Orders ({orders.pastTotal})
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      {!hasLoadedOnce && isRefreshing ? (
+      {!loadedTabs[activeTab] && isRefreshing ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="rounded-xl border-stone-200 bg-white shadow-none">
@@ -1123,7 +1249,7 @@ export function StaffOrderBoard({
           title={activeTab === "active" ? "No active orders yet" : "No past orders yet"}
           description={
             activeTab === "active"
-              ? "This tab keeps refreshing automatically every 4 seconds."
+              ? "This tab refreshes automatically while it is visible."
               : "Delivered and cancelled orders will appear here."
           }
         />
@@ -1156,6 +1282,43 @@ export function StaffOrderBoard({
           ))}
         </div>
       )}
+      {activeTab === "past" && orders.pastTotalPages > 1 ? (
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            title="Previous page"
+            aria-label="Previous page"
+            disabled={pastPage <= 1 || isRefreshing || Boolean(pendingAction)}
+            onClick={() => setPastPage((current) => Math.max(1, current - 1))}
+          >
+            <ChevronLeftIcon aria-hidden="true" />
+          </Button>
+          <p className="min-w-24 text-center text-sm text-stone-600">
+            Page {orders.pastPage} of {orders.pastTotalPages}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            title="Next page"
+            aria-label="Next page"
+            disabled={
+              pastPage >= orders.pastTotalPages ||
+              isRefreshing ||
+              Boolean(pendingAction)
+            }
+            onClick={() =>
+              setPastPage((current) =>
+                Math.min(orders.pastTotalPages, current + 1),
+              )
+            }
+          >
+            <ChevronRightIcon aria-hidden="true" />
+          </Button>
+        </div>
+      ) : null}
       </CardContent>
       <Dialog
         open={Boolean(adjustmentTarget)}

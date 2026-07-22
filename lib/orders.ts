@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -29,6 +29,16 @@ const activeOrderStatuses: OrderStatus[] = [
   "READY",
 ];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
+
+export const STAFF_ACTIVE_ORDER_LIMIT = 200;
+export const STAFF_ORDER_HISTORY_PAGE_SIZE = 20;
+
+type StaffOrderView = "active" | "past";
+
+type StaffOrderQueryOptions = {
+  page?: number;
+  view?: StaffOrderView;
+};
 
 function activeOrderRank() {
   return sql<number>`case ${orders.status}
@@ -339,60 +349,103 @@ export async function getActiveOrders(context: TenantContext = getDefaultTenantC
     .orderBy(activeOrderRank(), desc(orders.createdAt));
 }
 
-export async function getStaffOrders(context: TenantContext = getDefaultTenantContext()) {
+export async function getStaffOrders(
+  context: TenantContext = getDefaultTenantContext(),
+  options: StaffOrderQueryOptions = {},
+) {
   const db = getDb();
-  const [activeOrders, pastOrders] = await Promise.all([
-    db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.organizationId, context.organizationId),
-          inArray(orders.status, activeOrderStatuses),
-          or(
-            inArray(orders.paymentStatus, [
-              "NOT_REQUIRED",
-              "UNPAID",
-              "PARTIALLY_PAID",
-              "PAID",
-            ]),
-            and(
-              eq(orders.source, "STAFF_CREATED"),
-              eq(orders.paymentStatus, "PENDING"),
-            ),
-          ),
-        ),
-      )
-      .orderBy(activeOrderRank(), desc(orders.createdAt)),
-    db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.organizationId, context.organizationId),
-          inArray(orders.status, pastOrderStatuses),
-          or(
-            inArray(orders.paymentStatus, [
-              "NOT_REQUIRED",
-              "UNPAID",
-              "PARTIALLY_PAID",
-              "PAID",
-              "REFUND_PENDING",
-              "PARTIALLY_REFUNDED",
-              "REFUND_FAILED",
-              "REFUNDED",
-            ]),
-            and(
-              eq(orders.source, "STAFF_CREATED"),
-              eq(orders.paymentStatus, "PENDING"),
-            ),
-          ),
-        ),
-      )
-      .orderBy(desc(pastOrderClosedAt())),
-  ]);
+  const view = options.view ?? "active";
 
-  return { activeOrders, pastOrders };
+  if (view === "past") {
+    const pastOrderFilter = and(
+      eq(orders.organizationId, context.organizationId),
+      inArray(orders.status, pastOrderStatuses),
+      or(
+        inArray(orders.paymentStatus, [
+          "NOT_REQUIRED",
+          "UNPAID",
+          "PARTIALLY_PAID",
+          "PAID",
+          "REFUND_PENDING",
+          "PARTIALLY_REFUNDED",
+          "REFUND_FAILED",
+          "REFUNDED",
+        ]),
+        and(
+          eq(orders.source, "STAFF_CREATED"),
+          eq(orders.paymentStatus, "PENDING"),
+        ),
+      ),
+    );
+    const [totalRow] = await db
+      .select({ value: count() })
+      .from(orders)
+      .where(pastOrderFilter);
+    const total = Number(totalRow?.value ?? 0);
+    const totalPages = Math.max(
+      1,
+      Math.ceil(total / STAFF_ORDER_HISTORY_PAGE_SIZE),
+    );
+    const page = Math.min(
+      Math.max(1, Math.trunc(options.page ?? 1)),
+      totalPages,
+    );
+    const pastOrders = await db
+      .select()
+      .from(orders)
+      .where(pastOrderFilter)
+      .orderBy(desc(pastOrderClosedAt()))
+      .limit(STAFF_ORDER_HISTORY_PAGE_SIZE)
+      .offset((page - 1) * STAFF_ORDER_HISTORY_PAGE_SIZE);
+
+    return {
+      activeHasMore: false,
+      activeOrders: [],
+      page,
+      pageSize: STAFF_ORDER_HISTORY_PAGE_SIZE,
+      pastOrders,
+      total,
+      totalPages,
+      view,
+    };
+  }
+
+  const activeRows = await db
+    .select()
+    .from(orders)
+    .where(
+      and(
+        eq(orders.organizationId, context.organizationId),
+        inArray(orders.status, activeOrderStatuses),
+        or(
+          inArray(orders.paymentStatus, [
+            "NOT_REQUIRED",
+            "UNPAID",
+            "PARTIALLY_PAID",
+            "PAID",
+          ]),
+          and(
+            eq(orders.source, "STAFF_CREATED"),
+            eq(orders.paymentStatus, "PENDING"),
+          ),
+        ),
+      ),
+    )
+    .orderBy(activeOrderRank(), desc(orders.createdAt))
+    .limit(STAFF_ACTIVE_ORDER_LIMIT + 1);
+  const activeHasMore = activeRows.length > STAFF_ACTIVE_ORDER_LIMIT;
+  const activeOrders = activeRows.slice(0, STAFF_ACTIVE_ORDER_LIMIT);
+
+  return {
+    activeHasMore,
+    activeOrders,
+    page: 1,
+    pageSize: STAFF_ACTIVE_ORDER_LIMIT,
+    pastOrders: [],
+    total: activeOrders.length,
+    totalPages: 1,
+    view,
+  };
 }
 
 export async function getLatestOrderPaymentsForOrders(

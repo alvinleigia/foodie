@@ -68,7 +68,7 @@ import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
 import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await requireStaffPermission("orders.view");
 
@@ -77,10 +77,18 @@ export async function GET() {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const [{ activeOrders, pastOrders }, currency] = await Promise.all([
-      getStaffOrders(tenantContext),
+    const view = request.nextUrl.searchParams.get("view") === "past"
+      ? "past"
+      : "active";
+    const requestedPage = Number(request.nextUrl.searchParams.get("page") ?? "1");
+    const page = Number.isFinite(requestedPage)
+      ? Math.max(1, Math.trunc(requestedPage))
+      : 1;
+    const [orderPage, currency] = await Promise.all([
+      getStaffOrders(tenantContext, { page, view }),
       getTenantMenuCurrency(tenantContext),
     ]);
+    const { activeOrders, pastOrders } = orderPage;
     const orderIds = [...activeOrders, ...pastOrders].map((order) => order.id);
     const [adjustmentMap, itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
       getActiveOrderAdjustmentsForOrders(orderIds, tenantContext),
@@ -113,6 +121,14 @@ export async function GET() {
       ),
       canManageRefunds: session.user.permissions.includes("payments.refund"),
       currency,
+      pageInfo: {
+        activeHasMore: orderPage.activeHasMore,
+        page: orderPage.page,
+        pageSize: orderPage.pageSize,
+        total: orderPage.total,
+        totalPages: orderPage.totalPages,
+        view: orderPage.view,
+      },
     });
   } catch (error) {
     return NextResponse.json(
