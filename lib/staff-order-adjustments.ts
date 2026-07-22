@@ -128,7 +128,11 @@ function assertAdjustableOrder(order: typeof orders.$inferSelect) {
     );
   }
 
-  if (!["PENDING", "PREPARING", "READY"].includes(order.status)) {
+  if (
+    !["PENDING", "PREPARING", "ASSEMBLING", "READY"].includes(
+      order.status,
+    )
+  ) {
     throw new StaffOrderAdjustmentError("Only active orders can be adjusted.");
   }
 

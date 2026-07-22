@@ -91,6 +91,7 @@ export function KdsBoard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const requestRef = useRef<AbortController | null>(null);
   const hasTicketsRef = useRef(false);
@@ -195,6 +196,7 @@ export function KdsBoard() {
   const visibleTickets = useMemo(
     () =>
       board.orders
+        .filter((order) => order.status !== "ASSEMBLING")
         .map((order) => ({
           ...order,
           items:
@@ -212,6 +214,10 @@ export function KdsBoard() {
     const counts = new Map<string, number>();
 
     for (const order of board.orders) {
+      if (order.status === "ASSEMBLING") {
+        continue;
+      }
+
       for (const item of order.items) {
         counts.set(
           item.prepStationId,
@@ -222,6 +228,11 @@ export function KdsBoard() {
 
     return counts;
   }, [board.orders]);
+
+  const assemblyTickets = useMemo(
+    () => board.orders.filter((order) => order.status === "ASSEMBLING"),
+    [board.orders],
+  );
 
   async function runItemAction(
     orderId: string,
@@ -264,6 +275,35 @@ export function KdsBoard() {
     }
   }
 
+  async function releaseForHandoff(orderId: string) {
+    setPendingOrderId(orderId);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(orderId)}/ready`,
+        { method: "POST" },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The order could not be released.");
+      }
+
+      toast.success("Order released for handoff.");
+      await syncBoard(true);
+    } catch (actionError) {
+      const message =
+        actionError instanceof Error
+          ? actionError.message
+          : "The order could not be released.";
+      setError(message);
+      toast.error(message);
+      await syncBoard(true);
+    } finally {
+      setPendingOrderId(null);
+    }
+  }
+
   if (isLoading && !hasLoaded) {
     return (
       <div className="flex min-h-72 items-center justify-center rounded-lg bg-white">
@@ -282,7 +322,7 @@ export function KdsBoard() {
             <span>Preparation stations</span>
           </div>
           <p className="mt-2 text-sm text-stone-500">
-            Oldest routed tickets appear first. Ready items wait for front-of-house handoff.
+            Oldest routed tickets appear first. Completed tickets move to final assembly.
           </p>
         </div>
         <Button
@@ -302,6 +342,62 @@ export function KdsBoard() {
         </Button>
       </div>
 
+      {assemblyTickets.length > 0 ? (
+        <section className="space-y-3 border-y border-stone-200 py-5">
+          <div>
+            <p className="text-sm font-semibold text-stone-900">Final assembly</p>
+            <p className="mt-1 text-sm text-stone-500">
+              Orders awaiting final checks and handoff release.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {assemblyTickets.map((ticket) => (
+              <Card key={ticket.orderId} className="rounded-lg border-violet-200 bg-white">
+                <CardHeader className="p-4 pb-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-stone-500">
+                        Order #{ticket.orderNo}
+                      </p>
+                      <h2 className="mt-1 text-lg font-semibold text-stone-950">
+                        {ticket.customerName}
+                      </h2>
+                    </div>
+                    <OrderStatusBadge status={ticket.status} />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 p-4 pt-2">
+                  <ul className="space-y-1 text-sm text-stone-700">
+                    {ticket.items.map((item) => (
+                      <li key={item.id}>
+                        {item.quantity} x {item.drinkName}
+                      </li>
+                    ))}
+                  </ul>
+                  {board.canUpdateStatus ? (
+                    <Button
+                      type="button"
+                      className="w-full"
+                      onClick={() => void releaseForHandoff(ticket.orderId)}
+                      disabled={pendingOrderId !== null}
+                    >
+                      {pendingOrderId === ticket.orderId ? (
+                        <>
+                          <Spinner />
+                          <span className="sr-only">Releasing order</span>
+                        </>
+                      ) : (
+                        <ButtonLabel icon={CheckCircleIcon}>Ready for handoff</ButtonLabel>
+                      )}
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div
         className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
         aria-label="Preparation station filter"
@@ -313,7 +409,15 @@ export function KdsBoard() {
           className="justify-between"
         >
           <span>All stations</span>
-          <span>{board.orders.reduce((total, order) => total + order.items.length, 0)}</span>
+          <span>
+            {board.orders.reduce(
+              (total, order) =>
+                order.status === "ASSEMBLING"
+                  ? total
+                  : total + order.items.length,
+              0,
+            )}
+          </span>
         </Button>
         {board.stations.map((station) => (
           <Button
@@ -436,7 +540,7 @@ export function KdsBoard() {
                           </Button>
                         ) : item.status === "READY" ? (
                           <p className="text-sm font-semibold text-emerald-700">
-                            Waiting for handoff
+                            Ready at station
                           </p>
                         ) : null}
                       </div>

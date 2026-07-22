@@ -648,7 +648,9 @@ export async function cancelOrder(input: CancelOrderInput) {
     const isAllowedStatus =
       order.status === "PENDING" ||
       (input.actorType === "STAFF" &&
-        (order.status === "PREPARING" || order.status === "READY"));
+        (order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
+          order.status === "READY"));
 
     if (!isAllowedStatus) {
       throw new OrderCancellationError(

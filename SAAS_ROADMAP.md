@@ -158,7 +158,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add shift and end-of-day close reports.
 - [x] Add basic prep stations and route products to kitchen or bar stations.
 - [x] Add kitchen ticket printing or a dedicated KDS station view.
-- [ ] Add expeditor or final-assembly status where required.
+- [x] Add expeditor or final-assembly status where required.
 
 ## Now: Launch Decisions
 

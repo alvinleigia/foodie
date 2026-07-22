@@ -16,7 +16,12 @@ function getOrderAgeMs(order: LocalCustomerOrder) {
 }
 
 export function shouldKeepCustomerOrder(order: LocalCustomerOrder) {
-  if (order.status === "PENDING" || order.status === "PREPARING" || order.status === "READY") {
+  if (
+    order.status === "PENDING" ||
+    order.status === "PREPARING" ||
+    order.status === "ASSEMBLING" ||
+    order.status === "READY"
+  ) {
     return true;
   }
 

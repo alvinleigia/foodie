@@ -19,10 +19,16 @@ import {
   type FinancialReconciliationRow,
 } from "@/lib/financial-reconciliation";
 
-const activeOrderStatuses = ["PENDING", "PREPARING", "READY"] as const;
+const activeOrderStatuses = [
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+] as const;
 const allOrderStatuses = [
   "PENDING",
   "PREPARING",
+  "ASSEMBLING",
   "READY",
   "DELIVERED",
   "CANCELLED",
@@ -286,7 +292,7 @@ async function getStaffBreakdown(
     .select({
       staffName: users.name,
       deliveredOrders: sql<number>`count(*) filter (where ${orders.status} = 'DELIVERED')`,
-      activeOrders: sql<number>`count(*) filter (where ${orders.status} in ('PENDING', 'PREPARING', 'READY'))`,
+      activeOrders: sql<number>`count(*) filter (where ${orders.status} in ('PENDING', 'PREPARING', 'ASSEMBLING', 'READY'))`,
       totalOrders: count(),
     })
     .from(orders)

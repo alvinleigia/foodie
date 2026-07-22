@@ -7,6 +7,7 @@ export const CUSTOMER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const orderStatuses = [
   "PENDING",
   "PREPARING",
+  "ASSEMBLING",
   "READY",
   "DELIVERED",
   "CANCELLED",

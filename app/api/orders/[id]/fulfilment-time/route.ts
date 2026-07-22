@@ -57,7 +57,12 @@ export async function PATCH(
         and(
           eq(orders.id, id),
           eq(orders.organizationId, tenantContext.organizationId),
-          inArray(orders.status, ["PENDING", "PREPARING", "READY"]),
+          inArray(orders.status, [
+            "PENDING",
+            "PREPARING",
+            "ASSEMBLING",
+            "READY",
+          ]),
         ),
       )
       .limit(1);

@@ -48,7 +48,15 @@ export async function getKdsBoard(
   const tickets: KdsTicket[] = [];
 
   for (const order of activeOrders) {
-    const routedItems = (itemMap.get(order.id) ?? []).filter(isRoutedOpenItem);
+    const orderItems = itemMap.get(order.id) ?? [];
+    const routedItems = orderItems.filter(isRoutedOpenItem);
+    const displayItems =
+      order.status === "ASSEMBLING"
+        ? orderItems.filter(
+            (item) =>
+              item.id && item.status !== "DELIVERED" && item.status !== "CANCELLED",
+          )
+        : routedItems;
 
     for (const item of routedItems) {
       if (!stationsById.has(item.prepStationId!)) {
@@ -60,7 +68,7 @@ export async function getKdsBoard(
       }
     }
 
-    if (routedItems.length === 0) {
+    if (displayItems.length === 0) {
       continue;
     }
 
@@ -68,7 +76,7 @@ export async function getKdsBoard(
       createdAt: order.createdAt.toISOString(),
       customerName: order.customerName,
       fulfilmentType: order.fulfilmentType,
-      items: routedItems.map((item) => ({
+      items: displayItems.map((item) => ({
         id: item.id!,
         drinkName: item.drinkName,
         modifiers: (item.modifiers ?? []).map((modifier) => ({
@@ -77,8 +85,8 @@ export async function getKdsBoard(
           quantity: modifier.quantity,
         })),
         notes: item.notes,
-        prepStationId: item.prepStationId!,
-        prepStationName: item.prepStationNameSnapshot!,
+        prepStationId: item.prepStationId ?? "unrouted",
+        prepStationName: item.prepStationNameSnapshot ?? "Unrouted",
         quantity: item.quantity,
         status: item.status,
       })),
@@ -87,6 +95,7 @@ export async function getKdsBoard(
       orderNo: order.orderNo,
       promisedFulfilmentAt: order.promisedFulfilmentAt?.toISOString() ?? null,
       requestedFulfilmentAt: order.requestedFulfilmentAt?.toISOString() ?? null,
+      status: order.status,
     });
   }
 

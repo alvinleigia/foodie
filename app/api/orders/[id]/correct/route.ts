@@ -7,6 +7,7 @@ import { requireStaffPermission } from "@/lib/auth";
 import {
   orderItemStatuses,
   orderStatuses,
+  type OrderItemStatus,
   type OrderStatus,
 } from "@/lib/constants";
 import {
@@ -55,6 +56,19 @@ function getOrderTimestampPatch(nextStatus: OrderStatus, now: Date) {
     };
   }
 
+  if (nextStatus === "ASSEMBLING") {
+    return {
+      status: nextStatus,
+      readyAt: null,
+      deliveredAt: null,
+      cancelledAt: null,
+      cancelledByType: null,
+      cancelledByUserId: null,
+      cancelReason: null,
+      updatedAt: now,
+    };
+  }
+
   return {
     status: nextStatus,
     deliveredAt: null,
@@ -66,7 +80,13 @@ function getOrderTimestampPatch(nextStatus: OrderStatus, now: Date) {
   };
 }
 
-function getItemTimestampPatch(nextStatus: OrderStatus, now: Date) {
+function getItemStatusForOrderStatus(nextStatus: OrderStatus): OrderItemStatus {
+  return nextStatus === "ASSEMBLING" ? "READY" : nextStatus;
+}
+
+function getItemTimestampPatch(nextOrderStatus: OrderStatus, now: Date) {
+  const nextStatus = getItemStatusForOrderStatus(nextOrderStatus);
+
   if (nextStatus === "PENDING") {
     return {
       status: nextStatus,

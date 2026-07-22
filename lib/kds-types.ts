@@ -1,6 +1,7 @@
 import type {
   OrderFulfilmentType,
   OrderItemStatus,
+  OrderStatus,
 } from "@/lib/constants";
 
 export type KdsStation = {
@@ -34,6 +35,7 @@ export type KdsTicket = {
   orderNo: number;
   promisedFulfilmentAt: string | null;
   requestedFulfilmentAt: string | null;
+  status: OrderStatus;
 };
 
 export type KdsBoardPayload = {

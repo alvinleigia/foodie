@@ -16,6 +16,7 @@ import {
   OrderTransitionConflictError,
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
+import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
 
@@ -130,6 +131,16 @@ export async function POST(
     ) {
       return NextResponse.json(
         { error: "Only ready items can use this action." },
+        { status: 409 },
+      );
+    }
+
+    if (
+      (body.action === "announce" || body.action === "deliver") &&
+      order.status !== "READY"
+    ) {
+      return NextResponse.json(
+        { error: "The whole order must pass final assembly before handoff." },
         { status: 409 },
       );
     }
@@ -263,32 +274,10 @@ export async function POST(
             eq(orderItems.organizationId, tenantContext.organizationId),
           ),
         );
-      const openItems = currentItems.filter(
-        (currentItem) =>
-          currentItem.status !== "DELIVERED" && currentItem.status !== "CANCELLED",
+      const nextOrderStatus = deriveOrderStatusFromItems(
+        currentItems.map((currentItem) => currentItem.status),
+        lockedOrder.status,
       );
-      const allItemsCancelled = currentItems.every(
-        (currentItem) => currentItem.status === "CANCELLED",
-      );
-      const allItemsClosed = currentItems.every(
-        (currentItem) =>
-          currentItem.status === "DELIVERED" || currentItem.status === "CANCELLED",
-      );
-      const allOpenItemsReady =
-        openItems.length > 0 &&
-        openItems.every((currentItem) => currentItem.status === "READY");
-      const hasStartedItem = currentItems.some(
-        (currentItem) => currentItem.status !== "PENDING",
-      );
-      const nextOrderStatus = allItemsCancelled
-        ? "CANCELLED"
-        : allItemsClosed
-          ? "DELIVERED"
-          : allOpenItemsReady
-            ? "READY"
-            : hasStartedItem
-              ? "PREPARING"
-              : "PENDING";
 
       const [updatedOrder] = await tx
         .update(orders)
@@ -298,8 +287,7 @@ export async function POST(
             nextOrderStatus === "PENDING"
               ? lockedOrder.startedAt
               : (lockedOrder.startedAt ?? now),
-          readyAt:
-            nextOrderStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
+          readyAt: nextOrderStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
           deliveredAt: nextOrderStatus === "DELIVERED" ? now : null,
           cancelledAt: nextOrderStatus === "CANCELLED" ? now : null,
           cancelledByType:

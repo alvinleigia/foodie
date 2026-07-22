@@ -22,15 +22,21 @@ import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { calculateTaxPricing } from "@/lib/tax-pricing";
 import { findActiveDiscountAdjustment } from "@/lib/order-adjustments";
 
-const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
+const activeOrderStatuses: OrderStatus[] = [
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
 
 function activeOrderRank() {
   return sql<number>`case ${orders.status}
     when 'PENDING' then 1
     when 'PREPARING' then 2
-    when 'READY' then 3
-    else 4
+    when 'ASSEMBLING' then 3
+    when 'READY' then 4
+    else 5
   end`;
 }
 

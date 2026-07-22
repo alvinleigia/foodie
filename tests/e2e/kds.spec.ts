@@ -50,14 +50,24 @@ test.describe("restaurant kitchen display", () => {
     );
   });
 
-  test("offers preparation actions without cancellation or handoff actions", () => {
+  test("keeps item preparation actions separate from cancellation and delivery", () => {
     const boardSource = readFileSync("components/staff/KdsBoard.tsx", "utf8");
 
     expect(boardSource).toContain('action: "start" as const');
     expect(boardSource).toContain('action: "ready" as const');
-    expect(boardSource).toContain("Waiting for handoff");
+    expect(boardSource).toContain("Ready at station");
     expect(boardSource).not.toContain('action: "cancel" as const');
     expect(boardSource).not.toContain('action: "deliver" as const');
+  });
+
+  test("provides a final-assembly queue before handoff", () => {
+    const boardSource = readFileSync("components/staff/KdsBoard.tsx", "utf8");
+    const serviceSource = readFileSync("lib/kds.ts", "utf8");
+
+    expect(serviceSource).toContain('order.status === "ASSEMBLING"');
+    expect(boardSource).toContain("Final assembly");
+    expect(boardSource).toContain("Ready for handoff");
+    expect(boardSource).toContain("releaseForHandoff");
   });
 
   test("backs off when empty and pauses polling in hidden tabs", () => {

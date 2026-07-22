@@ -58,7 +58,12 @@ type CustomerOrderStatusProps = {
 
 type OrderView = "active" | "completed";
 
-const activeOrderStatuses = new Set(["PENDING", "PREPARING", "READY"]);
+const activeOrderStatuses = new Set([
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+]);
 
 function isActiveOrder(order: ApiOrder) {
   return activeOrderStatuses.has(order.status);
@@ -441,6 +446,8 @@ export function CustomerOrderStatus({
                 {order.status === "PENDING" && "Your order is queued and can still be cancelled."}
                 {order.status === "PREPARING" &&
                   "Preparation has started. Cancellation is locked."}
+                {order.status === "ASSEMBLING" &&
+                  "Your order is being checked and assembled for handoff."}
                 {order.status === "READY" &&
                   (order.fulfilmentType === "DELIVERY"
                     ? "Your order is ready for delivery."

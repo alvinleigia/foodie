@@ -3,7 +3,8 @@ import type { OrderItemStatus, OrderStatus } from "@/lib/constants";
 export const orderCorrectionTargets: Record<OrderStatus, OrderStatus[]> = {
   PENDING: [],
   PREPARING: ["PENDING"],
-  READY: ["PREPARING"],
+  ASSEMBLING: ["PREPARING"],
+  READY: ["ASSEMBLING"],
   DELIVERED: ["READY"],
   CANCELLED: ["PENDING"],
 };
@@ -19,6 +20,7 @@ export const orderItemCorrectionTargets: Record<OrderItemStatus, OrderItemStatus
 export const statusCorrectionLabels: Record<OrderStatus, string> = {
   PENDING: "Pending",
   PREPARING: "Preparing",
+  ASSEMBLING: "Assembling",
   READY: "Ready",
   DELIVERED: "Delivered",
   CANCELLED: "Cancelled",

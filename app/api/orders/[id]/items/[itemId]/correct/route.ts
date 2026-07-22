@@ -14,6 +14,7 @@ import {
   OrderTransitionConflictError,
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
+import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { writeAuditLog } from "@/lib/audit-log";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
@@ -53,34 +54,7 @@ function getItemTimestampPatch(nextStatus: OrderItemStatus, now: Date) {
 }
 
 function getNextOrderStatus(items: Array<typeof orderItems.$inferSelect>): OrderStatus {
-  const openItems = items.filter(
-    (item) => item.status !== "DELIVERED" && item.status !== "CANCELLED",
-  );
-  const allItemsCancelled = items.every((item) => item.status === "CANCELLED");
-  const allItemsClosed = items.every(
-    (item) => item.status === "DELIVERED" || item.status === "CANCELLED",
-  );
-  const allOpenItemsReady =
-    openItems.length > 0 && openItems.every((item) => item.status === "READY");
-  const hasStartedItem = items.some((item) => item.status !== "PENDING");
-
-  if (allItemsCancelled) {
-    return "CANCELLED";
-  }
-
-  if (allItemsClosed) {
-    return "DELIVERED";
-  }
-
-  if (allOpenItemsReady) {
-    return "READY";
-  }
-
-  if (hasStartedItem) {
-    return "PREPARING";
-  }
-
-  return "PENDING";
+  return deriveOrderStatusFromItems(items.map((item) => item.status));
 }
 
 function getOrderTimestampPatch(
@@ -103,6 +77,20 @@ function getOrderTimestampPatch(
   }
 
   if (nextStatus === "PREPARING") {
+    return {
+      status: nextStatus,
+      startedAt: order.startedAt ?? now,
+      readyAt: null,
+      deliveredAt: null,
+      cancelledAt: null,
+      cancelledByType: null,
+      cancelledByUserId: null,
+      cancelReason: null,
+      updatedAt: now,
+    };
+  }
+
+  if (nextStatus === "ASSEMBLING") {
     return {
       status: nextStatus,
       startedAt: order.startedAt ?? now,

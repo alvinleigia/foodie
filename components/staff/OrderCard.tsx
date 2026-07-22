@@ -88,7 +88,13 @@ export type StaffOrder = {
       priceDelta: string;
     }>;
   }>;
-  status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
+  status:
+    | "PENDING"
+    | "PREPARING"
+    | "ASSEMBLING"
+    | "READY"
+    | "DELIVERED"
+    | "CANCELLED";
   createdAt: string;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
@@ -202,7 +208,7 @@ export function OrderCard({
     order.paymentStatus === "REFUND_FAILED";
   const canAdjustOrder =
     order.source === "STAFF_CREATED" &&
-    ["PENDING", "PREPARING", "READY"].includes(order.status) &&
+    ["PENDING", "PREPARING", "ASSEMBLING", "READY"].includes(order.status) &&
     ["UNPAID", "NOT_REQUIRED"].includes(order.paymentStatus) &&
     Number(order.paymentCollectedAmount) === 0;
   const paymentCurrency = order.paymentCurrency ?? currency;
@@ -318,10 +324,28 @@ export function OrderCard({
               {pendingAction === `ready-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
                   <Spinner className="text-stone-950" />
-                  Marking Ready...
+                  Sending to assembly...
                 </span>
               ) : (
-                <ButtonLabel icon={CirclePlayIcon}>Mark whole order ready</ButtonLabel>
+                <ButtonLabel icon={CirclePlayIcon}>Send to final assembly</ButtonLabel>
+              )}
+            </Button>
+          ) : null}
+
+          {order.status === "ASSEMBLING" ? (
+            <Button
+              type="button"
+              disabled={disabled}
+              onClick={() => onOrderAction(order.orderId, "ready")}
+              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+            >
+              {pendingAction === `ready-order:${order.orderId}` ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Releasing...
+                </span>
+              ) : (
+                <ButtonLabel icon={CheckCircleIcon}>Ready for handoff</ButtonLabel>
               )}
             </Button>
           ) : null}
@@ -366,6 +390,7 @@ export function OrderCard({
 
           {(order.status === "PENDING" ||
           order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
           order.status === "READY") && order.paymentStatus !== "PENDING" ? (
             <Button
               type="button"
@@ -387,6 +412,7 @@ export function OrderCard({
 
           {order.status === "PENDING" ||
           order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
           order.status === "READY" ? (
             <Button
               type="button"
@@ -489,7 +515,7 @@ export function OrderCard({
           </Button>
         ) : null}
 
-        {canUpdateItem && item.status === "READY" ? (
+        {canUpdateItem && item.status === "READY" && order.status === "READY" ? (
           <>
             <Button
               type="button"
