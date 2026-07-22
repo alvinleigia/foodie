@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { customerOAuthAccounts, customers } from "@/db/schema";
@@ -12,7 +12,8 @@ type OAuthCustomerInput = {
 
 export async function getOrCreateOAuthCustomer(input: OAuthCustomerInput) {
   const email = input.email.trim().toLowerCase();
-  const name = input.name.trim() || email.split("@")[0];
+  const providedName = input.name.trim();
+  const name = providedName || email.split("@")[0];
   const provider = input.provider.trim().toLowerCase();
   const providerAccountId = input.providerAccountId.trim();
 
@@ -38,6 +39,25 @@ export async function getOrCreateOAuthCustomer(input: OAuthCustomerInput) {
       .limit(1);
 
     if (existingAccount) {
+      if (!existingAccount.name.trim() && providedName) {
+        const [updatedAccount] = await tx
+          .update(customers)
+          .set({ name: providedName, updatedAt: new Date() })
+          .where(
+            and(
+              eq(customers.id, existingAccount.id),
+              sql`btrim(${customers.name}) = ''`,
+            ),
+          )
+          .returning({
+            email: customers.email,
+            id: customers.id,
+            name: customers.name,
+          });
+
+        return updatedAccount ?? existingAccount;
+      }
+
       return existingAccount;
     }
 
@@ -82,6 +102,25 @@ export async function getOrCreateOAuthCustomer(input: OAuthCustomerInput) {
 
     if (!customer) {
       throw new Error("Unable to create the customer account.");
+    }
+
+    if (!customer.name.trim() && providedName) {
+      const [updatedCustomer] = await tx
+        .update(customers)
+        .set({ name: providedName, updatedAt: new Date() })
+        .where(
+          and(
+            eq(customers.id, customer.id),
+            sql`btrim(${customers.name}) = ''`,
+          ),
+        )
+        .returning({
+          email: customers.email,
+          id: customers.id,
+          name: customers.name,
+        });
+
+      customer = updatedCustomer ?? customer;
     }
 
     await tx

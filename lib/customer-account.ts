@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -46,6 +46,19 @@ export async function getCustomerProfile(
         organizationCustomers.customerId,
       ],
     });
+
+  if (identity.name.trim()) {
+    await db
+      .update(organizationCustomers)
+      .set({ name: identity.name, updatedAt: new Date() })
+      .where(
+        and(
+          eq(organizationCustomers.customerId, customerId),
+          eq(organizationCustomers.organizationId, context.organizationId),
+          sql`btrim(${organizationCustomers.name}) = ''`,
+        ),
+      );
+  }
 
   const [customer] = await getDb()
     .select({
