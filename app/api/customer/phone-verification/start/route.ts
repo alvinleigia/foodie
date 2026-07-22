@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 
 import { requireCustomerSession } from "@/lib/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import { logError } from "@/lib/logger";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import {
@@ -54,7 +58,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const ipRateLimit = checkRateLimit({
+  const ipRateLimit = await checkRateLimit({
     key: getRequestRateLimitKey(request, "customer:phone-verification:start"),
     limit: 5,
     windowMs: 10 * 60 * 1000,
@@ -64,7 +68,7 @@ export async function POST(request: Request) {
     return rateLimitResponse(ipRateLimit);
   }
 
-  const customerRateLimit = checkRateLimit({
+  const customerRateLimit = await checkRateLimit({
     key: `customer:phone-verification:start:${session.user.id}`,
     limit: 5,
     windowMs: 10 * 60 * 1000,
@@ -76,6 +80,10 @@ export async function POST(request: Request) {
 
   try {
     const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
     const customer = await getCustomerProfile(session.user.id, tenantContext);
 
     if (!customer || !isValidCustomerPhone(customer.phone)) {
@@ -96,6 +104,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ status: "pending" }, { status: 202 });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof PhoneVerificationProviderError) {
       return providerErrorResponse(error);
     }

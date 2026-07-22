@@ -1,6 +1,7 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
-import { restaurantAdminRoles } from "@/lib/role-access";
+import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -13,14 +14,15 @@ export default async function RestaurantSettingsPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "settings",
+      requiredPermission: "restaurant.settings",
       restaurantSlug,
     });
   const dashboardHref = getRestaurantWorkspaceHref(
     access.restaurant.slug,
     "dashboard",
   );
+  const taxProfile = await getRestaurantTaxProfile(access.restaurant.id);
 
   return (
     <SaasAdminShell
@@ -31,13 +33,20 @@ export default async function RestaurantSettingsPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >
-      <TenantRestaurantSettingsForm
-        backHref={dashboardHref}
-        organization={snapshot.organization}
-      />
+      <div className="grid gap-6">
+        <TenantRestaurantSettingsForm
+          backHref={dashboardHref}
+          organization={snapshot.organization}
+        />
+        <RestaurantTaxProfileForm
+          apiPath="/api/tenant/admin/tax-profile"
+          profile={taxProfile}
+        />
+      </div>
     </SaasAdminShell>
   );
 }

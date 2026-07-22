@@ -5,6 +5,10 @@ import {
   createCustomerOAuthContextValue,
 } from "@/lib/customer-oauth-context";
 import {
+  assertOrganizationFeaturesEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
+import {
   getPlatformAdministrationOrigin,
   getPublicRequestOrigin,
 } from "@/lib/deployment-domain";
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const rateLimit = checkRateLimit({
+  const rateLimit = await checkRateLimit({
     key: getRequestRateLimitKey(request, "customer:oauth-context"),
     limit: 20,
     windowMs: 15 * 60 * 1000,
@@ -55,6 +59,10 @@ export async function POST(request: Request) {
 
   try {
     const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeaturesEnabled(
+      tenantContext.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
     const effective = await resolveOrganizationOAuthIntegration(
       tenantContext.organizationId,
       providerMap[parsed.data.provider],
@@ -89,7 +97,11 @@ export async function POST(request: Request) {
     authorizationUrl.searchParams.set("state", state);
 
     return NextResponse.json({ authorizationUrl: authorizationUrl.toString() });
-  } catch {
+  } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     return NextResponse.json(
       { error: "This sign-in option could not be started." },
       { status: 503 },

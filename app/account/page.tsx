@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { CustomerProfileForm } from "@/components/order/CustomerProfileForm";
+import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavailable";
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -24,6 +25,19 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
     typeof searchParams.route === "string" ? searchParams.route : undefined;
   const customerContext = { orderingPointQrSlug, routeSlug };
   const routeContext = await getPublicOrderRouteContext(customerContext);
+
+  if (routeContext.hasTenantContext && !routeContext.customerAccountsEnabled) {
+    return (
+      <AppShell
+        topSpacing="compact"
+        variant="dark"
+        contentClassName="max-w-3xl space-y-6 pb-8"
+      >
+        <CustomerOrderUnavailable reason="CUSTOMER_ACCOUNTS_DISABLED" />
+      </AppShell>
+    );
+  }
+
   const session = await requireCustomerSession();
 
   if (!session) {

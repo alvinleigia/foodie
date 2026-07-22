@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { orderItemStatuses, type OrderItemStatus, type OrderStatus } from "@/lib/constants";
 import {
   InventoryReservationError,
@@ -14,8 +14,9 @@ import {
   OrderTransitionConflictError,
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
-import { restaurantAdminRoles } from "@/lib/role-access";
+import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { writeAuditLog } from "@/lib/audit-log";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 function isOrderItemStatus(value: unknown): value is OrderItemStatus {
@@ -53,34 +54,7 @@ function getItemTimestampPatch(nextStatus: OrderItemStatus, now: Date) {
 }
 
 function getNextOrderStatus(items: Array<typeof orderItems.$inferSelect>): OrderStatus {
-  const openItems = items.filter(
-    (item) => item.status !== "DELIVERED" && item.status !== "CANCELLED",
-  );
-  const allItemsCancelled = items.every((item) => item.status === "CANCELLED");
-  const allItemsClosed = items.every(
-    (item) => item.status === "DELIVERED" || item.status === "CANCELLED",
-  );
-  const allOpenItemsReady =
-    openItems.length > 0 && openItems.every((item) => item.status === "READY");
-  const hasStartedItem = items.some((item) => item.status !== "PENDING");
-
-  if (allItemsCancelled) {
-    return "CANCELLED";
-  }
-
-  if (allItemsClosed) {
-    return "DELIVERED";
-  }
-
-  if (allOpenItemsReady) {
-    return "READY";
-  }
-
-  if (hasStartedItem) {
-    return "PREPARING";
-  }
-
-  return "PENDING";
+  return deriveOrderStatusFromItems(items.map((item) => item.status));
 }
 
 function getOrderTimestampPatch(
@@ -103,6 +77,20 @@ function getOrderTimestampPatch(
   }
 
   if (nextStatus === "PREPARING") {
+    return {
+      status: nextStatus,
+      startedAt: order.startedAt ?? now,
+      readyAt: null,
+      deliveredAt: null,
+      cancelledAt: null,
+      cancelledByType: null,
+      cancelledByUserId: null,
+      cancelReason: null,
+      updatedAt: now,
+    };
+  }
+
+  if (nextStatus === "ASSEMBLING") {
     return {
       status: nextStatus,
       startedAt: order.startedAt ?? now,
@@ -146,7 +134,7 @@ export async function POST(
   context: { params: Promise<{ id: string; itemId: string }> },
 ) {
   try {
-    const session = await requireRole(restaurantAdminRoles);
+    const session = await requireStaffPermission("orders.correct_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -169,6 +157,12 @@ export async function POST(
 
     const { id, itemId } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    const inventoryEnabled = (
+      await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      )
+    ).enabled;
     const db = getDb();
     const [order] = await db
       .select()
@@ -284,7 +278,11 @@ export async function POST(
 
       const itemPatch = getItemTimestampPatch(nextStatus, now);
 
-      if (lockedItem.status === "CANCELLED" && nextStatus === "PENDING") {
+      if (
+        inventoryEnabled &&
+        lockedItem.status === "CANCELLED" &&
+        nextStatus === "PENDING"
+      ) {
         const wasReserved = await reserveInventoryForOrderItem(
           tx,
           tenantContext,
@@ -347,6 +345,9 @@ export async function POST(
       entityType: "order_item",
       entityId: result.updatedItem.id,
       metadata: {
+        approvedByUserId: session.user.id,
+        approvedByUsername: session.user.username,
+        approvalMode: "MANAGER_SESSION",
         orderId: result.updatedOrder.id,
         orderNo: result.updatedOrder.orderNo,
         drinkName: result.updatedItem.drinkName,

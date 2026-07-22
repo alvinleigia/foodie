@@ -6,7 +6,7 @@ import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-s
 import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-settings";
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { getRequestOrigin } from "@/lib/request-origin";
-import { restaurantAdminRoles } from "@/lib/role-access";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -19,16 +19,17 @@ export default async function RestaurantIntegrationsPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "integrations",
+      requiredPermission: "integrations.manage",
       restaurantSlug,
     });
-  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot] =
+  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot, stripePayments] =
     await Promise.all([
       getRequestOrigin(),
       getOrganizationEmailSettingsSnapshot(snapshot.organization.id),
       getOrganizationOAuthSettingsSnapshots(snapshot.organization.id),
       getOrganizationPaymentSettingsSnapshot(snapshot.organization.id),
+      getOrganizationFeatureEntitlement(snapshot.organization.id, "payments.stripe"),
     ]);
   const dashboardHref = getRestaurantWorkspaceHref(
     access.restaurant.slug,
@@ -48,6 +49,7 @@ export default async function RestaurantIntegrationsPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >
@@ -63,6 +65,7 @@ export default async function RestaurantIntegrationsPage({
       <StripeIntegrationForm
         apiPath="/api/tenant/admin/integrations/stripe"
         backHref={dashboardHref}
+        enabled={stripePayments.enabled}
         initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>

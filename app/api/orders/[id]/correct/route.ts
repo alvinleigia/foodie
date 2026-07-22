@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   orderItemStatuses,
   orderStatuses,
+  type OrderItemStatus,
   type OrderStatus,
 } from "@/lib/constants";
 import {
@@ -19,8 +20,8 @@ import {
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
 import { serializeOrder } from "@/lib/orders";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { writeAuditLog } from "@/lib/audit-log";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 function isOrderStatus(value: unknown): value is OrderStatus {
@@ -55,6 +56,19 @@ function getOrderTimestampPatch(nextStatus: OrderStatus, now: Date) {
     };
   }
 
+  if (nextStatus === "ASSEMBLING") {
+    return {
+      status: nextStatus,
+      readyAt: null,
+      deliveredAt: null,
+      cancelledAt: null,
+      cancelledByType: null,
+      cancelledByUserId: null,
+      cancelReason: null,
+      updatedAt: now,
+    };
+  }
+
   return {
     status: nextStatus,
     deliveredAt: null,
@@ -66,7 +80,13 @@ function getOrderTimestampPatch(nextStatus: OrderStatus, now: Date) {
   };
 }
 
-function getItemTimestampPatch(nextStatus: OrderStatus, now: Date) {
+function getItemStatusForOrderStatus(nextStatus: OrderStatus): OrderItemStatus {
+  return nextStatus === "ASSEMBLING" ? "READY" : nextStatus;
+}
+
+function getItemTimestampPatch(nextOrderStatus: OrderStatus, now: Date) {
+  const nextStatus = getItemStatusForOrderStatus(nextOrderStatus);
+
   if (nextStatus === "PENDING") {
     return {
       status: nextStatus,
@@ -101,7 +121,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireRole(restaurantAdminRoles);
+    const session = await requireStaffPermission("orders.correct_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -124,6 +144,12 @@ export async function POST(
 
     const { id } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    const inventoryEnabled = (
+      await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      )
+    ).enabled;
     const db = getDb();
     const [order] = await db
       .select()
@@ -191,7 +217,11 @@ export async function POST(
 
       const reservedItemIds: string[] = [];
 
-      if (lockedOrder.status === "CANCELLED" && nextStatus === "PENDING") {
+      if (
+        inventoryEnabled &&
+        lockedOrder.status === "CANCELLED" &&
+        nextStatus === "PENDING"
+      ) {
         for (const item of currentItems) {
           const wasReserved = await reserveInventoryForOrderItem(tx, tenantContext, item);
 
@@ -266,6 +296,9 @@ export async function POST(
       entityType: "order",
       entityId: transition.updatedOrder.id,
       metadata: {
+        approvedByUserId: session.user.id,
+        approvedByUsername: session.user.username,
+        approvalMode: "MANAGER_SESSION",
         orderNo: transition.updatedOrder.orderNo,
         previousStatus: transition.previousOrder.status,
         nextStatus: transition.updatedOrder.status,

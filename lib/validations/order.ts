@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
+import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
+
 export const createOrderSchema = z
   .object({
     customerId: z.string().uuid("Choose a valid customer").nullable().optional(),
@@ -9,6 +12,8 @@ export const createOrderSchema = z
       .min(2, "Name is required")
       .max(80, "Name is too long")
       .optional(),
+    fulfilmentType: z.enum(orderFulfilmentTypes),
+    scheduledFulfilmentAt: z.iso.datetime().nullable().optional(),
     items: z
       .array(
         z.object({
@@ -41,6 +46,7 @@ export const staffCancelOrderSchema = z.object({
   cancellationFeePercent: z.coerce.number().min(0).max(100).optional(),
   cancelReason: z.string().trim().max(200).optional(),
   overrideReason: z.string().trim().max(200).optional(),
+  managerApproval: optionalManagerApprovalSchema,
   retryRefund: z.boolean().default(false),
 });
 

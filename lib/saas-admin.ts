@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import {
   memberships,
   orderingPoints,
+  prepStations,
   organizationSubscriptions,
   organizations,
   saasPlans,
@@ -19,6 +20,8 @@ import {
   getStarterPlanId,
   getTrialEndDate,
 } from "@/lib/billing";
+import { isPlatformManagedTenantDomain } from "@/lib/deployment-domain";
+import { assertOrganizationFeatureEnabled } from "@/lib/feature-entitlements";
 import { ensureUniqueOrganizationSlug } from "@/lib/organization-slugs";
 import { hashPassword } from "@/lib/passwords";
 import { slugify } from "@/lib/slugs";
@@ -36,8 +39,10 @@ import {
   updateOrganizationAdminSchema,
   updateStaffMembershipSchema,
 } from "@/lib/validations/tenant-admin";
+import { buildStaffPermissionOverrides } from "@/lib/staff-permissions";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { TenantContext } from "@/lib/tenant-context";
+import { getDefaultPrepStationValues } from "@/lib/prep-stations";
 
 type ReassignExistingUserOptions = {
   allowedOrganizationIds?: string[];
@@ -164,6 +169,7 @@ export async function listCompanyDomains(companyOrganizationId: string) {
     )
     .map((domain) => ({
       ...domain,
+      isCustomDomain: !isPlatformManagedTenantDomain(domain.domain),
       restaurantName: domain.restaurantOrganizationId
         ? restaurantNames.get(domain.restaurantOrganizationId) ?? null
         : null,
@@ -183,6 +189,21 @@ async function assertDomainIsAvailable(domain: string, currentDomainId?: string)
   if (existing && existing.id !== currentDomainId) {
     throw new Error("This domain is already linked to another tenant.");
   }
+}
+
+async function assertCustomDomainAccess(
+  domain: string,
+  companyOrganizationId: string,
+  restaurantOrganizationId?: string | null,
+) {
+  if (isPlatformManagedTenantDomain(domain)) {
+    return;
+  }
+
+  await assertOrganizationFeatureEnabled(
+    restaurantOrganizationId ?? companyOrganizationId,
+    "branding.custom_domains",
+  );
 }
 
 export async function createCompanyDomain(companyOrganizationId: string, input: unknown) {
@@ -216,6 +237,12 @@ export async function createCompanyDomain(companyOrganizationId: string, input: 
       throw new Error("Restaurant not found for this company.");
     }
   }
+
+  await assertCustomDomainAccess(
+    parsed.domain,
+    companyOrganizationId,
+    parsed.restaurantOrganizationId,
+  );
 
   await assertDomainIsAvailable(parsed.domain);
 
@@ -296,6 +323,14 @@ export async function updateCompanyDomain(
 
   if (nextIsPrimary && !nextIsActive) {
     throw new Error("A primary domain must be active.");
+  }
+
+  if (parsed.isActive === true || parsed.isPrimary === true) {
+    await assertCustomDomainAccess(
+      existing.domain,
+      companyOrganizationId,
+      existing.restaurantOrganizationId,
+    );
   }
 
   return db.transaction(async (tx) => {
@@ -562,6 +597,13 @@ export async function createChildRestaurant(
       })
       .returning();
 
+    await tx
+      .insert(prepStations)
+      .values(getDefaultPrepStationValues(restaurant.id))
+      .onConflictDoNothing({
+        target: [prepStations.organizationId, prepStations.slug],
+      });
+
     return { ...restaurant, defaultOrderingPoint };
   });
 }
@@ -826,11 +868,21 @@ export async function updateCompanyUserMembership(
     throw new Error("Choose a restaurant staff role for this access.");
   }
 
+  const permissionOverrides =
+    isRestaurantMembership &&
+    "permissions" in parsed &&
+    parsed.permissions !== undefined
+      ? buildStaffPermissionOverrides(parsed.role, parsed.permissions)
+      : isRestaurantMembership && current.membership.role !== parsed.role
+        ? {}
+        : current.membership.permissionOverrides;
+
   const [membership] = await db
     .update(memberships)
     .set({
       role: parsed.role,
       isActive: parsed.isActive,
+      permissionOverrides,
       updatedAt: new Date(),
     })
     .where(eq(memberships.id, membershipId))

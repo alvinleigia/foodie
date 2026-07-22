@@ -1,37 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   getTenantAdminSnapshot,
   updateStaffMembership,
 } from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
-
-const tenantAdminRoles = [
-  "PLATFORM_ADMIN",
-  "COMPANY_OWNER",
-  "RESTAURANT_MANAGER",
-] as const;
+import { resolveStaffPermissions } from "@/lib/staff-permissions";
+import { updateStaffMembershipSchema } from "@/lib/validations/tenant-admin";
 
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ membershipId: string }> },
 ) {
   try {
-    const session = await requireRole([...tenantAdminRoles]);
+    const session = await requireStaffPermission("staff.manage");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { membershipId } = await context.params;
+    const input = updateStaffMembershipSchema.parse(await request.json());
+    const effectivePermissions =
+      input.permissions ?? resolveStaffPermissions(input.role, null);
+
+    if (
+      membershipId === session.user.membershipId &&
+      (!input.isActive || !effectivePermissions.includes("staff.manage"))
+    ) {
+      return NextResponse.json(
+        { error: "You cannot remove your own staff management access." },
+        { status: 400 },
+      );
+    }
+
     const tenantContext = await getCurrentTenantContext();
     const membership = await updateStaffMembership(
       tenantContext,
       membershipId,
-      await request.json(),
+      input,
     );
 
     if (!membership) {
@@ -48,6 +58,10 @@ export async function PATCH(
         userId: membership.userId,
         role: membership.role,
         isActive: membership.isActive,
+        permissions: resolveStaffPermissions(
+          membership.role,
+          membership.permissionOverrides,
+        ),
       },
     });
 

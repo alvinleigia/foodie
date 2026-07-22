@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 
 import { auth } from "@/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
+import { listOrganizationFeatureEntitlements } from "@/lib/feature-entitlements";
 import {
   getCompanyDomainRestaurants,
   getInactiveTenantDomain,
@@ -21,7 +22,32 @@ type PublicOrderRouteOptions = {
   routeSlug?: string;
 };
 
-export type PublicOrderUnavailableReason = "MISSING_CONTEXT" | "DOMAIN_DISABLED";
+async function getCustomerFeatureAvailability(organizationId: string) {
+  const entitlements = await listOrganizationFeatureEntitlements(organizationId);
+
+  return {
+    customerAccountsEnabled:
+      entitlements.find(
+        (entitlement) => entitlement.key === "ordering.customer_accounts",
+      )?.enabled ?? false,
+    customerOrderingEnabled:
+      entitlements.find(
+        (entitlement) => entitlement.key === "ordering.customer",
+      )?.enabled ?? false,
+    socialLoginEnabled:
+      entitlements.find((entitlement) => entitlement.key === "auth.social")
+        ?.enabled ?? false,
+    stripePaymentsEnabled:
+      entitlements.find((entitlement) => entitlement.key === "payments.stripe")
+        ?.enabled ?? false,
+  };
+}
+
+export type PublicOrderUnavailableReason =
+  | "MISSING_CONTEXT"
+  | "DOMAIN_DISABLED"
+  | "CUSTOMER_ORDERING_DISABLED"
+  | "CUSTOMER_ACCOUNTS_DISABLED";
 
 export async function getPublicOrderRouteContext({
   orderingPointQrSlug,
@@ -61,7 +87,35 @@ export async function getPublicOrderRouteContext({
         ? await getTenantContextFromDomain(requestDomain, routeSlug).catch(() => null)
         : null;
 
-  if (tenantContext && session?.user.kind === "customer") {
+  const customerFeatures = tenantContext
+    ? await getCustomerFeatureAvailability(tenantContext.organizationId).catch(() => ({
+        customerAccountsEnabled: false,
+        customerOrderingEnabled: false,
+        socialLoginEnabled: false,
+        stripePaymentsEnabled: false,
+      }))
+    : {
+        customerAccountsEnabled: false,
+        customerOrderingEnabled: false,
+        socialLoginEnabled: false,
+        stripePaymentsEnabled: false,
+      };
+  const customerOrderingEnabled =
+    session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
+  const customerAccountsEnabled =
+    session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
+  const socialLoginEnabled = customerFeatures.socialLoginEnabled;
+  const stripePaymentsEnabled = customerFeatures.stripePaymentsEnabled;
+
+  if (!customerAccountsEnabled) {
+    customer = null;
+  }
+
+  if (
+    tenantContext &&
+    customerAccountsEnabled &&
+    session?.user.kind === "customer"
+  ) {
     const customerProfile = await getCustomerProfile(
       session.user.id,
       tenantContext,
@@ -76,7 +130,7 @@ export async function getPublicOrderRouteContext({
   }
 
   const [emailIntegration, googleIntegration, appleIntegration, facebookIntegration] =
-    tenantContext
+    tenantContext && customerAccountsEnabled
       ? await Promise.all([
           resolveOrganizationEmailIntegration(tenantContext.organizationId).catch(
             () => null,
@@ -96,20 +150,42 @@ export async function getPublicOrderRouteContext({
         ])
       : [null, null, null, null];
   const customerAuthProviders = {
-    apple: appleIntegration?.status === "CONFIGURED",
-    email: Boolean(process.env.AUTH_SECRET && emailIntegration?.status === "CONFIGURED"),
-    facebook: facebookIntegration?.status === "CONFIGURED",
-    google: googleIntegration?.status === "CONFIGURED",
+    apple:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      appleIntegration?.status === "CONFIGURED",
+    email: Boolean(
+      customerAccountsEnabled &&
+        process.env.AUTH_SECRET &&
+        emailIntegration?.status === "CONFIGURED",
+    ),
+    facebook:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      facebookIntegration?.status === "CONFIGURED",
+    google:
+      customerAccountsEnabled &&
+      socialLoginEnabled &&
+      googleIntegration?.status === "CONFIGURED",
   };
 
   if (tenantContext) {
     return {
       hasTenantContext: true,
+      customerAccountsEnabled,
+      customerOrderingEnabled,
+      socialLoginEnabled,
+      stripePaymentsEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
       restaurantChoices: [],
       tenantContext,
+      unavailableReason: !customerOrderingEnabled
+        ? ("CUSTOMER_ORDERING_DISABLED" as const)
+        : !customerAccountsEnabled
+          ? ("CUSTOMER_ACCOUNTS_DISABLED" as const)
+          : undefined,
       user,
     };
   }
@@ -117,6 +193,10 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      customerAccountsEnabled: false,
+      customerOrderingEnabled: false,
+      socialLoginEnabled: false,
+      stripePaymentsEnabled: false,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
@@ -128,11 +208,41 @@ export async function getPublicOrderRouteContext({
   }
 
   const restaurantChoices = !orderingPointQrSlug && !routeSlug
-    ? await getCompanyDomainRestaurants(requestDomain).catch(() => [])
+    ? await getCompanyDomainRestaurants(requestDomain)
+        .then(async (restaurants) => {
+          const availability = await Promise.all(
+            restaurants.map(async (restaurant) => {
+              const features = await getCustomerFeatureAvailability(
+                restaurant.id,
+              ).catch(() => ({
+                customerAccountsEnabled: false,
+                customerOrderingEnabled: false,
+                socialLoginEnabled: false,
+                stripePaymentsEnabled: false,
+              }));
+
+              return {
+                enabled:
+                  features.customerOrderingEnabled &&
+                  features.customerAccountsEnabled,
+                restaurant,
+              };
+            }),
+          );
+
+          return availability
+            .filter((candidate) => candidate.enabled)
+            .map((candidate) => candidate.restaurant);
+        })
+        .catch(() => [])
     : [];
 
   return {
     hasTenantContext: false,
+    customerAccountsEnabled: false,
+    customerOrderingEnabled: false,
+    socialLoginEnabled: false,
+    stripePaymentsEnabled: false,
     customer,
     customerAuthProviders,
     phoneVerificationPolicy,

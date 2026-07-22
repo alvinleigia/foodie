@@ -2,6 +2,7 @@ import Link from "next/link";
 import { MailIcon, UsersIcon } from "lucide-react";
 
 import { OrganizationEditPanel } from "@/components/admin/OrganizationEditPanel";
+import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import {
   getCompanyWorkspaceHref,
 } from "@/lib/company-workspace";
 import { requireCompanyRestaurantWorkspaceAccess } from "@/lib/company-workspace-access";
+import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 
 type CompanyRestaurantPageProps = {
   params: Promise<{ companySlug: string; restaurantSlug: string }>;
@@ -24,6 +26,7 @@ export default async function CompanyWorkspaceRestaurantPage({
       companySlug,
       restaurantSlug,
     });
+  const taxProfile = await getRestaurantTaxProfile(restaurant.id);
 
   return (
     <SaasAdminShell
@@ -61,13 +64,19 @@ export default async function CompanyWorkspaceRestaurantPage({
           </Link>
         </Button>
       </div>
-      <OrganizationEditPanel
-        apiPath={`/api/company/restaurants/${restaurant.id}`}
-        backHref={getCompanyWorkspaceHref(company.slug, "restaurants")}
-        entityLabel="Restaurant"
-        organization={restaurant}
-        showCustomerCancellationPolicy
-      />
+      <div className="grid gap-6">
+        <OrganizationEditPanel
+          apiPath={`/api/company/restaurants/${restaurant.id}`}
+          backHref={getCompanyWorkspaceHref(company.slug, "restaurants")}
+          entityLabel="Restaurant"
+          organization={restaurant}
+          showCustomerCancellationPolicy
+        />
+        <RestaurantTaxProfileForm
+          apiPath={`/api/company/restaurants/${restaurant.id}/tax-profile`}
+          profile={taxProfile}
+        />
+      </div>
     </SaasAdminShell>
   );
 }

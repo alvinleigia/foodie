@@ -25,23 +25,27 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const routeSlug = typeof routeValue === "string" ? routeValue : undefined;
   const {
     customer,
+    customerAccountsEnabled,
     customerAuthProviders,
+    customerOrderingEnabled,
     hasTenantContext,
     phoneVerificationPolicy,
     restaurantChoices,
+    stripePaymentsEnabled,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext ? (
+      {hasTenantContext && customerOrderingEnabled && customerAccountsEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
           orderingPointQrSlug={orderingPointQrSlug}
           phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={routeSlug}
+          stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}
         />
       ) : restaurantChoices.length ? (

@@ -1,15 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import {
   BanknoteIcon,
+  BadgePercentIcon,
   CheckCircleIcon,
   CirclePlayIcon,
   ClockIcon,
   CookingPotIcon,
   CreditCardIcon,
+  MailIcon,
   MegaphoneIcon,
   PackageIcon,
   RefreshCwIcon,
+  ReceiptTextIcon,
   RotateCcwIcon,
   UserRoundIcon,
   XIcon,
@@ -32,6 +36,18 @@ import {
   orderItemCorrectionTargets,
 } from "@/lib/order-corrections";
 import { formatOrderDisplay } from "@/lib/order-display";
+import {
+  getOrderFulfilmentLabel,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
+import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
+import {
+  staffOrderAdjustmentReasonLabels,
+  type StaffOrderAdjustmentReasonCode,
+} from "@/lib/order-adjustments";
 
 export type StaffOrder = {
   orderId: string;
@@ -39,6 +55,9 @@ export type StaffOrder = {
   orderDate?: string | null;
   customerName: string;
   source: "CUSTOMER_SELF_SERVICE" | "STAFF_CREATED";
+  fulfilmentType: OrderFulfilmentType;
+  requestedFulfilmentAt: string | null;
+  promisedFulfilmentAt: string | null;
   categoryName: string;
   drinkName: string;
   itemCount?: number;
@@ -51,6 +70,9 @@ export type StaffOrder = {
     quantity: number;
     notes: string | null;
     unitPrice: string | null;
+    taxRateBpsSnapshot: number;
+    taxableAmountSnapshot: string | null;
+    taxAmountSnapshot: string | null;
     status: OrderItemStatus;
     startedAt: string | null;
     readyAt: string | null;
@@ -66,7 +88,13 @@ export type StaffOrder = {
       priceDelta: string;
     }>;
   }>;
-  status: "PENDING" | "PREPARING" | "READY" | "DELIVERED" | "CANCELLED";
+  status:
+    | "PENDING"
+    | "PREPARING"
+    | "ASSEMBLING"
+    | "READY"
+    | "DELIVERED"
+    | "CANCELLED";
   createdAt: string;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
@@ -79,10 +107,22 @@ export type StaffOrder = {
     amount: string;
     method: OrderPaymentMethod;
   }>;
+  adjustment: {
+    amount: string;
+    calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+    id: string;
+    note: string | null;
+    rateBps: number | null;
+    reasonCode: string | null;
+    type: "DISCOUNT" | "COMP";
+  } | null;
+  discountAmountSnapshot: string | null;
   customerCancellationFeeBps: number;
   cancellationFeeBpsApplied: number | null;
   cancellationFeeAmount: string | null;
   refundAmount: string | null;
+  receiptNumber: number | null;
+  receiptIssuedAt: string | null;
 };
 
 export type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
@@ -90,6 +130,7 @@ export type StaffOrderItem = NonNullable<StaffOrder["items"]>[number];
 type OrderCardProps = {
   currency: string;
   order: StaffOrder;
+  restaurantSlug: string;
   onItemAction: (
     orderId: string,
     itemId: string,
@@ -112,9 +153,13 @@ type OrderCardProps = {
   onCorrectOrder: (order: StaffOrder) => void;
   onCorrectItem: (order: StaffOrder, item: StaffOrderItem) => void;
   onSettleOrder: (order: StaffOrder) => void;
+  onSetPromisedTime: (order: StaffOrder) => void;
+  onAdjustOrder: (order: StaffOrder) => void;
   onCancelPayment: (order: StaffOrder) => Promise<void>;
+  onEmailReceipt: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
+  canSettleBills: boolean;
   onRetryRefund: (order: StaffOrder) => Promise<void>;
   pendingAction: string | null;
   disabled: boolean;
@@ -123,6 +168,7 @@ type OrderCardProps = {
 export function OrderCard({
   currency,
   order,
+  restaurantSlug,
   onItemAction,
   onItemAnnounce,
   onOrderAnnounce,
@@ -130,9 +176,13 @@ export function OrderCard({
   onCorrectOrder,
   onCorrectItem,
   onSettleOrder,
+  onSetPromisedTime,
+  onAdjustOrder,
   onCancelPayment,
+  onEmailReceipt,
   canCorrectStatuses,
   canManageRefunds,
+  canSettleBills,
   onRetryRefund,
   pendingAction,
   disabled,
@@ -142,6 +192,7 @@ export function OrderCard({
   const itemCount =
     order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1;
   const placedTime = new Date(order.createdAt).toLocaleTimeString();
+  const fulfilmentTime = getEffectiveFulfilmentTime(order);
   const canCorrectOrder =
     canCorrectStatuses &&
     ![
@@ -155,6 +206,11 @@ export function OrderCard({
     canManageRefunds &&
     order.status === "CANCELLED" &&
     order.paymentStatus === "REFUND_FAILED";
+  const canAdjustOrder =
+    order.source === "STAFF_CREATED" &&
+    ["PENDING", "PREPARING", "ASSEMBLING", "READY"].includes(order.status) &&
+    ["UNPAID", "NOT_REQUIRED"].includes(order.paymentStatus) &&
+    Number(order.paymentCollectedAmount) === 0;
   const paymentCurrency = order.paymentCurrency ?? currency;
   const paymentTotal = order.paymentAmount
     ? new Intl.NumberFormat(undefined, {
@@ -268,10 +324,28 @@ export function OrderCard({
               {pendingAction === `ready-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
                   <Spinner className="text-stone-950" />
-                  Marking Ready...
+                  Sending to assembly...
                 </span>
               ) : (
-                <ButtonLabel icon={CirclePlayIcon}>Mark whole order ready</ButtonLabel>
+                <ButtonLabel icon={CirclePlayIcon}>Send to final assembly</ButtonLabel>
+              )}
+            </Button>
+          ) : null}
+
+          {order.status === "ASSEMBLING" ? (
+            <Button
+              type="button"
+              disabled={disabled}
+              onClick={() => onOrderAction(order.orderId, "ready")}
+              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+            >
+              {pendingAction === `ready-order:${order.orderId}` ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Releasing...
+                </span>
+              ) : (
+                <ButtonLabel icon={CheckCircleIcon}>Ready for handoff</ButtonLabel>
               )}
             </Button>
           ) : null}
@@ -316,6 +390,7 @@ export function OrderCard({
 
           {(order.status === "PENDING" ||
           order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
           order.status === "READY") && order.paymentStatus !== "PENDING" ? (
             <Button
               type="button"
@@ -335,6 +410,23 @@ export function OrderCard({
             </Button>
           ) : null}
 
+          {order.status === "PENDING" ||
+          order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
+          order.status === "READY" ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onSetPromisedTime(order)}
+              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
+            >
+              <ButtonLabel icon={ClockIcon}>
+                {order.promisedFulfilmentAt ? "Change promised time" : "Set promised time"}
+              </ButtonLabel>
+            </Button>
+          ) : null}
+
           {canCorrectOrder ? (
             <Button
               type="button"
@@ -351,6 +443,20 @@ export function OrderCard({
               ) : (
                 <ButtonLabel icon={RotateCcwIcon}>Correct status</ButtonLabel>
               )}
+            </Button>
+          ) : null}
+
+          {canAdjustOrder ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => onAdjustOrder(order)}
+              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
+            >
+              <ButtonLabel icon={BadgePercentIcon}>
+                {order.adjustment ? "Edit discount / comp" : "Discount / comp"}
+              </ButtonLabel>
             </Button>
           ) : null}
         </div>
@@ -409,7 +515,7 @@ export function OrderCard({
           </Button>
         ) : null}
 
-        {canUpdateItem && item.status === "READY" ? (
+        {canUpdateItem && item.status === "READY" && order.status === "READY" ? (
           <>
             <Button
               type="button"
@@ -524,8 +630,17 @@ export function OrderCard({
                   {itemCount} item(s)
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
+                  {getOrderFulfilmentLabel(order.fulfilmentType)}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
                   <ClockIcon className="size-3.5" />
                   Placed {placedTime}
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
+                  <ClockIcon className="size-3.5" />
+                  {fulfilmentTime
+                    ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                    : "ASAP"}
                 </span>
               </div>
             </div>
@@ -554,6 +669,72 @@ export function OrderCard({
           >
             {refundMessage}
           </p>
+        ) : null}
+
+        {order.receiptNumber ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-y border-stone-200 py-3">
+            <div>
+              <p className="text-sm font-semibold text-stone-900">Receipt available</p>
+              <p className="mt-0.5 text-xs text-stone-500">
+                View or print the finalized payment receipt.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link
+                  href={`/restaurants/${encodeURIComponent(restaurantSlug)}/orders/${encodeURIComponent(order.orderId)}/receipt`}
+                >
+                  <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+                </Link>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={disabled}
+                onClick={() => onEmailReceipt(order)}
+              >
+                {pendingAction === `email-receipt:${order.orderId}` ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Spinner className="text-stone-700" />
+                    Sending...
+                  </span>
+                ) : (
+                  <ButtonLabel icon={MailIcon}>Email receipt</ButtonLabel>
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {order.adjustment ? (
+          <div className="mt-4 flex items-center justify-between gap-4 border-y border-emerald-200 px-1 py-3 text-emerald-950">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                <BadgePercentIcon className="size-4" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">
+                  {order.adjustment.type === "COMP" ? "Bill comped" : "Discount applied"}
+                </p>
+                <p className="mt-0.5 text-xs opacity-75">
+                  {staffOrderAdjustmentReasonLabels[
+                    order.adjustment.reasonCode as StaffOrderAdjustmentReasonCode
+                  ] ?? order.adjustment.reasonCode ?? "Adjustment"}
+                </p>
+              </div>
+            </div>
+            <span className="text-sm font-semibold">
+              {order.adjustment.type === "COMP"
+                ? "Full bill"
+                : order.adjustment.calculation === "PERCENTAGE" &&
+                    order.adjustment.rateBps
+                  ? `${order.adjustment.rateBps / 100}%`
+                  : `-${new Intl.NumberFormat(undefined, {
+                      currency: paymentCurrency,
+                      style: "currency",
+                    }).format(Number(order.adjustment.amount))}`}
+            </span>
+          </div>
         ) : null}
 
         {order.source === "STAFF_CREATED" &&
@@ -608,8 +789,9 @@ export function OrderCard({
               </div>
             </div>
 
-            {order.paymentStatus === "UNPAID" ||
-            order.paymentStatus === "PARTIALLY_PAID" ? (
+            {canSettleBills &&
+            (order.paymentStatus === "UNPAID" ||
+              order.paymentStatus === "PARTIALLY_PAID") ? (
               <Button
                 type="button"
                 disabled={disabled || !order.paymentAmount}

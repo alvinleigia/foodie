@@ -13,9 +13,9 @@ import {
   canAccessRole,
   companyAdminRoles,
   platformAdminRoles,
-  restaurantAdminRoles,
 } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import { resetPasswordSchema } from "@/lib/validations/tenant-admin";
 
 const resetExpiryMs = 1000 * 60 * 60 * 24;
@@ -25,6 +25,7 @@ type PasswordResetViewer = {
   username?: string;
   role: MembershipRole;
   organizationId?: string | null;
+  permissions?: StaffPermission[];
 };
 
 type PasswordResetTarget = {
@@ -71,7 +72,7 @@ function canResetPasswordForTarget(
   }
 
   if (
-    canAccessRole(viewer.role, restaurantAdminRoles) &&
+    viewer.permissions?.includes("staff.manage") &&
     viewer.organizationId &&
     target.role !== "PLATFORM_ADMIN"
   ) {

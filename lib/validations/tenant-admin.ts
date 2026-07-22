@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { isSupportedCurrency, isSupportedTimezone } from "@/data/locale-options";
 import { DEFAULT_CURRENCY, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
+import { staffPermissions } from "@/lib/staff-permissions";
 
 export const staffRoles = [
   "COMPANY_OWNER",
@@ -12,6 +13,14 @@ export const staffRoles = [
 export const companyStaffRoles = ["COMPANY_OWNER"] as const;
 
 export const restaurantStaffRoles = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"] as const;
+
+export const subscriptionStatuses = [
+  "TRIALING",
+  "ACTIVE",
+  "PAST_DUE",
+  "SUSPENDED",
+  "CANCELLED",
+] as const;
 
 const timezoneSchema = z
   .string()
@@ -89,6 +98,14 @@ export const createRestaurantStaffInvitationSchema = createStaffInvitationSchema
 export const updateStaffMembershipSchema = z.object({
   role: z.enum(staffRoles),
   isActive: z.boolean(),
+  permissions: z
+    .array(z.enum(staffPermissions))
+    .max(staffPermissions.length)
+    .refine(
+      (permissions) => new Set(permissions).size === permissions.length,
+      "Choose each permission only once",
+    )
+    .optional(),
 });
 
 export const updateCompanyStaffMembershipSchema = z.object({
@@ -140,6 +157,16 @@ export const createChildRestaurantSchema = z.object({
   name: z.string().trim().min(2, "Restaurant name is required").max(120),
   timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
   currency: currencySchema.default(DEFAULT_CURRENCY),
+});
+
+export const updateCompanySubscriptionSchema = z.object({
+  planSlug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(1, "Choose a subscription plan")
+    .max(80),
+  status: z.enum(subscriptionStatuses),
 });
 
 export const companyDomainSchema = z.object({

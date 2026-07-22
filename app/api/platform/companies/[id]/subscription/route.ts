@@ -2,17 +2,13 @@ import { NextResponse } from "next/server";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
-import { updateCompanySubscriptionStatus } from "@/lib/billing";
+import {
+  SaasPlanUnavailableError,
+  updateCompanySubscription,
+} from "@/lib/billing";
 import { platformAdminRoles } from "@/lib/role-access";
 import { listPlatformCompanies } from "@/lib/saas-admin";
-
-const subscriptionStatuses = [
-  "TRIALING",
-  "ACTIVE",
-  "PAST_DUE",
-  "SUSPENDED",
-  "CANCELLED",
-] as const;
+import { updateCompanySubscriptionSchema } from "@/lib/validations/tenant-admin";
 
 export async function PATCH(request: Request, props: { params: Promise<{ id: string }> }) {
   const session = await requireRole([...platformAdminRoles]);
@@ -21,17 +17,26 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = await request.json();
-  const status = payload?.status;
+  const parsed = updateCompanySubscriptionSchema.safeParse(await request.json());
 
-  if (!subscriptionStatuses.includes(status)) {
-    return NextResponse.json({ error: "Invalid subscription status." }, { status: 400 });
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
   const { id } = await props.params;
-  const subscription = await updateCompanySubscriptionStatus(id, status);
+  let result;
 
-  if (!subscription) {
+  try {
+    result = await updateCompanySubscription(id, parsed.data);
+  } catch (error) {
+    if (error instanceof SaasPlanUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    throw error;
+  }
+
+  if (!result) {
     return NextResponse.json({ error: "Subscription not found." }, { status: 404 });
   }
 
@@ -40,10 +45,11 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
     organizationId: id,
     action: "platform.subscription.update",
     entityType: "organization_subscription",
-    entityId: subscription.id,
+    entityId: result.subscription.id,
     metadata: {
       organizationId: id,
-      status: subscription.status,
+      planSlug: result.plan.slug,
+      status: result.subscription.status,
     },
   });
 

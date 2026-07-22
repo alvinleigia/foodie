@@ -1,12 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { XIcon } from "lucide-react";
+import { ReceiptTextIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
 import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
 import { formatOrderDisplay } from "@/lib/order-display";
+import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
+import {
+  formatOrderFulfilmentTime,
+  getEffectiveFulfilmentTime,
+} from "@/lib/order-fulfilment-time";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -40,6 +46,8 @@ type ApiOrder = LocalCustomerOrder & {
   readyAt?: string | null;
   deliveredAt?: string | null;
   cancelledAt?: string | null;
+  receiptIssuedAt?: string | null;
+  receiptNumber?: number | null;
 };
 
 type CustomerOrderStatusProps = {
@@ -50,7 +58,12 @@ type CustomerOrderStatusProps = {
 
 type OrderView = "active" | "completed";
 
-const activeOrderStatuses = new Set(["PENDING", "PREPARING", "READY"]);
+const activeOrderStatuses = new Set([
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+]);
 
 function isActiveOrder(order: ApiOrder) {
   return activeOrderStatuses.has(order.status);
@@ -380,6 +393,7 @@ export function CustomerOrderStatus({
         <div className="grid gap-4">
           {visibleOrders.map((order) => {
             const orderDisplay = formatOrderDisplay(order);
+            const fulfilmentTime = getEffectiveFulfilmentTime(order);
 
             return (
             <Card
@@ -398,6 +412,14 @@ export function CustomerOrderStatus({
                   </h3>
                   <p className="text-sm text-stone-600">
                     {order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1} item(s) for {order.customerName}
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-stone-700">
+                    {getOrderFulfilmentLabel(order.fulfilmentType)}
+                  </p>
+                  <p className="mt-1 text-sm text-stone-600">
+                    {fulfilmentTime
+                      ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                      : "As soon as possible"}
                   </p>
                 </div>
                 <OrderStatusBadge status={order.status} />
@@ -424,9 +446,20 @@ export function CustomerOrderStatus({
                 {order.status === "PENDING" && "Your order is queued and can still be cancelled."}
                 {order.status === "PREPARING" &&
                   "Preparation has started. Cancellation is locked."}
+                {order.status === "ASSEMBLING" &&
+                  "Your order is being checked and assembled for handoff."}
                 {order.status === "READY" &&
-                  "Your drink is ready. Please collect it."}
-                {order.status === "DELIVERED" && "Collected successfully."}
+                  (order.fulfilmentType === "DELIVERY"
+                    ? "Your order is ready for delivery."
+                    : order.fulfilmentType === "DINE_IN"
+                      ? "Your order is ready to be served."
+                      : "Your order is ready for collection.")}
+                {order.status === "DELIVERED" &&
+                  (order.fulfilmentType === "DELIVERY"
+                    ? "Delivered successfully."
+                    : order.fulfilmentType === "DINE_IN"
+                      ? "Served successfully."
+                      : "Collected successfully.")}
                 {order.status === "CANCELLED" &&
                   order.paymentStatus === "REFUND_PENDING" &&
                   "This order was cancelled. Your refund is being processed."}
@@ -453,6 +486,19 @@ export function CustomerOrderStatus({
                   ].includes(order.paymentStatus ?? "") &&
                   "This order was cancelled."}
               </p>
+
+              {order.receiptNumber ? (
+                <Button asChild variant="outline" className="mt-4">
+                  <Link
+                    href={withPublicContext(
+                      `/order/receipt/${encodeURIComponent(order.orderId)}`,
+                      { orderingPointQrSlug, routeSlug },
+                    )}
+                  >
+                    <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+                  </Link>
+                </Button>
+              ) : null}
 
               {order.status === "PENDING" && order.paymentStatus === "PAID" ? (
                 <Button

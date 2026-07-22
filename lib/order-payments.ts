@@ -7,11 +7,17 @@ import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
 import {
+  calculateBasisPointsAmount,
   decimalToMinorUnits,
-  getCurrencyMinorUnitFactor,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
+import { emptyOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
+import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
+import {
+  calculateTaxPricing,
+  type TaxPricingMode,
+} from "@/lib/tax-pricing";
 
 export {
   decimalToMinorUnits,
@@ -30,29 +36,110 @@ export type OrderPaymentLine = {
   unitPrice: string | null;
 };
 
+export type OrderLineTaxSnapshot = {
+  taxAmountSnapshot: string | null;
+  taxableAmountSnapshot: string | null;
+  taxRateBpsSnapshot: number;
+};
+
+function calculateOrderLineUnitTaxPricing(
+  line: OrderPaymentLine,
+  currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
+) {
+  if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
+    throw new Error(`${line.drinkName} needs a valid quantity.`);
+  }
+
+  if (line.unitPrice === null) {
+    return null;
+  }
+
+  const modifierAmount = line.modifiers.reduce(
+    (total, modifier) =>
+      total +
+      decimalToMinorUnits(modifier.priceDelta, currency) * modifier.quantity,
+    0,
+  );
+  const listedUnitAmount =
+    decimalToMinorUnits(line.unitPrice, currency) + modifierAmount;
+
+  return calculateTaxPricing(
+    listedUnitAmount,
+    taxPricing.taxRateBps,
+    taxPricing.pricingMode,
+  );
+}
+
+export function buildOrderLineTaxSnapshot(
+  line: OrderPaymentLine,
+  currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
+): OrderLineTaxSnapshot {
+  const normalizedCurrency = currency.trim().toUpperCase();
+  const unitPricing = calculateOrderLineUnitTaxPricing(
+    line,
+    normalizedCurrency,
+    taxPricing,
+  );
+
+  if (!unitPricing) {
+    return {
+      taxAmountSnapshot: null,
+      taxableAmountSnapshot: null,
+      taxRateBpsSnapshot: taxPricing.taxRateBps,
+    };
+  }
+
+  return {
+    taxAmountSnapshot: minorUnitsToDecimal(
+      unitPricing.taxAmountMinor * line.quantity,
+      normalizedCurrency,
+    ),
+    taxableAmountSnapshot: minorUnitsToDecimal(
+      unitPricing.taxableAmountMinor * line.quantity,
+      normalizedCurrency,
+    ),
+    taxRateBpsSnapshot: taxPricing.taxRateBps,
+  };
+}
+
 export function buildOrderPaymentPricing(
   lines: OrderPaymentLine[],
   currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  } = { pricingMode: "INCLUSIVE", taxRateBps: 0 },
 ) {
   const normalizedCurrency = currency.trim().toUpperCase();
+  let listedSubtotalMinor = 0;
+  let taxableAmountMinor = 0;
+  let taxAmountMinor = 0;
   const lineItems = lines.map((line) => {
-    if (line.unitPrice === null) {
+    const unitPricing = calculateOrderLineUnitTaxPricing(
+      line,
+      normalizedCurrency,
+      taxPricing,
+    );
+
+    if (!unitPricing) {
       throw new Error(`${line.drinkName} is not available for online payment.`);
     }
 
-    const modifierAmount = line.modifiers.reduce(
-      (total, modifier) =>
-        total +
-        decimalToMinorUnits(modifier.priceDelta, normalizedCurrency) *
-          modifier.quantity,
-      0,
-    );
-    const unitAmount =
-      decimalToMinorUnits(line.unitPrice, normalizedCurrency) + modifierAmount;
-
-    if (unitAmount <= 0) {
+    if (unitPricing.listedAmountMinor <= 0) {
       throw new Error(`${line.drinkName} needs a valid price for online payment.`);
     }
+
+    listedSubtotalMinor += unitPricing.listedAmountMinor * line.quantity;
+    taxableAmountMinor += unitPricing.taxableAmountMinor * line.quantity;
+    taxAmountMinor += unitPricing.taxAmountMinor * line.quantity;
 
     return {
       price_data: {
@@ -68,7 +155,7 @@ export function buildOrderPaymentPricing(
               }
             : {}),
         },
-        unit_amount: unitAmount,
+        unit_amount: unitPricing.totalAmountMinor,
       },
       quantity: line.quantity,
     } satisfies Stripe.Checkout.SessionCreateParams.LineItem;
@@ -77,13 +164,17 @@ export function buildOrderPaymentPricing(
     (total, line) => total + (line.price_data?.unit_amount ?? 0) * (line.quantity ?? 1),
     0,
   );
-  const factor = getCurrencyMinorUnitFactor(normalizedCurrency);
-
   return {
-    amountTotal: (amountTotalMinor / factor).toFixed(factor === 1 ? 0 : 2),
+    amountTotal: minorUnitsToDecimal(amountTotalMinor, normalizedCurrency),
     amountTotalMinor,
     currency: normalizedCurrency,
+    listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, normalizedCurrency),
+    listedSubtotalMinor,
     lineItems,
+    taxableAmount: minorUnitsToDecimal(taxableAmountMinor, normalizedCurrency),
+    taxableAmountMinor,
+    taxAmount: minorUnitsToDecimal(taxAmountMinor, normalizedCurrency),
+    taxAmountMinor,
   };
 }
 
@@ -101,8 +192,9 @@ export async function createOrderCheckoutSession(input: {
   stripeAccountId: string;
   successUrl: string;
 }) {
-  const applicationFeeAmount = Math.round(
-    (input.amountTotalMinor * input.applicationFeeBps) / 10_000,
+  const applicationFeeAmount = calculateBasisPointsAmount(
+    input.amountTotalMinor,
+    input.applicationFeeBps,
   );
   const metadata = {
     orderId: input.orderId,
@@ -234,9 +326,30 @@ export async function markOrderPaymentPaid(
 
     const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
+    const financialDocumentUpdate = isPaid
+      ? await getFinancialDocumentNumberUpdate(tx, lockedOrder, now)
+      : {};
+
+    if (
+      lockedOrder.finalTotalAmountSnapshot !== null &&
+      (lockedOrder.financialSnapshotCurrency !== lockedOrder.paymentCurrency ||
+        decimalToMinorUnits(
+          lockedOrder.finalTotalAmountSnapshot,
+          lockedOrder.paymentCurrency,
+        ) !== balance.amountMinor)
+    ) {
+      throw new Error(
+        `The financial snapshot does not match order ${lockedOrder.id}.`,
+      );
+    }
+
     const [nextOrder] = await tx
       .update(orders)
       .set({
+        ...financialDocumentUpdate,
+        financialSnapshotAt:
+          lockedOrder.financialSnapshotAt ??
+          (lockedOrder.finalTotalAmountSnapshot !== null ? now : null),
         paidAt: isPaid ? now : null,
         paymentCollectedAmount: minorUnitsToDecimal(
           collectedMinor,
@@ -321,9 +434,12 @@ async function cancelPendingOrderPaymentRecord(
         Number(lockedOrder.paymentCollectedAmount) > 0
           ? ("PARTIALLY_PAID" as const)
           : ("UNPAID" as const);
+      const clearDraftFinancials =
+        nextPaymentStatus === "UNPAID" && !lockedOrder.financialSnapshotAt;
       const [order] = await tx
         .update(orders)
         .set({
+          ...(clearDraftFinancials ? emptyOrderFinancialSnapshot : {}),
           paymentAccountOrganizationId: null,
           paymentExpiresAt: null,
           paymentStatus: nextPaymentStatus,

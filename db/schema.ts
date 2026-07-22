@@ -6,6 +6,7 @@ import {
   AnyPgColumn,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -17,6 +18,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { StaffPermissionOverrides } from "@/lib/staff-permissions";
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "STAFF"]);
 
@@ -43,6 +45,7 @@ export const userStatusEnum = pgEnum("user_status", [
 export const orderStatusEnum = pgEnum("order_status", [
   "PENDING",
   "PREPARING",
+  "ASSEMBLING",
   "READY",
   "DELIVERED",
   "CANCELLED",
@@ -93,9 +96,22 @@ export const orderingPointTypeEnum = pgEnum("ordering_point_type", [
   "COUNTER",
 ]);
 
+export const prepStationTypeEnum = pgEnum("prep_station_type", [
+  "KITCHEN",
+  "BAR",
+  "OTHER",
+]);
+
 export const orderSourceEnum = pgEnum("order_source", [
   "CUSTOMER_SELF_SERVICE",
   "STAFF_CREATED",
+]);
+
+export const orderFulfilmentTypeEnum = pgEnum("order_fulfilment_type", [
+  "DINE_IN",
+  "TAKEAWAY",
+  "COLLECTION",
+  "DELIVERY",
 ]);
 
 export const paymentStatusEnum = pgEnum("payment_status", [
@@ -124,6 +140,62 @@ export const integrationModeEnum = pgEnum("integration_mode", [
   "DISABLED",
 ]);
 
+export const taxSystemEnum = pgEnum("tax_system", [
+  "NONE",
+  "VAT",
+  "GST",
+  "SALES_TAX",
+  "OTHER",
+]);
+
+export const taxRegistrationStatusEnum = pgEnum("tax_registration_status", [
+  "NOT_REGISTERED",
+  "PENDING",
+  "REGISTERED",
+]);
+
+export const taxPricingModeEnum = pgEnum("tax_pricing_mode", [
+  "INCLUSIVE",
+  "EXCLUSIVE",
+]);
+
+export const orderAdjustmentTypeEnum = pgEnum("order_adjustment_type", [
+  "DISCOUNT",
+  "COMP",
+  "SERVICE_CHARGE",
+  "TIP",
+]);
+
+export const orderAdjustmentScopeEnum = pgEnum("order_adjustment_scope", [
+  "ORDER",
+  "ITEM",
+]);
+
+export const orderAdjustmentCalculationEnum = pgEnum(
+  "order_adjustment_calculation",
+  ["FIXED_AMOUNT", "PERCENTAGE"],
+);
+
+export const orderAdjustmentEntryKindEnum = pgEnum(
+  "order_adjustment_entry_kind",
+  ["APPLY", "REVERSAL"],
+);
+
+export const orderAdjustmentActorTypeEnum = pgEnum(
+  "order_adjustment_actor_type",
+  ["CUSTOMER", "STAFF", "SYSTEM"],
+);
+
+export const financialDocumentTypeEnum = pgEnum("financial_document_type", [
+  "RECEIPT",
+  "INVOICE",
+]);
+
+export const vatInvoiceTypeEnum = pgEnum("vat_invoice_type", [
+  "SIMPLIFIED",
+  "FULL",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -144,6 +216,27 @@ export const orderPaymentMethodEnum = pgEnum("order_payment_method", [
 export const orderPaymentRecordStatusEnum = pgEnum(
   "order_payment_record_status",
   ["PENDING", "SUCCEEDED", "FAILED", "CANCELLED"],
+);
+
+export const stripeWebhookEndpointEnum = pgEnum("stripe_webhook_endpoint", [
+  "PLATFORM",
+  "CONNECT",
+]);
+
+export const stripeWebhookStatusEnum = pgEnum("stripe_webhook_status", [
+  "PROCESSING",
+  "SUCCEEDED",
+  "FAILED",
+]);
+
+export const cashDrawerSessionStatusEnum = pgEnum(
+  "cash_drawer_session_status",
+  ["OPEN", "CLOSED"],
+);
+
+export const cashDrawerMovementTypeEnum = pgEnum(
+  "cash_drawer_movement_type",
+  ["PAID_IN", "PAID_OUT"],
 );
 
 export const socialAuthProviderEnum = pgEnum("social_auth_provider", [
@@ -451,6 +544,165 @@ export const saasPlans = pgTable(
   (table) => [uniqueIndex("saas_plans_slug_unique").on(table.slug)],
 );
 
+export const restaurantDocumentCounters = pgTable(
+  "restaurant_document_counters",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    documentType: financialDocumentTypeEnum("document_type").notNull(),
+    lastNumber: integer("last_number").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("restaurant_document_counters_org_type_unique").on(
+      table.organizationId,
+      table.documentType,
+    ),
+    check(
+      "restaurant_document_counters_last_number_check",
+      sql`${table.lastNumber} >= 0`,
+    ),
+  ],
+);
+
+export const organizationTaxProfiles = pgTable(
+  "organization_tax_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    taxSystem: taxSystemEnum("tax_system").default("NONE").notNull(),
+    pricingMode: taxPricingModeEnum("pricing_mode")
+      .default("INCLUSIVE")
+      .notNull(),
+    registrationStatus: taxRegistrationStatusEnum("registration_status")
+      .default("NOT_REGISTERED")
+      .notNull(),
+    registrationNumber: text("registration_number"),
+    legalName: text("legal_name"),
+    addressLine1: text("address_line_1"),
+    addressLine2: text("address_line_2"),
+    city: text("city"),
+    region: text("region"),
+    postalCode: text("postal_code"),
+    countryCode: text("country_code"),
+    defaultTaxRateBps: integer("default_tax_rate_bps").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_tax_profiles_org_unique").on(
+      table.organizationId,
+    ),
+    index("organization_tax_profiles_status_idx").on(
+      table.registrationStatus,
+    ),
+    check(
+      "organization_tax_profiles_rate_check",
+      sql`${table.defaultTaxRateBps} >= 0 AND ${table.defaultTaxRateBps} <= 10000`,
+    ),
+    check(
+      "organization_tax_profiles_country_check",
+      sql`${table.countryCode} IS NULL OR ${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      "organization_tax_profiles_none_check",
+      sql`${table.taxSystem} <> 'NONE' OR (${table.registrationStatus} = 'NOT_REGISTERED' AND ${table.defaultTaxRateBps} = 0)`,
+    ),
+    check(
+      "organization_tax_profiles_none_pricing_mode_check",
+      sql`${table.taxSystem} <> 'NONE' OR ${table.pricingMode} = 'INCLUSIVE'`,
+    ),
+    check(
+      "organization_tax_profiles_registered_check",
+      sql`${table.registrationStatus} <> 'REGISTERED' OR (
+        ${table.taxSystem} <> 'NONE'
+        AND NULLIF(BTRIM(${table.registrationNumber}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.legalName}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.addressLine1}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.city}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.postalCode}), '') IS NOT NULL
+        AND NULLIF(BTRIM(${table.countryCode}), '') IS NOT NULL
+      )`,
+    ),
+  ],
+);
+
+export const saasFeatures = pgTable(
+  "saas_features",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    category: text("category").notNull(),
+    defaultEnabled: boolean("default_enabled").default(false).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("saas_features_key_unique").on(table.key),
+    index("saas_features_category_idx").on(table.category),
+  ],
+);
+
+export const saasPlanFeatures = pgTable(
+  "saas_plan_features",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planId: uuid("plan_id")
+      .references(() => saasPlans.id, { onDelete: "cascade" })
+      .notNull(),
+    featureId: uuid("feature_id")
+      .references(() => saasFeatures.id, { onDelete: "cascade" })
+      .notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("saas_plan_features_plan_feature_unique").on(
+      table.planId,
+      table.featureId,
+    ),
+    index("saas_plan_features_feature_idx").on(table.featureId),
+  ],
+);
+
+export const organizationFeatureOverrides = pgTable(
+  "organization_feature_overrides",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    featureId: uuid("feature_id")
+      .references(() => saasFeatures.id, { onDelete: "cascade" })
+      .notNull(),
+    enabled: boolean("enabled").notNull(),
+    reason: text("reason"),
+    expiresAt: timestamp("expires_at"),
+    updatedByUserId: uuid("updated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_feature_overrides_org_feature_unique").on(
+      table.organizationId,
+      table.featureId,
+    ),
+    index("organization_feature_overrides_feature_idx").on(table.featureId),
+    index("organization_feature_overrides_expires_idx").on(table.expiresAt),
+  ],
+);
+
 export const organizationSubscriptions = pgTable(
   "organization_subscriptions",
   {
@@ -585,6 +837,10 @@ export const memberships = pgTable(
       .references(() => organizations.id, { onDelete: "cascade" })
       .notNull(),
     role: membershipRoleEnum("role").notNull(),
+    permissionOverrides: jsonb("permission_overrides")
+      .$type<StaffPermissionOverrides>()
+      .default({})
+      .notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -644,11 +900,244 @@ export const passwordResetTokens = pgTable(
   ],
 );
 
+export const rateLimitWindows = pgTable(
+  "rate_limit_windows",
+  {
+    keyHash: text("key_hash").primaryKey(),
+    requestCount: integer("request_count").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("rate_limit_windows_reset_at_idx").on(table.resetAt)],
+);
+
+export const stripeWebhookEvents = pgTable(
+  "stripe_webhook_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    endpoint: stripeWebhookEndpointEnum("endpoint").notNull(),
+    eventId: text("event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    stripeAccountId: text("stripe_account_id"),
+    status: stripeWebhookStatusEnum("status").default("PROCESSING").notNull(),
+    attemptCount: integer("attempt_count").default(1).notNull(),
+    lastError: text("last_error"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    processingStartedAt: timestamp("processing_started_at", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("stripe_webhook_events_endpoint_event_unique").on(
+      table.endpoint,
+      table.eventId,
+    ),
+    index("stripe_webhook_events_status_updated_idx").on(
+      table.status,
+      table.updatedAt,
+    ),
+    index("stripe_webhook_events_account_idx").on(table.stripeAccountId),
+  ],
+);
+
 export const appState = pgTable("app_state", {
   key: text("key").primaryKey(),
   ordersResetAt: timestamp("orders_reset_at"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const cashDrawerSessions = pgTable(
+  "cash_drawer_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderingPointId: uuid("ordering_point_id")
+      .references(() => orderingPoints.id, { onDelete: "restrict" })
+      .notNull(),
+    openedByMembershipId: uuid("opened_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    openedByUserId: uuid("opened_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    openingFloat: numeric("opening_float", { precision: 10, scale: 2 })
+      .default("0")
+      .notNull(),
+    currency: text("currency").notNull(),
+    status: cashDrawerSessionStatusEnum("status").default("OPEN").notNull(),
+    openedAt: timestamp("opened_at").defaultNow().notNull(),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("cash_drawer_sessions_organization_status_idx").on(
+      table.organizationId,
+      table.status,
+    ),
+    index("cash_drawer_sessions_ordering_point_opened_idx").on(
+      table.orderingPointId,
+      table.openedAt,
+    ),
+    uniqueIndex("cash_drawer_sessions_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("cash_drawer_sessions_ordering_point_open_unique")
+      .on(table.orderingPointId)
+      .where(sql`${table.status} = 'OPEN'`),
+    check(
+      "cash_drawer_sessions_opening_float_check",
+      sql`${table.openingFloat} >= 0`,
+    ),
+    check(
+      "cash_drawer_sessions_closed_at_check",
+      sql`(${table.status} = 'OPEN' AND ${table.closedAt} IS NULL) OR (${table.status} = 'CLOSED' AND ${table.closedAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const cashDrawerMovements = pgTable(
+  "cash_drawer_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").notNull(),
+    type: cashDrawerMovementTypeEnum("type").notNull(),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    recordedByMembershipId: uuid("recorded_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "cash_drawer_movements_session_organization_fk",
+    }).onDelete("cascade"),
+    index("cash_drawer_movements_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    index("cash_drawer_movements_session_created_idx").on(
+      table.cashDrawerSessionId,
+      table.createdAt,
+    ),
+    check("cash_drawer_movements_amount_check", sql`${table.amount} > 0`),
+    check(
+      "cash_drawer_movements_reason_check",
+      sql`char_length(btrim(${table.reason})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "cash_drawer_movements_note_check",
+      sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`,
+    ),
+  ],
+);
+
+export const cashDrawerReconciliations = pgTable(
+  "cash_drawer_reconciliations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").notNull(),
+    currency: text("currency").notNull(),
+    openingFloat: numeric("opening_float", { precision: 10, scale: 2 })
+      .notNull(),
+    cashSalesAmount: numeric("cash_sales_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    cashRefundsAmount: numeric("cash_refunds_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    paidInAmount: numeric("paid_in_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    paidOutAmount: numeric("paid_out_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    expectedCashAmount: numeric("expected_cash_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    countedCashAmount: numeric("counted_cash_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    varianceAmount: numeric("variance_amount", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    closingNote: text("closing_note"),
+    closedByMembershipId: uuid("closed_by_membership_id").references(
+      () => memberships.id,
+      { onDelete: "set null" },
+    ),
+    closedByUserId: uuid("closed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "cash_drawer_reconciliations_session_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("cash_drawer_reconciliations_session_unique").on(
+      table.cashDrawerSessionId,
+    ),
+    index("cash_drawer_reconciliations_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    check(
+      "cash_drawer_reconciliations_nonnegative_amounts_check",
+      sql`${table.openingFloat} >= 0 AND ${table.cashSalesAmount} >= 0 AND ${table.cashRefundsAmount} >= 0 AND ${table.paidInAmount} >= 0 AND ${table.paidOutAmount} >= 0 AND ${table.expectedCashAmount} >= 0 AND ${table.countedCashAmount} >= 0`,
+    ),
+    check(
+      "cash_drawer_reconciliations_expected_cash_check",
+      sql`${table.expectedCashAmount} = ${table.openingFloat} + ${table.cashSalesAmount} + ${table.paidInAmount} - ${table.cashRefundsAmount} - ${table.paidOutAmount}`,
+    ),
+    check(
+      "cash_drawer_reconciliations_variance_check",
+      sql`${table.varianceAmount} = ${table.countedCashAmount} - ${table.expectedCashAmount}`,
+    ),
+    check(
+      "cash_drawer_reconciliations_closing_note_check",
+      sql`${table.closingNote} IS NULL OR char_length(${table.closingNote}) <= 500`,
+    ),
+  ],
+);
 
 export const menuCategories = pgTable("menu_categories", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -670,6 +1159,46 @@ export const menuCategories = pgTable("menu_categories", {
   ),
 ]);
 
+export const prepStations = pgTable(
+  "prep_stations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    type: prepStationTypeEnum("type").default("OTHER").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("prep_stations_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("prep_stations_organization_slug_unique").on(
+      table.organizationId,
+      table.slug,
+    ),
+    index("prep_stations_organization_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.sortOrder,
+    ),
+    check(
+      "prep_stations_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "prep_stations_slug_check",
+      sql`${table.slug} ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'`,
+    ),
+  ],
+);
+
 export const menuItems = pgTable("menu_items", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -678,6 +1207,7 @@ export const menuItems = pgTable("menu_items", {
   categoryId: uuid("category_id")
     .references(() => menuCategories.id, { onDelete: "cascade" })
     .notNull(),
+  prepStationId: uuid("prep_station_id"),
   slug: text("slug").notNull(),
   name: text("name").notNull(),
   description: text("description"),
@@ -690,6 +1220,15 @@ export const menuItems = pgTable("menu_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("menu_items_organization_idx").on(table.organizationId),
+  index("menu_items_prep_station_idx").on(
+    table.organizationId,
+    table.prepStationId,
+  ),
+  foreignKey({
+    columns: [table.prepStationId, table.organizationId],
+    foreignColumns: [prepStations.id, prepStations.organizationId],
+    name: "menu_items_prep_station_organization_fk",
+  }).onDelete("restrict"),
   uniqueIndex("menu_items_org_slug_unique").on(
     table.organizationId,
     table.slug,
@@ -869,6 +1408,11 @@ export const orders = pgTable("orders", {
     onDelete: "set null",
   }),
   source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
+  fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type")
+    .default("COLLECTION")
+    .notNull(),
+  requestedFulfilmentAt: timestamp("requested_fulfilment_at"),
+  promisedFulfilmentAt: timestamp("promised_fulfilment_at"),
   paymentStatus: paymentStatusEnum("payment_status")
     .default("NOT_REQUIRED")
     .notNull(),
@@ -880,6 +1424,32 @@ export const orders = pgTable("orders", {
     .default("0")
     .notNull(),
   paymentCurrency: text("payment_currency"),
+  subtotalAmountSnapshot: numeric("subtotal_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  discountAmountSnapshot: numeric("discount_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  taxAmountSnapshot: numeric("tax_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  chargeAmountSnapshot: numeric("charge_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  tipAmountSnapshot: numeric("tip_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  finalTotalAmountSnapshot: numeric("final_total_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  financialSnapshotCurrency: text("financial_snapshot_currency"),
+  financialSnapshotAt: timestamp("financial_snapshot_at"),
   paymentAccountOrganizationId: uuid("payment_account_organization_id").references(
     () => organizations.id,
     { onDelete: "set null" },
@@ -889,6 +1459,31 @@ export const orders = pgTable("orders", {
   stripePaymentIntentId: text("stripe_payment_intent_id"),
   paymentExpiresAt: timestamp("payment_expires_at"),
   paidAt: timestamp("paid_at"),
+  receiptNumber: integer("receipt_number"),
+  receiptIssuedAt: timestamp("receipt_issued_at"),
+  invoiceNumber: integer("invoice_number"),
+  invoiceIssuedAt: timestamp("invoice_issued_at"),
+  vatInvoiceType: vatInvoiceTypeEnum("vat_invoice_type"),
+  invoiceTaxPointAt: timestamp("invoice_tax_point_at"),
+  invoiceSupplierName: text("invoice_supplier_name"),
+  invoiceSupplierAddressLine1: text("invoice_supplier_address_line_1"),
+  invoiceSupplierAddressLine2: text("invoice_supplier_address_line_2"),
+  invoiceSupplierCity: text("invoice_supplier_city"),
+  invoiceSupplierRegion: text("invoice_supplier_region"),
+  invoiceSupplierPostalCode: text("invoice_supplier_postal_code"),
+  invoiceSupplierCountryCode: text("invoice_supplier_country_code"),
+  invoiceSupplierVatNumber: text("invoice_supplier_vat_number"),
+  invoiceCustomerName: text("invoice_customer_name"),
+  invoiceCustomerAddressLine1: text("invoice_customer_address_line_1"),
+  invoiceCustomerAddressLine2: text("invoice_customer_address_line_2"),
+  invoiceCustomerCity: text("invoice_customer_city"),
+  invoiceCustomerRegion: text("invoice_customer_region"),
+  invoiceCustomerPostalCode: text("invoice_customer_postal_code"),
+  invoiceCustomerCountryCode: text("invoice_customer_country_code"),
+  taxPricingModeSnapshot: taxPricingModeEnum("tax_pricing_mode_snapshot")
+    .default("INCLUSIVE")
+    .notNull(),
+  taxRateBpsSnapshot: integer("tax_rate_bps_snapshot").default(0).notNull(),
   customerCancellationFeeBpsSnapshot: integer(
     "customer_cancellation_fee_bps_snapshot",
   )
@@ -943,6 +1538,26 @@ export const orders = pgTable("orders", {
     table.orderDate,
     table.orderNo,
   ),
+  index("orders_restaurant_promised_fulfilment_idx").on(
+    table.organizationId,
+    table.promisedFulfilmentAt,
+  ),
+  uniqueIndex("orders_restaurant_receipt_number_unique").on(
+    table.organizationId,
+    table.receiptNumber,
+  ),
+  uniqueIndex("orders_restaurant_invoice_number_unique").on(
+    table.organizationId,
+    table.invoiceNumber,
+  ),
+  uniqueIndex("orders_id_organization_unique").on(
+    table.id,
+    table.organizationId,
+  ),
+  check(
+    "orders_tax_rate_bps_snapshot_check",
+    sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
+  ),
   check(
     "orders_customer_cancellation_fee_bps_snapshot_check",
     sql`${table.customerCancellationFeeBpsSnapshot} >= 0 AND ${table.customerCancellationFeeBpsSnapshot} <= 10000`,
@@ -958,6 +1573,67 @@ export const orders = pgTable("orders", {
   check(
     "orders_payment_collected_amount_check",
     sql`${table.paymentCollectedAmount} >= 0 AND ((${table.paymentAmount} IS NULL AND ${table.paymentCollectedAmount} = 0) OR (${table.paymentAmount} IS NOT NULL AND ${table.paymentCollectedAmount} <= ${table.paymentAmount}))`,
+  ),
+  check(
+    "orders_financial_snapshot_completeness_check",
+    sql`(${table.subtotalAmountSnapshot} IS NULL AND ${table.discountAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL AND ${table.chargeAmountSnapshot} IS NULL AND ${table.tipAmountSnapshot} IS NULL AND ${table.finalTotalAmountSnapshot} IS NULL AND ${table.financialSnapshotCurrency} IS NULL AND ${table.financialSnapshotAt} IS NULL) OR (${table.subtotalAmountSnapshot} IS NOT NULL AND ${table.discountAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.chargeAmountSnapshot} IS NOT NULL AND ${table.tipAmountSnapshot} IS NOT NULL AND ${table.finalTotalAmountSnapshot} IS NOT NULL AND ${table.financialSnapshotCurrency} IS NOT NULL)`,
+  ),
+  check(
+    "orders_financial_snapshot_amounts_check",
+    sql`${table.subtotalAmountSnapshot} IS NULL OR (${table.subtotalAmountSnapshot} >= 0 AND ${table.discountAmountSnapshot} >= 0 AND ${table.discountAmountSnapshot} <= ${table.subtotalAmountSnapshot} AND ${table.taxAmountSnapshot} >= 0 AND ${table.chargeAmountSnapshot} >= 0 AND ${table.tipAmountSnapshot} >= 0 AND ${table.finalTotalAmountSnapshot} = ${table.subtotalAmountSnapshot} - ${table.discountAmountSnapshot} + ${table.taxAmountSnapshot} + ${table.chargeAmountSnapshot} + ${table.tipAmountSnapshot})`,
+  ),
+  check(
+    "orders_financial_snapshot_currency_check",
+    sql`${table.financialSnapshotCurrency} IS NULL OR (char_length(${table.financialSnapshotCurrency}) = 3 AND ${table.financialSnapshotCurrency} = upper(${table.financialSnapshotCurrency}))`,
+  ),
+  check(
+    "orders_receipt_issuance_check",
+    sql`(${table.receiptNumber} IS NULL AND ${table.receiptIssuedAt} IS NULL) OR (${table.receiptNumber} > 0 AND ${table.receiptIssuedAt} IS NOT NULL)`,
+  ),
+  check(
+    "orders_invoice_issuance_check",
+    sql`(
+      ${table.invoiceNumber} IS NULL
+      AND ${table.invoiceIssuedAt} IS NULL
+      AND ${table.vatInvoiceType} IS NULL
+      AND ${table.invoiceTaxPointAt} IS NULL
+      AND ${table.invoiceSupplierName} IS NULL
+      AND ${table.invoiceSupplierAddressLine1} IS NULL
+      AND ${table.invoiceSupplierAddressLine2} IS NULL
+      AND ${table.invoiceSupplierCity} IS NULL
+      AND ${table.invoiceSupplierRegion} IS NULL
+      AND ${table.invoiceSupplierPostalCode} IS NULL
+      AND ${table.invoiceSupplierCountryCode} IS NULL
+      AND ${table.invoiceSupplierVatNumber} IS NULL
+      AND ${table.invoiceCustomerName} IS NULL
+      AND ${table.invoiceCustomerAddressLine1} IS NULL
+      AND ${table.invoiceCustomerAddressLine2} IS NULL
+      AND ${table.invoiceCustomerCity} IS NULL
+      AND ${table.invoiceCustomerRegion} IS NULL
+      AND ${table.invoiceCustomerPostalCode} IS NULL
+      AND ${table.invoiceCustomerCountryCode} IS NULL
+    ) OR (
+      ${table.invoiceNumber} > 0
+      AND ${table.invoiceIssuedAt} IS NOT NULL
+      AND ${table.vatInvoiceType} IS NOT NULL
+      AND ${table.invoiceTaxPointAt} IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierName}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierAddressLine1}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierCity}), '') IS NOT NULL
+      AND NULLIF(BTRIM(${table.invoiceSupplierPostalCode}), '') IS NOT NULL
+      AND ${table.invoiceSupplierCountryCode} ~ '^[A-Z]{2}$'
+      AND NULLIF(BTRIM(${table.invoiceSupplierVatNumber}), '') IS NOT NULL
+      AND (
+        ${table.vatInvoiceType} = 'SIMPLIFIED'
+        OR (
+          NULLIF(BTRIM(${table.invoiceCustomerName}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerAddressLine1}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerCity}), '') IS NOT NULL
+          AND NULLIF(BTRIM(${table.invoiceCustomerPostalCode}), '') IS NOT NULL
+          AND ${table.invoiceCustomerCountryCode} ~ '^[A-Z]{2}$'
+        )
+      )
+    )`,
   ),
 ]);
 
@@ -1024,6 +1700,10 @@ export const orderPayments = pgTable(
     receivedByUserId: uuid("received_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    cashDrawerSessionId: uuid("cash_drawer_session_id").references(
+      () => cashDrawerSessions.id,
+      { onDelete: "set null" },
+    ),
     stripeConnectedAccountId: text("stripe_connected_account_id"),
     stripeCheckoutSessionId: text("stripe_checkout_session_id"),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
@@ -1040,6 +1720,9 @@ export const orderPayments = pgTable(
       table.orderId,
       table.status,
       table.createdAt,
+    ),
+    index("order_payments_cash_drawer_session_idx").on(
+      table.cashDrawerSessionId,
     ),
     uniqueIndex("order_payments_stripe_checkout_session_unique").on(
       table.stripeCheckoutSessionId,
@@ -1081,16 +1764,25 @@ export const orderRefunds = pgTable(
     requestedByUserId: uuid("requested_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
+    cashDrawerSessionId: uuid("cash_drawer_session_id"),
     requestedAt: timestamp("requested_at").defaultNow().notNull(),
     processedAt: timestamp("processed_at"),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.cashDrawerSessionId, table.organizationId],
+      foreignColumns: [cashDrawerSessions.id, cashDrawerSessions.organizationId],
+      name: "order_refunds_cash_drawer_session_organization_fk",
+    }).onDelete("no action"),
     index("order_refunds_order_requested_idx").on(
       table.orderId,
       table.requestedAt,
     ),
     index("order_refunds_payment_idx").on(table.orderPaymentId),
+    index("order_refunds_cash_drawer_session_idx").on(
+      table.cashDrawerSessionId,
+    ),
     uniqueIndex("order_refunds_stripe_refund_unique").on(table.stripeRefundId),
     uniqueIndex("order_refunds_idempotency_key_unique").on(
       table.idempotencyKey,
@@ -1114,9 +1806,20 @@ export const orderItems = pgTable("order_items", {
   categoryName: text("category_name").notNull(),
   drinkId: text("drink_id").notNull(),
   drinkName: text("drink_name").notNull(),
+  prepStationId: uuid("prep_station_id"),
+  prepStationNameSnapshot: text("prep_station_name_snapshot"),
   quantity: integer("quantity").default(1).notNull(),
   notes: text("notes"),
   unitPrice: numeric("unit_price", { precision: 10, scale: 2 }),
+  taxRateBpsSnapshot: integer("tax_rate_bps_snapshot").default(0).notNull(),
+  taxableAmountSnapshot: numeric("taxable_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
+  taxAmountSnapshot: numeric("tax_amount_snapshot", {
+    precision: 10,
+    scale: 2,
+  }),
   status: orderItemStatusEnum("status").default("PENDING").notNull(),
   startedAt: timestamp("started_at"),
   readyAt: timestamp("ready_at"),
@@ -1129,6 +1832,34 @@ export const orderItems = pgTable("order_items", {
   index("order_items_restaurant_order_idx").on(
     table.organizationId,
     table.orderId,
+  ),
+  uniqueIndex("order_items_id_order_organization_unique").on(
+    table.id,
+    table.orderId,
+    table.organizationId,
+  ),
+  index("order_items_prep_station_status_idx").on(
+    table.organizationId,
+    table.prepStationId,
+    table.status,
+    table.createdAt,
+  ),
+  foreignKey({
+    columns: [table.prepStationId, table.organizationId],
+    foreignColumns: [prepStations.id, prepStations.organizationId],
+    name: "order_items_prep_station_organization_fk",
+  }).onDelete("restrict"),
+  check(
+    "order_items_prep_station_snapshot_check",
+    sql`(${table.prepStationId} IS NULL AND ${table.prepStationNameSnapshot} IS NULL) OR (${table.prepStationId} IS NOT NULL AND char_length(btrim(${table.prepStationNameSnapshot})) BETWEEN 1 AND 80)`,
+  ),
+  check(
+    "order_items_tax_rate_bps_snapshot_check",
+    sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
+  ),
+  check(
+    "order_items_tax_amount_snapshots_check",
+    sql`(${table.taxableAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL) OR (${table.taxableAmountSnapshot} IS NOT NULL AND ${table.taxableAmountSnapshot} >= 0 AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} >= 0)`,
   ),
 ]);
 
@@ -1155,5 +1886,99 @@ export const orderItemModifiers = pgTable(
   (table) => [
     index("order_item_modifiers_order_item_idx").on(table.orderItemId),
     index("order_item_modifiers_organization_idx").on(table.organizationId),
+  ],
+);
+
+export const orderAdjustments = pgTable(
+  "order_adjustments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id").notNull(),
+    orderItemId: uuid("order_item_id"),
+    type: orderAdjustmentTypeEnum("type").notNull(),
+    scope: orderAdjustmentScopeEnum("scope").notNull(),
+    calculation: orderAdjustmentCalculationEnum("calculation").notNull(),
+    entryKind: orderAdjustmentEntryKindEnum("entry_kind")
+      .default("APPLY")
+      .notNull(),
+    basisAmount: numeric("basis_amount", { precision: 10, scale: 2 }).notNull(),
+    rateBps: integer("rate_bps"),
+    amount: numeric("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull(),
+    reasonCode: text("reason_code"),
+    note: text("note"),
+    actorType: orderAdjustmentActorTypeEnum("actor_type").notNull(),
+    actorUserId: uuid("actor_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    actorCustomerId: uuid("actor_customer_id").references(() => customers.id, {
+      onDelete: "set null",
+    }),
+    reversesAdjustmentId: uuid("reverses_adjustment_id").references(
+      (): AnyPgColumn => orderAdjustments.id,
+      { onDelete: "restrict" },
+    ),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("order_adjustments_organization_order_created_idx").on(
+      table.organizationId,
+      table.orderId,
+      table.createdAt,
+    ),
+    index("order_adjustments_order_item_idx").on(table.orderItemId),
+    uniqueIndex("order_adjustments_organization_idempotency_unique").on(
+      table.organizationId,
+      table.idempotencyKey,
+    ),
+    uniqueIndex("order_adjustments_reversal_unique")
+      .on(table.reversesAdjustmentId)
+      .where(sql`${table.reversesAdjustmentId} IS NOT NULL`),
+    foreignKey({
+      columns: [table.orderId, table.organizationId],
+      foreignColumns: [orders.id, orders.organizationId],
+      name: "order_adjustments_order_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.orderItemId, table.orderId, table.organizationId],
+      foreignColumns: [
+        orderItems.id,
+        orderItems.orderId,
+        orderItems.organizationId,
+      ],
+      name: "order_adjustments_item_order_organization_fk",
+    }).onDelete("restrict"),
+    check(
+      "order_adjustments_scope_check",
+      sql`(${table.scope} = 'ORDER' AND ${table.orderItemId} IS NULL) OR (${table.scope} = 'ITEM' AND ${table.orderItemId} IS NOT NULL)`,
+    ),
+    check(
+      "order_adjustments_calculation_check",
+      sql`(${table.calculation} = 'FIXED_AMOUNT' AND ${table.rateBps} IS NULL) OR (${table.calculation} = 'PERCENTAGE' AND ${table.rateBps} IS NOT NULL AND ${table.rateBps} > 0 AND ${table.rateBps} <= 10000)`,
+    ),
+    check(
+      "order_adjustments_amount_check",
+      sql`${table.basisAmount} >= 0 AND ${table.amount} > 0 AND (${table.type} NOT IN ('DISCOUNT', 'COMP') OR ${table.amount} <= ${table.basisAmount})`,
+    ),
+    check(
+      "order_adjustments_reason_check",
+      sql`${table.type} NOT IN ('DISCOUNT', 'COMP') OR (${table.reasonCode} IS NOT NULL AND char_length(btrim(${table.reasonCode})) > 0)`,
+    ),
+    check(
+      "order_adjustments_reversal_check",
+      sql`(${table.entryKind} = 'APPLY' AND ${table.reversesAdjustmentId} IS NULL) OR (${table.entryKind} = 'REVERSAL' AND ${table.reversesAdjustmentId} IS NOT NULL)`,
+    ),
+    check(
+      "order_adjustments_currency_check",
+      sql`char_length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`,
+    ),
+    check(
+      "order_adjustments_actor_check",
+      sql`(${table.actorType} = 'STAFF' AND ${table.actorCustomerId} IS NULL) OR (${table.actorType} = 'CUSTOMER' AND ${table.actorUserId} IS NULL) OR (${table.actorType} = 'SYSTEM' AND ${table.actorUserId} IS NULL AND ${table.actorCustomerId} IS NULL)`,
+    ),
   ],
 );

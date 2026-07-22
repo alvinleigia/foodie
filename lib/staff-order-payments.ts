@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 
 import { getDb } from "@/db";
 import {
+  cashDrawerSessions,
   orderItemModifiers,
   orderItems,
   orderPayments,
@@ -28,6 +29,16 @@ import {
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
+import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
+import type { TaxPricingMode } from "@/lib/tax-pricing";
+import {
+  assertOrderFinancialSnapshotMatches,
+  buildOrderFinancialSnapshot,
+  getFinalizedOrderFinancialSnapshot,
+} from "@/lib/order-financial-snapshots";
+import { calculateDiscountedOrderFinancials } from "@/lib/order-adjustments";
+import { getActiveStaffOrderAdjustment } from "@/lib/staff-order-adjustments";
 
 type StaffPaymentActor = {
   id: string;
@@ -55,6 +66,10 @@ async function getCollectiblePricing(
   orderId: string,
   organizationId: string,
   currency: string,
+  taxPricing: {
+    pricingMode: TaxPricingMode;
+    taxRateBps: number;
+  },
 ) {
   const items = await tx
     .select()
@@ -113,6 +128,7 @@ async function getCollectiblePricing(
         unitPrice: item.unitPrice,
       })),
       currency,
+      taxPricing,
     );
   } catch (error) {
     throw new StaffOrderPaymentError(
@@ -160,6 +176,46 @@ function getPaymentBalance(
   return balance;
 }
 
+async function resolveStaffOrderFinancialSnapshot(
+  tx: PaymentTransaction,
+  order: typeof orders.$inferSelect,
+  pricing: ReturnType<typeof buildOrderPaymentPricing>,
+) {
+  const adjustment = await getActiveStaffOrderAdjustment(
+    tx,
+    order.id,
+    order.organizationId,
+  );
+  const adjusted = calculateDiscountedOrderFinancials({
+    adjustment: adjustment
+      ? {
+          amountMinor: decimalToMinorUnits(adjustment.amount, pricing.currency),
+          calculation: adjustment.calculation,
+          rateBps: adjustment.rateBps,
+          type: adjustment.type,
+        }
+      : null,
+    subtotalAmountMinor: pricing.taxableAmountMinor,
+    taxAmountMinor: pricing.taxAmountMinor,
+  });
+  const expected = buildOrderFinancialSnapshot({
+    currency: pricing.currency,
+    discountAmountMinor: adjusted.discountAmountMinor,
+    subtotalAmountMinor: pricing.taxableAmountMinor,
+    taxAmountMinor: adjusted.taxAmountMinor,
+  });
+  const finalized = getFinalizedOrderFinancialSnapshot(order);
+
+  if (finalized) {
+    assertOrderFinancialSnapshotMatches({ current: finalized, expected });
+  }
+
+  return {
+    isFinalized: finalized !== null,
+    snapshot: finalized ?? expected,
+  };
+}
+
 export async function collectStaffCashPayment(input: {
   actor: StaffPaymentActor;
   amount: string;
@@ -167,6 +223,11 @@ export async function collectStaffCashPayment(input: {
   organizationId: string;
   tenderedAmount: string;
 }) {
+  await assertOrganizationFeaturesEnabled(
+    input.organizationId,
+    ["payments.staff_billing"],
+  );
+
   const result = await getDb().transaction(async (tx) => {
     const [order] = await tx
       .select()
@@ -203,13 +264,53 @@ export async function collectStaffCashPayment(input: {
       throw new StaffOrderPaymentError("This order is missing its currency.");
     }
 
+    if (!order.orderingPointId) {
+      throw new StaffOrderPaymentError(
+        "This order is not assigned to an ordering point.",
+      );
+    }
+
+    const [drawerSession] = await tx
+      .select()
+      .from(cashDrawerSessions)
+      .where(
+        and(
+          eq(cashDrawerSessions.organizationId, order.organizationId),
+          eq(cashDrawerSessions.orderingPointId, order.orderingPointId),
+          eq(cashDrawerSessions.status, "OPEN"),
+        ),
+      )
+      .limit(1)
+      .for("update");
+
+    if (!drawerSession) {
+      throw new StaffOrderPaymentError(
+        "Open the cash drawer before recording a cash payment.",
+      );
+    }
+
+    if (drawerSession.currency !== currency) {
+      throw new StaffOrderPaymentError(
+        "The open cash drawer currency does not match this order.",
+      );
+    }
+
     const pricing = await getCollectiblePricing(
       tx,
       order.id,
       order.organizationId,
       currency,
+      {
+        pricingMode: order.taxPricingModeSnapshot,
+        taxRateBps: order.taxRateBpsSnapshot,
+      },
     );
-    const balance = getPaymentBalance(order, pricing.amountTotal, currency);
+    const financials = await resolveStaffOrderFinancialSnapshot(tx, order, pricing);
+    const balance = getPaymentBalance(
+      order,
+      financials.snapshot.finalTotalAmountSnapshot,
+      currency,
+    );
     const amountMinor = decimalToMinorUnits(input.amount, currency);
 
     if (amountMinor <= 0 || amountMinor > balance.remainingMinor) {
@@ -228,11 +329,18 @@ export async function collectStaffCashPayment(input: {
     const collectedMinor = balance.collectedMinor + amountMinor;
     const isPaid = collectedMinor === balance.amountMinor;
     const now = new Date();
+    const financialDocumentUpdate = isPaid
+      ? await getFinancialDocumentNumberUpdate(tx, order, now)
+      : {};
     const [updatedOrder] = await tx
       .update(orders)
       .set({
+        ...financialDocumentUpdate,
+        ...(!financials.isFinalized
+          ? { ...financials.snapshot, financialSnapshotAt: now }
+          : {}),
         paidAt: isPaid ? now : null,
-        paymentAmount: pricing.amountTotal,
+        paymentAmount: financials.snapshot.finalTotalAmountSnapshot,
         paymentCollectedAmount: minorUnitsToDecimal(collectedMinor, currency),
         paymentCurrency: currency,
         paymentStatus: isPaid ? "PAID" : "PARTIALLY_PAID",
@@ -257,6 +365,7 @@ export async function collectStaffCashPayment(input: {
       .insert(orderPayments)
       .values({
         amount,
+        cashDrawerSessionId: drawerSession.id,
         changeAmount: cash.changeAmount,
         completedAt: now,
         currency,
@@ -364,6 +473,11 @@ export async function createStaffStripeCheckout(input: {
     throw new StaffOrderPaymentError("This bill is not available for payment.");
   }
 
+  await assertOrganizationFeaturesEnabled(
+    input.organizationId,
+    ["payments.staff_billing", "payments.stripe"],
+  );
+
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new StaffOrderPaymentError(
       "Online payment is temporarily unavailable.",
@@ -422,10 +536,19 @@ export async function createStaffStripeCheckout(input: {
       lockedOrder.id,
       lockedOrder.organizationId,
       currency,
+      {
+        pricingMode: lockedOrder.taxPricingModeSnapshot,
+        taxRateBps: lockedOrder.taxRateBpsSnapshot,
+      },
+    );
+    const financials = await resolveStaffOrderFinancialSnapshot(
+      tx,
+      lockedOrder,
+      pricing,
     );
     const balance = getPaymentBalance(
       lockedOrder,
-      pricing.amountTotal,
+      financials.snapshot.finalTotalAmountSnapshot,
       currency,
     );
 
@@ -461,8 +584,9 @@ export async function createStaffStripeCheckout(input: {
     const [updatedOrder] = await tx
       .update(orders)
       .set({
+        ...(!financials.isFinalized ? financials.snapshot : {}),
         paymentAccountOrganizationId: integration.organizationId,
-        paymentAmount: pricing.amountTotal,
+        paymentAmount: financials.snapshot.finalTotalAmountSnapshot,
         paymentCurrency: currency,
         paymentExpiresAt: expiresAt,
         paymentStatus: "PENDING",

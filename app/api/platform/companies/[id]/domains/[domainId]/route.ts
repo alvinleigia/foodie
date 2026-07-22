@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { FeatureEntitlementError } from "@/lib/feature-entitlements";
 import { platformAdminRoles } from "@/lib/role-access";
 import {
   listCompanyDomains,
@@ -43,6 +44,10 @@ export async function PATCH(
 
     return NextResponse.json({ domains: await listCompanyDomains(id) });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }

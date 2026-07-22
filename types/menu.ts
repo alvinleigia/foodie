@@ -1,3 +1,13 @@
+export type PrepStationRecord = {
+  id: string;
+  organizationId: string;
+  slug: string;
+  name: string;
+  type: "KITCHEN" | "BAR" | "OTHER";
+  sortOrder: number;
+  isActive: boolean;
+};
+
 export type MenuItemRecord = {
   id: string;
   organizationId: string;
@@ -10,6 +20,7 @@ export type MenuItemRecord = {
   sortOrder: number;
   isActive: boolean;
   isSoldOut: boolean;
+  prepStationId?: string | null;
   inventoryStatus?: "not_tracked" | "out" | "low" | "ok";
   inventoryQuantity?: string | null;
   isUnavailableDueToStock?: boolean;

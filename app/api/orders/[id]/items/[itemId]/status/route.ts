@@ -1,51 +1,65 @@
 import { and, eq, sql } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
+import {
+  authorizeManagerAction,
+  ManagerApprovalError,
+  type ManagerApproval,
+} from "@/lib/manager-approval";
 import {
   OrderTransitionConflictError,
   requireOrderTransitionResult,
 } from "@/lib/order-transition";
+import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
 
-type ItemAction = "start" | "ready" | "announce" | "deliver" | "cancel";
-
-function isItemAction(value: unknown): value is ItemAction {
-  return (
-    value === "start" ||
-    value === "ready" ||
-    value === "announce" ||
-    value === "deliver" ||
-    value === "cancel"
-  );
-}
+const itemActionSchema = z.object({
+  action: z.enum(["start", "ready", "announce", "deliver", "cancel"]),
+  managerApproval: optionalManagerApprovalSchema,
+});
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string; itemId: string }> },
 ) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.update_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
+    const parsed = itemActionSchema.safeParse(
+      await request.json().catch(() => null),
+    );
 
-    if (!isItemAction(body.action)) {
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid item action." },
         { status: 400 },
       );
     }
 
+    const body = parsed.data;
     const { id, itemId } = await context.params;
     const tenantContext = await getCurrentTenantContext();
+    let managerApproval: ManagerApproval | undefined;
+
+    if (body.action === "cancel") {
+      managerApproval = await authorizeManagerAction({
+        actor: session.user,
+        credentials: body.managerApproval,
+        organizationId: tenantContext.organizationId,
+      });
+    }
+
     const db = getDb();
     const [order] = await db
       .select()
@@ -117,6 +131,16 @@ export async function POST(
     ) {
       return NextResponse.json(
         { error: "Only ready items can use this action." },
+        { status: 409 },
+      );
+    }
+
+    if (
+      (body.action === "announce" || body.action === "deliver") &&
+      order.status !== "READY"
+    ) {
+      return NextResponse.json(
+        { error: "The whole order must pass final assembly before handoff." },
         { status: 409 },
       );
     }
@@ -250,32 +274,10 @@ export async function POST(
             eq(orderItems.organizationId, tenantContext.organizationId),
           ),
         );
-      const openItems = currentItems.filter(
-        (currentItem) =>
-          currentItem.status !== "DELIVERED" && currentItem.status !== "CANCELLED",
+      const nextOrderStatus = deriveOrderStatusFromItems(
+        currentItems.map((currentItem) => currentItem.status),
+        lockedOrder.status,
       );
-      const allItemsCancelled = currentItems.every(
-        (currentItem) => currentItem.status === "CANCELLED",
-      );
-      const allItemsClosed = currentItems.every(
-        (currentItem) =>
-          currentItem.status === "DELIVERED" || currentItem.status === "CANCELLED",
-      );
-      const allOpenItemsReady =
-        openItems.length > 0 &&
-        openItems.every((currentItem) => currentItem.status === "READY");
-      const hasStartedItem = currentItems.some(
-        (currentItem) => currentItem.status !== "PENDING",
-      );
-      const nextOrderStatus = allItemsCancelled
-        ? "CANCELLED"
-        : allItemsClosed
-          ? "DELIVERED"
-          : allOpenItemsReady
-            ? "READY"
-            : hasStartedItem
-              ? "PREPARING"
-              : "PENDING";
 
       const [updatedOrder] = await tx
         .update(orders)
@@ -285,8 +287,7 @@ export async function POST(
             nextOrderStatus === "PENDING"
               ? lockedOrder.startedAt
               : (lockedOrder.startedAt ?? now),
-          readyAt:
-            nextOrderStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
+          readyAt: nextOrderStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
           deliveredAt: nextOrderStatus === "DELIVERED" ? now : null,
           cancelledAt: nextOrderStatus === "CANCELLED" ? now : null,
           cancelledByType:
@@ -325,6 +326,9 @@ export async function POST(
         previousStatus: result.previousItem.status,
         nextStatus: result.updatedItem.status,
         orderStatus: result.updatedOrder.status,
+        approvedByUserId: managerApproval?.approvedByUserId ?? null,
+        approvedByUsername: managerApproval?.approvedByUsername ?? null,
+        approvalMode: managerApproval?.mode ?? null,
       },
     });
 
@@ -335,9 +339,16 @@ export async function POST(
       itemStatus: result.updatedItem.status,
     });
   } catch (error) {
+    const status =
+      error instanceof OrderTransitionConflictError
+        ? 409
+        : error instanceof ManagerApprovalError
+          ? error.status
+          : 500;
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to update order item." },
-      { status: error instanceof OrderTransitionConflictError ? 409 : 500 },
+      { status },
     );
   }
 }

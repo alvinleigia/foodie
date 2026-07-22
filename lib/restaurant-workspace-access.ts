@@ -4,8 +4,7 @@ import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { getTenantAdminSnapshot } from "@/lib/tenant-admin";
 import { isSessionAccessAllowedForCurrentDomain } from "@/lib/domain-session";
-import { canAccessRole } from "@/lib/role-access";
-import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
 import {
   getRestaurantWorkspaceHref,
@@ -13,8 +12,8 @@ import {
 } from "@/lib/restaurant-workspace";
 
 type RestaurantWorkspaceAccessOptions = {
-  allowedRoles: MembershipRole[];
   destination: RestaurantWorkspaceDestination;
+  requiredPermission: StaffPermission;
   restaurantSlug?: string;
 };
 
@@ -29,14 +28,18 @@ function isStaffSession(
 }
 
 export async function requireRestaurantWorkspaceAccess({
-  allowedRoles,
   destination,
+  requiredPermission,
   restaurantSlug,
 }: RestaurantWorkspaceAccessOptions) {
   const session = await auth();
 
-  if (!isStaffSession(session) || !canAccessRole(session.user.role, allowedRoles)) {
+  if (!isStaffSession(session)) {
     redirect("/staff/login");
+  }
+
+  if (!session.user.permissions.includes(requiredPermission)) {
+    notFound();
   }
 
   if (!(await isSessionAccessAllowedForCurrentDomain(session.user))) {

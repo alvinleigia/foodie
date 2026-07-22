@@ -1,4 +1,5 @@
 import {
+  calculateBasisPointsAmount,
   decimalToMinorUnits,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
@@ -17,7 +18,7 @@ export function calculateCancellationAmounts(input: {
   }
 
   const grossMinor = decimalToMinorUnits(input.amount, input.currency);
-  const feeMinor = Math.round((grossMinor * input.feeBps) / 10_000);
+  const feeMinor = calculateBasisPointsAmount(grossMinor, input.feeBps);
   const refundMinor = Math.max(grossMinor - feeMinor, 0);
 
   return {

@@ -1,3 +1,5 @@
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+
 export const CUSTOMER_ORDERS_STORAGE_KEY = "bar_customer_orders";
 export const CUSTOMER_ORDERS_RESET_MARKER_STORAGE_KEY = "bar_customer_orders_reset_marker";
 export const CUSTOMER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -5,6 +7,7 @@ export const CUSTOMER_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const orderStatuses = [
   "PENDING",
   "PREPARING",
+  "ASSEMBLING",
   "READY",
   "DELIVERED",
   "CANCELLED",
@@ -42,9 +45,13 @@ export const orderPaymentMethods = ["CASH", "STRIPE_CHECKOUT"] as const;
 
 export type OrderPaymentMethod = (typeof orderPaymentMethods)[number];
 
+export type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+
 export type OrderLineItem = {
   id?: string;
   organizationId?: string;
+  prepStationId?: string | null;
+  prepStationNameSnapshot?: string | null;
   categoryId: string;
   categoryName: string;
   drinkId: string;
@@ -52,6 +59,9 @@ export type OrderLineItem = {
   quantity: number;
   notes: string | null;
   unitPrice: string | null;
+  taxRateBpsSnapshot: number;
+  taxableAmountSnapshot: string | null;
+  taxAmountSnapshot: string | null;
   status: OrderItemStatus;
   startedAt: string | null;
   readyAt: string | null;
@@ -77,6 +87,9 @@ export type LocalCustomerOrder = {
   organizationId?: string;
   customerToken: string;
   customerName: string;
+  fulfilmentType: OrderFulfilmentType;
+  requestedFulfilmentAt?: string | null;
+  promisedFulfilmentAt?: string | null;
   categoryName: string;
   drinkName: string;
   itemCount?: number;
@@ -87,6 +100,14 @@ export type LocalCustomerOrder = {
   paymentAmount?: string | null;
   paymentCollectedAmount?: string;
   paymentCurrency?: string | null;
+  subtotalAmountSnapshot?: string | null;
+  discountAmountSnapshot?: string | null;
+  taxAmountSnapshot?: string | null;
+  chargeAmountSnapshot?: string | null;
+  tipAmountSnapshot?: string | null;
+  finalTotalAmountSnapshot?: string | null;
+  financialSnapshotCurrency?: string | null;
+  financialSnapshotAt?: string | null;
   customerCancellationFeeBps?: number;
   cancellationFeeBpsApplied?: number | null;
   cancellationFeeAmount?: string | null;

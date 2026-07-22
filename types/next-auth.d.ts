@@ -1,6 +1,7 @@
 import { DefaultSession } from "next-auth";
 
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 
 type StaffSessionUser = DefaultSession["user"] & {
   id: string;
@@ -8,6 +9,7 @@ type StaffSessionUser = DefaultSession["user"] & {
   role: MembershipRole;
   membershipId: string;
   organizationId: string;
+  permissions: StaffPermission[];
   username?: string;
 };
 
@@ -17,6 +19,7 @@ type CustomerSessionUser = DefaultSession["user"] & {
   role?: never;
   membershipId?: never;
   organizationId?: never;
+  permissions?: never;
   username?: never;
 };
 
@@ -30,6 +33,7 @@ declare module "next-auth" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
+    permissions?: StaffPermission[];
     sessionVersion?: number;
     username?: string;
   }
@@ -41,6 +45,7 @@ declare module "next-auth/jwt" {
     role?: MembershipRole;
     membershipId?: string;
     organizationId?: string;
+    permissions?: StaffPermission[];
     sessionVersion?: number;
     username?: string;
   }

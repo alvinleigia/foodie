@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireCustomerSession, requireStaffSession } from "@/lib/auth";
+import { requireCustomerSession, requireStaffPermission } from "@/lib/auth";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import {
   cancelOrder,
   OrderCancellationError,
 } from "@/lib/order-cancellation";
+import {
+  authorizeManagerAction,
+  ManagerApprovalError,
+} from "@/lib/manager-approval";
 import { serializeOrder } from "@/lib/orders";
 import {
   checkRateLimit,
@@ -28,7 +36,7 @@ export async function POST(
   try {
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.cancel");
 
     if (!session) {
       const customerSession = await requireCustomerSession();
@@ -37,7 +45,7 @@ export async function POST(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
-      const rateLimit = checkRateLimit({
+      const rateLimit = await checkRateLimit({
         key: getRequestRateLimitKey(request, "public:order-cancel"),
         limit: 20,
         windowMs: 60_000,
@@ -48,6 +56,10 @@ export async function POST(
       }
 
       const tenantContext = await getPublicTenantContextFromRequest(request);
+      await assertOrganizationFeatureEnabled(
+        tenantContext.organizationId,
+        "ordering.customer_accounts",
+      );
       const parsed = customerCancelOrderSchema.safeParse(body);
 
       if (!parsed.success) {
@@ -84,9 +96,17 @@ export async function POST(
       );
     }
 
+    const managerApproval = await authorizeManagerAction({
+      actor: session.user,
+      credentials: parsed.data.managerApproval,
+      organizationId: tenantContext.organizationId,
+    });
+
     const result = await cancelOrder({
       actorType: "STAFF",
       actorUser: session.user,
+      managerApproval,
+      canIssueRefund: session.user.permissions.includes("payments.refund"),
       applyCustomerCancellationFee:
         parsed.data.applyCustomerCancellationFee,
       cancellationFeeBps:
@@ -107,8 +127,11 @@ export async function POST(
   } catch (error) {
     const status =
       error instanceof OrderCancellationError ||
+      error instanceof ManagerApprovalError ||
       error instanceof StaffRestaurantContextError
         ? error.status
+        : error instanceof FeatureEntitlementError
+          ? 403
         : 500;
 
     return NextResponse.json(

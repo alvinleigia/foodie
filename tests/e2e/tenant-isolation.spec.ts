@@ -43,6 +43,7 @@ test.describe("tenant isolation", () => {
   test("scopes tenant data to the active restaurant membership", async ({ page }) => {
     const config = skipUnlessIsolationConfigured();
     const restaurantSlugs: string[] = [];
+    const orderIdsByRestaurant: string[][] = [];
 
     await loginWithStaffCredentials(
       page,
@@ -80,6 +81,39 @@ test.describe("tenant isolation", () => {
       expect(snapshot.organization.id).toBe(membership?.organizationId);
       restaurantSlugs.push(snapshot.organization.slug);
 
+      const menuResponse = await page.request.get(
+        pathForBaseUrl(config.baseUrl, "/api/menu"),
+      );
+      expect(menuResponse.ok()).toBeTruthy();
+      const menu = (await menuResponse.json()) as {
+        categories: Array<{
+          organizationId: string;
+          items: Array<{ organizationId: string }>;
+        }>;
+      };
+
+      for (const category of menu.categories) {
+        expect(category.organizationId).toBe(membership?.organizationId);
+        for (const item of category.items) {
+          expect(item.organizationId).toBe(membership?.organizationId);
+        }
+      }
+
+      const ordersResponse = await page.request.get(
+        pathForBaseUrl(config.baseUrl, "/api/orders?view=active"),
+      );
+      expect(ordersResponse.ok()).toBeTruthy();
+      const orderPayload = (await ordersResponse.json()) as {
+        activeOrders: Array<{ orderId: string; organizationId: string }>;
+      };
+
+      for (const order of orderPayload.activeOrders) {
+        expect(order.organizationId).toBe(membership?.organizationId);
+      }
+      orderIdsByRestaurant.push(
+        orderPayload.activeOrders.map((order) => order.orderId),
+      );
+
       const orderResponse = await page.request.get(
         pathForBaseUrl(config.baseUrl, "/order"),
       );
@@ -88,6 +122,12 @@ test.describe("tenant isolation", () => {
         `/restaurants/${snapshot.organization.slug}/order`,
       );
     }
+
+    expect(
+      orderIdsByRestaurant[0].filter((orderId) =>
+        orderIdsByRestaurant[1].includes(orderId),
+      ),
+    ).toEqual([]);
 
     const staleMenuResponse = await page.request.get(
       pathForBaseUrl(

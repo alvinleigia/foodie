@@ -32,6 +32,7 @@ import {
 type CompanyDomain = {
   id: string;
   domain: string;
+  isCustomDomain: boolean;
   scope: "COMPANY" | "RESTAURANT";
   purpose: "ADMIN" | "ORDERING" | "BOTH";
   restaurantOrganizationId: string | null;
@@ -46,8 +47,13 @@ type CompanyDomainsPanelProps = {
   apiPath: string;
   backHref: string;
   companyName: string;
+  companyCustomDomainsEnabled: boolean;
   domains: CompanyDomain[];
-  restaurants: Array<{ id: string; name: string }>;
+  restaurants: Array<{
+    customDomainsEnabled: boolean;
+    id: string;
+    name: string;
+  }>;
 };
 
 type CompanyDomainsResponse = {
@@ -59,13 +65,19 @@ type CompanyDomainField = "domain" | "isPrimary" | "restaurantOrganizationId";
 const companyDomainTarget = "COMPANY";
 
 function normalizeDomainInput(value: string) {
-  return value.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0].split(":")[0];
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .split(":")[0];
 }
 
 export function CompanyDomainsPanel({
   apiPath,
   backHref,
   companyName,
+  companyCustomDomainsEnabled,
   domains: initialDomains,
   restaurants,
 }: CompanyDomainsPanelProps) {
@@ -77,6 +89,24 @@ export function CompanyDomainsPanel({
   const [pendingDomainId, setPendingDomainId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const validation = useFormValidation<CompanyDomainField>();
+  const targetCustomDomainsEnabled =
+    target === companyDomainTarget
+      ? companyCustomDomainsEnabled
+      : (restaurants.find((restaurant) => restaurant.id === target)
+          ?.customDomainsEnabled ?? false);
+
+  function canActivateDomain(domainRecord: CompanyDomain) {
+    if (!domainRecord.isCustomDomain) {
+      return true;
+    }
+
+    return domainRecord.restaurantOrganizationId
+      ? (restaurants.find(
+          (restaurant) =>
+            restaurant.id === domainRecord.restaurantOrganizationId,
+        )?.customDomainsEnabled ?? false)
+      : companyCustomDomainsEnabled;
+  }
 
   async function addDomain() {
     setIsSubmitting(true);
@@ -156,6 +186,13 @@ export function CompanyDomainsPanel({
               void addDomain();
             }}
           >
+            {!targetCustomDomainsEnabled ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Custom domains are not enabled for this target.
+                Platform-managed subdomains remain available.
+              </p>
+            ) : null}
+
             {validation.formError ? (
               <p className="text-sm text-rose-600">{validation.formError}</p>
             ) : null}
@@ -180,7 +217,7 @@ export function CompanyDomainsPanel({
                   setDomain(event.target.value);
                 }}
                 placeholder="foodie.allgoonline.co.uk"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !targetCustomDomainsEnabled}
               />
             </FormField>
 
@@ -220,6 +257,7 @@ export function CompanyDomainsPanel({
                   validation.clearFieldError("isPrimary");
                   setIsPrimary(checked === true);
                 }}
+                disabled={isSubmitting || !targetCustomDomainsEnabled}
               />
               Make this the primary domain for the selected target
             </label>
@@ -240,7 +278,7 @@ export function CompanyDomainsPanel({
             <div className="flex flex-wrap gap-3">
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !targetCustomDomainsEnabled}
                 className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
                 {isSubmitting ? (
@@ -277,11 +315,14 @@ export function CompanyDomainsPanel({
             </p>
           ) : null}
 
-          {domains.map((domainRecord) => (
-            <div
-              key={domainRecord.id}
-              className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 lg:grid-cols-[1fr_auto]"
-            >
+          {domains.map((domainRecord) => {
+            const activationAllowed = canActivateDomain(domainRecord);
+
+            return (
+              <div
+                key={domainRecord.id}
+                className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 lg:grid-cols-[1fr_auto]"
+              >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-semibold text-stone-950">{domainRecord.domain}</p>
@@ -292,13 +333,16 @@ export function CompanyDomainsPanel({
                     {domainRecord.isActive ? "Active" : "Disabled"}
                   </StatusPill>
                   <StatusPill>Customer ordering</StatusPill>
+                  {domainRecord.isCustomDomain && !activationAllowed ? (
+                    <StatusPill tone="warning">Feature unavailable</StatusPill>
+                  ) : null}
                   <StatusPill tone="neutral">
                     {domainRecord.scope === "RESTAURANT"
                       ? domainRecord.restaurantName ?? "Restaurant"
                       : `${companyName} directory`}
                   </StatusPill>
                 </div>
-                {domainRecord.isActive ? (
+                {domainRecord.isActive && activationAllowed ? (
                   <a
                     href={`https://${domainRecord.domain}/order`}
                     target="_blank"
@@ -308,6 +352,11 @@ export function CompanyDomainsPanel({
                     Open ordering domain
                     <ExternalLinkIcon className="size-3.5" />
                   </a>
+                ) : domainRecord.isActive ? (
+                  <p className="mt-2 text-sm text-stone-500">
+                    Custom-domain access is disabled for this target. DNS may
+                    still resolve, but tenant access is blocked.
+                  </p>
                 ) : (
                   <p className="mt-2 text-sm text-stone-500">
                     Disabled in Foodie. DNS may still resolve, but tenant access is blocked.
@@ -322,7 +371,8 @@ export function CompanyDomainsPanel({
                   disabled={
                     pendingDomainId === domainRecord.id ||
                     domainRecord.isPrimary ||
-                    !domainRecord.isActive
+                    !domainRecord.isActive ||
+                    !activationAllowed
                   }
                   onClick={() => updateDomain(domainRecord, { isPrimary: true })}
                   className="rounded-lg"
@@ -332,7 +382,10 @@ export function CompanyDomainsPanel({
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={pendingDomainId === domainRecord.id}
+                  disabled={
+                    pendingDomainId === domainRecord.id ||
+                    (!domainRecord.isActive && !activationAllowed)
+                  }
                   onClick={() =>
                     updateDomain(domainRecord, { isActive: !domainRecord.isActive })
                   }
@@ -354,8 +407,9 @@ export function CompanyDomainsPanel({
                 )}
                 </Button>
               </div>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </div>

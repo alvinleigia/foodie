@@ -6,6 +6,7 @@ import { getNextOrderNumber, getRestaurantBusinessDate } from "@/lib/order-numbe
 import { createOrderSchema } from "@/lib/validations/order";
 import {
   buildOrderSummary,
+  getActiveOrderAdjustmentsForOrders,
   getLatestOrderPaymentsForOrders,
   getSuccessfulOrderPaymentPortionsForOrders,
   getStaffOrders,
@@ -30,16 +31,11 @@ import {
   orders,
   organizations,
 } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   getCustomerProfile,
   getStaffVisibleCustomer,
 } from "@/lib/customer-account";
-import {
-  canAccessRole,
-  operationalRoles,
-  restaurantAdminRoles,
-} from "@/lib/role-access";
 import {
   checkRateLimit,
   getRequestRateLimitKey,
@@ -52,6 +48,7 @@ import {
 } from "@/lib/tenant-context";
 import { isValidCustomerPhone } from "@/lib/validations/customer";
 import {
+  buildOrderLineTaxSnapshot,
   buildOrderPaymentPricing,
   cancelPendingOrderPaymentByOrderId,
   createOrderCheckoutSession,
@@ -62,22 +59,39 @@ import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integr
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import {
+  assertOrganizationFeaturesEnabled,
+  FeatureEntitlementError,
+  getOrganizationFeatureEntitlement,
+} from "@/lib/feature-entitlements";
+import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
+import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
+import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.view");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const [{ activeOrders, pastOrders }, currency] = await Promise.all([
-      getStaffOrders(tenantContext),
+    const view = request.nextUrl.searchParams.get("view") === "past"
+      ? "past"
+      : "active";
+    const requestedPage = Number(request.nextUrl.searchParams.get("page") ?? "1");
+    const page = Number.isFinite(requestedPage)
+      ? Math.max(1, Math.trunc(requestedPage))
+      : 1;
+    const [orderPage, currency] = await Promise.all([
+      getStaffOrders(tenantContext, { page, view }),
       getTenantMenuCurrency(tenantContext),
     ]);
+    const { activeOrders, pastOrders } = orderPage;
     const orderIds = [...activeOrders, ...pastOrders].map((order) => order.id);
-    const [itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
+    const [adjustmentMap, itemMap, paymentMethodMap, paymentPortionMap] = await Promise.all([
+      getActiveOrderAdjustmentsForOrders(orderIds, tenantContext),
       getOrderItemsForOrders(orderIds, tenantContext),
       getLatestOrderPaymentsForOrders(orderIds, tenantContext),
       getSuccessfulOrderPaymentPortionsForOrders(orderIds, tenantContext),
@@ -90,6 +104,7 @@ export async function GET() {
           itemMap.get(order.id) ?? [],
           paymentMethodMap.get(order.id) ?? null,
           paymentPortionMap.get(order.id) ?? [],
+          adjustmentMap.get(order.id) ?? null,
         ),
       ),
       pastOrders: pastOrders.map((order) =>
@@ -98,11 +113,22 @@ export async function GET() {
           itemMap.get(order.id) ?? [],
           paymentMethodMap.get(order.id) ?? null,
           paymentPortionMap.get(order.id) ?? [],
+          adjustmentMap.get(order.id) ?? null,
         ),
       ),
-      canCorrectStatuses: canAccessRole(session.user.role, restaurantAdminRoles),
-      canManageRefunds: canAccessRole(session.user.role, restaurantAdminRoles),
+      canCorrectStatuses: session.user.permissions.includes(
+        "orders.correct_status",
+      ),
+      canManageRefunds: session.user.permissions.includes("payments.refund"),
       currency,
+      pageInfo: {
+        activeHasMore: orderPage.activeHasMore,
+        page: orderPage.page,
+        pageSize: orderPage.pageSize,
+        total: orderPage.total,
+        totalPages: orderPage.totalPages,
+        view: orderPage.view,
+      },
     });
   } catch (error) {
     return NextResponse.json(
@@ -123,12 +149,12 @@ export async function POST(request: NextRequest) {
     if (
       session.user.kind === "staff" &&
       (!isPlatformAdministrationRequest(request) ||
-        !canAccessRole(session.user.role, operationalRoles))
+        !session.user.permissions.includes("orders.create"))
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-create"),
       limit: 12,
       windowMs: 60_000,
@@ -145,6 +171,35 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
+
+    const scheduledFulfilmentAt = parsed.data.scheduledFulfilmentAt
+      ? new Date(parsed.data.scheduledFulfilmentAt)
+      : null;
+    const fulfilmentTimeError = scheduledFulfilmentAt
+      ? validateFutureFulfilmentTime(scheduledFulfilmentAt)
+      : null;
+
+    if (fulfilmentTimeError) {
+      return NextResponse.json({ error: fulfilmentTimeError }, { status: 400 });
+    }
+
+    if (session.user.kind === "customer") {
+      await assertOrganizationFeaturesEnabled(
+        tenantContext.organizationId,
+        [
+          "ordering.customer",
+          "ordering.customer_accounts",
+          "payments.stripe",
+        ],
+      );
+    }
+
+    const inventoryEnabled = (
+      await getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      )
+    ).enabled;
 
     const customerProfile =
       session.user.kind === "customer"
@@ -265,6 +320,8 @@ export async function POST(request: NextRequest) {
       quantity: number;
       notes: string | null;
       unitPrice: string | null;
+      prepStationId: string | null;
+      prepStationNameSnapshot: string | null;
       status: "PENDING";
       shouldReserveInventory: boolean;
       modifiers: Array<{
@@ -282,14 +339,22 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     for (const requestedItem of parsed.data.items) {
-      const { category, inventory, item } = await getMenuSelectionSnapshot(
+      const { category, inventory, item, prepStation } = await getMenuSelectionSnapshot(
         requestedItem.categoryId,
         requestedItem.drinkId,
         tenantContext,
+        { includeInventory: inventoryEnabled },
       );
 
       if (!category || !item) {
         return NextResponse.json({ error: "Invalid drink selection." }, { status: 400 });
+      }
+
+      if (item.prepStationId && !prepStation) {
+        return NextResponse.json(
+          { error: `${item.name} is assigned to an unavailable preparation station.` },
+          { status: 409 },
+        );
       }
 
       const totalRequestedQuantity = requestedQuantityByDrinkId.get(item.id) ?? requestedItem.quantity;
@@ -316,6 +381,8 @@ export async function POST(request: NextRequest) {
         quantity: requestedItem.quantity,
         notes: requestedItem.notes?.trim() || null,
         unitPrice: item.price ?? null,
+        prepStationId: prepStation?.id ?? null,
+        prepStationNameSnapshot: prepStation?.name ?? null,
         status: "PENDING",
         shouldReserveInventory: Boolean(inventory?.isTracked),
         modifiers,
@@ -328,7 +395,7 @@ export async function POST(request: NextRequest) {
 
     const db = getDb();
     const customerToken = generateCustomerToken();
-    const [currency, restaurantPolicy] = await Promise.all([
+    const [currency, restaurantPolicy, taxPricing] = await Promise.all([
       getTenantMenuCurrency(tenantContext),
       db
         .select({
@@ -339,6 +406,7 @@ export async function POST(request: NextRequest) {
         .where(eq(organizations.id, tenantContext.organizationId))
         .limit(1)
         .then((rows) => rows[0] ?? null),
+      getRestaurantTaxPricing(tenantContext.organizationId),
     ]);
 
     if (!restaurantPolicy) {
@@ -351,7 +419,7 @@ export async function POST(request: NextRequest) {
     let orderPricing: ReturnType<typeof buildOrderPaymentPricing> | null = null;
 
     try {
-      orderPricing = buildOrderPaymentPricing(cartItems, currency);
+      orderPricing = buildOrderPaymentPricing(cartItems, currency, taxPricing);
     } catch (pricingError) {
       if (session.user.kind === "customer") {
         throw pricingError;
@@ -360,6 +428,16 @@ export async function POST(request: NextRequest) {
 
     const paymentPricing =
       session.user.kind === "customer" ? orderPricing : null;
+    const customerFinancialSnapshot = paymentPricing
+      ? buildOrderFinancialSnapshot({
+          currency: paymentPricing.currency,
+          subtotalAmountMinor: paymentPricing.taxableAmountMinor,
+          taxAmountMinor: paymentPricing.taxAmountMinor,
+        })
+      : null;
+    const orderLineTaxSnapshots = cartItems.map((item) =>
+      buildOrderLineTaxSnapshot(item, currency, taxPricing),
+    );
     const paymentExpiresAt = paymentPricing
       ? new Date(Date.now() + 30 * 60 * 1000)
       : null;
@@ -372,6 +450,7 @@ export async function POST(request: NextRequest) {
     const createdOrder = await db.transaction(async (tx) => {
       const orderDate = await getRestaurantBusinessDate(tx, tenantContext);
       const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
+      const now = new Date();
       const [newOrder] = await tx
         .insert(orders)
         .values({
@@ -392,10 +471,21 @@ export async function POST(request: NextRequest) {
           createdByUserId: session.user.kind === "staff" ? session.user.id : null,
           source:
             session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
+          fulfilmentType: parsed.data.fulfilmentType,
+          requestedFulfilmentAt:
+            session.user.kind === "customer" ? scheduledFulfilmentAt : null,
+          promisedFulfilmentAt:
+            session.user.kind === "staff" ? scheduledFulfilmentAt : null,
           paymentStatus:
             session.user.kind === "customer" ? "PENDING" : "UNPAID",
           paymentAmount: orderPricing?.amountTotal ?? null,
           paymentCurrency: orderPricing?.currency ?? currency,
+          ...(customerFinancialSnapshot
+            ? {
+                ...customerFinancialSnapshot,
+                financialSnapshotAt: now,
+              }
+            : {}),
           paymentAccountOrganizationId:
             paymentIntegration?.status === "CONFIGURED"
               ? paymentIntegration.organizationId
@@ -405,6 +495,8 @@ export async function POST(request: NextRequest) {
               ? paymentIntegration.stripeAccountId
               : null,
           paymentExpiresAt,
+          taxPricingModeSnapshot: taxPricing.pricingMode,
+          taxRateBpsSnapshot: taxPricing.taxRateBps,
           customerCancellationFeeBpsSnapshot:
             restaurantPolicy.customerCancellationFeeBps,
           categoryId: cartItems[0].categoryId,
@@ -414,8 +506,8 @@ export async function POST(request: NextRequest) {
         })
         .returning();
 
-      const now = new Date();
-      for (const item of cartItems) {
+      for (const [itemIndex, item] of cartItems.entries()) {
+        const lineTaxSnapshot = orderLineTaxSnapshots[itemIndex];
         const inventoryReservedAt = item.shouldReserveInventory
           ? await reserveInventoryForOrderItem(tx, tenantContext, item).then((wasReserved) =>
               wasReserved ? now : null,
@@ -434,6 +526,11 @@ export async function POST(request: NextRequest) {
             quantity: item.quantity,
             notes: item.notes,
             unitPrice: item.unitPrice,
+            prepStationId: item.prepStationId,
+            prepStationNameSnapshot: item.prepStationNameSnapshot,
+            taxRateBpsSnapshot: lineTaxSnapshot.taxRateBpsSnapshot,
+            taxableAmountSnapshot: lineTaxSnapshot.taxableAmountSnapshot,
+            taxAmountSnapshot: lineTaxSnapshot.taxAmountSnapshot,
             inventoryReservedAt,
             updatedAt: now,
           })
@@ -562,7 +659,13 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ...serializeOrder(createdOrder, cartItems),
+      ...serializeOrder(
+        createdOrder,
+        cartItems.map((item, itemIndex) => ({
+          ...item,
+          ...orderLineTaxSnapshots[itemIndex],
+        })),
+      ),
       checkoutUrl,
       currency,
       ordersResetAt: await getOrdersResetAt(),
@@ -570,6 +673,10 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof InventoryReservationError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
 
     return NextResponse.json(

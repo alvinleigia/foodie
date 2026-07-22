@@ -25,7 +25,13 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   const orderingPointQrSlug = typeof qrValue === "string" ? qrValue : undefined;
   const routeSlug =
     props.routeSlug ?? (typeof routeValue === "string" ? routeValue : undefined);
-  const { customer, hasTenantContext, unavailableReason, user } =
+  const {
+    customer,
+    customerAccountsEnabled,
+    hasTenantContext,
+    unavailableReason,
+    user,
+  } =
     await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
   const customerContext = { orderingPointQrSlug, routeSlug };
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
@@ -40,7 +46,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
     redirect(homePath);
   }
 
-  if (hasTenantContext && !customer) {
+  if (hasTenantContext && customerAccountsEnabled && !customer) {
     redirect(
       getCustomerLoginHref({
         ...customerContext,
@@ -51,7 +57,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext ? (
+      {hasTenantContext && customerAccountsEnabled ? (
         <>
           {user ? (
             <AppHeader activePath="/order/status" user={user} />
@@ -82,7 +88,12 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
           />
         </>
       ) : (
-        <CustomerOrderUnavailable reason={unavailableReason} user={user} />
+        <CustomerOrderUnavailable
+          reason={
+            hasTenantContext ? "CUSTOMER_ACCOUNTS_DISABLED" : unavailableReason
+          }
+          user={user}
+        />
       )}
     </AppShell>
   );

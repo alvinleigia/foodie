@@ -1,9 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-import { loginAsPlatformOwner } from "./helpers";
+import { loginAsPlatformOwner, optionalEnv } from "./helpers";
+import { updateCompanySubscriptionSchema } from "../../lib/validations/tenant-admin";
+
+const liveBaseUrl = optionalEnv("PLAYWRIGHT_BASE_URL");
+const platformCredentialsConfigured = Boolean(
+  optionalEnv("E2E_PLATFORM_USERNAME") &&
+    optionalEnv("E2E_PLATFORM_PASSWORD"),
+);
 
 test.describe("platform login", () => {
   test("shows an error for invalid staff credentials", async ({ page }) => {
+    test.skip(
+      !liveBaseUrl,
+      "Set PLAYWRIGHT_BASE_URL to run deployed platform browser tests.",
+    );
+
     await page.goto("/staff/login");
     await page.getByLabel("Username").fill("not-a-real-user");
     await page.getByLabel("Password").fill("not-a-real-password");
@@ -13,6 +25,11 @@ test.describe("platform login", () => {
   });
 
   test("logs in as the SaaS owner", async ({ page }) => {
+    test.skip(
+      !liveBaseUrl || !platformCredentialsConfigured,
+      "Set PLAYWRIGHT_BASE_URL and platform E2E credentials to run this test.",
+    );
+
     await loginAsPlatformOwner(page);
 
     await expect(page).toHaveURL((url) => url.pathname === "/platform");
@@ -22,6 +39,11 @@ test.describe("platform login", () => {
 
 test.describe("platform company forms", () => {
   test.beforeEach(async ({ page }) => {
+    test.skip(
+      !liveBaseUrl || !platformCredentialsConfigured,
+      "Set PLAYWRIGHT_BASE_URL and platform E2E credentials to run platform form tests.",
+    );
+
     await loginAsPlatformOwner(page);
   });
 
@@ -56,5 +78,25 @@ test.describe("platform company forms", () => {
     await expect(page.getByText(companyName, { exact: true })).toBeVisible({
       timeout: 15000,
     });
+  });
+});
+
+test.describe("platform subscription validation", () => {
+  test("accepts a plan and commercial status together", () => {
+    const result = updateCompanySubscriptionSchema.safeParse({
+      planSlug: "growth",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("requires a plan when changing subscription settings", () => {
+    const result = updateCompanySubscriptionSchema.safeParse({
+      planSlug: "",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(false);
   });
 });

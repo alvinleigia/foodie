@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   EmailIntegrationConfigurationError,
   testOrganizationEmailSettings,
   updateOrganizationEmailSettings,
 } from "@/lib/organization-email-settings";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 async function getRestaurantSessionAndContext() {
-  const session = await requireRole([...restaurantAdminRoles]);
+  const session = await requireStaffPermission("integrations.manage");
 
   if (!session?.user.email) {
     return null;

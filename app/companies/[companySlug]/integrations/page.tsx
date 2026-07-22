@@ -11,6 +11,7 @@ import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-s
 import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-settings";
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { getRequestOrigin } from "@/lib/request-origin";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 
 export default async function CompanyWorkspaceIntegrationsPage({
   params,
@@ -20,12 +21,13 @@ export default async function CompanyWorkspaceIntegrationsPage({
     companySlug,
     destination: "integrations",
   });
-  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot] =
+  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot, stripePayments] =
     await Promise.all([
       getRequestOrigin(),
       getOrganizationEmailSettingsSnapshot(company.id),
       getOrganizationOAuthSettingsSnapshots(company.id),
       getOrganizationPaymentSettingsSnapshot(company.id),
+      getOrganizationFeatureEntitlement(company.id, "payments.stripe"),
     ]);
 
   return (
@@ -52,6 +54,7 @@ export default async function CompanyWorkspaceIntegrationsPage({
       <StripeIntegrationForm
         apiPath="/api/company/integrations/stripe"
         backHref={getCompanyWorkspaceHref(company.slug, "dashboard")}
+        enabled={stripePayments.enabled}
         initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>

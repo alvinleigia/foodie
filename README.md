@@ -48,12 +48,15 @@ Create `.env.local` from `.env.example`:
 ```bash
 DATABASE_URL="postgresql://user:password@host:6543/postgres"
 AUTH_SECRET="replace-with-a-long-random-secret"
+AUTH_TRUST_HOST="true"
 DEPLOYMENT_CELL_ID="in-local-1"
 DEPLOYMENT_REGION="IN"
 APP_ROOT_DOMAIN="foodie.leigia.com"
 NEXT_PUBLIC_DEFAULT_LOCALE="en-IN"
 NEXT_PUBLIC_DEFAULT_TIMEZONE="Asia/Calcutta"
 NEXT_PUBLIC_DEFAULT_CURRENCY="INR"
+EXPECTED_VERCEL_RUNTIME_REGION="bom1"
+EXPECTED_VERCEL_ENV="production"
 AUTH_GOOGLE_ID="google-oauth-client-id"
 AUTH_GOOGLE_SECRET="google-oauth-client-secret"
 AUTH_APPLE_ID="apple-services-id"
@@ -62,10 +65,30 @@ AUTH_FACEBOOK_ID="facebook-app-id"
 AUTH_FACEBOOK_SECRET="facebook-app-secret"
 SMTP2GO_API_KEY="api-..."
 EMAIL_FROM="Foodie Orders <orders@example.com>"
+OPERATIONAL_ALERT_EMAIL="ops@example.com"
+CUSTOMER_PHONE_VERIFICATION_PROVIDER="disabled"
+CUSTOMER_PHONE_VERIFICATION_REQUIRED="false"
+TWILIO_ACCOUNT_SID=""
+TWILIO_AUTH_TOKEN=""
+TWILIO_VERIFY_SERVICE_SID=""
 TENANT_CREDENTIALS_ENCRYPTION_KEY="base64-encoded-32-byte-key"
 STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 STRIPE_CONNECT_WEBHOOK_SECRET="whsec_..."
+PRIVACY_NOTICE_EFFECTIVE_DATE="replace-before-public-launch"
+PRIVACY_PLATFORM_ADDRESS="replace-before-public-launch"
+PRIVACY_PLATFORM_EMAIL="privacy@example.com"
+PRIVACY_PLATFORM_ICO_NUMBER="replace-before-public-launch"
+PRIVACY_PLATFORM_LEGAL_NAME="replace-before-public-launch"
+PRIVACY_CONTROLLER_ADDRESS="replace-before-public-launch"
+PRIVACY_CONTROLLER_EMAIL="privacy@example.com"
+PRIVACY_CONTROLLER_LEGAL_NAME="replace-before-public-launch"
+PRIVACY_INTERNATIONAL_TRANSFERS="replace-before-public-launch"
+PRIVACY_RETENTION_PROFILE="replace-before-public-launch"
+PRIVACY_RETENTION_AUTH="replace-before-public-launch"
+PRIVACY_RETENTION_ORDERS="replace-before-public-launch"
+PRIVACY_RETENTION_SECURITY="replace-before-public-launch"
+PRIVACY_RETENTION_MARKETING="replace-before-public-launch"
 PLATFORM_OWNER_USERNAME="owner"
 PLATFORM_OWNER_EMAIL="owner@example.com"
 PLATFORM_OWNER_PASSWORD="change-me"
@@ -88,11 +111,19 @@ Staff login, operations and administration run only on `APP_ROOT_DOMAIN`. Compan
 
 Customer email OTP resolves restaurant, company and optional platform SMTP2GO settings in that order. Leave `SMTP2GO_API_KEY` and `EMAIL_FROM` unset when no platform fallback should exist. Custom SMTP2GO keys are encrypted with `TENANT_CREDENTIALS_ENCRYPTION_KEY`; sender addresses or domains must be verified in SMTP2GO. Codes expire after 10 minutes and are stored only as keyed hashes.
 
+`OPERATIONAL_ALERT_EMAIL` is the platform-owned operations inbox shown on the platform dashboard. Stripe sends one alert there when an event first fails processing; later Stripe retries remain recorded in the webhook journal without generating duplicate email alerts. Unhandled server request errors are also reported there and deduplicated by error fingerprint for 15 minutes. These application-error alerts omit request headers, query strings and stack traces. Alert delivery uses the platform `SMTP2GO_API_KEY` and `EMAIL_FROM` values and never changes the response returned to a customer or Stripe.
+
 `/api/stripe/webhook` remains the platform-account endpoint for legacy Checkout sessions. Configure `/api/stripe/connect/webhook` as a connected-account event destination for `account.updated`, `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `refund.created`, `refund.updated` and `refund.failed`, then store its signing secret in `STRIPE_CONNECT_WEBHOOK_SECRET`.
 
 `PLATFORM_OWNER_USERNAME`, `PLATFORM_OWNER_EMAIL` and `PLATFORM_OWNER_PASSWORD` are used only to bootstrap the first SaaS owner. All company, restaurant and staff users should then be created through the platform/company/restaurant admin flows.
 
 Each regional installation is an independent deployment cell with its own Vercel project, database and environment variables. `DEPLOYMENT_CELL_ID`, `DEPLOYMENT_REGION`, `APP_ROOT_DOMAIN`, `NEXT_PUBLIC_DEFAULT_LOCALE`, `NEXT_PUBLIC_DEFAULT_TIMEZONE` and `NEXT_PUBLIC_DEFAULT_CURRENCY` are required. There are no regional fallbacks: verification and production builds fail when the cell configuration is missing or invalid. The `NEXT_PUBLIC_*` values are embedded during `next build`, so redeploy after changing them.
+
+`AUTH_TRUST_HOST` must be `true` for hosted cells. The optional
+`EXPECTED_VERCEL_RUNTIME_REGION` and `EXPECTED_VERCEL_ENV` values provide defaults
+for automated release verification; they do not configure Vercel or affect the
+running application. They can instead be supplied to `verify:release` as command
+options.
 
 For example, a UK UAT installation can use:
 
@@ -154,6 +185,34 @@ Verify regional deployment settings:
 ```bash
 npm run verify:deployment
 ```
+
+Before approving a deployment cell, run its redacted launch environment inventory:
+
+```bash
+npm run verify:environment -- --profile staging
+npm run verify:environment -- --profile production
+```
+
+Use the profile matching the Vercel project being reviewed. Both profiles require the
+runtime cell, authentication, platform SMTP2GO fallback, operational alerts, Google
+login, Stripe Connect and an explicit phone-verification policy. Optional Apple,
+Facebook, Twilio, legacy Stripe webhook and bootstrap settings may be absent, but a
+partly configured provider fails verification. The production profile additionally
+requires every privacy-notice value and refuses `ENABLE_UAT_DATABASE_RESET=true`.
+The report prints variable names and readiness only; it never prints values.
+
+After Vercel deploys an approved commit, verify that the exact Git `HEAD`, deployment
+cell and function region are live on the configured `APP_ROOT_DOMAIN`:
+
+```bash
+npm run verify:release -- --runtime-region <vercel-region-code>
+```
+
+For the current cells, use `hnd1` for staging and `lhr1` for UK production. The
+command reads the expected URL, cell and configured region from the current deployment
+environment and reads the approved SHA from local Git. It fails if `/api/version`, its
+deployment headers or its no-cache policy do not match. CI can supply
+`EXPECTED_VERCEL_RUNTIME_REGION`, `EXPECTED_VERCEL_ENV` and `RELEASE_GIT_SHA` instead.
 
 Start development:
 

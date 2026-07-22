@@ -5,6 +5,10 @@ import {
   getCustomerProfile,
   updateCustomerProfile,
 } from "@/lib/customer-account";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import { getPublicTenantContextFromRequest } from "@/lib/tenant-context";
 import { customerProfileUpdateSchema } from "@/lib/validations/customer";
 
@@ -15,16 +19,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const customer = await getCustomerProfile(
-    session.user.id,
-    await getPublicTenantContextFromRequest(request),
-  );
+  try {
+    const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
+    const customer = await getCustomerProfile(session.user.id, tenantContext);
 
-  if (!customer) {
-    return NextResponse.json({ error: "Customer profile not found." }, { status: 404 });
+    if (!customer) {
+      return NextResponse.json(
+        { error: "Customer profile not found." },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ customer });
+  } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to load profile." },
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json({ customer });
 }
 
 export async function PATCH(request: Request) {
@@ -40,15 +60,34 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const customer = await updateCustomerProfile(
-    session.user.id,
-    await getPublicTenantContextFromRequest(request),
-    parsed.data,
-  );
+  try {
+    const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
+    const customer = await updateCustomerProfile(
+      session.user.id,
+      tenantContext,
+      parsed.data,
+    );
 
-  if (!customer) {
-    return NextResponse.json({ error: "Customer profile not found." }, { status: 404 });
+    if (!customer) {
+      return NextResponse.json(
+        { error: "Customer profile not found." },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({ customer });
+  } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to update profile." },
+      { status: 500 },
+    );
   }
-
-  return NextResponse.json({ customer });
 }

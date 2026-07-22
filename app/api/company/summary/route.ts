@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireRole } from "@/lib/auth";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { companyAdminRoles } from "@/lib/role-access";
 import {
   getCompanyOperationalReport,
@@ -27,10 +28,18 @@ export async function GET(request: Request) {
   }
 
   const range = getReportRange(request);
+  const reportsEntitlement = await getOrganizationFeatureEntitlement(
+    session.user.organizationId,
+    "reports.operational",
+  );
   const [summary, breakdown, report] = await Promise.all([
     getCompanySummary(session.user.organizationId),
-    getCompanyRestaurantBreakdown(session.user.organizationId),
-    getCompanyOperationalReport(session.user.organizationId, range),
+    reportsEntitlement.enabled
+      ? getCompanyRestaurantBreakdown(session.user.organizationId)
+      : Promise.resolve([]),
+    reportsEntitlement.enabled
+      ? getCompanyOperationalReport(session.user.organizationId, range)
+      : Promise.resolve(null),
   ]);
 
   return NextResponse.json({ summary, breakdown, report });

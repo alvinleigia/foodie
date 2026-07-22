@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { CompanyDomainsPanel } from "@/components/admin/CompanyDomainsPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getPlatformCompanyWorkspaceHref } from "@/lib/platform-company-workspace";
 import { requirePlatformCompanyWorkspaceAccess } from "@/lib/platform-company-workspace-access";
 import {
@@ -26,6 +27,21 @@ export default async function PlatformCompanyDomainsPage(
     notFound();
   }
 
+  const customDomainAccess = await Promise.all(
+    [company, ...restaurants].map(async (organization) => ({
+      enabled: (
+        await getOrganizationFeatureEntitlement(
+          organization.id,
+          "branding.custom_domains",
+        )
+      ).enabled,
+      organizationId: organization.id,
+    })),
+  );
+  const customDomainAccessByOrganizationId = new Map(
+    customDomainAccess.map((access) => [access.organizationId, access.enabled]),
+  );
+
   return (
     <SaasAdminShell
       activePath="/platform/companies"
@@ -42,13 +58,19 @@ export default async function PlatformCompanyDomainsPage(
         apiPath={`/api/platform/companies/${company.id}/domains`}
         backHref={getPlatformCompanyWorkspaceHref(company.slug, "details")}
         companyName={company.name}
+        companyCustomDomainsEnabled={
+          customDomainAccessByOrganizationId.get(company.id) ?? false
+        }
         restaurants={restaurants.map((restaurant) => ({
+          customDomainsEnabled:
+            customDomainAccessByOrganizationId.get(restaurant.id) ?? false,
           id: restaurant.id,
           name: restaurant.name,
         }))}
         domains={domains.map((domain) => ({
           id: domain.id,
           domain: domain.domain,
+          isCustomDomain: domain.isCustomDomain,
           scope: domain.scope,
           purpose: domain.purpose,
           restaurantOrganizationId: domain.restaurantOrganizationId,

@@ -1,4 +1,8 @@
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  decimalToMinorUnits,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 
 type FormatPriceOptions = {
   currency?: string;
@@ -13,11 +17,11 @@ export function formatPrice(
     return emptyLabel;
   }
 
-  const numericPrice = Number(price);
+  try {
+    const amountMinor = decimalToMinorUnits(String(price), currency);
 
-  if (Number.isNaN(numericPrice)) {
+    return `${currency} ${minorUnitsToDecimal(amountMinor, currency)}`;
+  } catch {
     return emptyLabel;
   }
-
-  return `${currency} ${numericPrice.toFixed(2)}`;
 }

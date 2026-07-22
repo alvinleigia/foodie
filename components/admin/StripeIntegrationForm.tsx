@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 type StripeIntegrationFormProps = {
   apiPath: string;
   backHref: string;
+  enabled?: boolean;
   initialSnapshot: OrganizationPaymentSettingsSnapshot;
 };
 
@@ -87,6 +88,7 @@ function EffectiveStatus({ snapshot }: { snapshot: OrganizationPaymentSettingsSn
 export function StripeIntegrationForm({
   apiPath,
   backHref,
+  enabled = true,
   initialSnapshot,
 }: StripeIntegrationFormProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
@@ -169,6 +171,14 @@ export function StripeIntegrationForm({
         <h2 className="text-xl font-semibold text-stone-950">Stripe payments</h2>
       </div>
       <EffectiveStatus snapshot={snapshot} />
+      {!enabled ? (
+        <div className="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-amber-900">
+          <p className="text-sm font-semibold">Stripe payments are not included</p>
+          <p className="mt-1 text-sm">
+            Enable the Stripe payments feature before connecting or inheriting an account.
+          </p>
+        </div>
+      ) : null}
 
       <fieldset className="grid gap-3">
         <legend className="text-sm font-semibold text-stone-900">Payment mode</legend>
@@ -183,6 +193,7 @@ export function StripeIntegrationForm({
                 type="button"
                 role="radio"
                 aria-checked={isSelected}
+                disabled={!enabled && option.value !== "DISABLED"}
                 onClick={() => {
                   setMode(option.value);
                   setIsDirty(true);
@@ -192,6 +203,9 @@ export function StripeIntegrationForm({
                   isSelected
                     ? "border-stone-950 bg-stone-950 text-white"
                     : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                  !enabled && option.value !== "DISABLED"
+                    ? "cursor-not-allowed opacity-50"
+                    : undefined,
                 )}
               >
                 <Icon className="size-4" />
@@ -232,7 +246,16 @@ export function StripeIntegrationForm({
       ) : null}
 
       <div className="flex flex-wrap gap-3 border-t border-stone-200 pt-5">
-        <Button type="button" onClick={() => void save()} disabled={isSaving || isConnecting || isSyncing}>
+        <Button
+          type="button"
+          onClick={() => void save()}
+          disabled={
+            isSaving ||
+            isConnecting ||
+            isSyncing ||
+            (!enabled && mode !== "DISABLED")
+          }
+        >
           <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : "Save payment mode"}</ButtonLabel>
         </Button>
         {mode === "CUSTOM" ? (
@@ -240,7 +263,7 @@ export function StripeIntegrationForm({
             type="button"
             variant="outline"
             onClick={() => void connectStripe()}
-            disabled={isDirty || isSaving || isConnecting || isSyncing}
+            disabled={!enabled || isDirty || isSaving || isConnecting || isSyncing}
           >
             <ButtonLabel icon={ExternalLinkIcon}>
               {isConnecting

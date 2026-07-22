@@ -51,15 +51,15 @@ function formatMinutes(value: number | null) {
   return `${Math.round(value)} min`;
 }
 
-function formatMoney(value: number | null) {
+function formatMoney(value: string | null, currency: string) {
   if (value == null) {
     return "-";
   }
 
   return new Intl.NumberFormat(DEFAULT_LOCALE, {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  }).format(value);
+    currency,
+    style: "currency",
+  }).format(Number(value));
 }
 
 export function OperationalReports({
@@ -110,19 +110,116 @@ export function OperationalReports({
       <div className="grid gap-4 xl:grid-cols-2">
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Revenue report</h3>
+          <h3 className="text-xl font-semibold text-stone-950">
+            Financial reconciliation
+          </h3>
           <p className="text-sm text-stone-500">
-            Uses priced, non-cancelled order entries only. Price-on-request entries stay separate.
+            Compares finalized order totals with adjustment, payment, and refund ledgers.
           </p>
         </CardHeader>
-        <CardContent className="grid gap-3 px-5 pb-5 sm:grid-cols-2">
-          <Metric label={`${report.revenue.pricedLines} priced entries`} valueLabel={formatMoney(report.revenue.grossRevenue)} />
-          <Metric
-            label="Average priced entry"
-            valueLabel={formatMoney(report.revenue.averagePricedLineValue)}
-          />
-          <Metric label="Unpriced entries" value={report.revenue.unpricedLines} />
-          <Metric label="Revenue range" valueLabel={range} />
+        <CardContent className="grid gap-3 px-5 pb-5">
+          {report.revenue.financials.length === 0 ? (
+            <EmptyReportLine message="No finalized financial orders for this period." />
+          ) : null}
+
+          {report.revenue.financials.map((financial) => {
+            const mismatchCount =
+              financial.adjustmentMismatchOrders +
+              financial.paymentMismatchOrders +
+              financial.refundMismatchOrders +
+              financial.currencyMismatchEntries;
+
+            return (
+              <div
+                key={financial.currency}
+                className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-stone-950">
+                      {financial.currency}
+                    </p>
+                    <p className="text-sm text-stone-500">
+                      {financial.orderCount} finalized order(s)
+                    </p>
+                  </div>
+                  <p
+                    className={
+                      financial.isReconciled
+                        ? "text-sm font-semibold text-emerald-700"
+                        : "text-sm font-semibold text-amber-700"
+                    }
+                  >
+                    {financial.isReconciled ? "Reconciled" : "Needs review"}
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  <Metric
+                    label="Net sales"
+                    valueLabel={formatMoney(financial.netSalesTotal, financial.currency)}
+                  />
+                  <Metric
+                    label="Payments"
+                    valueLabel={formatMoney(
+                      financial.collectedPaymentTotal,
+                      financial.currency,
+                    )}
+                  />
+                  <Metric
+                    label="Refunds"
+                    valueLabel={formatMoney(financial.refundedTotal, financial.currency)}
+                  />
+                  <Metric
+                    label="Net collected"
+                    valueLabel={formatMoney(
+                      financial.netCollectedTotal,
+                      financial.currency,
+                    )}
+                  />
+                  <Metric
+                    label="Outstanding"
+                    valueLabel={formatMoney(
+                      financial.outstandingBalance,
+                      financial.currency,
+                    )}
+                  />
+                  <Metric
+                    label="Overpayment"
+                    valueLabel={formatMoney(
+                      financial.overpaymentAmount,
+                      financial.currency,
+                    )}
+                  />
+                </div>
+
+                <p className="text-xs text-stone-500">
+                  Billed {formatMoney(financial.billedTotal, financial.currency)}:
+                  {" "}subtotal {formatMoney(financial.subtotalTotal, financial.currency)},
+                  {" "}discounts {formatMoney(financial.discountTotal, financial.currency)},
+                  {" "}tax {formatMoney(financial.taxTotal, financial.currency)}, charges{" "}
+                  {formatMoney(financial.chargeTotal, financial.currency)}, tips{" "}
+                  {formatMoney(financial.tipTotal, financial.currency)}.
+                </p>
+
+                {!financial.isReconciled ? (
+                  <p className="text-xs font-medium text-amber-700">
+                    Review {mismatchCount} ledger mismatch(es),{" "}
+                    {financial.pendingRefundCount} pending refund(s), and{" "}
+                    {financial.failedRefundCount} failed refund(s).
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Metric label="Unpriced entries" value={report.revenue.unpricedLines} />
+            <Metric
+              label="Orders missing financial snapshots"
+              value={report.revenue.missingSnapshotOrders}
+            />
+          </div>
         </CardContent>
       </Card>
 

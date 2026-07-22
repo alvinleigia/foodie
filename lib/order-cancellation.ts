@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 
 import { getDb } from "@/db";
 import {
+  cashDrawerSessions,
   orderCancellations,
   orderItems,
   orderPayments,
@@ -14,6 +15,10 @@ import {
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
 import { logError } from "@/lib/logger";
+import {
+  assertManagerApproval,
+  type ManagerApproval,
+} from "@/lib/manager-approval";
 import { decimalToMinorUnits } from "@/lib/currency-money";
 import {
   allocateRefundAcrossPayments,
@@ -21,6 +26,7 @@ import {
 } from "@/lib/order-cancellation-financials";
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
+import { getStripeApplicationFeeRefundParams } from "@/lib/stripe-refund-policy";
 
 type CancellationActorUser = {
   id: string;
@@ -34,10 +40,12 @@ type CancelOrderInput = {
   actorType: "CUSTOMER" | "STAFF";
   actorUser?: CancellationActorUser | null;
   applyCustomerCancellationFee?: boolean;
+  canIssueRefund?: boolean;
   cancellationFeeBps?: number;
   cancelReason?: string | null;
   customerId?: string;
   customerToken?: string;
+  managerApproval?: ManagerApproval;
   orderId: string;
   organizationId: string;
   overrideReason?: string | null;
@@ -367,7 +375,13 @@ async function executeRefund(refundId: string) {
       throw new Error("The Stripe payment reference is missing from this order.");
     }
 
-    const stripeRefund = await getStripe().refunds.create(
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.retrieve(
+      stripePaymentIntentId,
+      {},
+      { stripeAccount: stripeConnectedAccountId },
+    );
+    const stripeRefund = await stripe.refunds.create(
       {
         amount: decimalToMinorUnits(
           operation.refund.amount,
@@ -380,7 +394,9 @@ async function executeRefund(refundId: string) {
         },
         payment_intent: stripePaymentIntentId,
         reason: "requested_by_customer",
-        refund_application_fee: true,
+        ...getStripeApplicationFeeRefundParams(
+          paymentIntent.application_fee_amount,
+        ),
       },
       {
         idempotencyKey: operation.refund.idempotencyKey,
@@ -437,11 +453,10 @@ async function executeRefunds(
 async function prepareRefundRetry(input: CancelOrderInput) {
   const actorUser = input.actorUser;
 
-  if (actorUser?.role !== "RESTAURANT_MANAGER") {
-    throw new OrderCancellationError(
-      "Only a restaurant manager can retry a failed refund.",
-      403,
-    );
+  assertManagerApproval(input.managerApproval, input.organizationId);
+
+  if (!actorUser) {
+    throw new OrderCancellationError("Staff authorization is required.", 401);
   }
 
   return getDb().transaction(async (tx) => {
@@ -520,50 +535,26 @@ async function prepareRefundRetry(input: CancelOrderInput) {
 
     const refunds: typeof orderRefunds.$inferSelect[] = [];
 
+    // Stripe can retain failed idempotent requests, so an operator retry is a new attempt.
     for (const refund of retryableRefunds) {
-      if (refund.stripeRefundId) {
-        const nextRefundId = randomUUID();
-        const [nextRefund] = await tx
-          .insert(orderRefunds)
-          .values({
-            amount: refund.amount,
-            cancellationId: refund.cancellationId,
-            currency: refund.currency,
-            id: nextRefundId,
-            idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
-            orderId: order.id,
-            orderPaymentId: refund.orderPaymentId,
-            organizationId: order.organizationId,
-            provider: "STRIPE",
-            requestedByUserId: actorUser.id,
-          })
-          .returning();
-
-        refunds.push(nextRefund);
-        continue;
-      }
-
-      const [retriedRefund] = await tx
-        .update(orderRefunds)
-        .set({
-          failureReason: null,
-          processedAt: null,
-          status: "PENDING",
-          updatedAt: now,
+      const nextRefundId = randomUUID();
+      const [nextRefund] = await tx
+        .insert(orderRefunds)
+        .values({
+          amount: refund.amount,
+          cancellationId: refund.cancellationId,
+          currency: refund.currency,
+          id: nextRefundId,
+          idempotencyKey: `order-refund-${order.id}-${nextRefundId}`,
+          orderId: order.id,
+          orderPaymentId: refund.orderPaymentId,
+          organizationId: order.organizationId,
+          provider: "STRIPE",
+          requestedByUserId: actorUser.id,
         })
-        .where(
-          and(
-            eq(orderRefunds.id, refund.id),
-            eq(orderRefunds.status, "FAILED"),
-          ),
-        )
         .returning();
 
-      if (!retriedRefund) {
-        throw new OrderCancellationError("The refund is already being retried.");
-      }
-
-      refunds.push(retriedRefund);
+      refunds.push(nextRefund);
     }
 
     return { order: updatedOrder, refunds };
@@ -572,6 +563,13 @@ async function prepareRefundRetry(input: CancelOrderInput) {
 
 export async function cancelOrder(input: CancelOrderInput) {
   if (input.retryRefund) {
+    if (input.actorType === "STAFF" && !input.canIssueRefund) {
+      throw new OrderCancellationError(
+        "You do not have permission to issue refunds.",
+        403,
+      );
+    }
+
     const retry = await prepareRefundRetry(input);
 
     for (const refund of retry.refunds) {
@@ -582,6 +580,9 @@ export async function cancelOrder(input: CancelOrderInput) {
         entityType: "order_refund",
         entityId: refund.id,
         metadata: {
+          approvedByUserId: input.managerApproval?.approvedByUserId ?? null,
+          approvedByUsername: input.managerApproval?.approvedByUsername ?? null,
+          approvalMode: input.managerApproval?.mode ?? null,
           orderId: retry.order.id,
           orderNo: retry.order.orderNo,
           orderPaymentId: refund.orderPaymentId,
@@ -593,6 +594,10 @@ export async function cancelOrder(input: CancelOrderInput) {
       retry.refunds.map((refund) => refund.id),
       retry.order,
     );
+  }
+
+  if (input.actorType === "STAFF") {
+    assertManagerApproval(input.managerApproval, input.organizationId);
   }
 
   const prepared = await getDb().transaction(async (tx) => {
@@ -628,7 +633,9 @@ export async function cancelOrder(input: CancelOrderInput) {
     const isAllowedStatus =
       order.status === "PENDING" ||
       (input.actorType === "STAFF" &&
-        (order.status === "PREPARING" || order.status === "READY"));
+        (order.status === "PREPARING" ||
+          order.status === "ASSEMBLING" ||
+          order.status === "READY"));
 
     if (!isAllowedStatus) {
       throw new OrderCancellationError(
@@ -660,6 +667,17 @@ export async function cancelOrder(input: CancelOrderInput) {
       order.paymentStatus === "PARTIALLY_PAID";
 
     if (
+      input.actorType === "STAFF" &&
+      hasCollectedPayment &&
+      !input.canIssueRefund
+    ) {
+      throw new OrderCancellationError(
+        "You do not have permission to issue refunds.",
+        403,
+      );
+    }
+
+    if (
       hasCollectedPayment &&
       (!order.paymentAmount ||
         !order.paymentCurrency ||
@@ -686,13 +704,6 @@ export async function cancelOrder(input: CancelOrderInput) {
     let appliedFeeBps = input.actorType === "CUSTOMER" ? disclosedFeeBps : 0;
 
     if (input.actorType === "STAFF" && input.applyCustomerCancellationFee) {
-      if (input.actorUser?.role !== "RESTAURANT_MANAGER") {
-        throw new OrderCancellationError(
-          "Only a restaurant manager can apply a customer cancellation fee.",
-          403,
-        );
-      }
-
       if (order.status !== "PENDING") {
         throw new OrderCancellationError(
           "A customer cancellation fee can be applied only before preparation starts.",
@@ -786,6 +797,39 @@ export async function cancelOrder(input: CancelOrderInput) {
     const hasCashRefund = refundAllocations.some(
       (allocation) => allocation.method === "CASH",
     );
+    let cashRefundDrawerSession: typeof cashDrawerSessions.$inferSelect | null =
+      null;
+
+    if (hasCashRefund) {
+      if (!order.orderingPointId) {
+        throw new OrderCancellationError(
+          "This cash order has no ordering point and must be reviewed before refunding.",
+        );
+      }
+
+      const [openDrawerSession] = await tx
+        .select()
+        .from(cashDrawerSessions)
+        .where(
+          and(
+            eq(cashDrawerSessions.organizationId, order.organizationId),
+            eq(cashDrawerSessions.orderingPointId, order.orderingPointId),
+            eq(cashDrawerSessions.status, "OPEN"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!openDrawerSession) {
+        throw new OrderCancellationError(
+          "Open the cash drawer before issuing a cash refund.",
+          409,
+        );
+      }
+
+      cashRefundDrawerSession = openDrawerSession;
+    }
+
     const now = new Date();
     const [updatedOrder] = await tx
       .update(orders)
@@ -890,6 +934,9 @@ export async function cancelOrder(input: CancelOrderInput) {
         .insert(orderRefunds)
         .values({
           amount: allocation.amount,
+          cashDrawerSessionId: isCash
+            ? cashRefundDrawerSession?.id ?? null
+            : null,
           cancellationId: cancellation.id,
           currency: order.paymentCurrency!,
           id: refundId,
@@ -929,6 +976,9 @@ export async function cancelOrder(input: CancelOrderInput) {
       feeAmount: prepared.cancellation.feeAmount,
       orderNo: prepared.order.orderNo,
       refundAmount: prepared.cancellation.refundAmount,
+      approvedByUserId: input.managerApproval?.approvedByUserId ?? null,
+      approvedByUsername: input.managerApproval?.approvedByUsername ?? null,
+      approvalMode: input.managerApproval?.mode ?? null,
     },
   });
 

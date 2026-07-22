@@ -16,6 +16,7 @@ import {
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
+import { getActivePrepStation } from "@/lib/prep-stations";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
   MenuItemRecord,
@@ -196,6 +197,7 @@ function groupMenuData(
   inventoryByItemId = new Map<string, typeof inventoryItems.$inferSelect>(),
   tagsByItemId = new Map<string, MenuTagRecord[]>(),
   modifierGroupsByItemId = new Map<string, MenuModifierGroupRecord[]>(),
+  includePrepStationRouting = false,
 ) {
   const categoryMap = new Map<string, MenuCategoryRecord>();
 
@@ -239,6 +241,9 @@ function groupMenuData(
       sortOrder: item.sortOrder,
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
+      ...(includePrepStationRouting
+        ? { prepStationId: item.prepStationId }
+        : {}),
       tags: tagsByItemId.get(item.id) ?? [],
       modifierGroups: modifierGroupsByItemId.get(item.id) ?? [],
       ...getMenuInventoryState(inventoryByItemId.get(item.id)),
@@ -583,7 +588,10 @@ async function assertMenuModifierGroupsExist(groupIds: string[], context: Tenant
   }
 }
 
-export async function getPublicMenu(context: TenantContext = getDefaultTenantContext()) {
+export async function getPublicMenu(
+  context: TenantContext = getDefaultTenantContext(),
+  options: { includeInventory?: boolean } = {},
+) {
   const db = getDb();
   const categories = await db
     .select()
@@ -603,10 +611,13 @@ export async function getPublicMenu(context: TenantContext = getDefaultTenantCon
       ),
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
-  const inventoryByItemId = await getInventoryByMenuItemId(
-    items.map((item) => item.id),
-    context,
-  );
+  const inventoryByItemId =
+    options.includeInventory === false
+      ? new Map<string, typeof inventoryItems.$inferSelect>()
+      : await getInventoryByMenuItemId(
+          items.map((item) => item.id),
+          context,
+        );
   const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
   const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
     items.map((item) => item.id),
@@ -658,6 +669,7 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     undefined,
     tagsByItemId,
     modifierGroupsByItemId,
+    true,
   );
 }
 
@@ -677,6 +689,7 @@ export async function getMenuSelectionSnapshot(
   categoryId: string,
   itemId: string,
   context: TenantContext = getDefaultTenantContext(),
+  options: { includeInventory?: boolean } = {},
 ) {
   const db = getDb();
 
@@ -693,7 +706,7 @@ export async function getMenuSelectionSnapshot(
     .limit(1);
 
   if (!category) {
-    return { category: null, item: null };
+    return { category: null, inventory: null, item: null, prepStation: null };
   }
 
   const [item] = await db
@@ -711,7 +724,13 @@ export async function getMenuSelectionSnapshot(
     .limit(1);
 
   if (!item) {
-    return { category, inventory: null, item: null };
+    return { category, inventory: null, item: null, prepStation: null };
+  }
+
+  const prepStation = await getActivePrepStation(item.prepStationId, context);
+
+  if (options.includeInventory === false) {
+    return { category, inventory: null, item, prepStation };
   }
 
   const [inventory] = await db
@@ -725,7 +744,7 @@ export async function getMenuSelectionSnapshot(
     )
     .limit(1);
 
-  return { category, inventory: inventory ?? null, item };
+  return { category, inventory: inventory ?? null, item, prepStation };
 }
 
 export async function getMenuModifierSelectionSnapshots(
@@ -944,6 +963,7 @@ export async function updateMenuCategory(
 
 export async function createMenuItem(input: {
   categoryId: string;
+  prepStationId?: string | null;
   name: string;
   description?: string | null;
   price?: string | null;
@@ -979,6 +999,11 @@ export async function createMenuItem(input: {
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
+  const prepStation = await getActivePrepStation(input.prepStationId, context);
+
+  if (input.prepStationId && !prepStation) {
+    throw new Error("Preparation station not found.");
+  }
 
   const createdItem = await db.transaction(async (tx) => {
     const [item] = await tx
@@ -986,6 +1011,7 @@ export async function createMenuItem(input: {
       .values({
         organizationId: context.organizationId,
         categoryId: input.categoryId,
+        prepStationId: prepStation?.id ?? null,
         slug,
         name: input.name,
         description: input.description ?? null,
@@ -1027,6 +1053,7 @@ export async function updateMenuItem(
   itemId: string,
   input: {
     categoryId: string;
+    prepStationId?: string | null;
     name: string;
     description?: string | null;
     price?: string | null;
@@ -1065,6 +1092,11 @@ export async function updateMenuItem(
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
+  const prepStation = await getActivePrepStation(input.prepStationId, context);
+
+  if (input.prepStationId && !prepStation) {
+    throw new Error("Preparation station not found.");
+  }
 
   const updatedItem = await db.transaction(async (tx) => {
     const [item] = await tx
@@ -1072,6 +1104,7 @@ export async function updateMenuItem(
       .set({
         organizationId: context.organizationId,
         categoryId: input.categoryId,
+        prepStationId: prepStation?.id ?? null,
         slug,
         name: input.name,
         description: input.description ?? null,

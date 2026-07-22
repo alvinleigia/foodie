@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BanknoteIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   CopyIcon,
   CreditCardIcon,
   ExternalLinkIcon,
@@ -13,6 +15,11 @@ import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
+import {
+  hasManagerApprovalCredentials,
+  ManagerApprovalFields,
+  type ManagerApprovalCredentials,
+} from "@/components/staff/ManagerApprovalFields";
 import {
   OrderCard,
   type StaffOrder,
@@ -41,6 +48,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -65,16 +79,33 @@ import {
   orderItemCorrectionTargets,
   statusCorrectionLabels,
 } from "@/lib/order-corrections";
+import {
+  getEffectiveFulfilmentTime,
+  toLocalDateTimeInputValue,
+} from "@/lib/order-fulfilment-time";
+import {
+  staffOrderAdjustmentReasonCodes,
+  staffOrderAdjustmentReasonLabels,
+  type StaffOrderAdjustmentReasonCode,
+} from "@/lib/order-adjustments";
 
 type OrdersPayload = {
+  activeHasMore: boolean;
   activeOrders: StaffOrder[];
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
   currency: string;
+  pastPage: number;
   pastOrders: StaffOrder[];
+  pastTotal: number;
+  pastTotalPages: number;
 };
 
 type StaffTab = "active" | "past";
+type ItemVoidTarget = {
+  itemId: string;
+  orderId: string;
+};
 type CorrectionTarget =
   | {
       scope: "order";
@@ -111,18 +142,34 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
-export function StaffOrderBoard() {
+export function StaffOrderBoard({
+  restaurantSlug,
+  staffBillingEnabled = true,
+  stripePaymentsEnabled = true,
+}: {
+  restaurantSlug: string;
+  staffBillingEnabled?: boolean;
+  stripePaymentsEnabled?: boolean;
+}) {
   const [orders, setOrders] = useState<OrdersPayload>({
+    activeHasMore: false,
     activeOrders: [],
     canCorrectStatuses: false,
     canManageRefunds: false,
     currency: DEFAULT_CURRENCY,
+    pastPage: 1,
     pastOrders: [],
+    pastTotal: 0,
+    pastTotalPages: 1,
   });
   const [activeTab, setActiveTab] = useState<StaffTab>("active");
+  const [pastPage, setPastPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [loadedTabs, setLoadedTabs] = useState<Record<StaffTab, boolean>>({
+    active: false,
+    past: false,
+  });
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<CorrectionTarget | null>(null);
   const [correctionStatus, setCorrectionStatus] = useState<OrderStatus | OrderItemStatus | "">("");
@@ -135,13 +182,46 @@ export function StaffOrderBoard() {
   const [cancellationFeePercent, setCancellationFeePercent] = useState(0);
   const [settlementTarget, setSettlementTarget] =
     useState<StaffOrder | null>(null);
+  const [promisedTimeTarget, setPromisedTimeTarget] =
+    useState<StaffOrder | null>(null);
+  const [adjustmentTarget, setAdjustmentTarget] =
+    useState<StaffOrder | null>(null);
+  const [adjustmentType, setAdjustmentType] =
+    useState<"DISCOUNT" | "COMP">("DISCOUNT");
+  const [adjustmentCalculation, setAdjustmentCalculation] =
+    useState<"FIXED_AMOUNT" | "PERCENTAGE">("PERCENTAGE");
+  const [adjustmentValue, setAdjustmentValue] = useState("");
+  const [adjustmentReasonCode, setAdjustmentReasonCode] =
+    useState<StaffOrderAdjustmentReasonCode>("PROMOTION");
+  const [adjustmentNote, setAdjustmentNote] = useState("");
+  const [itemVoidTarget, setItemVoidTarget] =
+    useState<ItemVoidTarget | null>(null);
+  const [managerApproval, setManagerApproval] =
+    useState<ManagerApprovalCredentials>({ identifier: "", password: "" });
+  const [promisedFulfilmentAt, setPromisedFulfilmentAt] = useState("");
   const [cashAmount, setCashAmount] = useState("");
   const [cashTendered, setCashTendered] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const ordersRequestRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(false);
+  const activeOrderCountRef = useRef(0);
+  const loadedTabsRef = useRef<Record<StaffTab, boolean>>({
+    active: false,
+    past: false,
+  });
+  const managerApprovalRequired = !orders.canManageRefunds;
+  const managerApprovalComplete =
+    !managerApprovalRequired || hasManagerApprovalCredentials(managerApproval);
 
-  async function syncOrders(options: { showRefreshing?: boolean } = {}) {
+  function resetManagerApproval() {
+    setManagerApproval({ identifier: "", password: "" });
+  }
+
+  const syncOrders = useCallback(async (options: {
+    page?: number;
+    showRefreshing?: boolean;
+    view: StaffTab;
+  }) => {
     ordersRequestRef.current?.abort();
     const controller = new AbortController();
     ordersRequestRef.current = controller;
@@ -151,7 +231,14 @@ export function StaffOrderBoard() {
     }
 
     try {
-      const response = await fetch("/api/orders", {
+      const searchParams = new URLSearchParams({ view: options.view });
+
+      if (options.view === "past") {
+        searchParams.set("page", String(options.page ?? 1));
+      }
+
+      const response = await fetch(`/api/orders?${searchParams.toString()}`, {
+        cache: "no-store",
         signal: controller.signal,
       });
       const payload = await response.json();
@@ -165,13 +252,48 @@ export function StaffOrderBoard() {
         return;
       }
 
-      setOrders({
-        activeOrders: payload.activeOrders ?? [],
+      const pageInfo = payload.pageInfo ?? {};
+      const nextActiveOrders = payload.activeOrders ?? [];
+
+      if (options.view === "active") {
+        activeOrderCountRef.current = nextActiveOrders.length;
+      } else {
+        const resolvedPage = Number(pageInfo.page ?? options.page ?? 1);
+        setPastPage((current) =>
+          current === resolvedPage ? current : resolvedPage,
+        );
+      }
+
+      setOrders((current) => ({
+        ...current,
+        activeHasMore:
+          options.view === "active"
+            ? Boolean(pageInfo.activeHasMore)
+            : current.activeHasMore,
+        activeOrders:
+          options.view === "active"
+            ? nextActiveOrders
+            : current.activeOrders,
         canCorrectStatuses: Boolean(payload.canCorrectStatuses),
         canManageRefunds: Boolean(payload.canManageRefunds),
         currency: payload.currency ?? DEFAULT_CURRENCY,
-        pastOrders: payload.pastOrders ?? [],
-      });
+        pastPage:
+          options.view === "past"
+            ? Number(pageInfo.page ?? options.page ?? 1)
+            : current.pastPage,
+        pastOrders:
+          options.view === "past"
+            ? payload.pastOrders ?? []
+            : current.pastOrders,
+        pastTotal:
+          options.view === "past"
+            ? Number(pageInfo.total ?? 0)
+            : current.pastTotal,
+        pastTotalPages:
+          options.view === "past"
+            ? Number(pageInfo.totalPages ?? 1)
+            : current.pastTotalPages,
+      }));
       setError(null);
     } catch (fetchError) {
       if (!controller.signal.aborted && isMountedRef.current) {
@@ -186,34 +308,97 @@ export function StaffOrderBoard() {
         ordersRequestRef.current = null;
         if (isMountedRef.current) {
           setIsRefreshing(false);
-          setHasLoadedOnce(true);
+          loadedTabsRef.current[options.view] = true;
+          setLoadedTabs((current) => ({
+            ...current,
+            [options.view]: true,
+          }));
         }
       }
     }
-  }
+  }, []);
 
   useEffect(() => {
     isMountedRef.current = true;
-    const initialLoad = window.setTimeout(() => {
-      void syncOrders();
-    }, 0);
-    const interval = window.setInterval(() => {
-      void syncOrders({ showRefreshing: false });
-    }, 4000);
 
     return () => {
       isMountedRef.current = false;
       ordersRequestRef.current?.abort();
-      window.clearTimeout(initialLoad);
-      window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    let stopped = false;
+    let timeoutId: number | null = null;
+
+    const scheduleActiveRefresh = () => {
+      if (stopped || document.visibilityState === "hidden") {
+        return;
+      }
+
+      timeoutId = window.setTimeout(
+        run,
+        activeOrderCountRef.current > 0 ? 4_000 : 10_000,
+      );
+    };
+
+    const run = async () => {
+      await syncOrders({
+        page: activeTab === "past" ? pastPage : 1,
+        showRefreshing: !loadedTabsRef.current[activeTab],
+        view: activeTab,
+      });
+
+      if (activeTab === "active") {
+        scheduleActiveRefresh();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+
+      if (document.visibilityState === "visible") {
+        void run();
+      }
+    };
+
+    void run();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      stopped = true;
+      ordersRequestRef.current?.abort();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [activeTab, pastPage, syncOrders]);
+
+  function syncVisibleOrders(options: { showRefreshing?: boolean } = {}) {
+    return syncOrders({
+      page: activeTab === "past" ? pastPage : 1,
+      showRefreshing: options.showRefreshing,
+      view: activeTab,
+    });
+  }
 
   async function runItemAction(
     orderId: string,
     itemId: string,
     action: "start" | "ready" | "deliver" | "cancel",
+    approval?: ManagerApprovalCredentials,
   ) {
+    if (action === "cancel" && managerApprovalRequired && !approval) {
+      resetManagerApproval();
+      setItemVoidTarget({ itemId, orderId });
+      return;
+    }
+
     setPendingAction(`${action}-item:${itemId}`);
 
     const response = await fetch(
@@ -221,7 +406,10 @@ export function StaffOrderBoard() {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action,
+          managerApproval: action === "cancel" ? approval : undefined,
+        }),
       },
     );
     const payload = await response.json();
@@ -233,7 +421,7 @@ export function StaffOrderBoard() {
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     const successMessage = {
       start: "Item preparation started.",
       ready: "Item marked ready.",
@@ -241,7 +429,35 @@ export function StaffOrderBoard() {
       cancel: "Item cancelled.",
     }[action];
     toast.success(successMessage);
+    if (action === "cancel") {
+      setItemVoidTarget(null);
+      resetManagerApproval();
+    }
     setPendingAction(null);
+  }
+
+  async function emailReceipt(order: StaffOrder) {
+    const actionKey = `email-receipt:${order.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${encodeURIComponent(order.orderId)}/receipt/email`,
+        { method: "POST" },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        toast.error(payload.error ?? "The receipt email could not be sent.");
+        return;
+      }
+
+      toast.success(`Receipt sent to ${payload.recipientEmail}.`);
+    } catch {
+      toast.error("The receipt email could not be sent.");
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   function openOrderCorrection(order: StaffOrder) {
@@ -305,7 +521,7 @@ export function StaffOrderBoard() {
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     setCorrectionTarget(null);
     setCorrectionStatus("");
     setCorrectionReason("");
@@ -323,6 +539,7 @@ export function StaffOrderBoard() {
       );
 
       if (order) {
+        resetManagerApproval();
         setCancellationTarget(order);
         setCancellationReason("");
         setApplyCustomerCancellationFee(false);
@@ -347,13 +564,191 @@ export function StaffOrderBoard() {
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     const successMessage = {
       start: "Order preparation started.",
       ready: "Order marked ready.",
       deliver: "Order marked delivered.",
     }[action];
     toast.success(successMessage);
+    setPendingAction(null);
+  }
+
+  function openPromisedTime(order: StaffOrder) {
+    const currentTime = getEffectiveFulfilmentTime(order)?.at;
+    setPromisedTimeTarget(order);
+    setPromisedFulfilmentAt(
+      toLocalDateTimeInputValue(
+        currentTime ?? new Date(Date.now() + 30 * 60 * 1000),
+      ),
+    );
+  }
+
+  function resetAdjustmentForm() {
+    resetManagerApproval();
+    setAdjustmentTarget(null);
+    setAdjustmentType("DISCOUNT");
+    setAdjustmentCalculation("PERCENTAGE");
+    setAdjustmentValue("");
+    setAdjustmentReasonCode("PROMOTION");
+    setAdjustmentNote("");
+  }
+
+  function openAdjustment(order: StaffOrder) {
+    resetManagerApproval();
+    const current = order.adjustment;
+    const reasonCode = current?.reasonCode;
+    setAdjustmentTarget(order);
+    setAdjustmentType(current?.type ?? "DISCOUNT");
+    setAdjustmentCalculation(current?.calculation ?? "PERCENTAGE");
+    setAdjustmentValue(
+      current?.type === "COMP"
+        ? ""
+        : current?.calculation === "PERCENTAGE" && current.rateBps
+          ? String(current.rateBps / 100)
+          : current?.amount ?? "",
+    );
+    setAdjustmentReasonCode(
+      reasonCode &&
+        staffOrderAdjustmentReasonCodes.includes(
+          reasonCode as StaffOrderAdjustmentReasonCode,
+        )
+        ? (reasonCode as StaffOrderAdjustmentReasonCode)
+        : "OTHER",
+    );
+    setAdjustmentNote(current?.note ?? "");
+  }
+
+  async function saveAdjustment() {
+    if (!adjustmentTarget) {
+      return;
+    }
+
+    const actionKey = `adjust-order:${adjustmentTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${adjustmentTarget.orderId}/adjustment`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            calculation: adjustmentCalculation,
+            note: adjustmentNote,
+            reasonCode: adjustmentReasonCode,
+            type: adjustmentType,
+            value: adjustmentType === "DISCOUNT" ? adjustmentValue : undefined,
+            managerApproval: managerApprovalRequired
+              ? managerApproval
+              : undefined,
+          }),
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The adjustment could not be saved.");
+      }
+
+      await syncVisibleOrders();
+      resetAdjustmentForm();
+      toast.success(adjustmentType === "COMP" ? "Bill comped." : "Discount applied.");
+    } catch (adjustmentError) {
+      const message =
+        adjustmentError instanceof Error
+          ? adjustmentError.message
+          : "The adjustment could not be saved.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function removeAdjustment() {
+    if (!adjustmentTarget?.adjustment) {
+      return;
+    }
+
+    const actionKey = `remove-adjustment:${adjustmentTarget.orderId}`;
+    setPendingAction(actionKey);
+
+    try {
+      const response = await fetch(
+        `/api/orders/${adjustmentTarget.orderId}/adjustment`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            managerApproval: managerApprovalRequired
+              ? managerApproval
+              : undefined,
+          }),
+        },
+      );
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The adjustment could not be removed.");
+      }
+
+      await syncVisibleOrders();
+      resetAdjustmentForm();
+      toast.success("Adjustment removed.");
+    } catch (adjustmentError) {
+      const message =
+        adjustmentError instanceof Error
+          ? adjustmentError.message
+          : "The adjustment could not be removed.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function savePromisedTime(promisedAt: string | null) {
+    if (!promisedTimeTarget) {
+      return;
+    }
+
+    const actionKey = `promise-order:${promisedTimeTarget.orderId}`;
+    const parsedDate = promisedAt ? new Date(promisedAt) : null;
+
+    if (
+      parsedDate &&
+      (Number.isNaN(parsedDate.getTime()) || parsedDate.getTime() <= Date.now())
+    ) {
+      setError("Choose a future promised time.");
+      toast.error("Choose a future promised time.");
+      return;
+    }
+
+    setPendingAction(actionKey);
+    const response = await fetch(
+      `/api/orders/${promisedTimeTarget.orderId}/fulfilment-time`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          promisedFulfilmentAt: parsedDate?.toISOString() ?? null,
+        }),
+      },
+    );
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setError(payload.error ?? "Failed to update promised time.");
+      toast.error(payload.error ?? "Failed to update promised time.");
+      setPendingAction(null);
+      return;
+    }
+
+    await syncVisibleOrders();
+    setPromisedTimeTarget(null);
+    setPromisedFulfilmentAt("");
+    toast.success(parsedDate ? "Promised time updated." : "Promised time cleared.");
     setPendingAction(null);
   }
 
@@ -378,6 +773,9 @@ export function StaffOrderBoard() {
           overrideReason: applyCustomerCancellationFee
             ? cancellationReason
             : undefined,
+          managerApproval: managerApprovalRequired
+            ? managerApproval
+            : undefined,
         }),
       },
     );
@@ -390,10 +788,11 @@ export function StaffOrderBoard() {
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
     setCancellationTarget(null);
     setCancellationReason("");
     setApplyCustomerCancellationFee(false);
+    resetManagerApproval();
 
     if (payload.refundError) {
       toast.error("Order cancelled, but its refund needs attention.");
@@ -421,7 +820,7 @@ export function StaffOrderBoard() {
       return;
     }
 
-    await syncOrders();
+    await syncVisibleOrders();
 
     if (payload.refundError) {
       toast.error("Refund failed again. Check the Stripe account and retry.");
@@ -522,7 +921,7 @@ export function StaffOrderBoard() {
         throw new Error(payload.error ?? "Cash payment could not be recorded.");
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       const currency = settlementTarget.paymentCurrency ?? orders.currency;
       const changeMessage = `Change due: ${formatMoney(
         Number(payload.changeAmount ?? 0),
@@ -597,7 +996,7 @@ export function StaffOrderBoard() {
         );
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
 
       if (payload.paymentStatus === "PAID") {
         toast.success("This bill has already been paid.");
@@ -667,7 +1066,7 @@ export function StaffOrderBoard() {
         );
       }
 
-      await syncOrders();
+      await syncVisibleOrders();
       setSettlementTarget(null);
       setCashAmount("");
       setCashTendered("");
@@ -795,7 +1194,11 @@ export function StaffOrderBoard() {
                   Refreshing panel...
                 </span>
               ) : (
-                "Live polling every 4 seconds"
+                activeTab === "active"
+                  ? orders.activeOrders.length > 0
+                    ? "Live updates every 4 seconds"
+                    : "Live updates every 10 seconds"
+                  : "History loaded on demand"
               )}
             </p>
           }
@@ -809,16 +1212,17 @@ export function StaffOrderBoard() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as StaffTab)}>
           <TabsList>
             <TabsTrigger value="active" disabled={Boolean(pendingAction)}>
-              Active Orders ({orders.activeOrders.length})
+              Active Orders ({orders.activeOrders.length}
+              {orders.activeHasMore ? "+" : ""})
             </TabsTrigger>
             <TabsTrigger value="past" disabled={Boolean(pendingAction)}>
-              Past Orders ({orders.pastOrders.length})
+              Past Orders ({orders.pastTotal})
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      {!hasLoadedOnce && isRefreshing ? (
+      {!loadedTabs[activeTab] && isRefreshing ? (
         <div className="grid gap-4 lg:grid-cols-2">
           {Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="rounded-xl border-stone-200 bg-white shadow-none">
@@ -845,7 +1249,7 @@ export function StaffOrderBoard() {
           title={activeTab === "active" ? "No active orders yet" : "No past orders yet"}
           description={
             activeTab === "active"
-              ? "This tab keeps refreshing automatically every 4 seconds."
+              ? "This tab refreshes automatically while it is visible."
               : "Delivered and cancelled orders will appear here."
           }
         />
@@ -856,6 +1260,7 @@ export function StaffOrderBoard() {
               key={order.orderId}
               currency={orders.currency}
               order={order}
+              restaurantSlug={restaurantSlug}
               onItemAction={runItemAction}
               onItemAnnounce={announceItem}
               onOrderAction={runOrderAction}
@@ -863,9 +1268,13 @@ export function StaffOrderBoard() {
               onCorrectOrder={openOrderCorrection}
               onCorrectItem={openItemCorrection}
               onSettleOrder={openSettlement}
+              onSetPromisedTime={openPromisedTime}
+              onAdjustOrder={openAdjustment}
               onCancelPayment={cancelPaymentRequest}
+              onEmailReceipt={emailReceipt}
               canCorrectStatuses={orders.canCorrectStatuses}
               canManageRefunds={orders.canManageRefunds}
+              canSettleBills={staffBillingEnabled}
               onRetryRefund={retryRefund}
               pendingAction={pendingAction}
               disabled={Boolean(pendingAction)}
@@ -873,7 +1282,303 @@ export function StaffOrderBoard() {
           ))}
         </div>
       )}
+      {activeTab === "past" && orders.pastTotalPages > 1 ? (
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            title="Previous page"
+            aria-label="Previous page"
+            disabled={pastPage <= 1 || isRefreshing || Boolean(pendingAction)}
+            onClick={() => setPastPage((current) => Math.max(1, current - 1))}
+          >
+            <ChevronLeftIcon aria-hidden="true" />
+          </Button>
+          <p className="min-w-24 text-center text-sm text-stone-600">
+            Page {orders.pastPage} of {orders.pastTotalPages}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            title="Next page"
+            aria-label="Next page"
+            disabled={
+              pastPage >= orders.pastTotalPages ||
+              isRefreshing ||
+              Boolean(pendingAction)
+            }
+            onClick={() =>
+              setPastPage((current) =>
+                Math.min(orders.pastTotalPages, current + 1),
+              )
+            }
+          >
+            <ChevronRightIcon aria-hidden="true" />
+          </Button>
+        </div>
+      ) : null}
       </CardContent>
+      <Dialog
+        open={Boolean(adjustmentTarget)}
+        onOpenChange={(open) => {
+          if (
+            pendingAction?.startsWith("adjust-order:") ||
+            pendingAction?.startsWith("remove-adjustment:")
+          ) {
+            return;
+          }
+
+          if (!open) {
+            resetAdjustmentForm();
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-stone-200 px-6 py-5">
+            <DialogTitle className="text-lg font-semibold text-stone-950">
+              Discount or comp
+            </DialogTitle>
+            <DialogDescription>
+              Order #{adjustmentTarget?.orderNo}. Tax is recalculated from the
+              adjusted subtotal.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 px-6 py-5">
+            <div className="grid gap-2">
+              <p className="text-sm font-medium text-stone-800">Action</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={adjustmentType === "DISCOUNT" ? "default" : "outline"}
+                  disabled={Boolean(pendingAction)}
+                  onClick={() => setAdjustmentType("DISCOUNT")}
+                >
+                  Discount
+                </Button>
+                <Button
+                  type="button"
+                  variant={adjustmentType === "COMP" ? "default" : "outline"}
+                  disabled={Boolean(pendingAction)}
+                  onClick={() => setAdjustmentType("COMP")}
+                >
+                  Comp bill
+                </Button>
+              </div>
+            </div>
+
+            {adjustmentType === "DISCOUNT" ? (
+              <>
+                <div className="grid gap-2">
+                  <p className="text-sm font-medium text-stone-800">Method</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={
+                        adjustmentCalculation === "PERCENTAGE"
+                          ? "default"
+                          : "outline"
+                      }
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => setAdjustmentCalculation("PERCENTAGE")}
+                    >
+                      Percentage
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={
+                        adjustmentCalculation === "FIXED_AMOUNT"
+                          ? "default"
+                          : "outline"
+                      }
+                      disabled={Boolean(pendingAction)}
+                      onClick={() => setAdjustmentCalculation("FIXED_AMOUNT")}
+                    >
+                      Fixed amount
+                    </Button>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <label
+                    htmlFor="adjustment-value"
+                    className="text-sm font-medium text-stone-800"
+                  >
+                    {adjustmentCalculation === "PERCENTAGE"
+                      ? "Discount (%)"
+                      : `Discount (${adjustmentTarget?.paymentCurrency ?? orders.currency})`}
+                  </label>
+                  <Input
+                    id="adjustment-value"
+                    type="number"
+                    min="0.01"
+                    max={adjustmentCalculation === "PERCENTAGE" ? "99.99" : undefined}
+                    step="0.01"
+                    value={adjustmentValue}
+                    disabled={Boolean(pendingAction)}
+                    onChange={(event) => setAdjustmentValue(event.target.value)}
+                  />
+                </div>
+              </>
+            ) : null}
+
+            <div className="grid gap-2">
+              <p className="text-sm font-medium text-stone-800">Reason</p>
+              <Select
+                value={adjustmentReasonCode}
+                disabled={Boolean(pendingAction)}
+                onValueChange={(value) =>
+                  setAdjustmentReasonCode(value as StaffOrderAdjustmentReasonCode)
+                }
+              >
+                <SelectTrigger className="bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {staffOrderAdjustmentReasonCodes.map((reasonCode) => (
+                    <SelectItem key={reasonCode} value={reasonCode}>
+                      {staffOrderAdjustmentReasonLabels[reasonCode]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <label
+                htmlFor="adjustment-note"
+                className="text-sm font-medium text-stone-800"
+              >
+                Note (optional)
+              </label>
+              <Textarea
+                id="adjustment-note"
+                value={adjustmentNote}
+                maxLength={200}
+                disabled={Boolean(pendingAction)}
+                onChange={(event) => setAdjustmentNote(event.target.value)}
+              />
+            </div>
+            <ManagerApprovalFields
+              credentials={managerApproval}
+              disabled={Boolean(pendingAction)}
+              idPrefix="adjustment"
+              onChange={setManagerApproval}
+              required={managerApprovalRequired}
+            />
+          </div>
+          <DialogFooter className="border-t border-stone-200 px-6 py-4">
+            {adjustmentTarget?.adjustment ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                disabled={Boolean(pendingAction) || !managerApprovalComplete}
+                onClick={() => void removeAdjustment()}
+              >
+                {pendingAction?.startsWith("remove-adjustment:")
+                  ? "Removing..."
+                  : "Remove adjustment"}
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              disabled={
+                Boolean(pendingAction) ||
+                !managerApprovalComplete ||
+                (adjustmentType === "DISCOUNT" &&
+                  (!adjustmentValue || Number(adjustmentValue) <= 0))
+              }
+              onClick={() => void saveAdjustment()}
+            >
+              {pendingAction?.startsWith("adjust-order:") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                "Save adjustment"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(promisedTimeTarget)}
+        onOpenChange={(open) => {
+          if (pendingAction?.startsWith("promise-order:")) {
+            return;
+          }
+
+          if (!open) {
+            setPromisedTimeTarget(null);
+            setPromisedFulfilmentAt("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md p-0 sm:max-w-md">
+          <DialogHeader className="border-b border-stone-200 px-6 py-5">
+            <DialogTitle className="text-lg font-semibold text-stone-950">
+              Set promised fulfilment time
+            </DialogTitle>
+            <DialogDescription>
+              Confirm when the restaurant expects to fulfil order #
+              {promisedTimeTarget?.orderNo}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 px-6 py-5">
+            {promisedTimeTarget?.requestedFulfilmentAt ? (
+              <p className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm text-stone-600">
+                The customer requested this time. Adjust it before saving if the
+                restaurant cannot commit to it.
+              </p>
+            ) : null}
+            <div className="grid gap-2">
+              <label
+                htmlFor="promised-fulfilment-at"
+                className="text-sm font-medium text-stone-800"
+              >
+                Promised time
+              </label>
+              <Input
+                id="promised-fulfilment-at"
+                type="datetime-local"
+                min={toLocalDateTimeInputValue(new Date())}
+                value={promisedFulfilmentAt}
+                disabled={Boolean(pendingAction)}
+                onChange={(event) => setPromisedFulfilmentAt(event.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="border-t border-stone-200 px-6 py-4">
+            {promisedTimeTarget?.promisedFulfilmentAt ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={Boolean(pendingAction)}
+                onClick={() => void savePromisedTime(null)}
+              >
+                Clear promise
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              disabled={Boolean(pendingAction) || !promisedFulfilmentAt}
+              onClick={() => void savePromisedTime(promisedFulfilmentAt)}
+            >
+              {pendingAction ===
+              `promise-order:${promisedTimeTarget?.orderId}` ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-white" />
+                  Saving...
+                </span>
+              ) : (
+                "Save promised time"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={Boolean(settlementTarget)}
         onOpenChange={(open) => {
@@ -1051,49 +1756,51 @@ export function StaffOrderBoard() {
                     </Button>
                   </section>
 
-                  <section
-                    aria-labelledby="online-payment-heading"
-                    className="border-t border-stone-200 pt-5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CreditCardIcon className="size-4 text-sky-700" />
-                      <h3
-                        id="online-payment-heading"
-                        className="font-semibold text-stone-950"
-                      >
-                        Online payment
-                      </h3>
-                    </div>
-                    <p className="mt-1 text-sm text-stone-600">
-                      Create a Stripe Checkout link for the remaining balance of{" "}
-                      {settlementBalance
-                        ? formatMoney(
-                            Number(settlementBalance.remainingAmount),
-                            settlementCurrency,
-                          )
-                        : "this bill"}
-                      .
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="mt-4 w-full"
-                      disabled={Boolean(pendingAction)}
-                      onClick={() => void loadStripePaymentLink()}
+                  {stripePaymentsEnabled ? (
+                    <section
+                      aria-labelledby="online-payment-heading"
+                      className="border-t border-stone-200 pt-5"
                     >
-                      {pendingAction ===
-                      `stripe-payment:${settlementTarget.orderId}` ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Spinner className="text-stone-700" />
-                          Creating link...
-                        </span>
-                      ) : (
-                        <ButtonLabel icon={CreditCardIcon}>
-                          Create Stripe payment link
-                        </ButtonLabel>
-                      )}
-                    </Button>
-                  </section>
+                      <div className="flex items-center gap-2">
+                        <CreditCardIcon className="size-4 text-sky-700" />
+                        <h3
+                          id="online-payment-heading"
+                          className="font-semibold text-stone-950"
+                        >
+                          Online payment
+                        </h3>
+                      </div>
+                      <p className="mt-1 text-sm text-stone-600">
+                        Create a Stripe Checkout link for the remaining balance of{" "}
+                        {settlementBalance
+                          ? formatMoney(
+                              Number(settlementBalance.remainingAmount),
+                              settlementCurrency,
+                            )
+                          : "this bill"}
+                        .
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4 w-full"
+                        disabled={Boolean(pendingAction)}
+                        onClick={() => void loadStripePaymentLink()}
+                      >
+                        {pendingAction ===
+                        `stripe-payment:${settlementTarget.orderId}` ? (
+                          <span className="inline-flex items-center gap-2">
+                            <Spinner className="text-stone-700" />
+                            Creating link...
+                          </span>
+                        ) : (
+                          <ButtonLabel icon={CreditCardIcon}>
+                            Create Stripe payment link
+                          </ButtonLabel>
+                        )}
+                      </Button>
+                    </section>
+                  ) : null}
                 </>
               ) : settlementTarget.paymentStatus === "PENDING" ? (
                 <section aria-labelledby="pending-payment-heading">
@@ -1216,6 +1923,7 @@ export function StaffOrderBoard() {
             setCancellationTarget(null);
             setCancellationReason("");
             setApplyCustomerCancellationFee(false);
+            resetManagerApproval();
           }
         }}
       >
@@ -1342,6 +2050,13 @@ export function StaffOrderBoard() {
                   placeholder="Optional reason"
                 />
               </div>
+              <ManagerApprovalFields
+                credentials={managerApproval}
+                disabled={Boolean(pendingAction)}
+                idPrefix="cancellation"
+                onChange={setManagerApproval}
+                required={managerApprovalRequired}
+              />
             </div>
           ) : null}
           <AlertDialogFooter>
@@ -1353,6 +2068,7 @@ export function StaffOrderBoard() {
               disabled={
                 !cancellationTarget ||
                 Boolean(pendingAction) ||
+                !managerApprovalComplete ||
                 (applyCustomerCancellationFee &&
                   (!Number.isFinite(cancellationFeePercent) ||
                     cancellationFeePercent < 0 ||
@@ -1377,6 +2093,72 @@ export function StaffOrderBoard() {
                 cancellationHasCollectedPayment
                   ? "Cancel and settle refund"
                   : "Cancel order"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={Boolean(itemVoidTarget)}
+        onOpenChange={(open) => {
+          if (pendingAction?.startsWith("cancel-item:")) {
+            return;
+          }
+
+          if (!open) {
+            setItemVoidTarget(null);
+            resetManagerApproval();
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void this item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The item will be removed from fulfilment and any reserved stock
+              will be restored.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ManagerApprovalFields
+            credentials={managerApproval}
+            disabled={Boolean(pendingAction)}
+            idPrefix="item-void"
+            onChange={setManagerApproval}
+            required={managerApprovalRequired}
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={Boolean(pendingAction)}>
+              Keep item
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={
+                !itemVoidTarget ||
+                Boolean(pendingAction) ||
+                !managerApprovalComplete
+              }
+              onClick={(event) => {
+                event.preventDefault();
+
+                if (!itemVoidTarget) {
+                  return;
+                }
+
+                void runItemAction(
+                  itemVoidTarget.orderId,
+                  itemVoidTarget.itemId,
+                  "cancel",
+                  managerApproval,
+                );
+              }}
+            >
+              {pendingAction?.startsWith("cancel-item:") ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner className="text-rose-700" />
+                  Voiding...
+                </span>
+              ) : (
+                "Void item"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

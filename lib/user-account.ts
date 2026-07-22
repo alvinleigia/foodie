@@ -6,9 +6,9 @@ import {
   canAccessRole,
   companyAdminRoles,
   platformAdminRoles,
-  restaurantAdminRoles,
 } from "@/lib/role-access";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import { updateUserAccountSchema } from "@/lib/validations/tenant-admin";
 
 type AccountEditor = {
@@ -16,6 +16,7 @@ type AccountEditor = {
   username?: string;
   role: MembershipRole;
   organizationId?: string | null;
+  permissions?: StaffPermission[];
 };
 
 type UserAccountTarget = {
@@ -52,7 +53,7 @@ function canEditAccountForTarget(
   }
 
   if (
-    canAccessRole(editor.role, restaurantAdminRoles) &&
+    editor.permissions?.includes("staff.manage") &&
     editor.organizationId &&
     target.role !== "PLATFORM_ADMIN"
   ) {

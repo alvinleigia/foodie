@@ -241,24 +241,25 @@ export function CompanyRestaurantsPanel({
 
       {view === "dashboard" ? (
         <>
-          <ReportBreakdown
-            title="Restaurant activity"
-            description="Compare child restaurants by staff and order activity."
-            emptyMessage="No restaurant activity to report yet."
-            rows={breakdown}
-          />
-
           {report ? (
-            <OperationalReports
-              exportHref={`/api/company/reports/export?range=${reportRange}`}
-              isLoading={isLoading}
-              range={reportRange}
-              report={report}
-              onRangeChange={(nextRange) => {
-                setReportRange(nextRange);
-                void refreshCompanySummary(nextRange);
-              }}
-            />
+            <>
+              <ReportBreakdown
+                title="Restaurant activity"
+                description="Compare child restaurants by staff and order activity."
+                emptyMessage="No restaurant activity to report yet."
+                rows={breakdown}
+              />
+              <OperationalReports
+                exportHref={`/api/company/reports/export?range=${reportRange}`}
+                isLoading={isLoading}
+                range={reportRange}
+                report={report}
+                onRangeChange={(nextRange) => {
+                  setReportRange(nextRange);
+                  void refreshCompanySummary(nextRange);
+                }}
+              />
+            </>
           ) : null}
         </>
       ) : null}

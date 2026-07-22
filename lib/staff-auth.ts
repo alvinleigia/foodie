@@ -161,7 +161,7 @@ export async function authenticateStaff(
     return null;
   }
 
-  const loginRateLimit = checkRateLimit({
+  const loginRateLimit = await checkRateLimit({
     key: `auth:credentials:${identifier}`,
     limit: 10,
     windowMs: 15 * 60_000,

@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
+import { FeatureEntitlementError } from "@/lib/feature-entitlements";
 import { platformAdminRoles } from "@/lib/role-access";
 import {
   createCompanyDomain,
@@ -57,6 +58,10 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     return NextResponse.json({ domains: await listCompanyDomains(id) });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });
     }

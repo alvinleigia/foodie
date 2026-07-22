@@ -1,6 +1,5 @@
 import { ReassignExistingUserForm } from "@/components/admin/ReassignExistingUserForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import {
   listRestaurantReassignableUsers,
   listRestaurantReassignmentTargets,
@@ -24,8 +23,8 @@ export default async function RestaurantStaffReassignPage({
   const { restaurantSlug } = await params;
   const { access, session, snapshot } =
     await requireRestaurantWorkspaceAdminPage({
-      allowedRoles: restaurantAdminRoles,
       destination: "staffReassign",
+      requiredPermission: "staff.manage",
       restaurantSlug,
     });
   const [targets, users, query] = await Promise.all([
@@ -44,6 +43,7 @@ export default async function RestaurantStaffReassignPage({
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

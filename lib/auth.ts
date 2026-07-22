@@ -5,9 +5,9 @@ import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-sessi
 import {
   canAccessRole,
   operationalRoles,
-  restaurantAdminRoles,
   platformAdminRoles,
 } from "@/lib/role-access";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type StaffSession = Session & {
@@ -49,6 +49,55 @@ export async function requireStaffSession() {
   return session;
 }
 
+export async function requireStaffPermission(permission: StaffPermission) {
+  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
+    return null;
+  }
+
+  const session = await auth();
+
+  if (!isStaffSession(session) || !session.user.permissions.includes(permission)) {
+    return null;
+  }
+
+  if (!canAccessRole(session.user.role, platformAdminRoles)) {
+    try {
+      await assertTenantSubscriptionAccess(session.user.organizationId);
+    } catch {
+      return null;
+    }
+  }
+
+  return session;
+}
+
+export async function requireAnyStaffPermission(
+  permissions: StaffPermission[],
+) {
+  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
+    return null;
+  }
+
+  const session = await auth();
+
+  if (
+    !isStaffSession(session) ||
+    !permissions.some((permission) => session.user.permissions.includes(permission))
+  ) {
+    return null;
+  }
+
+  if (!canAccessRole(session.user.role, platformAdminRoles)) {
+    try {
+      await assertTenantSubscriptionAccess(session.user.organizationId);
+    } catch {
+      return null;
+    }
+  }
+
+  return session;
+}
+
 export async function requireRole(allowedRoles: MembershipRole[]) {
   if (!(await isCurrentRequestPlatformAdministrationDomain())) {
     return null;
@@ -75,20 +124,7 @@ export async function requireRole(allowedRoles: MembershipRole[]) {
 }
 
 export async function requireMenuManagerSession() {
-  if (!(await isCurrentRequestPlatformAdministrationDomain())) {
-    return null;
-  }
-
-  const session = await auth();
-
-  if (
-    !isStaffSession(session) ||
-    !canAccessRole(session.user.role, restaurantAdminRoles)
-  ) {
-    return null;
-  }
-
-  return session;
+  return requireStaffPermission("menu.manage");
 }
 
 export async function requireCustomerSession() {

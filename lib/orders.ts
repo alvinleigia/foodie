@@ -1,7 +1,13 @@
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orderItemModifiers, orderItems, orderPayments, orders } from "@/db/schema";
+import {
+  orderAdjustments,
+  orderItemModifiers,
+  orderItems,
+  orderPayments,
+  orders,
+} from "@/db/schema";
 import {
   OrderLineItem,
   OrderLineItemModifier,
@@ -13,16 +19,34 @@ import {
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
+import { calculateTaxPricing } from "@/lib/tax-pricing";
+import { findActiveDiscountAdjustment } from "@/lib/order-adjustments";
 
-const activeOrderStatuses: OrderStatus[] = ["PENDING", "PREPARING", "READY"];
+const activeOrderStatuses: OrderStatus[] = [
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
+
+export const STAFF_ACTIVE_ORDER_LIMIT = 200;
+export const STAFF_ORDER_HISTORY_PAGE_SIZE = 20;
+
+type StaffOrderView = "active" | "past";
+
+type StaffOrderQueryOptions = {
+  page?: number;
+  view?: StaffOrderView;
+};
 
 function activeOrderRank() {
   return sql<number>`case ${orders.status}
     when 'PENDING' then 1
     when 'PREPARING' then 2
-    when 'READY' then 3
-    else 4
+    when 'ASSEMBLING' then 3
+    when 'READY' then 4
+    else 5
   end`;
 }
 
@@ -49,6 +73,8 @@ function groupItemsByOrder(
     list.push({
       id: item.id,
       organizationId: item.organizationId,
+      prepStationId: item.prepStationId,
+      prepStationNameSnapshot: item.prepStationNameSnapshot,
       categoryId: item.categoryId,
       categoryName: item.categoryName,
       drinkId: item.drinkId,
@@ -56,6 +82,9 @@ function groupItemsByOrder(
       quantity: item.quantity,
       notes: item.notes ?? null,
       unitPrice: item.unitPrice ?? null,
+      taxRateBpsSnapshot: item.taxRateBpsSnapshot,
+      taxableAmountSnapshot: item.taxableAmountSnapshot ?? null,
+      taxAmountSnapshot: item.taxAmountSnapshot ?? null,
       status: item.status,
       startedAt: item.startedAt?.toISOString() ?? null,
       readyAt: item.readyAt?.toISOString() ?? null,
@@ -128,7 +157,16 @@ export function buildOrderSummary(items: Array<{ drinkName: string; quantity: nu
 function getDisplayedPaymentAmount(
   order: typeof orders.$inferSelect,
   items: OrderLineItem[],
+  hasActiveAdjustment: boolean,
 ) {
+  if (
+    order.source === "STAFF_CREATED" &&
+    (order.financialSnapshotAt || hasActiveAdjustment) &&
+    order.finalTotalAmountSnapshot !== null
+  ) {
+    return order.finalTotalAmountSnapshot;
+  }
+
   if (
     order.source !== "STAFF_CREATED" ||
     order.paymentStatus !== "UNPAID" ||
@@ -153,9 +191,14 @@ function getDisplayedPaymentAmount(
           modifier.quantity,
       0,
     );
-    totalMinor +=
-      (decimalToMinorUnits(item.unitPrice, currency) + modifierMinor) *
-      item.quantity;
+    const listedUnitMinor =
+      decimalToMinorUnits(item.unitPrice, currency) + modifierMinor;
+    const unitPricing = calculateTaxPricing(
+      listedUnitMinor,
+      order.taxRateBpsSnapshot,
+      order.taxPricingModeSnapshot,
+    );
+    totalMinor += unitPricing.totalAmountMinor * item.quantity;
   }
 
   return totalMinor > 0
@@ -171,6 +214,15 @@ export function serializeOrder(
     amount: string;
     method: OrderPaymentMethod;
   }> = [],
+  adjustment: {
+    amount: string;
+    calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+    id: string;
+    note: string | null;
+    rateBps: number | null;
+    reasonCode: string | null;
+    type: "DISCOUNT" | "COMP";
+  } | null = null,
 ) {
   return {
     orderId: order.id,
@@ -179,6 +231,9 @@ export function serializeOrder(
     organizationId: order.organizationId,
     customerName: order.customerName,
     source: order.source,
+    fulfilmentType: order.fulfilmentType,
+    requestedFulfilmentAt: order.requestedFulfilmentAt?.toISOString() ?? null,
+    promisedFulfilmentAt: order.promisedFulfilmentAt?.toISOString() ?? null,
     categoryName: order.categoryName,
     drinkName: order.drinkName,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -195,16 +250,89 @@ export function serializeOrder(
     paymentMethod:
       paymentMethod ??
       (order.stripeCheckoutSessionId ? "STRIPE_CHECKOUT" : null),
-    paymentAmount: getDisplayedPaymentAmount(order, items),
+    paymentAmount: getDisplayedPaymentAmount(order, items, adjustment !== null),
     paymentCollectedAmount: order.paymentCollectedAmount,
     paymentCurrency: order.paymentCurrency,
+    subtotalAmountSnapshot: order.subtotalAmountSnapshot,
+    discountAmountSnapshot: order.discountAmountSnapshot,
+    taxAmountSnapshot: order.taxAmountSnapshot,
+    chargeAmountSnapshot: order.chargeAmountSnapshot,
+    tipAmountSnapshot: order.tipAmountSnapshot,
+    finalTotalAmountSnapshot: order.finalTotalAmountSnapshot,
+    financialSnapshotCurrency: order.financialSnapshotCurrency,
+    financialSnapshotAt: order.financialSnapshotAt?.toISOString() ?? null,
+    receiptNumber: order.receiptNumber,
+    receiptIssuedAt: order.receiptIssuedAt?.toISOString() ?? null,
+    invoiceNumber: order.invoiceNumber,
+    invoiceIssuedAt: order.invoiceIssuedAt?.toISOString() ?? null,
     paymentPortions,
+    adjustment,
     customerCancellationFeeBps:
       order.customerCancellationFeeBpsSnapshot,
     cancellationFeeBpsApplied: order.cancellationFeeBpsApplied,
     cancellationFeeAmount: order.cancellationFeeAmount,
     refundAmount: order.refundAmount,
   };
+}
+
+export async function getActiveOrderAdjustmentsForOrders(
+  orderIds: string[],
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const adjustments = new Map<
+    string,
+    {
+      amount: string;
+      calculation: "FIXED_AMOUNT" | "PERCENTAGE";
+      id: string;
+      note: string | null;
+      rateBps: number | null;
+      reasonCode: string | null;
+      type: "DISCOUNT" | "COMP";
+    }
+  >();
+
+  if (orderIds.length === 0) {
+    return adjustments;
+  }
+
+  const rows = await getDb()
+    .select()
+    .from(orderAdjustments)
+    .where(
+      and(
+        inArray(orderAdjustments.orderId, orderIds),
+        eq(orderAdjustments.organizationId, context.organizationId),
+        eq(orderAdjustments.scope, "ORDER"),
+        inArray(orderAdjustments.type, ["DISCOUNT", "COMP"]),
+      ),
+    )
+    .orderBy(desc(orderAdjustments.createdAt));
+  const rowsByOrder = new Map<string, typeof rows>();
+
+  for (const row of rows) {
+    const orderRows = rowsByOrder.get(row.orderId) ?? [];
+    orderRows.push(row);
+    rowsByOrder.set(row.orderId, orderRows);
+  }
+
+  for (const [orderId, orderRows] of rowsByOrder) {
+    const active = findActiveDiscountAdjustment(orderRows);
+
+    if (active && (active.type === "DISCOUNT" || active.type === "COMP")) {
+      adjustments.set(orderId, {
+        amount: active.amount,
+        calculation: active.calculation,
+        id: active.id,
+        note: active.note,
+        rateBps: active.rateBps,
+        reasonCode: active.reasonCode,
+        type: active.type,
+      });
+    }
+  }
+
+  return adjustments;
 }
 
 export async function getActiveOrders(context: TenantContext = getDefaultTenantContext()) {
@@ -221,60 +349,103 @@ export async function getActiveOrders(context: TenantContext = getDefaultTenantC
     .orderBy(activeOrderRank(), desc(orders.createdAt));
 }
 
-export async function getStaffOrders(context: TenantContext = getDefaultTenantContext()) {
+export async function getStaffOrders(
+  context: TenantContext = getDefaultTenantContext(),
+  options: StaffOrderQueryOptions = {},
+) {
   const db = getDb();
-  const [activeOrders, pastOrders] = await Promise.all([
-    db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.organizationId, context.organizationId),
-          inArray(orders.status, activeOrderStatuses),
-          or(
-            inArray(orders.paymentStatus, [
-              "NOT_REQUIRED",
-              "UNPAID",
-              "PARTIALLY_PAID",
-              "PAID",
-            ]),
-            and(
-              eq(orders.source, "STAFF_CREATED"),
-              eq(orders.paymentStatus, "PENDING"),
-            ),
-          ),
-        ),
-      )
-      .orderBy(activeOrderRank(), desc(orders.createdAt)),
-    db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.organizationId, context.organizationId),
-          inArray(orders.status, pastOrderStatuses),
-          or(
-            inArray(orders.paymentStatus, [
-              "NOT_REQUIRED",
-              "UNPAID",
-              "PARTIALLY_PAID",
-              "PAID",
-              "REFUND_PENDING",
-              "PARTIALLY_REFUNDED",
-              "REFUND_FAILED",
-              "REFUNDED",
-            ]),
-            and(
-              eq(orders.source, "STAFF_CREATED"),
-              eq(orders.paymentStatus, "PENDING"),
-            ),
-          ),
-        ),
-      )
-      .orderBy(desc(pastOrderClosedAt())),
-  ]);
+  const view = options.view ?? "active";
 
-  return { activeOrders, pastOrders };
+  if (view === "past") {
+    const pastOrderFilter = and(
+      eq(orders.organizationId, context.organizationId),
+      inArray(orders.status, pastOrderStatuses),
+      or(
+        inArray(orders.paymentStatus, [
+          "NOT_REQUIRED",
+          "UNPAID",
+          "PARTIALLY_PAID",
+          "PAID",
+          "REFUND_PENDING",
+          "PARTIALLY_REFUNDED",
+          "REFUND_FAILED",
+          "REFUNDED",
+        ]),
+        and(
+          eq(orders.source, "STAFF_CREATED"),
+          eq(orders.paymentStatus, "PENDING"),
+        ),
+      ),
+    );
+    const [totalRow] = await db
+      .select({ value: count() })
+      .from(orders)
+      .where(pastOrderFilter);
+    const total = Number(totalRow?.value ?? 0);
+    const totalPages = Math.max(
+      1,
+      Math.ceil(total / STAFF_ORDER_HISTORY_PAGE_SIZE),
+    );
+    const page = Math.min(
+      Math.max(1, Math.trunc(options.page ?? 1)),
+      totalPages,
+    );
+    const pastOrders = await db
+      .select()
+      .from(orders)
+      .where(pastOrderFilter)
+      .orderBy(desc(pastOrderClosedAt()))
+      .limit(STAFF_ORDER_HISTORY_PAGE_SIZE)
+      .offset((page - 1) * STAFF_ORDER_HISTORY_PAGE_SIZE);
+
+    return {
+      activeHasMore: false,
+      activeOrders: [],
+      page,
+      pageSize: STAFF_ORDER_HISTORY_PAGE_SIZE,
+      pastOrders,
+      total,
+      totalPages,
+      view,
+    };
+  }
+
+  const activeRows = await db
+    .select()
+    .from(orders)
+    .where(
+      and(
+        eq(orders.organizationId, context.organizationId),
+        inArray(orders.status, activeOrderStatuses),
+        or(
+          inArray(orders.paymentStatus, [
+            "NOT_REQUIRED",
+            "UNPAID",
+            "PARTIALLY_PAID",
+            "PAID",
+          ]),
+          and(
+            eq(orders.source, "STAFF_CREATED"),
+            eq(orders.paymentStatus, "PENDING"),
+          ),
+        ),
+      ),
+    )
+    .orderBy(activeOrderRank(), desc(orders.createdAt))
+    .limit(STAFF_ACTIVE_ORDER_LIMIT + 1);
+  const activeHasMore = activeRows.length > STAFF_ACTIVE_ORDER_LIMIT;
+  const activeOrders = activeRows.slice(0, STAFF_ACTIVE_ORDER_LIMIT);
+
+  return {
+    activeHasMore,
+    activeOrders,
+    page: 1,
+    pageSize: STAFF_ACTIVE_ORDER_LIMIT,
+    pastOrders: [],
+    total: activeOrders.length,
+    totalPages: 1,
+    view,
+  };
 }
 
 export async function getLatestOrderPaymentsForOrders(

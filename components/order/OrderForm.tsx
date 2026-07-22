@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeftIcon,
+  CalendarClockIcon,
   CheckIcon,
   CreditCardIcon,
   ImageIcon,
@@ -27,7 +28,15 @@ import {
 import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  decimalToMinorUnits,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 import { getCustomerPrivacyHref } from "@/lib/customer-navigation";
+import {
+  calculateTaxPricing,
+  type TaxPricingMode,
+} from "@/lib/tax-pricing";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
 import {
   isValidCustomerPhone,
@@ -43,6 +52,7 @@ import {
   type CustomerAuthProviders,
 } from "@/components/order/CustomerLoginForm";
 import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerification";
+import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
@@ -78,6 +88,8 @@ import {
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+import { toLocalDateTimeInputValue } from "@/lib/order-fulfilment-time";
 import {
   MenuCategoryRecord,
   MenuItemRecord,
@@ -98,6 +110,7 @@ type OrderFormProps = {
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   staffRestaurantSlug?: string;
+  stripePaymentsEnabled?: boolean;
   onOrderCreated?: (order: LocalCustomerOrder) => void;
 };
 
@@ -131,6 +144,19 @@ type CustomizerState = {
 
 type OrderDraft = {
   customerName: string;
+  fulfilmentType: OrderFulfilmentType;
+  fulfilmentTiming: "ASAP" | "SCHEDULED";
+  scheduledFulfilmentAt: string;
+};
+
+type RestaurantTaxPricing = {
+  pricingMode: TaxPricingMode;
+  taxRateBps: number;
+};
+
+const defaultTaxPricing: RestaurantTaxPricing = {
+  pricingMode: "INCLUSIVE",
+  taxRateBps: 0,
 };
 
 function withOrderContext(
@@ -249,13 +275,18 @@ export function OrderForm({
   phoneVerificationPolicy,
   routeSlug,
   staffRestaurantSlug,
+  stripePaymentsEnabled = true,
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
+  const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: customer?.name ?? "",
+    fulfilmentType: "COLLECTION",
+    fulfilmentTiming: "ASAP",
+    scheduledFulfilmentAt: "",
   });
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -300,7 +331,8 @@ export function OrderForm({
   );
   const canPlaceOrder =
     isStaffOrder ||
-    (hasCompleteCustomerProfile &&
+    (stripePaymentsEnabled &&
+      hasCompleteCustomerProfile &&
       (!phoneVerificationPolicy.required || hasVerifiedCustomerPhone));
   const privacyHref = getCustomerPrivacyHref({
     orderingPointQrSlug,
@@ -368,6 +400,7 @@ export function OrderForm({
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
         setCurrency(payload.currency ?? DEFAULT_CURRENCY);
+        setTaxPricing(payload.taxPricing ?? defaultTaxPricing);
         setMenuError(null);
         setIsLoadingMenu(false);
         setActiveCategoryId(payload.categories?.[0]?.id);
@@ -455,20 +488,42 @@ export function OrderForm({
     [cartItems],
   );
 
-  const totalAmount = useMemo(() => {
-    const pricedTotal = cartItems.reduce((sum, item) => {
-      const lineTotal = getCartItemLineTotal(item);
+  const cartPricing = useMemo(() => {
+    let hasAnyPrice = false;
+    let listedSubtotalMinor = 0;
+    let taxAmountMinor = 0;
+    let totalAmountMinor = 0;
 
-      if (lineTotal === null) {
-        return sum;
+    for (const item of cartItems) {
+      const listedUnitTotal = getCartItemUnitTotal(item);
+
+      if (listedUnitTotal === null) {
+        continue;
       }
 
-      return sum + lineTotal;
-    }, 0);
+      hasAnyPrice = true;
+      const unitPricing = calculateTaxPricing(
+        decimalToMinorUnits(String(listedUnitTotal), currency),
+        taxPricing.taxRateBps,
+        taxPricing.pricingMode,
+      );
+      listedSubtotalMinor += unitPricing.listedAmountMinor * item.quantity;
+      taxAmountMinor += unitPricing.taxAmountMinor * item.quantity;
+      totalAmountMinor += unitPricing.totalAmountMinor * item.quantity;
+    }
 
-    const hasAnyPrice = cartItems.some((item) => getCartItemLineTotal(item) !== null);
-    return hasAnyPrice ? pricedTotal.toFixed(2) : null;
-  }, [cartItems]);
+    if (!hasAnyPrice) {
+      return null;
+    }
+
+    return {
+      listedSubtotal: minorUnitsToDecimal(listedSubtotalMinor, currency),
+      taxAmount: minorUnitsToDecimal(taxAmountMinor, currency),
+      totalAmount: minorUnitsToDecimal(totalAmountMinor, currency),
+    };
+  }, [cartItems, currency, taxPricing]);
+  const totalAmount = cartPricing?.totalAmount ?? null;
+  const taxRateLabel = `${taxPricing.taxRateBps / 100}%`;
 
   const customerNameError =
     isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
@@ -832,6 +887,21 @@ export function OrderForm({
       return;
     }
 
+    const scheduledFulfilmentAt =
+      draft.fulfilmentTiming === "SCHEDULED"
+        ? new Date(draft.scheduledFulfilmentAt)
+        : null;
+
+    if (
+      draft.fulfilmentTiming === "SCHEDULED" &&
+      (!draft.scheduledFulfilmentAt ||
+        Number.isNaN(scheduledFulfilmentAt?.getTime()) ||
+        scheduledFulfilmentAt!.getTime() <= Date.now())
+    ) {
+      setError("Choose a future fulfilment time.");
+      return;
+    }
+
     const modifierError = getModifierValidationError();
 
     if (modifierError) {
@@ -856,6 +926,8 @@ export function OrderForm({
         body: JSON.stringify({
           customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
           customerName: isStaffOrder ? draft.customerName.trim() : undefined,
+          fulfilmentType: draft.fulfilmentType,
+          scheduledFulfilmentAt: scheduledFulfilmentAt?.toISOString() ?? null,
           items: cartItems.map((item) => ({
             categoryId: item.categoryId,
             drinkId: item.drinkId,
@@ -885,6 +957,9 @@ export function OrderForm({
       orderDate: payload.orderDate,
       customerToken: payload.customerToken,
       customerName: payload.customerName,
+      fulfilmentType: payload.fulfilmentType,
+      requestedFulfilmentAt: payload.requestedFulfilmentAt,
+      promisedFulfilmentAt: payload.promisedFulfilmentAt,
       categoryName: payload.categoryName,
       drinkName: payload.drinkName,
       itemCount: payload.itemCount,
@@ -906,7 +981,12 @@ export function OrderForm({
     }
 
     toast.success(`Order #${payload.orderNo} placed successfully.`);
-    setDraft({ customerName: "" });
+    setDraft({
+      customerName: "",
+      fulfilmentType: "COLLECTION",
+      fulfilmentTiming: "ASAP",
+      scheduledFulfilmentAt: "",
+    });
     setSelectedStaffCustomer(null);
     setCartItems([]);
     setIsCartOpen(false);
@@ -1381,11 +1461,80 @@ export function OrderForm({
                   setSelectedStaffCustomer(nextCustomer);
 
                   if (nextCustomer) {
-                    setDraft({ customerName: nextCustomer.name });
+                    setDraft((currentDraft) => ({
+                      ...currentDraft,
+                      customerName: nextCustomer.name,
+                    }));
                   }
                 }}
               />
             ) : null}
+
+            <FulfilmentTypeSelector
+              disabled={isSubmitting}
+              value={draft.fulfilmentType}
+              onChange={(fulfilmentType) => {
+                updateDraft("fulfilmentType", fulfilmentType);
+                setError(null);
+              }}
+            />
+
+            <fieldset className="grid gap-3">
+              <legend className="text-sm font-medium text-stone-800">
+                When should it be ready?
+              </legend>
+              <div className="grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
+                {(["ASAP", "SCHEDULED"] as const).map((timing) => (
+                  <button
+                    key={timing}
+                    type="button"
+                    disabled={isSubmitting}
+                    aria-pressed={draft.fulfilmentTiming === timing}
+                    onClick={() => {
+                      setDraft((currentDraft) => ({
+                        ...currentDraft,
+                        fulfilmentTiming: timing,
+                        scheduledFulfilmentAt:
+                          timing === "SCHEDULED" &&
+                          !currentDraft.scheduledFulfilmentAt
+                            ? toLocalDateTimeInputValue(
+                                new Date(Date.now() + 30 * 60 * 1000),
+                              )
+                            : currentDraft.scheduledFulfilmentAt,
+                      }));
+                      setError(null);
+                    }}
+                    className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
+                      draft.fulfilmentTiming === timing
+                        ? "bg-stone-950 text-white"
+                        : "text-stone-600 hover:bg-white hover:text-stone-950"
+                    }`}
+                  >
+                    <CalendarClockIcon className="size-4" />
+                    {timing === "ASAP" ? "As soon as possible" : "Schedule"}
+                  </button>
+                ))}
+              </div>
+              {draft.fulfilmentTiming === "SCHEDULED" ? (
+                <FormField label={isStaffOrder ? "Promised time" : "Requested time"}>
+                  <Input
+                    type="datetime-local"
+                    min={toLocalDateTimeInputValue(new Date())}
+                    value={draft.scheduledFulfilmentAt}
+                    disabled={isSubmitting}
+                    onChange={(event) => {
+                      updateDraft("scheduledFulfilmentAt", event.target.value);
+                      setError(null);
+                    }}
+                  />
+                </FormField>
+              ) : null}
+              <p className="text-xs text-stone-500">
+                {isStaffOrder
+                  ? "This is the time the restaurant is committing to fulfil the order."
+                  : "The restaurant may confirm or revise your requested time."}
+              </p>
+            </fieldset>
 
             {!isStaffOrder && !customer ? (
               <CustomerLoginForm
@@ -1592,6 +1741,24 @@ export function OrderForm({
                   <span>Pricing</span>
                   <span>{totalAmount ? "Calculated" : "Price on request"}</span>
                 </div>
+                {cartPricing && taxPricing.taxRateBps > 0 ? (
+                  <>
+                    {taxPricing.pricingMode === "EXCLUSIVE" ? (
+                      <div className="flex items-center justify-between gap-4 text-stone-600">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(cartPricing.listedSubtotal, { currency })}</span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-4 text-stone-600">
+                      <span>
+                        {taxPricing.pricingMode === "INCLUSIVE"
+                          ? `Includes tax (${taxRateLabel})`
+                          : `Tax (${taxRateLabel})`}
+                      </span>
+                      <span>{formatPrice(cartPricing.taxAmount, { currency })}</span>
+                    </div>
+                  </>
+                ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
                   <span>To Pay</span>
                   <span>{formatPrice(totalAmount, { currency })}</span>
@@ -1600,17 +1767,24 @@ export function OrderForm({
             </div>
 
             {!isStaffOrder ? (
-              <p className="border-t border-stone-200 pt-4 text-xs leading-5 text-stone-500">
-                See how the restaurant and Foodie use your contact, order and payment
-                information in the{" "}
-                <Link
-                  href={privacyHref}
-                  className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
-                >
-                  privacy notice
-                </Link>
-                .
-              </p>
+              <div className="grid gap-3 border-t border-stone-200 pt-4">
+                {!stripePaymentsEnabled ? (
+                  <p className="text-sm font-medium text-amber-800">
+                    Online payment is not available for this restaurant.
+                  </p>
+                ) : null}
+                <p className="text-xs leading-5 text-stone-500">
+                  See how the restaurant and Foodie use your contact, order and payment
+                  information in the{" "}
+                  <Link
+                    href={privacyHref}
+                    className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+                  >
+                    privacy notice
+                  </Link>
+                  .
+                </p>
+              </div>
             ) : null}
 
             <div

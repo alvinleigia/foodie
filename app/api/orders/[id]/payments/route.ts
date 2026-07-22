@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import {
   cancelStaffStripeCheckout,
   collectStaffCashPayment,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/staff-order-payments";
 import { logError } from "@/lib/logger";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
+import { FeatureEntitlementError } from "@/lib/feature-entitlements";
 
 const paymentSchema = z.discriminatedUnion("method", [
   z.object({
@@ -27,7 +28,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("payments.collect");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -83,6 +84,10 @@ export async function POST(
       paymentStatus: result.order.paymentStatus,
     });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     if (error instanceof StaffOrderPaymentError) {
       return NextResponse.json(
         { error: error.message },
@@ -104,7 +109,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("payments.collect");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

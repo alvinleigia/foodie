@@ -1,19 +1,18 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { PlanLimitError } from "@/lib/billing";
 import {
   createRestaurantAdminStaffInvitation,
   InvitationConflictError,
 } from "@/lib/invitations";
-import { restaurantAdminRoles } from "@/lib/role-access";
 import { getTenantAdminSnapshot } from "@/lib/tenant-admin";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export async function POST(request: Request) {
-  const session = await requireRole([...restaurantAdminRoles]);
+  const session = await requireStaffPermission("staff.manage");
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

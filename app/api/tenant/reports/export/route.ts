@@ -1,5 +1,8 @@
-import { requireRole } from "@/lib/auth";
-import { restaurantAdminRoles } from "@/lib/role-access";
+import { requireStaffPermission } from "@/lib/auth";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import {
   exportOperationalReportCsv,
   getRestaurantOperationalReport,
@@ -18,21 +21,47 @@ function getReportRange(request: Request): ReportRange {
 }
 
 export async function GET(request: Request) {
-  const session = await requireRole([...restaurantAdminRoles]);
+  try {
+    const session = await requireStaffPermission("reports.view");
 
-  if (!session) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const tenantContext = await getCurrentTenantContext();
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "reports.operational",
+    );
+    const range = getReportRange(request);
+    const report = await getRestaurantOperationalReport(
+      tenantContext.organizationId,
+      range,
+    );
+    const csv = exportOperationalReportCsv(
+      report,
+      "Restaurant operational report",
+    );
+
+    return new Response(csv, {
+      headers: {
+        "Content-Disposition": `attachment; filename="restaurant-operational-report-${range}.csv"`,
+        "Content-Type": "text/csv; charset=utf-8",
+      },
+    });
+  } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return Response.json({ error: error.message }, { status: 403 });
+    }
+
+    return Response.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to export restaurant report.",
+      },
+      { status: 500 },
+    );
   }
-
-  const tenantContext = await getCurrentTenantContext();
-  const range = getReportRange(request);
-  const report = await getRestaurantOperationalReport(tenantContext.organizationId, range);
-  const csv = exportOperationalReportCsv(report, "Restaurant operational report");
-
-  return new Response(csv, {
-    headers: {
-      "Content-Disposition": `attachment; filename="restaurant-operational-report-${range}.csv"`,
-      "Content-Type": "text/csv; charset=utf-8",
-    },
-  });
 }

@@ -98,6 +98,7 @@ export default async function UserAccountDetailsPage(
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
+        permissions: session.user.permissions,
         role: session.user.role,
       }}
     >

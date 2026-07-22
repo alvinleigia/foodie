@@ -11,6 +11,7 @@ import { getOrganizationEmailSettingsSnapshot } from "@/lib/organization-email-s
 import { getOrganizationOAuthSettingsSnapshots } from "@/lib/organization-oauth-settings";
 import { getOrganizationPaymentSettingsSnapshot } from "@/lib/organization-payment-settings";
 import { getRequestOrigin } from "@/lib/request-origin";
+import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 
 type CompanyRestaurantIntegrationsPageProps = {
   params: Promise<{ companySlug: string; restaurantSlug: string }>;
@@ -25,12 +26,13 @@ export default async function CompanyWorkspaceRestaurantIntegrationsPage({
       companySlug,
       restaurantSlug,
     });
-  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot] =
+  const [callbackOrigin, emailSnapshot, oauthSnapshots, paymentSnapshot, stripePayments] =
     await Promise.all([
       getRequestOrigin(),
       getOrganizationEmailSettingsSnapshot(restaurant.id),
       getOrganizationOAuthSettingsSnapshots(restaurant.id),
       getOrganizationPaymentSettingsSnapshot(restaurant.id),
+      getOrganizationFeatureEntitlement(restaurant.id, "payments.stripe"),
     ]);
 
   return (
@@ -61,6 +63,7 @@ export default async function CompanyWorkspaceRestaurantIntegrationsPage({
           restaurant.slug,
           "settings",
         )}
+        enabled={stripePayments.enabled}
         initialSnapshot={paymentSnapshot}
       />
     </SaasAdminShell>

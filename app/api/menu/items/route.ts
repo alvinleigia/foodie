@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
         name: item.name,
         slug: item.slug,
         categoryId: item.categoryId,
+        prepStationId: item.prepStationId,
         isActive: item.isActive,
         isSoldOut: item.isSoldOut,
       },

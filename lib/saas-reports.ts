@@ -6,16 +6,29 @@ import {
   memberships,
   menuCategories,
   menuItems,
+  orderAdjustments,
   orderItems,
+  orderPayments,
+  orderRefunds,
   orders,
   organizations,
   users,
 } from "@/db/schema";
+import {
+  reconcileFinancialLedgers,
+  type FinancialReconciliationRow,
+} from "@/lib/financial-reconciliation";
 
-const activeOrderStatuses = ["PENDING", "PREPARING", "READY"] as const;
+const activeOrderStatuses = [
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+] as const;
 const allOrderStatuses = [
   "PENDING",
   "PREPARING",
+  "ASSEMBLING",
   "READY",
   "DELIVERED",
   "CANCELLED",
@@ -73,10 +86,9 @@ export type CancelledItemReportRow = {
 };
 
 export type RevenueReport = {
-  grossRevenue: number;
-  pricedLines: number;
+  financials: FinancialReconciliationRow[];
+  missingSnapshotOrders: number;
   unpricedLines: number;
-  averagePricedLineValue: number | null;
 };
 
 export type LowStockReportRow = {
@@ -280,7 +292,7 @@ async function getStaffBreakdown(
     .select({
       staffName: users.name,
       deliveredOrders: sql<number>`count(*) filter (where ${orders.status} = 'DELIVERED')`,
-      activeOrders: sql<number>`count(*) filter (where ${orders.status} in ('PENDING', 'PREPARING', 'READY'))`,
+      activeOrders: sql<number>`count(*) filter (where ${orders.status} in ('PENDING', 'PREPARING', 'ASSEMBLING', 'READY'))`,
       totalOrders: count(),
     })
     .from(orders)
@@ -386,42 +398,111 @@ async function getRevenueReport(
 ): Promise<RevenueReport> {
   if (organizationIds.length === 0) {
     return {
-      grossRevenue: 0,
-      pricedLines: 0,
+      financials: [],
+      missingSnapshotOrders: 0,
       unpricedLines: 0,
-      averagePricedLineValue: null,
     };
   }
 
-  const conditions = [
+  const orderConditions = [orderOrganizationCondition(organizationIds)];
+  const unpricedConditions = [
     orderItemOrganizationCondition(organizationIds),
     ne(orderItems.status, "CANCELLED"),
   ];
 
   if (since) {
-    conditions.push(gte(orderItems.createdAt, since));
+    orderConditions.push(gte(orders.createdAt, since));
+    unpricedConditions.push(gte(orderItems.createdAt, since));
   }
 
-  const rows = await getDb()
-    .select({
-      grossRevenue: sql<number>`coalesce(sum(${orderItems.unitPrice} * ${orderItems.quantity}) filter (where ${orderItems.unitPrice} is not null), 0)`,
-      pricedLines: sql<number>`count(*) filter (where ${orderItems.unitPrice} is not null)`,
-      unpricedLines: sql<number>`count(*) filter (where ${orderItems.unitPrice} is null)`,
-      averagePricedLineValue: sql<number | null>`avg(${orderItems.unitPrice} * ${orderItems.quantity}) filter (where ${orderItems.unitPrice} is not null)`,
-    })
-    .from(orderItems)
-    .where(and(...conditions));
-
-  const row = rows[0];
+  const db = getDb();
+  const [financialOrders, adjustments, payments, refunds, unpricedRows] =
+    await Promise.all([
+      db
+        .select({
+          cancellationFeeAmount: orders.cancellationFeeAmount,
+          chargeAmountSnapshot: orders.chargeAmountSnapshot,
+          discountAmountSnapshot: orders.discountAmountSnapshot,
+          finalTotalAmountSnapshot: orders.finalTotalAmountSnapshot,
+          financialSnapshotCurrency: orders.financialSnapshotCurrency,
+          id: orders.id,
+          paymentCollectedAmount: orders.paymentCollectedAmount,
+          paymentCurrency: orders.paymentCurrency,
+          paymentStatus: orders.paymentStatus,
+          refundAmount: orders.refundAmount,
+          status: orders.status,
+          subtotalAmountSnapshot: orders.subtotalAmountSnapshot,
+          taxAmountSnapshot: orders.taxAmountSnapshot,
+          tipAmountSnapshot: orders.tipAmountSnapshot,
+        })
+        .from(orders)
+        .where(and(...orderConditions)),
+      db
+        .select({
+          amount: orderAdjustments.amount,
+          currency: orderAdjustments.currency,
+          entryKind: orderAdjustments.entryKind,
+          orderId: orderAdjustments.orderId,
+          type: orderAdjustments.type,
+        })
+        .from(orderAdjustments)
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderAdjustments.orderId),
+            eq(orders.organizationId, orderAdjustments.organizationId),
+          ),
+        )
+        .where(and(...orderConditions)),
+      db
+        .select({
+          amount: orderPayments.amount,
+          currency: orderPayments.currency,
+          orderId: orderPayments.orderId,
+        })
+        .from(orderPayments)
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderPayments.orderId),
+            eq(orders.organizationId, orderPayments.organizationId),
+          ),
+        )
+        .where(and(...orderConditions, eq(orderPayments.status, "SUCCEEDED"))),
+      db
+        .select({
+          amount: orderRefunds.amount,
+          currency: orderRefunds.currency,
+          orderId: orderRefunds.orderId,
+          status: orderRefunds.status,
+        })
+        .from(orderRefunds)
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderRefunds.orderId),
+            eq(orders.organizationId, orderRefunds.organizationId),
+          ),
+        )
+        .where(and(...orderConditions)),
+      db
+        .select({
+          value: sql<number>`count(*) filter (where ${orderItems.unitPrice} is null)`,
+        })
+        .from(orderItems)
+        .where(and(...unpricedConditions)),
+    ]);
+  const reconciliation = reconcileFinancialLedgers({
+    adjustments,
+    orders: financialOrders,
+    payments,
+    refunds,
+  });
 
   return {
-    grossRevenue: Number(row?.grossRevenue ?? 0),
-    pricedLines: Number(row?.pricedLines ?? 0),
-    unpricedLines: Number(row?.unpricedLines ?? 0),
-    averagePricedLineValue:
-      row?.averagePricedLineValue == null
-        ? null
-        : Number(row.averagePricedLineValue),
+    financials: reconciliation.rows,
+    missingSnapshotOrders: reconciliation.missingSnapshotOrders,
+    unpricedLines: Number(unpricedRows[0]?.value ?? 0),
   };
 }
 
@@ -1007,13 +1088,46 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     csvRow(["Range", report.range]),
     "",
     csvRow(["Revenue"]),
-    csvRow(["Gross revenue", "Priced entries", "Unpriced entries", "Average priced entry"]),
     csvRow([
-      report.revenue.grossRevenue.toFixed(2),
-      report.revenue.pricedLines,
-      report.revenue.unpricedLines,
-      report.revenue.averagePricedLineValue?.toFixed(2) ?? "",
+      "Currency",
+      "Orders",
+      "Billed",
+      "Net sales",
+      "Payments",
+      "Refunds",
+      "Net collected",
+      "Outstanding",
+      "Overpayment",
+      "Adjustment mismatches",
+      "Payment mismatches",
+      "Refund mismatches",
+      "Currency mismatches",
+      "Pending refunds",
+      "Failed refunds",
+      "Reconciled",
     ]),
+    ...report.revenue.financials.map((financial) =>
+      csvRow([
+        financial.currency,
+        financial.orderCount,
+        financial.billedTotal,
+        financial.netSalesTotal,
+        financial.collectedPaymentTotal,
+        financial.refundedTotal,
+        financial.netCollectedTotal,
+        financial.outstandingBalance,
+        financial.overpaymentAmount,
+        financial.adjustmentMismatchOrders,
+        financial.paymentMismatchOrders,
+        financial.refundMismatchOrders,
+        financial.currencyMismatchEntries,
+        financial.pendingRefundCount,
+        financial.failedRefundCount,
+        financial.isReconciled ? "Yes" : "No",
+      ]),
+    ),
+    csvRow(["Unpriced entries", report.revenue.unpricedLines]),
+    csvRow(["Orders without financial snapshots", report.revenue.missingSnapshotOrders]),
     "",
     csvRow(["Timing"]),
     csvRow(["Prepared items", "Average prep minutes", "Delivered items", "Average collection minutes"]),

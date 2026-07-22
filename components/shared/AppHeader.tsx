@@ -30,11 +30,13 @@ import {
   type StaffNavigationItem,
 } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
+import type { StaffPermission } from "@/lib/staff-permissions";
 import { cn } from "@/lib/utils";
 
 type AppHeaderUser = {
   contextName?: string | null;
   name?: string | null;
+  permissions?: StaffPermission[];
   role: MembershipRole;
 };
 
@@ -84,7 +86,14 @@ export function AppHeader({
 }: AppHeaderProps) {
   const visibleNavigationItems = user
     ? navigationItems
-        .filter((item) => canAccessNavigation(user.role, item.access))
+        .filter((item) =>
+          canAccessNavigation(
+            user.role,
+            item.access,
+            item.permission,
+            user.permissions,
+          ),
+        )
         .map((item) =>
           item.href === "/order" && staffOrderHref
             ? { ...item, href: staffOrderHref }

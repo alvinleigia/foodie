@@ -13,6 +13,7 @@ import {
   getPlatformAdministrationOrigin,
   isPlatformAdministrationRequest,
 } from "@/lib/deployment-domain";
+import { assertOrganizationFeaturesEnabled } from "@/lib/feature-entitlements";
 
 function clearOAuthContext(response: NextResponse) {
   response.cookies.delete(customerOAuthContextCookieName);
@@ -35,6 +36,19 @@ export async function GET(request: NextRequest) {
   if (session?.user.kind !== "customer" || !context) {
     return clearOAuthContext(
       NextResponse.redirect(new URL("/", platformOrigin)),
+    );
+  }
+
+  try {
+    await assertOrganizationFeaturesEnabled(
+      context.organizationId,
+      ["ordering.customer_accounts", "auth.social"],
+    );
+  } catch {
+    return clearOAuthContext(
+      NextResponse.redirect(
+        new URL(context.returnTo, context.destinationOrigin),
+      ),
     );
   }
 

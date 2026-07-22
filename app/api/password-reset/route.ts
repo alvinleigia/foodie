@@ -10,7 +10,7 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: getRequestRateLimitKey(request, "public:password-reset"),
       limit: 10,
       windowMs: 10 * 60_000,

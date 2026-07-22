@@ -1,9 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getDb } from "@/db";
 import { orderItems, orders } from "@/db/schema";
-import { requireStaffSession } from "@/lib/auth";
+import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import {
   OrderTransitionConflictError,
@@ -17,7 +17,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await requireStaffSession();
+    const session = await requireStaffPermission("orders.update_status");
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -40,9 +40,9 @@ export async function POST(
       return NextResponse.json({ error: "Order not found." }, { status: 404 });
     }
 
-    if (order.status !== "PREPARING") {
+    if (order.status !== "PREPARING" && order.status !== "ASSEMBLING") {
       return NextResponse.json(
-        { error: "Only preparing orders can be marked as ready." },
+        { error: "Only preparing or assembling orders can advance." },
         { status: 409 },
       );
     }
@@ -65,11 +65,15 @@ export async function POST(
         throw new OrderTransitionConflictError();
       }
 
+      const nextStatus =
+        lockedOrder.status === "PREPARING" ? "ASSEMBLING" : "READY";
+
       const [updatedOrder] = await tx
         .update(orders)
         .set({
-          status: "READY",
-          readyAt: lockedOrder.readyAt ?? now,
+          status: nextStatus,
+          readyAt:
+            nextStatus === "READY" ? (lockedOrder.readyAt ?? now) : null,
           updatedAt: now,
         })
         .where(
@@ -92,7 +96,7 @@ export async function POST(
         .where(
           and(
             eq(orderItems.orderId, id),
-            eq(orderItems.status, "PREPARING"),
+            inArray(orderItems.status, ["PENDING", "PREPARING"]),
             eq(orderItems.organizationId, tenantContext.organizationId),
           ),
         );
@@ -103,7 +107,10 @@ export async function POST(
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
-      action: "order.ready",
+      action:
+        transition.updatedOrder.status === "ASSEMBLING"
+          ? "order.assembly_started"
+          : "order.ready",
       entityType: "order",
       entityId: transition.updatedOrder.id,
       metadata: {

@@ -50,7 +50,7 @@ export default async function CustomerLoginPage({
       variant="dark"
       contentClassName="max-w-3xl space-y-6 pb-8"
     >
-      {context.hasTenantContext ? (
+      {context.hasTenantContext && context.customerAccountsEnabled ? (
         <>
           <AppHeader
             activePath="/customer/login"
@@ -85,7 +85,11 @@ export default async function CustomerLoginPage({
         </>
       ) : (
         <CustomerOrderUnavailable
-          reason={context.unavailableReason}
+          reason={
+            context.hasTenantContext
+              ? "CUSTOMER_ACCOUNTS_DISABLED"
+              : context.unavailableReason
+          }
           user={context.user}
         />
       )}

@@ -7,12 +7,14 @@ import {
   memberships,
   menuCategories,
   menuItems,
+  orderAdjustments,
   orderItems,
   orders,
   orderingPoints,
   organizationCustomers,
   organizationSubscriptions,
   organizations,
+  restaurantDocumentCounters,
   saasPlans,
   staffInvitations,
   users,
@@ -62,6 +64,7 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     inventoryRows,
     customerRows,
     orderRows,
+    documentCounterRows,
   ] = await Promise.all([
     db
       .select({ subscription: organizationSubscriptions, plan: saasPlans })
@@ -126,13 +129,25 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     restaurantIds.length
       ? db.select().from(orders).where(inArray(orders.organizationId, restaurantIds))
       : Promise.resolve([]),
+    restaurantIds.length
+      ? db
+          .select()
+          .from(restaurantDocumentCounters)
+          .where(inArray(restaurantDocumentCounters.organizationId, restaurantIds))
+      : Promise.resolve([]),
   ]);
 
   const orderIds = orderRows.map((order) => order.id);
   const membershipIds = membershipRows.map((row) => row.membership.id);
-  const [orderItemRows, invitationRows] = await Promise.all([
+  const [orderItemRows, orderAdjustmentRows, invitationRows] = await Promise.all([
     orderIds.length
       ? db.select().from(orderItems).where(inArray(orderItems.orderId, orderIds))
+      : Promise.resolve([]),
+    orderIds.length
+      ? db
+          .select()
+          .from(orderAdjustments)
+          .where(inArray(orderAdjustments.orderId, orderIds))
       : Promise.resolve([]),
     membershipIds.length
       ? db
@@ -163,6 +178,8 @@ export async function getCompanyDataExport(companyOrganizationId: string) {
     inventoryItems: inventoryRows,
     customers: customerRows,
     orders: orderRows,
+    restaurantDocumentCounters: documentCounterRows,
     orderItems: orderItemRows,
+    orderAdjustments: orderAdjustmentRows,
   };
 }

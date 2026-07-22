@@ -9,21 +9,25 @@ export default async function RestaurantOrderPage(
   const params = await props.params;
   const {
     customer,
+    customerAccountsEnabled,
     customerAuthProviders,
+    customerOrderingEnabled,
     hasTenantContext,
     phoneVerificationPolicy,
+    stripePaymentsEnabled,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ routeSlug: params.routeSlug });
 
   return (
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
-      {hasTenantContext ? (
+      {hasTenantContext && customerOrderingEnabled && customerAccountsEnabled ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
           phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={params.routeSlug}
+          stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}
         />
       ) : (

@@ -45,6 +45,16 @@ export function isPlatformAdministrationDomain(
   );
 }
 
+export function isPlatformManagedTenantDomain(
+  domainValue: string | null | undefined,
+) {
+  const domain = normalizeDomain(domainValue);
+
+  return Boolean(
+    domain && (domain === ROOT_DOMAIN || domain.endsWith(`.${ROOT_DOMAIN}`)),
+  );
+}
+
 export function getRequestHost(request: Request) {
   return (
     request.headers.get("x-forwarded-host") ??

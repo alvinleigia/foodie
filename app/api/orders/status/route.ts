@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
+import {
+  assertOrganizationFeatureEnabled,
+  FeatureEntitlementError,
+} from "@/lib/feature-entitlements";
 import { getTenantMenuCurrency } from "@/lib/menu";
 import {
   getCustomerAccountOrders,
@@ -19,7 +23,7 @@ import { orderStatusRequestSchema } from "@/lib/validations/order";
 
 export async function POST(request: NextRequest) {
   try {
-    const rateLimit = checkRateLimit({
+    const rateLimit = await checkRateLimit({
       key: getRequestRateLimitKey(request, "public:order-status"),
       limit: 45,
       windowMs: 60_000,
@@ -37,6 +41,10 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantContext = await getPublicTenantContextFromRequest(request);
+    await assertOrganizationFeatureEnabled(
+      tenantContext.organizationId,
+      "ordering.customer_accounts",
+    );
     const [session, currency] = await Promise.all([
       auth().catch(() => null),
       getTenantMenuCurrency(tenantContext),
@@ -79,6 +87,10 @@ export async function POST(request: NextRequest) {
       currency,
     });
   } catch (error) {
+    if (error instanceof FeatureEntitlementError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to fetch order statuses." },
       { status: 500 },
