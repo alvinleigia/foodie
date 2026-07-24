@@ -6,11 +6,13 @@ import {
   inventoryItems,
   menuCategories,
   menuItemModifierGroups,
+  menuItemTaxAssignments,
   menuItems,
   menuItemTags,
   menuTags,
   modifierGroups,
   modifierOptions,
+  organizationTaxDefinitions,
   organizations,
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
@@ -546,6 +548,10 @@ function normalizeMenuModifierGroupIds(groupIds: string[] | undefined) {
   return Array.from(new Set(groupIds ?? []));
 }
 
+function normalizeMenuTaxDefinitionIds(taxDefinitionIds: string[] | undefined) {
+  return Array.from(new Set(taxDefinitionIds ?? []));
+}
+
 async function assertMenuTagsExist(tagIds: string[]) {
   if (tagIds.length === 0) {
     return;
@@ -586,6 +592,65 @@ async function assertMenuModifierGroupsExist(groupIds: string[], context: Tenant
   if (existingGroups.length !== groupIds.length) {
     throw new Error("One or more add-on groups are invalid.");
   }
+}
+
+async function assertMenuTaxDefinitionsExist(
+  taxDefinitionIds: string[],
+  context: TenantContext,
+) {
+  if (taxDefinitionIds.length === 0) {
+    return;
+  }
+
+  const existingDefinitions = await getDb()
+    .select({ id: organizationTaxDefinitions.id })
+    .from(organizationTaxDefinitions)
+    .where(
+      and(
+        inArray(organizationTaxDefinitions.id, taxDefinitionIds),
+        eq(
+          organizationTaxDefinitions.organizationId,
+          context.organizationId,
+        ),
+        eq(organizationTaxDefinitions.isActive, true),
+      ),
+    );
+
+  if (existingDefinitions.length !== taxDefinitionIds.length) {
+    throw new Error("One or more taxes are invalid or inactive.");
+  }
+}
+
+async function getMenuTaxAssignmentsByItemId(
+  itemIds: string[],
+  context: TenantContext,
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, string[]>();
+  }
+
+  const rows = await getDb()
+    .select({
+      menuItemId: menuItemTaxAssignments.menuItemId,
+      taxDefinitionId: menuItemTaxAssignments.taxDefinitionId,
+    })
+    .from(menuItemTaxAssignments)
+    .where(
+      and(
+        inArray(menuItemTaxAssignments.menuItemId, itemIds),
+        eq(menuItemTaxAssignments.organizationId, context.organizationId),
+      ),
+    )
+    .orderBy(asc(menuItemTaxAssignments.sortOrder));
+  const assignmentsByItemId = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const assignments = assignmentsByItemId.get(row.menuItemId) ?? [];
+    assignments.push(row.taxDefinitionId);
+    assignmentsByItemId.set(row.menuItemId, assignments);
+  }
+
+  return assignmentsByItemId;
 }
 
 export async function getPublicMenu(
@@ -661,6 +726,10 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     context,
     true,
   );
+  const taxAssignmentsByItemId = await getMenuTaxAssignmentsByItemId(
+    items.map((item) => item.id),
+    context,
+  );
 
   return groupMenuData(
     categories,
@@ -670,7 +739,18 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     tagsByItemId,
     modifierGroupsByItemId,
     true,
-  );
+  ).map((category) => ({
+    ...category,
+    items: category.items.map((item) => {
+      const taxDefinitionIds = taxAssignmentsByItemId.get(item.id) ?? [];
+
+      return {
+        ...item,
+        taxAssignmentMode: taxDefinitionIds.length > 0 ? "CUSTOM" as const : "DEFAULT" as const,
+        taxDefinitionIds,
+      };
+    }),
+  }));
 }
 
 export async function getTenantMenuCurrency(
@@ -973,6 +1053,8 @@ export async function createMenuItem(input: {
   isSoldOut?: boolean;
   tagIds?: string[];
   modifierGroupIds?: string[];
+  taxAssignmentMode?: "DEFAULT" | "CUSTOM";
+  taxDefinitionIds?: string[];
 }, context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
   const [category] = await db
@@ -997,8 +1079,13 @@ export async function createMenuItem(input: {
   );
   const tagIds = normalizeMenuTagIds(input.tagIds);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
+  const taxDefinitionIds =
+    input.taxAssignmentMode === "CUSTOM"
+      ? normalizeMenuTaxDefinitionIds(input.taxDefinitionIds)
+      : [];
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
+  await assertMenuTaxDefinitionsExist(taxDefinitionIds, context);
   const prepStation = await getActivePrepStation(input.prepStationId, context);
 
   if (input.prepStationId && !prepStation) {
@@ -1043,6 +1130,17 @@ export async function createMenuItem(input: {
       );
     }
 
+    if (taxDefinitionIds.length > 0) {
+      await tx.insert(menuItemTaxAssignments).values(
+        taxDefinitionIds.map((taxDefinitionId, index) => ({
+          organizationId: context.organizationId,
+          menuItemId: item.id,
+          taxDefinitionId,
+          sortOrder: index,
+        })),
+      );
+    }
+
     return item;
   });
 
@@ -1063,6 +1161,8 @@ export async function updateMenuItem(
     isSoldOut?: boolean;
     tagIds?: string[];
     modifierGroupIds?: string[];
+    taxAssignmentMode?: "DEFAULT" | "CUSTOM";
+    taxDefinitionIds?: string[];
   },
   context: TenantContext = getDefaultTenantContext(),
 ) {
@@ -1090,8 +1190,13 @@ export async function updateMenuItem(
   );
   const tagIds = normalizeMenuTagIds(input.tagIds);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
+  const taxDefinitionIds =
+    input.taxAssignmentMode === "CUSTOM"
+      ? normalizeMenuTaxDefinitionIds(input.taxDefinitionIds)
+      : [];
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
+  await assertMenuTaxDefinitionsExist(taxDefinitionIds, context);
   const prepStation = await getActivePrepStation(input.prepStationId, context);
 
   if (input.prepStationId && !prepStation) {
@@ -1131,6 +1236,9 @@ export async function updateMenuItem(
     await tx
       .delete(menuItemModifierGroups)
       .where(eq(menuItemModifierGroups.menuItemId, item.id));
+    await tx
+      .delete(menuItemTaxAssignments)
+      .where(eq(menuItemTaxAssignments.menuItemId, item.id));
 
     if (tagIds.length > 0) {
       await tx.insert(menuItemTags).values(
@@ -1146,6 +1254,17 @@ export async function updateMenuItem(
         modifierGroupIds.map((modifierGroupId, index) => ({
           menuItemId: item.id,
           modifierGroupId,
+          sortOrder: index,
+        })),
+      );
+    }
+
+    if (taxDefinitionIds.length > 0) {
+      await tx.insert(menuItemTaxAssignments).values(
+        taxDefinitionIds.map((taxDefinitionId, index) => ({
+          organizationId: context.organizationId,
+          menuItemId: item.id,
+          taxDefinitionId,
           sortOrder: index,
         })),
       );

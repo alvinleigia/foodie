@@ -18,12 +18,25 @@ export type OrderReceiptItem = {
   taxableAmount: string | null;
   taxAmount: string | null;
   taxRateBps: number;
+  taxComponents: OrderReceiptTaxComponent[];
   unitPrice: string | null;
   modifiers: Array<{
     modifierName: string;
     priceDelta: string;
     quantity: number;
   }>;
+};
+
+export type OrderReceiptTaxComponent = {
+  calculationOrder: number;
+  code: string;
+  isCompound: boolean;
+  name: string;
+  pricingMode: "INCLUSIVE" | "EXCLUSIVE";
+  rateBps: number;
+  taxableAmount: string;
+  taxAmount: string;
+  treatment: "TAXABLE" | "ZERO_RATED" | "EXEMPT" | "OUT_OF_SCOPE";
 };
 
 export type OrderReceiptPayment = {
@@ -79,6 +92,7 @@ export type OrderReceipt = {
   subtotalAmount: string;
   taxAmount: string;
   taxRateBps: number;
+  taxSummary: OrderReceiptTaxComponent[];
   tipAmount: string;
   timezone: string;
   vatInvoiceType: "SIMPLIFIED" | "FULL" | null;
@@ -86,6 +100,75 @@ export type OrderReceipt = {
 
 export function formatVatRate(taxRateBps: number) {
   return `${(taxRateBps / 100).toFixed(2).replace(/\.00$/, "")}%`;
+}
+
+export function formatReceiptTaxComponentLabel(
+  component: OrderReceiptTaxComponent,
+) {
+  if (component.treatment === "EXEMPT") {
+    return `${component.name} (exempt)`;
+  }
+
+  if (component.treatment === "OUT_OF_SCOPE") {
+    return `${component.name} (out of scope)`;
+  }
+
+  return `${component.name} (${formatVatRate(component.rateBps)})`;
+}
+
+export function aggregateReceiptTaxComponents(
+  items: OrderReceiptItem[],
+  currency: string,
+) {
+  const summaries = new Map<
+    string,
+    {
+      component: OrderReceiptTaxComponent;
+      taxableAmountMinor: number;
+      taxAmountMinor: number;
+    }
+  >();
+
+  for (const item of items) {
+    for (const component of item.taxComponents) {
+      const key = [
+        component.code,
+        component.name,
+        component.treatment,
+        component.pricingMode,
+        component.rateBps,
+        component.isCompound,
+        component.calculationOrder,
+      ].join("|");
+      const summary = summaries.get(key) ?? {
+        component,
+        taxableAmountMinor: 0,
+        taxAmountMinor: 0,
+      };
+
+      summary.taxableAmountMinor += decimalToMinorUnits(
+        component.taxableAmount,
+        currency,
+      );
+      summary.taxAmountMinor += decimalToMinorUnits(
+        component.taxAmount,
+        currency,
+      );
+      summaries.set(key, summary);
+    }
+  }
+
+  return [...summaries.values()]
+    .sort(
+      (left, right) =>
+        left.component.calculationOrder - right.component.calculationOrder ||
+        left.component.code.localeCompare(right.component.code),
+    )
+    .map(({ component, taxableAmountMinor, taxAmountMinor }) => ({
+      ...component,
+      taxableAmount: minorUnitsToDecimal(taxableAmountMinor, currency),
+      taxAmount: minorUnitsToDecimal(taxAmountMinor, currency),
+    }));
 }
 
 export function getInvoiceAddressLines(receipt: OrderReceipt) {
@@ -211,17 +294,25 @@ export function buildOrderReceiptEmail(receipt: OrderReceipt) {
           `${modifier.modifierName}${modifier.quantity > 1 ? ` x${modifier.quantity}` : ""}`,
       )
       .join(", ");
-    const vatDetails =
+    const netDetails =
       hasVatInvoice &&
       netUnitPrice !== null &&
-      item.taxableAmount !== null &&
-      item.taxAmount !== null
-        ? `Net unit ${formatReceiptMoney(netUnitPrice, receipt.currency)}, net line ${formatReceiptMoney(item.taxableAmount, receipt.currency)}, VAT ${formatVatRate(item.taxRateBps)} ${formatReceiptMoney(item.taxAmount, receipt.currency)}`
+      item.taxableAmount !== null
+        ? `Net unit ${formatReceiptMoney(netUnitPrice, receipt.currency)}, net line ${formatReceiptMoney(item.taxableAmount, receipt.currency)}`
         : null;
+    const taxDetails = item.taxComponents
+      .map(
+        (component) =>
+          `${formatReceiptTaxComponentLabel(component)} ${formatReceiptMoney(component.taxAmount, receipt.currency)}`,
+      )
+      .join(", ");
+    const financialDetails = [netDetails, taxDetails || null]
+      .filter((value): value is string => Boolean(value))
+      .join("; ");
 
     return {
-      html: `<tr><td style="padding:8px 0;border-bottom:1px solid #e7e5e4"><strong>${escapeHtml(item.drinkName)}</strong>${modifiers ? `<br><span style="color:#78716c">${escapeHtml(modifiers)}</span>` : ""}${vatDetails ? `<br><span style="color:#78716c">${escapeHtml(vatDetails)}</span>` : ""}</td><td style="padding:8px 12px;border-bottom:1px solid #e7e5e4;text-align:center">${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #e7e5e4;text-align:right">${total ? escapeHtml(formatReceiptMoney(total, receipt.currency)) : "-"}</td></tr>`,
-      text: `${item.drinkName} x${item.quantity}${modifiers ? ` (${modifiers})` : ""}: ${total ? formatReceiptMoney(total, receipt.currency) : "-"}${vatDetails ? `; ${vatDetails}` : ""}`,
+      html: `<tr><td style="padding:8px 0;border-bottom:1px solid #e7e5e4"><strong>${escapeHtml(item.drinkName)}</strong>${modifiers ? `<br><span style="color:#78716c">${escapeHtml(modifiers)}</span>` : ""}${financialDetails ? `<br><span style="color:#78716c">${escapeHtml(financialDetails)}</span>` : ""}</td><td style="padding:8px 12px;border-bottom:1px solid #e7e5e4;text-align:center">${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #e7e5e4;text-align:right">${total ? escapeHtml(formatReceiptMoney(total, receipt.currency)) : "-"}</td></tr>`,
+      text: `${item.drinkName} x${item.quantity}${modifiers ? ` (${modifiers})` : ""}: ${total ? formatReceiptMoney(total, receipt.currency) : "-"}${financialDetails ? `; ${financialDetails}` : ""}`,
     };
   });
   const summaryRows = [
@@ -229,7 +320,11 @@ export function buildOrderReceiptEmail(receipt: OrderReceipt) {
     ...(Number(receipt.discountAmount) > 0
       ? [["Discount", `-${receipt.discountAmount}`]]
       : []),
-    ...(Number(receipt.taxAmount) > 0
+    ...receipt.taxSummary.map((component) => [
+      formatReceiptTaxComponentLabel(component),
+      component.taxAmount,
+    ]),
+    ...(receipt.taxSummary.length === 0 && Number(receipt.taxAmount) > 0
       ? [[hasVatInvoice ? "VAT total" : "Tax", receipt.taxAmount]]
       : []),
     ...(Number(receipt.chargeAmount) > 0

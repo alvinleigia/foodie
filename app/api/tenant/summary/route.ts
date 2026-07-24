@@ -1,25 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { requireStaffPermission } from "@/lib/auth";
-import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
-import {
-  getRestaurantOperationalReport,
-  getRestaurantSummary,
-  type ReportRange,
-} from "@/lib/saas-reports";
+import { getRestaurantSummary } from "@/lib/saas-reports";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
-function getReportRange(request: Request): ReportRange {
-  const value = new URL(request.url).searchParams.get("range");
-
-  if (value === "today" || value === "7d" || value === "30d" || value === "all") {
-    return value;
-  }
-
-  return "30d";
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const session = await requireStaffPermission("restaurant.dashboard");
 
@@ -28,19 +13,9 @@ export async function GET(request: Request) {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const range = getReportRange(request);
-    const reportsEntitlement = await getOrganizationFeatureEntitlement(
-      tenantContext.organizationId,
-      "reports.operational",
-    );
-    const [summary, report] = await Promise.all([
-      getRestaurantSummary(tenantContext.organizationId),
-      reportsEntitlement.enabled
-        ? getRestaurantOperationalReport(tenantContext.organizationId, range)
-        : Promise.resolve(null),
-    ]);
+    const summary = await getRestaurantSummary(tenantContext.organizationId);
 
-    return NextResponse.json({ summary, report });
+    return NextResponse.json({ summary });
   } catch (error) {
     return NextResponse.json(
       {

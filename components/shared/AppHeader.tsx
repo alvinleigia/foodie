@@ -2,15 +2,19 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useState } from "react";
 import {
   ChevronDownIcon,
   ClipboardListIcon,
+  LayoutDashboardIcon,
   LogInIcon,
   LogOutIcon,
   MenuIcon,
   ShieldCheckIcon,
+  SlidersHorizontalIcon,
   UserRoundIcon,
   UtensilsIcon,
+  WrenchIcon,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -27,6 +31,7 @@ import { canAccessNavigation, formatRole } from "@/lib/role-access";
 import { clearStoredCustomerOrders } from "@/lib/customer-orders";
 import {
   staffNavigationItems,
+  type StaffNavigationGroup,
   type StaffNavigationItem,
 } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
@@ -56,6 +61,38 @@ type AppHeaderProps = {
   staffOrderHref?: string;
   user?: AppHeaderUser | null;
 };
+
+const staffNavigationGroups: Array<{
+  icon: typeof LayoutDashboardIcon;
+  id: StaffNavigationGroup;
+  label: string;
+}> = [
+  { id: "overview", label: "Overview", icon: LayoutDashboardIcon },
+  { id: "operations", label: "Operations", icon: ClipboardListIcon },
+  { id: "management", label: "Management", icon: SlidersHorizontalIcon },
+  { id: "security", label: "Security", icon: ShieldCheckIcon },
+  { id: "system", label: "System", icon: WrenchIcon },
+];
+
+function getActiveNavigationHref(
+  activePath: string | undefined,
+  items: StaffNavigationItem[],
+) {
+  if (!activePath) {
+    return undefined;
+  }
+
+  return items.reduce<string | undefined>((activeHref, item) => {
+    const matches =
+      activePath === item.href || activePath.startsWith(`${item.href}/`);
+
+    if (!matches || (activeHref && activeHref.length >= item.href.length)) {
+      return activeHref;
+    }
+
+    return item.href;
+  }, undefined);
+}
 
 function BrandLogo({ href }: { href: string }) {
   return (
@@ -100,6 +137,31 @@ export function AppHeader({
             : item,
         )
     : navigationItems;
+  const activeNavigationHref = getActiveNavigationHref(
+    activePath,
+    visibleNavigationItems,
+  );
+  const groupedNavigationItems = staffNavigationGroups
+    .map((group) => ({
+      ...group,
+      items: visibleNavigationItems.filter((item) => item.group === group.id),
+    }))
+    .filter((group) => group.items.length > 0);
+  const activeNavigationGroup =
+    groupedNavigationItems.find((group) =>
+      group.items.some((item) => item.href === activeNavigationHref),
+    )?.id ?? groupedNavigationItems[0]?.id;
+  const [navigationDisclosure, setNavigationDisclosure] = useState<{
+    activePath?: string;
+    group: StaffNavigationGroup | null;
+  }>({
+    activePath,
+    group: activeNavigationGroup ?? null,
+  });
+  const openNavigationGroup =
+    navigationDisclosure.activePath === activePath
+      ? navigationDisclosure.group
+      : (activeNavigationGroup ?? null);
 
   return (
     <header
@@ -134,8 +196,17 @@ export function AppHeader({
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-72" tone="dark">
-            <DropdownMenuLabel>
+          <DropdownMenuContent
+            align="end"
+            collisionPadding={8}
+            className="flex w-80 max-w-[calc(100vw-1rem)] flex-col overflow-hidden p-0"
+            style={{
+              maxHeight:
+                "min(42rem, var(--radix-dropdown-menu-content-available-height))",
+            }}
+            tone="dark"
+          >
+            <DropdownMenuLabel className="shrink-0 px-4 py-3">
               <span className="block text-stone-500">My Account</span>
               <span className="mt-1 block text-sm font-semibold text-stone-100">
                 {user.name ?? "Account"}
@@ -145,34 +216,89 @@ export function AppHeader({
                 {formatRole(user.role)}
               </span>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {visibleNavigationItems.map((item) => (
-              <DropdownMenuItem key={item.href} asChild>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex w-full flex-col items-start gap-0.5",
-                    activePath === item.href && "bg-white/10 text-white",
-                  )}
-                >
-                  <span className="font-medium">{item.label}</span>
-                  {item.description ? (
-                    <span className="text-xs text-stone-500">{item.description}</span>
-                  ) : null}
-                </Link>
-              </DropdownMenuItem>
-            ))}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={(event) => {
-                event.preventDefault();
-                void signOut({ callbackUrl: "/staff/login" });
+            <div className="h-px shrink-0 bg-white/10" />
+            <nav
+              aria-label="Staff navigation"
+              className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
+              style={{
+                scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
+                scrollbarGutter: "stable",
+                scrollbarWidth: "thin",
               }}
             >
-              <LogOutIcon />
-              Sign out
-            </DropdownMenuItem>
+              <div className="space-y-1">
+                {groupedNavigationItems.map((group) => {
+                  const GroupIcon = group.icon;
+                  const isOpen = openNavigationGroup === group.id;
+
+                  return (
+                    <div key={group.id}>
+                      <DropdownMenuItem
+                        aria-expanded={isOpen}
+                        className={cn(
+                          "font-semibold text-stone-200",
+                          isOpen && "bg-white/5 text-white",
+                        )}
+                        onSelect={(event) => {
+                          event.preventDefault();
+                          setNavigationDisclosure({
+                            activePath,
+                            group: isOpen ? null : group.id,
+                          });
+                        }}
+                      >
+                        <GroupIcon className="text-stone-400" />
+                        <span>{group.label}</span>
+                        <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs font-medium text-stone-400">
+                          {group.items.length}
+                        </span>
+                        <ChevronDownIcon
+                          className={cn(
+                            "ml-auto text-stone-400 transition-transform",
+                            isOpen && "rotate-180",
+                          )}
+                        />
+                      </DropdownMenuItem>
+                      {isOpen ? (
+                        <div className="pb-1 pt-1">
+                          {group.items.map((item) => (
+                            <DropdownMenuItem key={item.href} asChild>
+                              <Link
+                                href={item.href}
+                                className={cn(
+                                  "flex w-full flex-col items-start gap-0.5 pl-8",
+                                  activeNavigationHref === item.href &&
+                                    "bg-white/10 text-white",
+                                )}
+                              >
+                                <span className="font-medium">{item.label}</span>
+                                {item.description ? (
+                                  <span className="text-xs text-stone-500">
+                                    {item.description}
+                                  </span>
+                                ) : null}
+                              </Link>
+                            </DropdownMenuItem>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </nav>
+            <div className="shrink-0 border-t border-white/10 p-1.5">
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void signOut({ callbackUrl: "/staff/login" });
+                }}
+              >
+                <LogOutIcon />
+                Sign out
+              </DropdownMenuItem>
+            </div>
           </DropdownMenuContent>
         </DropdownMenu>
       ) : customerMenu ? (

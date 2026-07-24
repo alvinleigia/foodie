@@ -159,6 +159,13 @@ export const taxPricingModeEnum = pgEnum("tax_pricing_mode", [
   "EXCLUSIVE",
 ]);
 
+export const taxTreatmentEnum = pgEnum("tax_treatment", [
+  "TAXABLE",
+  "ZERO_RATED",
+  "EXEMPT",
+  "OUT_OF_SCOPE",
+]);
+
 export const orderAdjustmentTypeEnum = pgEnum("order_adjustment_type", [
   "DISCOUNT",
   "COMP",
@@ -628,6 +635,129 @@ export const organizationTaxProfiles = pgTable(
         AND NULLIF(BTRIM(${table.postalCode}), '') IS NOT NULL
         AND NULLIF(BTRIM(${table.countryCode}), '') IS NOT NULL
       )`,
+    ),
+  ],
+);
+
+export const organizationTaxDefinitions = pgTable(
+  "organization_tax_definitions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    treatment: taxTreatmentEnum("treatment").default("TAXABLE").notNull(),
+    isCompound: boolean("is_compound").default(false).notNull(),
+    calculationOrder: integer("calculation_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("organization_tax_definitions_id_org_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("organization_tax_definitions_org_code_unique").on(
+      table.organizationId,
+      table.code,
+    ),
+    index("organization_tax_definitions_org_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.calculationOrder,
+    ),
+    check(
+      "organization_tax_definitions_code_check",
+      sql`${table.code} ~ '^[A-Z0-9][A-Z0-9_-]{0,31}$'`,
+    ),
+    check(
+      "organization_tax_definitions_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "organization_tax_definitions_order_check",
+      sql`${table.calculationOrder} >= 0`,
+    ),
+  ],
+);
+
+export const organizationTaxRates = pgTable(
+  "organization_tax_rates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    taxDefinitionId: uuid("tax_definition_id").notNull(),
+    rateBps: integer("rate_bps").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.taxDefinitionId, table.organizationId],
+      foreignColumns: [
+        organizationTaxDefinitions.id,
+        organizationTaxDefinitions.organizationId,
+      ],
+      name: "organization_tax_rates_definition_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("organization_tax_rates_definition_from_unique").on(
+      table.taxDefinitionId,
+      table.effectiveFrom,
+    ),
+    index("organization_tax_rates_org_effective_idx").on(
+      table.organizationId,
+      table.effectiveFrom,
+      table.effectiveTo,
+    ),
+    check(
+      "organization_tax_rates_rate_check",
+      sql`${table.rateBps} >= 0 AND ${table.rateBps} <= 10000`,
+    ),
+    check(
+      "organization_tax_rates_effective_range_check",
+      sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+  ],
+);
+
+export const organizationDefaultTaxes = pgTable(
+  "organization_default_taxes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    taxDefinitionId: uuid("tax_definition_id").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.taxDefinitionId, table.organizationId],
+      foreignColumns: [
+        organizationTaxDefinitions.id,
+        organizationTaxDefinitions.organizationId,
+      ],
+      name: "organization_default_taxes_definition_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("organization_default_taxes_org_definition_unique").on(
+      table.organizationId,
+      table.taxDefinitionId,
+    ),
+    index("organization_default_taxes_org_sort_idx").on(
+      table.organizationId,
+      table.sortOrder,
+    ),
+    check(
+      "organization_default_taxes_sort_order_check",
+      sql`${table.sortOrder} >= 0`,
     ),
   ],
 );
@@ -1220,6 +1350,10 @@ export const menuItems = pgTable("menu_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("menu_items_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_items_id_organization_unique").on(
+    table.id,
+    table.organizationId,
+  ),
   index("menu_items_prep_station_idx").on(
     table.organizationId,
     table.prepStationId,
@@ -1234,6 +1368,48 @@ export const menuItems = pgTable("menu_items", {
     table.slug,
   ),
 ]);
+
+export const menuItemTaxAssignments = pgTable(
+  "menu_item_tax_assignments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    menuItemId: uuid("menu_item_id").notNull(),
+    taxDefinitionId: uuid("tax_definition_id").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.menuItemId, table.organizationId],
+      foreignColumns: [menuItems.id, menuItems.organizationId],
+      name: "menu_item_tax_assignments_item_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.taxDefinitionId, table.organizationId],
+      foreignColumns: [
+        organizationTaxDefinitions.id,
+        organizationTaxDefinitions.organizationId,
+      ],
+      name: "menu_item_tax_assignments_definition_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_item_tax_assignments_item_definition_unique").on(
+      table.menuItemId,
+      table.taxDefinitionId,
+    ),
+    index("menu_item_tax_assignments_org_item_idx").on(
+      table.organizationId,
+      table.menuItemId,
+      table.sortOrder,
+    ),
+    check(
+      "menu_item_tax_assignments_sort_order_check",
+      sql`${table.sortOrder} >= 0`,
+    ),
+  ],
+);
 
 export const menuTags = pgTable(
   "menu_tags",
@@ -1862,6 +2038,82 @@ export const orderItems = pgTable("order_items", {
     sql`(${table.taxableAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL) OR (${table.taxableAmountSnapshot} IS NOT NULL AND ${table.taxableAmountSnapshot} >= 0 AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} >= 0)`,
   ),
 ]);
+
+export const orderItemTaxComponents = pgTable(
+  "order_item_tax_components",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    orderItemId: uuid("order_item_id").notNull(),
+    taxDefinitionId: uuid("tax_definition_id").references(
+      () => organizationTaxDefinitions.id,
+      { onDelete: "set null" },
+    ),
+    taxCodeSnapshot: text("tax_code_snapshot").notNull(),
+    taxNameSnapshot: text("tax_name_snapshot").notNull(),
+    treatmentSnapshot: taxTreatmentEnum("treatment_snapshot").notNull(),
+    pricingModeSnapshot: taxPricingModeEnum("pricing_mode_snapshot").notNull(),
+    rateBpsSnapshot: integer("rate_bps_snapshot").notNull(),
+    isCompoundSnapshot: boolean("is_compound_snapshot").default(false).notNull(),
+    calculationOrderSnapshot: integer("calculation_order_snapshot")
+      .default(0)
+      .notNull(),
+    taxableAmountSnapshot: numeric("taxable_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    taxAmountSnapshot: numeric("tax_amount_snapshot", {
+      precision: 10,
+      scale: 2,
+    }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.orderItemId, table.orderId, table.organizationId],
+      foreignColumns: [
+        orderItems.id,
+        orderItems.orderId,
+        orderItems.organizationId,
+      ],
+      name: "order_item_tax_components_item_order_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("order_item_tax_components_item_code_unique").on(
+      table.orderItemId,
+      table.taxCodeSnapshot,
+    ),
+    index("order_item_tax_components_org_order_idx").on(
+      table.organizationId,
+      table.orderId,
+      table.orderItemId,
+    ),
+    check(
+      "order_item_tax_components_code_check",
+      sql`char_length(btrim(${table.taxCodeSnapshot})) BETWEEN 1 AND 32`,
+    ),
+    check(
+      "order_item_tax_components_name_check",
+      sql`char_length(btrim(${table.taxNameSnapshot})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "order_item_tax_components_rate_check",
+      sql`${table.rateBpsSnapshot} >= 0 AND ${table.rateBpsSnapshot} <= 10000`,
+    ),
+    check(
+      "order_item_tax_components_order_check",
+      sql`${table.calculationOrderSnapshot} >= 0`,
+    ),
+    check(
+      "order_item_tax_components_amounts_check",
+      sql`${table.taxableAmountSnapshot} >= 0 AND ${table.taxAmountSnapshot} >= 0`,
+    ),
+  ],
+);
 
 export const orderItemModifiers = pgTable(
   "order_item_modifiers",

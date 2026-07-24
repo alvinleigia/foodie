@@ -6,7 +6,7 @@ import {
 } from "@/lib/order-fulfilment-time";
 import {
   formatReceiptMoney,
-  formatVatRate,
+  formatReceiptTaxComponentLabel,
   getInvoiceAddressLines,
   getReceiptItemTotal,
   getVatNetUnitPrice,
@@ -144,15 +144,27 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
                 ) : null}
                 {hasVatInvoice &&
                 netUnitPrice !== null &&
-                item.taxableAmount !== null &&
-                item.taxAmount !== null ? (
+                item.taxableAmount !== null ? (
                   <p className="mt-1 text-xs text-stone-500">
                     Net unit {formatReceiptMoney(netUnitPrice, receipt.currency)};
-                    net line {formatReceiptMoney(item.taxableAmount, receipt.currency)};
-                    VAT {formatVatRate(item.taxRateBps)}{" "}
-                    {formatReceiptMoney(item.taxAmount, receipt.currency)}
+                    net line {formatReceiptMoney(item.taxableAmount, receipt.currency)}
                   </p>
                 ) : null}
+                {item.taxComponents.map((component) => (
+                  <p
+                    key={[
+                      component.code,
+                      component.name,
+                      component.treatment,
+                      component.rateBps,
+                      component.calculationOrder,
+                    ].join("-")}
+                    className="mt-1 text-xs text-stone-500"
+                  >
+                    {formatReceiptTaxComponentLabel(component)}{" "}
+                    {formatReceiptMoney(component.taxAmount, receipt.currency)}
+                  </p>
+                ))}
               </div>
               <span>{item.quantity}</span>
               <span className="min-w-20 text-right">
@@ -178,20 +190,26 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
             label="Discount"
           />
         ) : null}
-        {Number(receipt.taxAmount) > 0 ? (
+        {receipt.taxSummary.map((component) => (
+          <SummaryRow
+            key={[
+              component.code,
+              component.name,
+              component.treatment,
+              component.rateBps,
+              component.calculationOrder,
+            ].join("-")}
+            amount={component.taxAmount}
+            currency={receipt.currency}
+            label={formatReceiptTaxComponentLabel(component)}
+          />
+        ))}
+        {receipt.taxSummary.length === 0 && Number(receipt.taxAmount) > 0 ? (
           <SummaryRow
             amount={receipt.taxAmount}
             currency={receipt.currency}
             label={hasVatInvoice ? "VAT total" : "Tax"}
           />
-        ) : null}
-        {hasVatInvoice ? (
-          <div className="flex items-center justify-between gap-6 py-1.5 text-sm">
-            <span className="text-stone-600">VAT rate</span>
-            <span className="font-medium text-stone-950">
-              {formatVatRate(receipt.taxRateBps)}
-            </span>
-          </div>
         ) : null}
         {Number(receipt.chargeAmount) > 0 ? (
           <SummaryRow

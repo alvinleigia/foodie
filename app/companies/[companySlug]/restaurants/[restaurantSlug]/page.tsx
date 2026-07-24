@@ -3,6 +3,7 @@ import { MailIcon, UsersIcon } from "lucide-react";
 
 import { OrganizationEditPanel } from "@/components/admin/OrganizationEditPanel";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
+import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,9 @@ export default async function CompanyWorkspaceRestaurantPage({
         <RestaurantTaxProfileForm
           apiPath={`/api/company/restaurants/${restaurant.id}/tax-profile`}
           profile={taxProfile}
+        />
+        <RestaurantTaxesManager
+          apiPath={`/api/company/restaurants/${restaurant.id}/taxes`}
         />
       </div>
     </SaasAdminShell>

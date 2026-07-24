@@ -1,27 +1,27 @@
-import { RestaurantAdminPanel } from "@/components/admin/RestaurantAdminPanel";
+import { RestaurantReportsPanel } from "@/components/admin/RestaurantReportsPanel";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspacePageProps,
 } from "@/lib/restaurant-workspace";
+import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 
-export default async function RestaurantWorkspacePage({
+export default async function RestaurantReportsPage({
   params,
 }: RestaurantWorkspacePageProps) {
   const { restaurantSlug } = await params;
   const { access, session } = await requireRestaurantWorkspaceAccess({
-    destination: "dashboard",
-    requiredPermission: "restaurant.dashboard",
+    destination: "reports",
+    requiredPermission: "reports.view",
     restaurantSlug,
   });
 
   return (
     <SaasAdminShell
-      activePath={getRestaurantWorkspaceHref(access.restaurant.slug, "dashboard")}
-      eyebrow="Restaurant"
-      title="Restaurant dashboard"
-      description="Review restaurant operations and setup health from one overview."
+      activePath={getRestaurantWorkspaceHref(access.restaurant.slug, "reports")}
+      description="Review sales, payments, tax, fulfilment and operational performance."
+      eyebrow="Reporting"
+      title="Restaurant reports"
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
@@ -29,8 +29,7 @@ export default async function RestaurantWorkspacePage({
         role: session.user.role,
       }}
     >
-      <RestaurantAdminPanel restaurantSlug={access.restaurant.slug} />
+      <RestaurantReportsPanel />
     </SaasAdminShell>
   );
 }
-

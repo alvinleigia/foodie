@@ -63,6 +63,7 @@ import {
   MenuTagRecord,
   PrepStationRecord,
 } from "@/types/menu";
+import type { RestaurantTaxDefinitionRecord } from "@/types/tax";
 
 type CategoryDraft = {
   id: string | null;
@@ -85,6 +86,8 @@ type ItemDraft = {
   isSoldOut: boolean;
   tagIds: string[];
   modifierGroupIds: string[];
+  taxAssignmentMode: "DEFAULT" | "CUSTOM";
+  taxDefinitionIds: string[];
 };
 
 type ModifierGroupDraft = {
@@ -133,6 +136,8 @@ const emptyItemDraft: ItemDraft = {
   isSoldOut: false,
   tagIds: [],
   modifierGroupIds: [],
+  taxAssignmentMode: "DEFAULT",
+  taxDefinitionIds: [],
 };
 
 const emptyModifierGroupDraft: ModifierGroupDraft = {
@@ -155,11 +160,18 @@ const emptyModifierOptionDraft: ModifierOptionDraft = {
   isSoldOut: false,
 };
 
+function formatTaxRate(rateBps: number | null) {
+  return rateBps === null ? "No active rate" : `${rateBps / 100}%`;
+}
+
 export function MenuManager() {
   const [categories, setCategories] = useState<MenuCategoryRecord[]>([]);
   const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [prepStations, setPrepStations] = useState<PrepStationRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
+  const [taxDefinitions, setTaxDefinitions] = useState<
+    RestaurantTaxDefinitionRecord[]
+  >([]);
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +218,7 @@ export function MenuManager() {
         setCategories([]);
         setModifierGroups([]);
         setPrepStations([]);
+        setTaxDefinitions([]);
         setIsLoading(false);
         return;
       }
@@ -214,6 +227,7 @@ export function MenuManager() {
       setModifierGroups(payload.modifierGroups ?? []);
       setPrepStations(payload.prepStations ?? []);
       setTags(payload.tags ?? []);
+      setTaxDefinitions(payload.taxDefinitions ?? []);
       setCurrency(payload.currency ?? DEFAULT_CURRENCY);
       setError(null);
       setIsLoading(false);
@@ -266,6 +280,8 @@ export function MenuManager() {
       isSoldOut: item.isSoldOut,
       tagIds: item.tags?.map((tag) => tag.id) ?? [],
       modifierGroupIds: item.modifierGroups?.map((group) => group.id) ?? [],
+      taxAssignmentMode: item.taxAssignmentMode ?? "DEFAULT",
+      taxDefinitionIds: item.taxDefinitionIds ?? [],
     });
     setItemFieldErrors({});
     setItemFormError(null);
@@ -289,6 +305,19 @@ export function MenuManager() {
       modifierGroupIds: isSelected
         ? Array.from(new Set([...current.modifierGroupIds, groupId]))
         : current.modifierGroupIds.filter((currentGroupId) => currentGroupId !== groupId),
+    }));
+  }
+
+  function toggleItemDraftTax(taxDefinitionId: string, isSelected: boolean) {
+    clearItemFieldError("taxDefinitionIds");
+    setItemDraft((current) => ({
+      ...current,
+      taxDefinitionIds: isSelected
+        ? Array.from(new Set([...current.taxDefinitionIds, taxDefinitionId]))
+        : current.taxDefinitionIds.filter(
+            (currentTaxDefinitionId) =>
+              currentTaxDefinitionId !== taxDefinitionId,
+          ),
     }));
   }
 
@@ -431,6 +460,8 @@ export function MenuManager() {
         isSoldOut: itemDraft.isSoldOut,
         tagIds: itemDraft.tagIds,
         modifierGroupIds: itemDraft.modifierGroupIds,
+        taxAssignmentMode: itemDraft.taxAssignmentMode,
+        taxDefinitionIds: itemDraft.taxDefinitionIds,
       }),
     });
 
@@ -1270,7 +1301,7 @@ export function MenuManager() {
       </AlertDialog>
 
       <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-4xl rounded-xl border border-white/70 bg-white p-0">
+        <DialogContent className="max-w-4xl rounded-xl border border-white/70 bg-white p-0 sm:max-w-4xl">
           <DialogHeader className="px-6 pt-6">
             <DialogTitle className="text-2xl text-stone-950">
               {itemDraft.id ? "Edit product" : "Add product"}
@@ -1449,6 +1480,112 @@ export function MenuManager() {
                   ))}
                 </div>
               )}
+            </FormField>
+
+            <FormField
+              label="Taxes"
+              error={
+                getFieldError(itemFieldErrors, "taxAssignmentMode") ??
+                getFieldError(itemFieldErrors, "taxDefinitionIds")
+              }
+              errorId="menu-item-taxes-error"
+            >
+              <div
+                className="grid gap-2 sm:grid-cols-2"
+                role="radiogroup"
+                aria-label="Product tax assignment"
+              >
+                {[
+                  {
+                    description: "Use every tax marked as a restaurant default.",
+                    label: "Restaurant defaults",
+                    value: "DEFAULT" as const,
+                  },
+                  {
+                    description: "Apply only the taxes selected below.",
+                    label: "Choose taxes",
+                    value: "CUSTOM" as const,
+                  },
+                ].map((option) => {
+                  const isSelected =
+                    itemDraft.taxAssignmentMode === option.value;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => {
+                        clearItemFieldError("taxAssignmentMode");
+                        clearItemFieldError("taxDefinitionIds");
+                        setItemDraft((current) => ({
+                          ...current,
+                          taxAssignmentMode: option.value,
+                          taxDefinitionIds:
+                            option.value === "DEFAULT"
+                              ? []
+                              : current.taxDefinitionIds,
+                        }));
+                      }}
+                      className={`min-h-16 rounded-lg border px-4 py-3 text-left transition-colors ${
+                        isSelected
+                          ? "border-stone-950 bg-stone-950 text-white"
+                          : "border-stone-200 bg-white text-stone-700 hover:border-stone-400"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold">
+                        {option.label}
+                      </span>
+                      <span
+                        className={`mt-1 block text-xs ${
+                          isSelected ? "text-stone-300" : "text-stone-500"
+                        }`}
+                      >
+                        {option.description}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {itemDraft.taxAssignmentMode === "CUSTOM" ? (
+                taxDefinitions.length === 0 ? (
+                  <p className="mt-2 rounded-lg border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
+                    No active taxes are available. Add one in Restaurant settings first.
+                  </p>
+                ) : (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {taxDefinitions.map((definition) => (
+                      <label
+                        key={definition.id}
+                        className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900"
+                      >
+                        <Checkbox
+                          checked={itemDraft.taxDefinitionIds.includes(
+                            definition.id,
+                          )}
+                          onCheckedChange={(checked) =>
+                            toggleItemDraftTax(
+                              definition.id,
+                              checked === true,
+                            )
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">
+                            {definition.name}
+                          </span>
+                          <span className="block text-xs text-stone-500">
+                            {formatTaxRate(definition.rateBps)}
+                            {definition.isDefault ? " / Default" : ""}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )
+              ) : null}
             </FormField>
 
             <FormField

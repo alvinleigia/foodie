@@ -5,13 +5,18 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   customers,
+  orderItemTaxComponents,
   orderPayments,
   orders,
   organizationCustomers,
   organizationTaxProfiles,
   organizations,
 } from "@/db/schema";
-import type { OrderReceipt } from "@/lib/order-receipt-format";
+import {
+  aggregateReceiptTaxComponents,
+  type OrderReceipt,
+  type OrderReceiptTaxComponent,
+} from "@/lib/order-receipt-format";
 import { getOrderItems } from "@/lib/orders";
 import type { TenantContext } from "@/lib/tenant-context";
 
@@ -72,6 +77,7 @@ export async function getOrderReceipt(
       restaurantSlug: organizations.slug,
       subtotalAmount: orders.subtotalAmountSnapshot,
       taxAmount: orders.taxAmountSnapshot,
+      taxPricingMode: orders.taxPricingModeSnapshot,
       taxRateBps: orders.taxRateBpsSnapshot,
       timezone: organizations.timezone,
       tipAmount: orders.tipAmountSnapshot,
@@ -109,7 +115,7 @@ export async function getOrderReceipt(
     return null;
   }
 
-  const [items, payments] = await Promise.all([
+  const [items, payments, taxComponentRows] = await Promise.all([
     getOrderItems(orderId, context),
     getDb()
       .select({
@@ -127,36 +133,85 @@ export async function getOrderReceipt(
         ),
       )
       .orderBy(asc(orderPayments.completedAt), asc(orderPayments.createdAt)),
+    getDb()
+      .select({
+        calculationOrder: orderItemTaxComponents.calculationOrderSnapshot,
+        code: orderItemTaxComponents.taxCodeSnapshot,
+        isCompound: orderItemTaxComponents.isCompoundSnapshot,
+        name: orderItemTaxComponents.taxNameSnapshot,
+        orderItemId: orderItemTaxComponents.orderItemId,
+        pricingMode: orderItemTaxComponents.pricingModeSnapshot,
+        rateBps: orderItemTaxComponents.rateBpsSnapshot,
+        taxableAmount: orderItemTaxComponents.taxableAmountSnapshot,
+        taxAmount: orderItemTaxComponents.taxAmountSnapshot,
+        treatment: orderItemTaxComponents.treatmentSnapshot,
+      })
+      .from(orderItemTaxComponents)
+      .where(
+        and(
+          eq(orderItemTaxComponents.orderId, orderId),
+          eq(
+            orderItemTaxComponents.organizationId,
+            context.organizationId,
+          ),
+        ),
+      )
+      .orderBy(
+        asc(orderItemTaxComponents.calculationOrderSnapshot),
+        asc(orderItemTaxComponents.taxCodeSnapshot),
+      ),
   ]);
+  const taxComponentsByItemId = new Map<
+    string,
+    OrderReceiptTaxComponent[]
+  >();
 
-  return {
-    ...record,
-    canIssueSimplifiedVatInvoice:
-      !record.invoiceNumber &&
-      record.vatTaxSystem === "VAT" &&
-      record.vatRegistrationStatus === "REGISTERED" &&
-      record.vatRegistrationCountryCode === "GB" &&
-      Boolean(record.vatRegistrationNumber) &&
-      record.currency === "GBP" &&
-      record.taxRateBps > 0 &&
-      Number(record.finalTotalAmount) <= 250,
-    canIssueVatInvoice:
-      !record.invoiceNumber &&
-      record.vatTaxSystem === "VAT" &&
-      record.vatRegistrationStatus === "REGISTERED" &&
-      record.vatRegistrationCountryCode === "GB" &&
-      Boolean(record.vatRegistrationNumber) &&
-      record.currency === "GBP" &&
-      record.taxRateBps > 0,
-    cancellationFeeAmount: record.cancellationFeeAmount ?? null,
-    chargeAmount: record.chargeAmount,
-    currency: record.currency,
-    customerEmail: record.customerEmailVerifiedAt
-      ? record.customerEmail
-      : null,
-    discountAmount: record.discountAmount,
-    finalTotalAmount: record.finalTotalAmount,
-    items: items.map((item) => ({
+  for (const component of taxComponentRows) {
+    const components = taxComponentsByItemId.get(component.orderItemId) ?? [];
+    components.push({
+      calculationOrder: component.calculationOrder,
+      code: component.code,
+      isCompound: component.isCompound,
+      name: component.name,
+      pricingMode: component.pricingMode,
+      rateBps: component.rateBps,
+      taxableAmount: component.taxableAmount,
+      taxAmount: component.taxAmount,
+      treatment: component.treatment,
+    });
+    taxComponentsByItemId.set(component.orderItemId, components);
+  }
+
+  const receiptItems = items.map((item) => {
+    let taxComponents = item.id
+      ? (taxComponentsByItemId.get(item.id) ?? [])
+      : [];
+
+    if (
+      taxComponents.length === 0 &&
+      item.taxableAmountSnapshot !== null &&
+      item.taxAmountSnapshot !== null &&
+      (record.vatTaxSystem === "VAT" ||
+        item.taxRateBpsSnapshot > 0 ||
+        Number(item.taxAmountSnapshot) > 0)
+    ) {
+      taxComponents = [
+        {
+          calculationOrder: 0,
+          code: record.vatTaxSystem === "VAT" ? "DEFAULT" : "LEGACY",
+          isCompound: false,
+          name: record.vatTaxSystem === "VAT" ? "VAT" : "Legacy tax",
+          pricingMode: record.taxPricingMode,
+          rateBps: item.taxRateBpsSnapshot,
+          taxableAmount: item.taxableAmountSnapshot,
+          taxAmount: item.taxAmountSnapshot,
+          treatment:
+            item.taxRateBpsSnapshot === 0 ? "ZERO_RATED" : "TAXABLE",
+        },
+      ];
+    }
+
+    return {
       drinkName: item.drinkName,
       modifiers: (item.modifiers ?? []).map((modifier) => ({
         modifierName: modifier.modifierName,
@@ -167,14 +222,55 @@ export async function getOrderReceipt(
       taxableAmount: item.taxableAmountSnapshot,
       taxAmount: item.taxAmountSnapshot,
       taxRateBps: item.taxRateBpsSnapshot,
+      taxComponents,
       unitPrice: item.unitPrice,
-    })),
+    };
+  });
+  const taxSummary = aggregateReceiptTaxComponents(
+    receiptItems,
+    record.currency,
+  );
+  const hasVatSupply = taxSummary.some(
+    (component) =>
+      component.treatment === "TAXABLE" ||
+      component.treatment === "ZERO_RATED",
+  );
+
+  return {
+    ...record,
+    canIssueSimplifiedVatInvoice:
+      !record.invoiceNumber &&
+      record.vatTaxSystem === "VAT" &&
+      record.vatRegistrationStatus === "REGISTERED" &&
+      record.vatRegistrationCountryCode === "GB" &&
+      Boolean(record.vatRegistrationNumber) &&
+      record.currency === "GBP" &&
+      hasVatSupply &&
+      Number(record.finalTotalAmount) <= 250,
+    canIssueVatInvoice:
+      !record.invoiceNumber &&
+      record.vatTaxSystem === "VAT" &&
+      record.vatRegistrationStatus === "REGISTERED" &&
+      record.vatRegistrationCountryCode === "GB" &&
+      Boolean(record.vatRegistrationNumber) &&
+      record.currency === "GBP" &&
+      hasVatSupply,
+    cancellationFeeAmount: record.cancellationFeeAmount ?? null,
+    chargeAmount: record.chargeAmount,
+    currency: record.currency,
+    customerEmail: record.customerEmailVerifiedAt
+      ? record.customerEmail
+      : null,
+    discountAmount: record.discountAmount,
+    finalTotalAmount: record.finalTotalAmount,
+    items: receiptItems,
     payments,
     receiptIssuedAt: record.receiptIssuedAt,
     receiptNumber: record.receiptNumber,
     refundAmount: record.refundAmount ?? null,
     subtotalAmount: record.subtotalAmount,
     taxAmount: record.taxAmount,
+    taxSummary,
     tipAmount: record.tipAmount,
   };
 }

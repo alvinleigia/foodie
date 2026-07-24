@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
-import { OperationalReports } from "@/components/admin/OperationalReports";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { SummaryCards } from "@/components/admin/SummaryCards";
@@ -26,7 +25,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
 import {
   getRestaurantStaffMemberHref,
   getRestaurantWorkspaceHref,
@@ -78,7 +76,6 @@ type RestaurantSummary = {
 };
 
 type RestaurantSummaryResponse = {
-  report?: OperationalReport;
   summary?: RestaurantSummary;
 };
 
@@ -121,59 +118,38 @@ export function RestaurantAdminPanel({
   );
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
   const [summary, setSummary] = useState<RestaurantSummary | null>(null);
-  const [report, setReport] = useState<OperationalReport | null>(null);
-  const [reportRange, setReportRange] = useState<ReportRange>("30d");
-  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTenantAdmin() {
-      try {
-        const [payload, summaryPayload] = await Promise.all([
-          fetchJson<TenantAdminSnapshot>("/api/tenant/admin"),
-          view === "dashboard"
-            ? fetchJson<RestaurantSummaryResponse>("/api/tenant/summary?range=30d").catch(
-                () => null,
-              )
-            : Promise.resolve(null),
-        ]);
+      setIsLoading(true);
 
-        if (summaryPayload) {
-          setSummary(summaryPayload.summary ?? null);
-          setReport(summaryPayload.report ?? null);
+      try {
+        if (view === "dashboard") {
+          const payload = await fetchJson<RestaurantSummaryResponse>(
+            "/api/tenant/summary",
+          );
+          setSummary(payload.summary ?? null);
+          setSnapshot(null);
         } else {
+          const payload = await fetchJson<TenantAdminSnapshot>(
+            "/api/tenant/admin",
+          );
+          setSnapshot(payload);
           setSummary(null);
-          setReport(null);
         }
 
-        setSnapshot(payload);
         setError(null);
       } catch (caught) {
         setError(getCaughtErrorMessage(caught));
-        return;
+      } finally {
+        setIsLoading(false);
       }
     }
 
     void loadTenantAdmin();
   }, [view]);
-
-  async function refreshReport(nextRange: ReportRange) {
-    setReportRange(nextRange);
-    setIsReportLoading(true);
-
-    try {
-      const payload = await fetchJson<RestaurantSummaryResponse>(
-        `/api/tenant/summary?range=${nextRange}`,
-      );
-      setSummary(payload.summary ?? null);
-      setReport(payload.report ?? null);
-      setError(null);
-    } catch (caught) {
-      setError(getCaughtErrorMessage(caught));
-    }
-
-    setIsReportLoading(false);
-  }
 
   return (
     <div className="grid gap-6">
@@ -183,51 +159,39 @@ export function RestaurantAdminPanel({
         <p className="text-sm text-rose-600">{error}</p>
       ) : null}
 
-      {snapshot ? (
-        <>
-          {view === "dashboard" && summary ? (
-            <SummaryCards
-              cards={[
-                {
-                  label: "Staff",
-                  value: summary.activeStaffMemberships,
-                  helper: "Active staff memberships.",
-                },
-                {
-                  label: "Menu categories",
-                  value: summary.activeMenuCategories,
-                  helper: "Active menu sections.",
-                },
-                {
-                  label: "Menu items",
-                  value: summary.activeMenuItems,
-                  helper: "Active products visible in the menu.",
-                },
-                {
-                  label: "Active orders",
-                  value: summary.activeOrders,
-                  helper: "Pending, preparing or ready orders.",
-                },
-                {
-                  label: "Non-cancelled orders",
-                  value: summary.completedOrders,
-                  helper: "All-time orders excluding cancellations.",
-                },
-              ]}
-            />
-          ) : null}
+      {view === "dashboard" && summary ? (
+        <SummaryCards
+          cards={[
+            {
+              label: "Staff",
+              value: summary.activeStaffMemberships,
+              helper: "Active staff memberships.",
+            },
+            {
+              label: "Menu categories",
+              value: summary.activeMenuCategories,
+              helper: "Active menu sections.",
+            },
+            {
+              label: "Menu items",
+              value: summary.activeMenuItems,
+              helper: "Active products visible in the menu.",
+            },
+            {
+              label: "Active orders",
+              value: summary.activeOrders,
+              helper: "Pending, preparing or ready orders.",
+            },
+            {
+              label: "Non-cancelled orders",
+              value: summary.completedOrders,
+              helper: "All-time orders excluding cancellations.",
+            },
+          ]}
+        />
+      ) : null}
 
-          {view === "dashboard" && report ? (
-            <OperationalReports
-              exportHref={`/api/tenant/reports/export?range=${reportRange}`}
-              isLoading={isReportLoading}
-              range={reportRange}
-              report={report}
-              onRangeChange={(nextRange) => void refreshReport(nextRange)}
-            />
-          ) : null}
-
-          {view === "staff" ? (
+      {view === "staff" && snapshot ? (
             <Card className="rounded-xl border-stone-200 bg-white">
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
                 <div>
@@ -331,9 +295,9 @@ export function RestaurantAdminPanel({
                 ))}
               </CardContent>
             </Card>
-          ) : null}
-        </>
-      ) : !isMissingTenantAccess(error) ? (
+      ) : null}
+
+      {isLoading && !isMissingTenantAccess(error) ? (
         <div className="flex items-center gap-2 text-sm text-stone-500">
           <Spinner className="text-stone-500" />
           Loading restaurant setup...

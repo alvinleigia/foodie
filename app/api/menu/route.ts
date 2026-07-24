@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { getDb } from "@/db";
 import {
   assertOrganizationFeatureEnabled,
   FeatureEntitlementError,
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
-import { getRestaurantTaxPricing } from "@/lib/restaurant-tax-profile";
+import { getRestaurantBusinessDate } from "@/lib/order-number";
+import { getResolvedRestaurantTaxes } from "@/lib/restaurant-taxes";
 import {
   getPublicTenantContextFromRequest,
   StaffRestaurantContextError,
@@ -30,13 +32,24 @@ export async function GET(request: Request) {
       "operations.inventory",
     );
 
-    const [categories, currency, taxPricing] = await Promise.all([
+    const [categories, currency, businessDate] = await Promise.all([
       getPublicMenu(tenantContext, {
         includeInventory: inventoryEntitlement.enabled,
       }),
       getTenantMenuCurrency(tenantContext),
-      getRestaurantTaxPricing(tenantContext.organizationId),
+      getRestaurantBusinessDate(getDb(), tenantContext),
     ]);
+    const resolvedTaxes = await getResolvedRestaurantTaxes(
+      tenantContext.organizationId,
+      categories.flatMap((category) => category.items.map((item) => item.id)),
+      businessDate,
+    );
+    const taxPricing = {
+      pricingMode: resolvedTaxes.pricingMode,
+      taxRateBps: 0,
+      taxesByMenuItemId: Object.fromEntries(resolvedTaxes.taxesByMenuItemId),
+    };
+
     return NextResponse.json({ categories, currency, taxPricing });
   } catch (error) {
     if (error instanceof FeatureEntitlementError) {

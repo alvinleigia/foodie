@@ -26,6 +26,8 @@ export type MenuItemRecord = {
   isUnavailableDueToStock?: boolean;
   tags?: MenuTagRecord[];
   modifierGroups?: MenuModifierGroupRecord[];
+  taxAssignmentMode?: "DEFAULT" | "CUSTOM";
+  taxDefinitionIds?: string[];
 };
 
 export type MenuCategoryRecord = {

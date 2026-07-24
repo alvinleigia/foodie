@@ -69,19 +69,24 @@ export async function SaasAdminShell({
       : Promise.resolve({ allowed: true, status: null }),
     getOrganizationContext(user.organizationId),
   ]);
-  const inventoryEnabled =
+  const [inventoryEnabled, reportsEnabled] =
     organizationContext?.type === "RESTAURANT" && user.organizationId
-      ? (
-          await getOrganizationFeatureEntitlement(
+      ? await Promise.all([
+          getOrganizationFeatureEntitlement(
             user.organizationId,
             "operations.inventory",
-          )
-        ).enabled
-      : true;
+          ).then((entitlement) => entitlement.enabled),
+          getOrganizationFeatureEntitlement(
+            user.organizationId,
+            "reports.operational",
+          ).then((entitlement) => entitlement.enabled),
+        ])
+      : [true, true];
   const scopedNavigationItems =
     organizationContext?.type === "RESTAURANT"
       ? getStaffNavigationItemsForRestaurant(organizationContext.slug, {
           inventoryEnabled,
+          reportsEnabled,
         })
       : organizationContext?.type === "COMPANY"
         ? getStaffNavigationItemsForCompany(organizationContext.slug)
@@ -94,6 +99,7 @@ export async function SaasAdminShell({
       user.role,
       organizationContext,
       user.permissions,
+      { inventoryEnabled, reportsEnabled },
     ) ?? "/";
   const content = commercialAccess.allowed ? (
     children

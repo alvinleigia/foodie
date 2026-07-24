@@ -3,7 +3,11 @@ import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { orders, organizationTaxProfiles } from "@/db/schema";
+import {
+  orderItemTaxComponents,
+  orders,
+  organizationTaxProfiles,
+} from "@/db/schema";
 import { decimalToMinorUnits } from "@/lib/currency-money";
 import { getNextInvoiceNumber } from "@/lib/financial-document-numbers";
 import {
@@ -92,12 +96,9 @@ export async function issueVatInvoice(
       );
     }
 
-    if (
-      order.financialSnapshotCurrency !== "GBP" ||
-      order.taxRateBpsSnapshot <= 0
-    ) {
+    if (order.financialSnapshotCurrency !== "GBP") {
       throw new VatInvoiceError(
-        "UK VAT invoices require a GBP bill with a taxable supply.",
+        "UK VAT invoices require a GBP bill.",
       );
     }
 
@@ -107,6 +108,31 @@ export async function issueVatInvoice(
       .where(eq(organizationTaxProfiles.organizationId, organizationId))
       .limit(1);
     const taxProfile = assertRegisteredUkVatProfile(taxProfileRecord);
+    const taxComponents = await tx
+      .select({ treatment: orderItemTaxComponents.treatmentSnapshot })
+      .from(orderItemTaxComponents)
+      .where(
+        and(
+          eq(orderItemTaxComponents.orderId, order.id),
+          eq(orderItemTaxComponents.organizationId, organizationId),
+        ),
+      );
+    const hasVatSupply =
+      taxComponents.some(
+        (component) =>
+          component.treatment === "TAXABLE" ||
+          component.treatment === "ZERO_RATED",
+      ) ||
+      (taxComponents.length === 0 &&
+        order.subtotalAmountSnapshot !== null &&
+        Number(order.subtotalAmountSnapshot) > 0);
+
+    if (!hasVatSupply) {
+      throw new VatInvoiceError(
+        "UK VAT invoices require a taxable or zero-rated supply.",
+      );
+    }
+
     const totalMinor = decimalToMinorUnits(
       order.finalTotalAmountSnapshot,
       order.financialSnapshotCurrency,

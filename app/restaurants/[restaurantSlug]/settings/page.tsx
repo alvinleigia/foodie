@@ -1,5 +1,6 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
+import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
@@ -18,15 +19,15 @@ export default async function RestaurantSettingsPage({
       requiredPermission: "restaurant.settings",
       restaurantSlug,
     });
-  const dashboardHref = getRestaurantWorkspaceHref(
+  const settingsHref = getRestaurantWorkspaceHref(
     access.restaurant.slug,
-    "dashboard",
+    "settings",
   );
   const taxProfile = await getRestaurantTaxProfile(access.restaurant.id);
 
   return (
     <SaasAdminShell
-      activePath={dashboardHref}
+      activePath={settingsHref}
       eyebrow="Restaurant"
       title="Restaurant settings"
       description="Edit the current restaurant profile in a focused setup screen."
@@ -39,13 +40,17 @@ export default async function RestaurantSettingsPage({
     >
       <div className="grid gap-6">
         <TenantRestaurantSettingsForm
-          backHref={dashboardHref}
+          backHref={getRestaurantWorkspaceHref(
+            access.restaurant.slug,
+            "dashboard",
+          )}
           organization={snapshot.organization}
         />
         <RestaurantTaxProfileForm
           apiPath="/api/tenant/admin/tax-profile"
           profile={taxProfile}
         />
+        <RestaurantTaxesManager apiPath="/api/tenant/admin/taxes" />
       </div>
     </SaasAdminShell>
   );

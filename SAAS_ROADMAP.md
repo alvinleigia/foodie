@@ -2,6 +2,8 @@
 
 This is the main product roadmap and status tracker for Foodie.
 
+Last reviewed: 22 July 2026.
+
 ## Status Guide
 
 - `[x]` Implemented in the application.
@@ -94,9 +96,9 @@ course and split-check module is complete.
 
 Deployment note:
 
-- [ ] Confirm migration `0038_order_refund_payment_integrity.sql` is recorded in every live database.
-- [ ] Confirm migrations `0056_shared_rate_limits.sql` and `0057_stripe_webhook_events.sql` are recorded in every live database.
-- [ ] Complete duplicate, delayed and out-of-order Stripe webhook UAT.
+- [x] Confirm migration `0038_order_refund_payment_integrity.sql` is recorded in every live database.
+- [x] Confirm migrations `0056_shared_rate_limits.sql` and `0057_stripe_webhook_events.sql` are recorded in every live database.
+- [x] Complete duplicate, delayed and out-of-order Stripe webhook UAT.
 
 ## Done: Operations And Reporting
 
@@ -146,6 +148,11 @@ These changes should be designed before real tenants build transaction history.
 - [x] Add sequential receipt and invoice numbers per restaurant.
 - [x] Add printable and email receipts.
 - [x] Add UK simplified VAT invoice support and full VAT invoice data when required.
+- [x] Add multiple named restaurant taxes with effective-dated rates.
+- [x] Support restaurant-default and item-specific tax assignments.
+- [x] Snapshot every applied tax component on each order line.
+- [x] Show immutable tax-component breakdowns on receipts, VAT invoices and reports.
+- [x] Preview effective item-level tax components in the customer cart while keeping server-side order pricing authoritative.
 
 ## Now: Core Restaurant Operations
 
@@ -180,9 +187,10 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Add deduplicated unhandled server-error monitoring and expose operational alert ownership to platform admins.
 - [x] Expose deployment Git SHA, deployment cell and configured/runtime region for release verification.
 - [x] Add an automated live release verifier for SHA, deployment cell, response headers and Vercel runtime region.
-- [ ] Run the live release verifier against staging and production for every approved release.
-  - Staging verified on 22 July 2026 at `1b96e06` (`uk-uat-1`, Vercel `production`, `hnd1`).
-  - UK production verification remains pending for this release.
+- [x] Run the live release verifier against staging and production for the current approved release.
+  - Staging verified on 22 July 2026 at `b738580` (`uk-uat-1`, Vercel `production`, `hnd1`).
+  - UK production verified on 22 July 2026 at `a4f681f` (`uk-prod-1`, Vercel `production`, `lhr1`).
+  - Release and database verification evidence is retained in GitHub pull request `#13`.
 - [x] Replace constant order-board polling with adaptive, visibility-aware polling and paginated history.
 - [x] Complete paid checkout, cancellation and refund UAT.
 - [x] Add automated duplicate, concurrent and failed Stripe webhook replay gates.
@@ -199,7 +207,8 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [x] Complete platform, restaurant, ordering-point and custom-domain routing UAT.
 - [x] Verify every staff/admin route redirects away from customer domains.
 - [x] Add a redacted launch environment inventory with provider-pair and production-safety validation.
-- [ ] Run `verify:environment` and `verify:release` against every staging and production deployment cell and retain the result.
+- [x] Run `verify:environment` and `verify:release` against the current staging and production deployment cells and retain the result.
+- [ ] Repeat `verify:environment` and `verify:release` for every future approved release.
 - [ ] Consider Supabase Row Level Security as defence in depth.
 
 ## Now: Compliance And Tenant Operations
@@ -242,6 +251,9 @@ Move this section into **Now** before onboarding full-service table restaurants.
 - [ ] Add allergen and dietary information.
 - [ ] Add customer-facing and kitchen printer configuration.
 - [ ] Add accounting export or accounting-provider integrations.
+- [ ] Add jurisdiction-specific tax filing and accounting mappings.
+- [ ] Add modifier-specific tax overrides where a modifier is taxed differently from its parent item.
+- [ ] Include item-tax assignments in bulk menu import and export workflows.
 - [ ] Add tenant-scoped image uploads and storage limits.
 - [ ] Automate Vercel custom-domain registration after manual routing is proven.
 - [ ] Build a guided company and restaurant onboarding flow.
@@ -361,8 +373,8 @@ Foodie is ready for live quick-service tenants only when:
 - [x] Two-restaurant isolation tests pass.
 - [x] Authentication and session revocation tests pass.
 - [ ] Backup restoration is demonstrated.
-- [ ] Monitoring and webhook alerts have an owner.
-- [ ] Domain, OAuth, SMTP and deployment-cell checks pass.
+- [x] Monitoring and webhook alerts have an owner and staging alert delivery was verified.
+- [x] Domain, OAuth, SMTP SPF/DKIM and deployment-cell checks pass for the current release.
 - [ ] Product positioning clearly states any card-terminal or offline limitations.
 
 ## Working Notes

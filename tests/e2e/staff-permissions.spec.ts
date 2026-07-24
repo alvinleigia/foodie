@@ -119,6 +119,18 @@ test.describe("restaurant staff permissions", () => {
         "app/api/tenant/admin/integrations/stripe/route.ts",
         'requireStaffPermission("integrations.manage")',
       ],
+      [
+        "app/api/tenant/summary/route.ts",
+        'requireStaffPermission("restaurant.dashboard")',
+      ],
+      [
+        "app/api/tenant/reports/route.ts",
+        'requireStaffPermission("reports.view")',
+      ],
+      [
+        "app/api/tenant/reports/export/route.ts",
+        'requireStaffPermission("reports.view")',
+      ],
     ] as const;
 
     for (const [fileName, expectedCheck] of expectations) {
@@ -146,6 +158,7 @@ test.describe("restaurant staff permissions", () => {
     );
     expect(navigationSource).toContain('permission: "orders.view"');
     expect(navigationSource).toContain('permission: "menu.manage"');
+    expect(navigationSource).toContain('permission: "reports.view"');
     expect(ordersPageSource).toContain('requiredPermission: "orders.view"');
     expect(menuPageSource).toContain('requiredPermission: "menu.manage"');
   });

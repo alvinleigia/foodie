@@ -62,6 +62,23 @@ function formatMoney(value: string | null, currency: string) {
   }).format(Number(value));
 }
 
+function formatTaxComponentLabel(component: {
+  name: string;
+  rateBps: number;
+  treatment: "TAXABLE" | "ZERO_RATED" | "EXEMPT" | "OUT_OF_SCOPE";
+}) {
+  if (component.treatment === "EXEMPT") {
+    return `${component.name} (exempt)`;
+  }
+
+  if (component.treatment === "OUT_OF_SCOPE") {
+    return `${component.name} (out of scope)`;
+  }
+
+  const rate = (component.rateBps / 100).toFixed(2).replace(/\.00$/, "");
+  return `${component.name} (${rate}%)`;
+}
+
 export function OperationalReports({
   exportHref,
   isLoading = false,
@@ -128,6 +145,9 @@ export function OperationalReports({
               financial.paymentMismatchOrders +
               financial.refundMismatchOrders +
               financial.currencyMismatchEntries;
+            const taxComponents = (report.revenue.taxComponents ?? []).filter(
+              (component) => component.currency === financial.currency,
+            );
 
             return (
               <div
@@ -201,6 +221,39 @@ export function OperationalReports({
                   {formatMoney(financial.chargeTotal, financial.currency)}, tips{" "}
                   {formatMoney(financial.tipTotal, financial.currency)}.
                 </p>
+
+                {taxComponents.length > 0 ? (
+                  <div className="border-t border-stone-200 pt-3 text-xs">
+                    <p className="font-semibold text-stone-700">
+                      Issued receipt tax breakdown
+                    </p>
+                    <div className="mt-2 grid gap-1.5">
+                      {taxComponents.map((component) => (
+                        <div
+                          key={[
+                            component.code,
+                            component.name,
+                            component.treatment,
+                            component.rateBps,
+                            component.calculationOrder,
+                          ].join("-")}
+                          className="flex flex-wrap items-center justify-between gap-2 text-stone-600"
+                        >
+                          <span>{formatTaxComponentLabel(component)}</span>
+                          <span>
+                            Base {formatMoney(
+                              component.taxableTotal,
+                              component.currency,
+                            )}; tax {formatMoney(
+                              component.taxTotal,
+                              component.currency,
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
 
                 {!financial.isReconciled ? (
                   <p className="text-xs font-medium text-amber-700">
