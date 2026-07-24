@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
+
 function emptyToNull(value: string | null | undefined) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
@@ -62,6 +64,20 @@ export const menuItemSchema = z
     modifierGroupIds: z.array(z.string().uuid("Choose a valid add-on group")).default([]),
     taxAssignmentMode: z.enum(["DEFAULT", "CUSTOM"]).default("DEFAULT"),
     taxDefinitionIds: z.array(z.string().uuid("Choose a valid tax")).default([]),
+    fulfilmentTaxOverrides: z
+      .array(
+        z.object({
+          fulfilmentType: z.enum(orderFulfilmentTypes),
+          taxDefinitionIds: z
+            .array(z.string().uuid("Choose a valid tax"))
+            .min(1, "Choose at least one tax for this fulfilment exception"),
+        }),
+      )
+      .max(
+        orderFulfilmentTypes.length,
+        "Only one tax exception is allowed per fulfilment type",
+      )
+      .default([]),
   })
   .superRefine((item, context) => {
     if (item.taxAssignmentMode === "CUSTOM" && item.taxDefinitionIds.length === 0) {
@@ -70,6 +86,20 @@ export const menuItemSchema = z
         message: "Choose at least one tax for this product",
         path: ["taxDefinitionIds"],
       });
+    }
+
+    const fulfilmentTypes = new Set<string>();
+
+    for (const [index, override] of item.fulfilmentTaxOverrides.entries()) {
+      if (fulfilmentTypes.has(override.fulfilmentType)) {
+        context.addIssue({
+          code: "custom",
+          message: "Only one tax exception is allowed per fulfilment type",
+          path: ["fulfilmentTaxOverrides", index, "fulfilmentType"],
+        });
+      }
+
+      fulfilmentTypes.add(override.fulfilmentType);
     }
   });
 

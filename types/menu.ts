@@ -1,3 +1,10 @@
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+
+export type MenuItemFulfilmentTaxOverride = {
+  fulfilmentType: OrderFulfilmentType;
+  taxDefinitionIds: string[];
+};
+
 export type PrepStationRecord = {
   id: string;
   organizationId: string;
@@ -28,6 +35,7 @@ export type MenuItemRecord = {
   modifierGroups?: MenuModifierGroupRecord[];
   taxAssignmentMode?: "DEFAULT" | "CUSTOM";
   taxDefinitionIds?: string[];
+  fulfilmentTaxOverrides?: MenuItemFulfilmentTaxOverride[];
 };
 
 export type MenuCategoryRecord = {

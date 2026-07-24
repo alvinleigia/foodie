@@ -1411,6 +1411,54 @@ export const menuItemTaxAssignments = pgTable(
   ],
 );
 
+export const menuItemFulfilmentTaxAssignments = pgTable(
+  "menu_item_fulfilment_tax_assignments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").notNull(),
+    menuItemId: uuid("menu_item_id").notNull(),
+    fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type").notNull(),
+    taxDefinitionId: uuid("tax_definition_id").notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [organizations.id],
+      name: "menu_item_fulfilment_taxes_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.menuItemId, table.organizationId],
+      foreignColumns: [menuItems.id, menuItems.organizationId],
+      name: "menu_item_fulfilment_taxes_item_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.taxDefinitionId, table.organizationId],
+      foreignColumns: [
+        organizationTaxDefinitions.id,
+        organizationTaxDefinitions.organizationId,
+      ],
+      name: "menu_item_fulfilment_taxes_definition_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_item_fulfilment_taxes_item_type_def_unique").on(
+      table.menuItemId,
+      table.fulfilmentType,
+      table.taxDefinitionId,
+    ),
+    index("menu_item_fulfilment_taxes_org_item_type_idx").on(
+      table.organizationId,
+      table.menuItemId,
+      table.fulfilmentType,
+      table.sortOrder,
+    ),
+    check(
+      "menu_item_fulfilment_taxes_sort_order_check",
+      sql`${table.sortOrder} >= 0`,
+    ),
+  ],
+);
+
 export const menuTags = pgTable(
   "menu_tags",
   {

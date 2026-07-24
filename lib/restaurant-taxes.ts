@@ -14,11 +14,13 @@ import {
 
 import { getDb } from "@/db";
 import {
+  menuItemFulfilmentTaxAssignments,
   menuItemTaxAssignments,
   organizationDefaultTaxes,
   organizationTaxDefinitions,
   organizationTaxRates,
 } from "@/db/schema";
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import type {
   TaxComponentInput,
@@ -28,6 +30,10 @@ import type {
 export type ResolvedRestaurantTaxes = {
   pricingMode: TaxPricingMode;
   taxesByMenuItemId: Map<string, TaxComponentInput[]>;
+  taxOverridesByFulfilmentType: Map<
+    OrderFulfilmentType,
+    Map<string, TaxComponentInput[]>
+  >;
 };
 
 function getLegacyTaxComponent(
@@ -61,6 +67,7 @@ export async function getResolvedRestaurantTaxes(
       taxesByMenuItemId: new Map(
         normalizedMenuItemIds.map((menuItemId) => [menuItemId, []]),
       ),
+      taxOverridesByFulfilmentType: new Map(),
     };
   }
 
@@ -124,40 +131,66 @@ export async function getResolvedRestaurantTaxes(
     }
   }
 
-  const [defaultRows, assignmentRows] = await Promise.all([
-    db
-      .select({
-        sortOrder: organizationDefaultTaxes.sortOrder,
-        taxDefinitionId: organizationDefaultTaxes.taxDefinitionId,
-      })
-      .from(organizationDefaultTaxes)
-      .where(
-        eq(organizationDefaultTaxes.organizationId, restaurantOrganizationId),
-      )
-      .orderBy(asc(organizationDefaultTaxes.sortOrder)),
-    normalizedMenuItemIds.length > 0
-      ? db
-          .select({
-            menuItemId: menuItemTaxAssignments.menuItemId,
-            sortOrder: menuItemTaxAssignments.sortOrder,
-            taxDefinitionId: menuItemTaxAssignments.taxDefinitionId,
-          })
-          .from(menuItemTaxAssignments)
-          .where(
-            and(
-              eq(
-                menuItemTaxAssignments.organizationId,
-                restaurantOrganizationId,
+  const [defaultRows, assignmentRows, fulfilmentAssignmentRows] =
+    await Promise.all([
+      db
+        .select({
+          sortOrder: organizationDefaultTaxes.sortOrder,
+          taxDefinitionId: organizationDefaultTaxes.taxDefinitionId,
+        })
+        .from(organizationDefaultTaxes)
+        .where(
+          eq(organizationDefaultTaxes.organizationId, restaurantOrganizationId),
+        )
+        .orderBy(asc(organizationDefaultTaxes.sortOrder)),
+      normalizedMenuItemIds.length > 0
+        ? db
+            .select({
+              menuItemId: menuItemTaxAssignments.menuItemId,
+              sortOrder: menuItemTaxAssignments.sortOrder,
+              taxDefinitionId: menuItemTaxAssignments.taxDefinitionId,
+            })
+            .from(menuItemTaxAssignments)
+            .where(
+              and(
+                eq(
+                  menuItemTaxAssignments.organizationId,
+                  restaurantOrganizationId,
+                ),
+                inArray(
+                  menuItemTaxAssignments.menuItemId,
+                  normalizedMenuItemIds,
+                ),
               ),
-              inArray(
-                menuItemTaxAssignments.menuItemId,
-                normalizedMenuItemIds,
+            )
+            .orderBy(asc(menuItemTaxAssignments.sortOrder))
+        : Promise.resolve([]),
+      normalizedMenuItemIds.length > 0
+        ? db
+            .select({
+              fulfilmentType:
+                menuItemFulfilmentTaxAssignments.fulfilmentType,
+              menuItemId: menuItemFulfilmentTaxAssignments.menuItemId,
+              sortOrder: menuItemFulfilmentTaxAssignments.sortOrder,
+              taxDefinitionId:
+                menuItemFulfilmentTaxAssignments.taxDefinitionId,
+            })
+            .from(menuItemFulfilmentTaxAssignments)
+            .where(
+              and(
+                eq(
+                  menuItemFulfilmentTaxAssignments.organizationId,
+                  restaurantOrganizationId,
+                ),
+                inArray(
+                  menuItemFulfilmentTaxAssignments.menuItemId,
+                  normalizedMenuItemIds,
+                ),
               ),
-            ),
-          )
-          .orderBy(asc(menuItemTaxAssignments.sortOrder))
-      : Promise.resolve([]),
-  ]);
+            )
+            .orderBy(asc(menuItemFulfilmentTaxAssignments.sortOrder))
+        : Promise.resolve([]),
+    ]);
   const defaultComponents = defaultRows.map((row) => {
     const component = componentByDefinitionId.get(row.taxDefinitionId);
 
@@ -215,5 +248,51 @@ export async function getResolvedRestaurantTaxes(
     taxesByMenuItemId.set(menuItemId, components);
   }
 
-  return { pricingMode, taxesByMenuItemId };
+  const fulfilmentAssignmentsByTypeAndItem = new Map<
+    string,
+    typeof fulfilmentAssignmentRows
+  >();
+
+  for (const row of fulfilmentAssignmentRows) {
+    const key = `${row.fulfilmentType}:${row.menuItemId}`;
+    const assignments =
+      fulfilmentAssignmentsByTypeAndItem.get(key) ?? [];
+    assignments.push(row);
+    fulfilmentAssignmentsByTypeAndItem.set(key, assignments);
+  }
+
+  const taxOverridesByFulfilmentType = new Map<
+    OrderFulfilmentType,
+    Map<string, TaxComponentInput[]>
+  >();
+
+  for (const [key, assignments] of fulfilmentAssignmentsByTypeAndItem) {
+    const [fulfilmentType, menuItemId] = key.split(":") as [
+      OrderFulfilmentType,
+      string,
+    ];
+    const components = assignments.map((assignment) => {
+      const component = componentByDefinitionId.get(
+        assignment.taxDefinitionId,
+      );
+
+      if (!component) {
+        throw new Error(
+          "A fulfilment tax exception has no active rate for this order date.",
+        );
+      }
+
+      return component;
+    });
+    const taxesByItemId =
+      taxOverridesByFulfilmentType.get(fulfilmentType) ?? new Map();
+    taxesByItemId.set(menuItemId, components);
+    taxOverridesByFulfilmentType.set(fulfilmentType, taxesByItemId);
+  }
+
+  return {
+    pricingMode,
+    taxesByMenuItemId,
+    taxOverridesByFulfilmentType,
+  };
 }

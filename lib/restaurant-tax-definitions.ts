@@ -15,6 +15,7 @@ import {
 
 import { getDb } from "@/db";
 import {
+  menuItemFulfilmentTaxAssignments,
   menuItemTaxAssignments,
   organizations,
   organizationDefaultTaxes,
@@ -95,7 +96,13 @@ export async function getRestaurantTaxDefinitions(
 
   const businessDate = getDateForTimezone(restaurant.timezone);
   const db = getDb();
-  const [definitionRows, rateRows, defaultRows, assignmentRows] =
+  const [
+    definitionRows,
+    rateRows,
+    defaultRows,
+    assignmentRows,
+    fulfilmentAssignmentRows,
+  ] =
     await Promise.all([
       db
         .select()
@@ -137,11 +144,27 @@ export async function getRestaurantTaxDefinitions(
           ),
         ),
       db
-        .select({ taxDefinitionId: menuItemTaxAssignments.taxDefinitionId })
+        .select({
+          menuItemId: menuItemTaxAssignments.menuItemId,
+          taxDefinitionId: menuItemTaxAssignments.taxDefinitionId,
+        })
         .from(menuItemTaxAssignments)
         .where(
           eq(
             menuItemTaxAssignments.organizationId,
+            restaurantOrganizationId,
+          ),
+        ),
+      db
+        .select({
+          menuItemId: menuItemFulfilmentTaxAssignments.menuItemId,
+          taxDefinitionId:
+            menuItemFulfilmentTaxAssignments.taxDefinitionId,
+        })
+        .from(menuItemFulfilmentTaxAssignments)
+        .where(
+          eq(
+            menuItemFulfilmentTaxAssignments.organizationId,
             restaurantOrganizationId,
           ),
         ),
@@ -158,13 +181,16 @@ export async function getRestaurantTaxDefinitions(
   }
 
   const defaultIds = new Set(defaultRows.map((row) => row.taxDefinitionId));
-  const assignmentCounts = new Map<string, number>();
+  const assignedItemIds = new Map<string, Set<string>>();
 
-  for (const assignment of assignmentRows) {
-    assignmentCounts.set(
-      assignment.taxDefinitionId,
-      (assignmentCounts.get(assignment.taxDefinitionId) ?? 0) + 1,
-    );
+  for (const assignment of [
+    ...assignmentRows,
+    ...fulfilmentAssignmentRows,
+  ]) {
+    const itemIds =
+      assignedItemIds.get(assignment.taxDefinitionId) ?? new Set<string>();
+    itemIds.add(assignment.menuItemId);
+    assignedItemIds.set(assignment.taxDefinitionId, itemIds);
   }
 
   const definitions: RestaurantTaxDefinitionRecord[] = definitionRows.map(
@@ -182,7 +208,7 @@ export async function getRestaurantTaxDefinitions(
         isDefault: defaultIds.has(definition.id),
         rateBps: rate?.rateBps ?? null,
         rateEffectiveFrom: rate?.effectiveFrom ?? null,
-        assignedItemCount: assignmentCounts.get(definition.id) ?? 0,
+        assignedItemCount: assignedItemIds.get(definition.id)?.size ?? 0,
         isProfileDefault: definition.code === "DEFAULT",
       };
     },
@@ -257,15 +283,27 @@ export async function saveRestaurantTaxDefinition(
     }
 
     if (!parsed.isActive && definitionId) {
-      const [assignment] = await tx
-        .select({ id: menuItemTaxAssignments.id })
-        .from(menuItemTaxAssignments)
-        .where(eq(menuItemTaxAssignments.taxDefinitionId, definitionId))
-        .limit(1);
+      const [[assignment], [fulfilmentAssignment]] = await Promise.all([
+        tx
+          .select({ id: menuItemTaxAssignments.id })
+          .from(menuItemTaxAssignments)
+          .where(eq(menuItemTaxAssignments.taxDefinitionId, definitionId))
+          .limit(1),
+        tx
+          .select({ id: menuItemFulfilmentTaxAssignments.id })
+          .from(menuItemFulfilmentTaxAssignments)
+          .where(
+            eq(
+              menuItemFulfilmentTaxAssignments.taxDefinitionId,
+              definitionId,
+            ),
+          )
+          .limit(1),
+      ]);
 
-      if (assignment) {
+      if (assignment || fulfilmentAssignment) {
         throw new Error(
-          "Remove this tax from menu items before deactivating it.",
+          "Remove this tax from menu items and fulfilment exceptions before deactivating it.",
         );
       }
     }

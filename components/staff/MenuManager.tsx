@@ -27,6 +27,11 @@ import {
 } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  orderFulfilmentLabels,
+  orderFulfilmentTypes,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
@@ -58,6 +63,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import {
   MenuCategoryRecord,
+  MenuItemFulfilmentTaxOverride,
   MenuItemRecord,
   MenuModifierGroupRecord,
   MenuTagRecord,
@@ -88,6 +94,7 @@ type ItemDraft = {
   modifierGroupIds: string[];
   taxAssignmentMode: "DEFAULT" | "CUSTOM";
   taxDefinitionIds: string[];
+  fulfilmentTaxOverrides: MenuItemFulfilmentTaxOverride[];
 };
 
 type ModifierGroupDraft = {
@@ -138,6 +145,7 @@ const emptyItemDraft: ItemDraft = {
   modifierGroupIds: [],
   taxAssignmentMode: "DEFAULT",
   taxDefinitionIds: [],
+  fulfilmentTaxOverrides: [],
 };
 
 const emptyModifierGroupDraft: ModifierGroupDraft = {
@@ -282,6 +290,11 @@ export function MenuManager() {
       modifierGroupIds: item.modifierGroups?.map((group) => group.id) ?? [],
       taxAssignmentMode: item.taxAssignmentMode ?? "DEFAULT",
       taxDefinitionIds: item.taxDefinitionIds ?? [],
+      fulfilmentTaxOverrides:
+        item.fulfilmentTaxOverrides?.map((override) => ({
+          fulfilmentType: override.fulfilmentType,
+          taxDefinitionIds: [...override.taxDefinitionIds],
+        })) ?? [],
     });
     setItemFieldErrors({});
     setItemFormError(null);
@@ -318,6 +331,58 @@ export function MenuManager() {
             (currentTaxDefinitionId) =>
               currentTaxDefinitionId !== taxDefinitionId,
           ),
+    }));
+  }
+
+  function setFulfilmentTaxOverrideEnabled(
+    fulfilmentType: OrderFulfilmentType,
+    isEnabled: boolean,
+  ) {
+    clearItemFieldError("fulfilmentTaxOverrides");
+    setItemDraft((current) => {
+      const withoutCurrentType = current.fulfilmentTaxOverrides.filter(
+        (override) => override.fulfilmentType !== fulfilmentType,
+      );
+
+      return {
+        ...current,
+        fulfilmentTaxOverrides: isEnabled
+          ? [
+              ...withoutCurrentType,
+              { fulfilmentType, taxDefinitionIds: [] },
+            ]
+          : withoutCurrentType,
+      };
+    });
+  }
+
+  function toggleFulfilmentTaxOverrideTax(
+    fulfilmentType: OrderFulfilmentType,
+    taxDefinitionId: string,
+    isSelected: boolean,
+  ) {
+    clearItemFieldError("fulfilmentTaxOverrides");
+    setItemDraft((current) => ({
+      ...current,
+      fulfilmentTaxOverrides: current.fulfilmentTaxOverrides.map(
+        (override) =>
+          override.fulfilmentType === fulfilmentType
+            ? {
+                ...override,
+                taxDefinitionIds: isSelected
+                  ? Array.from(
+                      new Set([
+                        ...override.taxDefinitionIds,
+                        taxDefinitionId,
+                      ]),
+                    )
+                  : override.taxDefinitionIds.filter(
+                      (currentTaxDefinitionId) =>
+                        currentTaxDefinitionId !== taxDefinitionId,
+                    ),
+              }
+            : override,
+      ),
     }));
   }
 
@@ -462,6 +527,7 @@ export function MenuManager() {
         modifierGroupIds: itemDraft.modifierGroupIds,
         taxAssignmentMode: itemDraft.taxAssignmentMode,
         taxDefinitionIds: itemDraft.taxDefinitionIds,
+        fulfilmentTaxOverrides: itemDraft.fulfilmentTaxOverrides,
       }),
     });
 
@@ -1586,6 +1652,93 @@ export function MenuManager() {
                   </div>
                 )
               ) : null}
+            </FormField>
+
+            <FormField
+              label="Fulfilment tax exceptions"
+              error={getFieldError(
+                itemFieldErrors,
+                "fulfilmentTaxOverrides",
+              )}
+              errorId="menu-item-fulfilment-tax-overrides-error"
+            >
+              <p className="mb-3 text-sm text-stone-500">
+                Add an exception only when this product is taxed differently
+                for a service type. Selected taxes replace its normal taxes for
+                that service type.
+              </p>
+
+              {taxDefinitions.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-stone-200 px-4 py-3 text-sm text-stone-500">
+                  Enable the restaurant tax profile and add an active tax
+                  before configuring exceptions.
+                </p>
+              ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {orderFulfilmentTypes.map((fulfilmentType) => {
+                    const override = itemDraft.fulfilmentTaxOverrides.find(
+                      (candidate) =>
+                        candidate.fulfilmentType === fulfilmentType,
+                    );
+                    const isEnabled = Boolean(override);
+
+                    return (
+                      <div
+                        key={fulfilmentType}
+                        className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                      >
+                        <label className="flex items-center gap-3 text-sm font-semibold text-stone-900">
+                          <Checkbox
+                            checked={isEnabled}
+                            onCheckedChange={(checked) =>
+                              setFulfilmentTaxOverrideEnabled(
+                                fulfilmentType,
+                                checked === true,
+                              )
+                            }
+                          />
+                          <span>
+                            Different taxes for{" "}
+                            {orderFulfilmentLabels[fulfilmentType]}
+                          </span>
+                        </label>
+
+                        {override ? (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {taxDefinitions.map((definition) => (
+                              <label
+                                key={definition.id}
+                                className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900"
+                              >
+                                <Checkbox
+                                  checked={override.taxDefinitionIds.includes(
+                                    definition.id,
+                                  )}
+                                  onCheckedChange={(checked) =>
+                                    toggleFulfilmentTaxOverrideTax(
+                                      fulfilmentType,
+                                      definition.id,
+                                      checked === true,
+                                    )
+                                  }
+                                />
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium">
+                                    {definition.name}
+                                  </span>
+                                  <span className="block text-xs text-stone-500">
+                                    {formatTaxRate(definition.rateBps)}
+                                  </span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </FormField>
 
             <FormField

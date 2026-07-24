@@ -428,9 +428,16 @@ export async function POST(request: NextRequest) {
       pricingMode: resolvedTaxes.pricingMode,
       taxRateBps: 0,
     };
+    const fulfilmentTaxOverrides =
+      resolvedTaxes.taxOverridesByFulfilmentType.get(
+        parsed.data.fulfilmentType,
+      );
     const pricedCartItems = cartItems.map((item) => ({
       ...item,
-      taxes: resolvedTaxes.taxesByMenuItemId.get(item.drinkId) ?? [],
+      taxes:
+        fulfilmentTaxOverrides?.get(item.drinkId) ??
+        resolvedTaxes.taxesByMenuItemId.get(item.drinkId) ??
+        [],
     }));
 
     try {

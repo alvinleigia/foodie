@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import {
   inventoryItems,
   menuCategories,
+  menuItemFulfilmentTaxAssignments,
   menuItemModifierGroups,
   menuItemTaxAssignments,
   menuItems,
@@ -17,10 +18,15 @@ import {
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import {
+  orderFulfilmentTypes,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { getActivePrepStation } from "@/lib/prep-stations";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
+  MenuItemFulfilmentTaxOverride,
   MenuItemRecord,
   MenuModifierGroupRecord,
   MenuModifierOptionRecord,
@@ -552,6 +558,27 @@ function normalizeMenuTaxDefinitionIds(taxDefinitionIds: string[] | undefined) {
   return Array.from(new Set(taxDefinitionIds ?? []));
 }
 
+function normalizeFulfilmentTaxOverrides(
+  overrides: MenuItemFulfilmentTaxOverride[] | undefined,
+) {
+  const overrideByType = new Map<OrderFulfilmentType, string[]>();
+
+  for (const override of overrides ?? []) {
+    overrideByType.set(
+      override.fulfilmentType,
+      normalizeMenuTaxDefinitionIds(override.taxDefinitionIds),
+    );
+  }
+
+  return orderFulfilmentTypes.flatMap((fulfilmentType) => {
+    const taxDefinitionIds = overrideByType.get(fulfilmentType);
+
+    return taxDefinitionIds
+      ? [{ fulfilmentType, taxDefinitionIds }]
+      : [];
+  });
+}
+
 async function assertMenuTagsExist(tagIds: string[]) {
   if (tagIds.length === 0) {
     return;
@@ -653,6 +680,64 @@ async function getMenuTaxAssignmentsByItemId(
   return assignmentsByItemId;
 }
 
+async function getMenuFulfilmentTaxOverridesByItemId(
+  itemIds: string[],
+  context: TenantContext,
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, MenuItemFulfilmentTaxOverride[]>();
+  }
+
+  const rows = await getDb()
+    .select({
+      fulfilmentType: menuItemFulfilmentTaxAssignments.fulfilmentType,
+      menuItemId: menuItemFulfilmentTaxAssignments.menuItemId,
+      taxDefinitionId: menuItemFulfilmentTaxAssignments.taxDefinitionId,
+    })
+    .from(menuItemFulfilmentTaxAssignments)
+    .where(
+      and(
+        inArray(menuItemFulfilmentTaxAssignments.menuItemId, itemIds),
+        eq(
+          menuItemFulfilmentTaxAssignments.organizationId,
+          context.organizationId,
+        ),
+      ),
+    )
+    .orderBy(asc(menuItemFulfilmentTaxAssignments.sortOrder));
+  const definitionsByItemAndType = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const key = `${row.menuItemId}:${row.fulfilmentType}`;
+    const taxDefinitionIds = definitionsByItemAndType.get(key) ?? [];
+    taxDefinitionIds.push(row.taxDefinitionId);
+    definitionsByItemAndType.set(key, taxDefinitionIds);
+  }
+
+  const overridesByItemId = new Map<
+    string,
+    MenuItemFulfilmentTaxOverride[]
+  >();
+
+  for (const itemId of itemIds) {
+    const overrides = orderFulfilmentTypes.flatMap((fulfilmentType) => {
+      const taxDefinitionIds = definitionsByItemAndType.get(
+        `${itemId}:${fulfilmentType}`,
+      );
+
+      return taxDefinitionIds
+        ? [{ fulfilmentType, taxDefinitionIds }]
+        : [];
+    });
+
+    if (overrides.length > 0) {
+      overridesByItemId.set(itemId, overrides);
+    }
+  }
+
+  return overridesByItemId;
+}
+
 export async function getPublicMenu(
   context: TenantContext = getDefaultTenantContext(),
   options: { includeInventory?: boolean } = {},
@@ -726,10 +811,17 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     context,
     true,
   );
-  const taxAssignmentsByItemId = await getMenuTaxAssignmentsByItemId(
-    items.map((item) => item.id),
-    context,
-  );
+  const [taxAssignmentsByItemId, fulfilmentTaxOverridesByItemId] =
+    await Promise.all([
+      getMenuTaxAssignmentsByItemId(
+        items.map((item) => item.id),
+        context,
+      ),
+      getMenuFulfilmentTaxOverridesByItemId(
+        items.map((item) => item.id),
+        context,
+      ),
+    ]);
 
   return groupMenuData(
     categories,
@@ -748,6 +840,8 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
         ...item,
         taxAssignmentMode: taxDefinitionIds.length > 0 ? "CUSTOM" as const : "DEFAULT" as const,
         taxDefinitionIds,
+        fulfilmentTaxOverrides:
+          fulfilmentTaxOverridesByItemId.get(item.id) ?? [],
       };
     }),
   }));
@@ -1055,6 +1149,7 @@ export async function createMenuItem(input: {
   modifierGroupIds?: string[];
   taxAssignmentMode?: "DEFAULT" | "CUSTOM";
   taxDefinitionIds?: string[];
+  fulfilmentTaxOverrides?: MenuItemFulfilmentTaxOverride[];
 }, context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
   const [category] = await db
@@ -1083,9 +1178,20 @@ export async function createMenuItem(input: {
     input.taxAssignmentMode === "CUSTOM"
       ? normalizeMenuTaxDefinitionIds(input.taxDefinitionIds)
       : [];
+  const fulfilmentTaxOverrides = normalizeFulfilmentTaxOverrides(
+    input.fulfilmentTaxOverrides,
+  );
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
-  await assertMenuTaxDefinitionsExist(taxDefinitionIds, context);
+  await assertMenuTaxDefinitionsExist(
+    normalizeMenuTaxDefinitionIds([
+      ...taxDefinitionIds,
+      ...fulfilmentTaxOverrides.flatMap(
+        (override) => override.taxDefinitionIds,
+      ),
+    ]),
+    context,
+  );
   const prepStation = await getActivePrepStation(input.prepStationId, context);
 
   if (input.prepStationId && !prepStation) {
@@ -1141,6 +1247,22 @@ export async function createMenuItem(input: {
       );
     }
 
+    const fulfilmentTaxValues = fulfilmentTaxOverrides.flatMap((override) =>
+      override.taxDefinitionIds.map((taxDefinitionId, index) => ({
+        organizationId: context.organizationId,
+        menuItemId: item.id,
+        fulfilmentType: override.fulfilmentType,
+        taxDefinitionId,
+        sortOrder: index,
+      })),
+    );
+
+    if (fulfilmentTaxValues.length > 0) {
+      await tx
+        .insert(menuItemFulfilmentTaxAssignments)
+        .values(fulfilmentTaxValues);
+    }
+
     return item;
   });
 
@@ -1163,6 +1285,7 @@ export async function updateMenuItem(
     modifierGroupIds?: string[];
     taxAssignmentMode?: "DEFAULT" | "CUSTOM";
     taxDefinitionIds?: string[];
+    fulfilmentTaxOverrides?: MenuItemFulfilmentTaxOverride[];
   },
   context: TenantContext = getDefaultTenantContext(),
 ) {
@@ -1194,9 +1317,20 @@ export async function updateMenuItem(
     input.taxAssignmentMode === "CUSTOM"
       ? normalizeMenuTaxDefinitionIds(input.taxDefinitionIds)
       : [];
+  const fulfilmentTaxOverrides = normalizeFulfilmentTaxOverrides(
+    input.fulfilmentTaxOverrides,
+  );
   await assertMenuTagsExist(tagIds);
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
-  await assertMenuTaxDefinitionsExist(taxDefinitionIds, context);
+  await assertMenuTaxDefinitionsExist(
+    normalizeMenuTaxDefinitionIds([
+      ...taxDefinitionIds,
+      ...fulfilmentTaxOverrides.flatMap(
+        (override) => override.taxDefinitionIds,
+      ),
+    ]),
+    context,
+  );
   const prepStation = await getActivePrepStation(input.prepStationId, context);
 
   if (input.prepStationId && !prepStation) {
@@ -1239,6 +1373,9 @@ export async function updateMenuItem(
     await tx
       .delete(menuItemTaxAssignments)
       .where(eq(menuItemTaxAssignments.menuItemId, item.id));
+    await tx
+      .delete(menuItemFulfilmentTaxAssignments)
+      .where(eq(menuItemFulfilmentTaxAssignments.menuItemId, item.id));
 
     if (tagIds.length > 0) {
       await tx.insert(menuItemTags).values(
@@ -1268,6 +1405,22 @@ export async function updateMenuItem(
           sortOrder: index,
         })),
       );
+    }
+
+    const fulfilmentTaxValues = fulfilmentTaxOverrides.flatMap((override) =>
+      override.taxDefinitionIds.map((taxDefinitionId, index) => ({
+        organizationId: context.organizationId,
+        menuItemId: item.id,
+        fulfilmentType: override.fulfilmentType,
+        taxDefinitionId,
+        sortOrder: index,
+      })),
+    );
+
+    if (fulfilmentTaxValues.length > 0) {
+      await tx
+        .insert(menuItemFulfilmentTaxAssignments)
+        .values(fulfilmentTaxValues);
     }
 
     return item;

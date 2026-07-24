@@ -155,18 +155,30 @@ type RestaurantTaxPricing = {
   pricingMode: TaxPricingMode;
   taxRateBps: number;
   taxesByMenuItemId: Record<string, TaxComponentInput[]>;
+  taxOverridesByFulfilmentType: Partial<
+    Record<OrderFulfilmentType, Record<string, TaxComponentInput[]>>
+  >;
 };
 
 const defaultTaxPricing: RestaurantTaxPricing = {
   pricingMode: "INCLUSIVE",
   taxRateBps: 0,
   taxesByMenuItemId: {},
+  taxOverridesByFulfilmentType: {},
 };
 
 function getMenuItemTaxes(
   taxPricing: RestaurantTaxPricing,
   menuItemId: string,
+  fulfilmentType: OrderFulfilmentType,
 ) {
+  const fulfilmentOverride =
+    taxPricing.taxOverridesByFulfilmentType?.[fulfilmentType]?.[menuItemId];
+
+  if (fulfilmentOverride !== undefined) {
+    return fulfilmentOverride;
+  }
+
   const resolvedTaxes = taxPricing.taxesByMenuItemId?.[menuItemId];
 
   if (resolvedTaxes !== undefined) {
@@ -551,9 +563,14 @@ export function OrderForm({
       }
 
       hasAnyPrice = true;
+      const itemTaxes = getMenuItemTaxes(
+        taxPricing,
+        item.drinkId,
+        draft.fulfilmentType,
+      );
       const unitPricing = calculateMultiTaxPricing(
         decimalToMinorUnits(String(listedUnitTotal), currency),
-        item.taxes,
+        itemTaxes,
         taxPricing.pricingMode,
       );
       listedSubtotalMinor += unitPricing.listedAmountMinor * item.quantity;
@@ -605,7 +622,7 @@ export function OrderForm({
         })),
       totalAmount: minorUnitsToDecimal(totalAmountMinor, currency),
     };
-  }, [cartItems, currency, taxPricing]);
+  }, [cartItems, currency, draft.fulfilmentType, taxPricing]);
   const totalAmount = cartPricing?.totalAmount ?? null;
 
   const customerNameError =
@@ -632,7 +649,7 @@ export function OrderForm({
       notes: "",
       unitPrice: drink.price ?? null,
       stockLimit: getStockLimit(drink),
-      taxes: getMenuItemTaxes(taxPricing, drink.id),
+      taxes: getMenuItemTaxes(taxPricing, drink.id, draft.fulfilmentType),
       modifierGroups: drink.modifierGroups ?? [],
       modifierSelections: [],
     };
