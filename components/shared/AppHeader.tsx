@@ -187,8 +187,9 @@ export function AppHeader({
                   <span className="block text-sm font-semibold leading-none">
                     {user.name ?? "Account"}
                   </span>
-                  <span className="mt-1 block text-xs text-stone-400">
-                    {user.contextName ?? formatRole(user.role)}
+                  <span className="mt-1 block max-w-60 truncate text-xs text-stone-400">
+                    {user.contextName ? `${user.contextName} - ` : ""}
+                    {formatRole(user.role)}
                   </span>
                 </span>
                 <span className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">

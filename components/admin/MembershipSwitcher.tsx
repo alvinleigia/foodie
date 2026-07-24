@@ -44,17 +44,6 @@ type MembershipSwitcherProps = {
   redirectAfterSwitch?: string;
 };
 
-function getMembershipLabel(option: MembershipOption) {
-  if (option.role === "PLATFORM_ADMIN") {
-    return "Foodie Platform - Platform access";
-  }
-
-  const scope =
-    option.organizationType === "COMPANY" ? "Company access" : "Restaurant access";
-
-  return `${option.organizationName} - ${scope}`;
-}
-
 function getContextKey(option: MembershipOption) {
   if (option.role === "PLATFORM_ADMIN") {
     return "PLATFORM_ADMIN:platform";
@@ -134,24 +123,14 @@ export function MembershipSwitcher({
     [payload],
   );
 
-  if (!payload || uniqueMemberships.length <= 1) {
-    if (placement === "account-menu") {
-      return (
-        <span className="flex flex-col items-start gap-0.5">
-          <span className="text-sm font-semibold text-stone-100">
-            {contextName ?? "Current access"}
-          </span>
-          {currentRole ? (
-            <span className="text-xs uppercase tracking-[0.14em] text-stone-400">
-              {formatRole(currentRole)}
-            </span>
-          ) : null}
-        </span>
-      );
-    }
-
+  if (placement === "standalone" && (!payload || uniqueMemberships.length <= 1)) {
     return null;
   }
+
+  const displayedContextName =
+    selectedMembership?.organizationName ?? contextName ?? "Current access";
+  const displayedRole = selectedMembership?.role ?? currentRole;
+  const canSwitchMembership = uniqueMemberships.length > 1;
 
   return (
     <div className={placement === "account-menu" ? "min-w-0" : "min-w-72"}>
@@ -161,8 +140,8 @@ export function MembershipSwitcher({
         </p>
       ) : null}
       <Select
-        value={selectedMembershipId}
-        disabled={isPending}
+        value={selectedMembershipId || undefined}
+        disabled={isPending || !canSwitchMembership}
         onValueChange={(membershipId) => {
           setSelectedMembershipId(membershipId);
 
@@ -196,33 +175,35 @@ export function MembershipSwitcher({
       >
         <SelectTrigger
           aria-label="Access context"
-          className="h-auto min-h-10 w-full rounded-lg border-stone-600/60 bg-white/5 px-3 py-2 text-left text-stone-100"
+          className="h-auto min-h-14 w-full rounded-lg border-stone-600/60 bg-white/5 px-3 py-2 text-left text-stone-100 disabled:cursor-default disabled:opacity-100"
         >
           <SelectValue placeholder="Choose access">
-            {selectedMembership ? (
-              <span className="flex flex-col items-start gap-0.5">
-                <span className="text-sm font-semibold">
-                  {getMembershipLabel(selectedMembership)}
-                </span>
-                <span className="text-xs uppercase tracking-[0.14em] text-stone-400">
-                  {formatRole(selectedMembership.role)}
-                </span>
+            <span className="flex min-w-0 flex-col items-start gap-0.5">
+              <span className="max-w-full truncate text-sm font-semibold">
+                {displayedContextName}
               </span>
-            ) : null}
+              {displayedRole ? (
+                <span className="text-xs uppercase tracking-[0.14em] text-stone-400">
+                  {formatRole(displayedRole)}
+                </span>
+              ) : null}
+            </span>
           </SelectValue>
         </SelectTrigger>
-        <SelectContent className="min-w-80">
-          {uniqueMemberships.map((option) => (
-            <SelectItem key={option.membershipId} value={option.membershipId}>
-              <span className="flex flex-col items-start gap-0.5">
-                <span>{getMembershipLabel(option)}</span>
-                <span className="text-xs uppercase tracking-[0.14em] text-stone-500">
-                  {formatRole(option.role)}
+        {canSwitchMembership ? (
+          <SelectContent className="min-w-80">
+            {uniqueMemberships.map((option) => (
+              <SelectItem key={option.membershipId} value={option.membershipId}>
+                <span className="flex flex-col items-start gap-0.5">
+                  <span>{option.organizationName}</span>
+                  <span className="text-xs uppercase tracking-[0.14em] text-stone-500">
+                    {formatRole(option.role)}
+                  </span>
                 </span>
-              </span>
-            </SelectItem>
-          ))}
-        </SelectContent>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        ) : null}
       </Select>
     </div>
   );
