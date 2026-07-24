@@ -204,6 +204,10 @@ test.describe("tax pricing modes", () => {
     const orderRouteSource = readSource("app", "api", "orders", "route.ts");
     const staffPaymentSource = readSource("lib", "staff-order-payments.ts");
     const menuRouteSource = readSource("app", "api", "menu", "route.ts");
+    const fulfilmentTaxMigration = readSource(
+      "drizzle",
+      "0060_fulfilment_tax_assignments.sql",
+    );
     const orderFormSource = readSource(
       "components",
       "order",
@@ -221,7 +225,17 @@ test.describe("tax pricing modes", () => {
     expect(staffPaymentSource).toContain("orderItemTaxComponents");
     expect(menuRouteSource).toContain("getResolvedRestaurantTaxes");
     expect(menuRouteSource).toContain("taxesByMenuItemId");
+    expect(menuRouteSource).toContain("taxOverridesByFulfilmentType");
+    expect(orderRouteSource).toContain("parsed.data.fulfilmentType");
+    expect(orderRouteSource).toContain("taxOverridesByFulfilmentType");
     expect(orderFormSource).toContain("calculateMultiTaxPricing");
-    expect(orderFormSource).toContain("item.taxes");
+    expect(orderFormSource).toContain("draft.fulfilmentType");
+    expect(orderFormSource).toContain("taxOverridesByFulfilmentType");
+    expect(fulfilmentTaxMigration).toContain(
+      'CREATE TABLE "menu_item_fulfilment_tax_assignments"',
+    );
+    expect(fulfilmentTaxMigration).toContain(
+      '"fulfilment_type" "order_fulfilment_type" NOT NULL',
+    );
   });
 });

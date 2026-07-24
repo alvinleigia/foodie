@@ -48,6 +48,14 @@ export async function GET(request: Request) {
       pricingMode: resolvedTaxes.pricingMode,
       taxRateBps: 0,
       taxesByMenuItemId: Object.fromEntries(resolvedTaxes.taxesByMenuItemId),
+      taxOverridesByFulfilmentType: Object.fromEntries(
+        [...resolvedTaxes.taxOverridesByFulfilmentType].map(
+          ([fulfilmentType, taxesByMenuItemId]) => [
+            fulfilmentType,
+            Object.fromEntries(taxesByMenuItemId),
+          ],
+        ),
+      ),
     };
 
     return NextResponse.json({ categories, currency, taxPricing });
