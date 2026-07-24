@@ -444,7 +444,7 @@ export function KdsBoard() {
           title="No routed tickets waiting"
           description={
             selectedStation === "all"
-              ? "New kitchen and bar items will appear here automatically."
+              ? "New preparation items will appear here automatically."
               : "This station has no pending preparation work."
           }
         />
