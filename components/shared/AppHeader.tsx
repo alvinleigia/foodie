@@ -220,6 +220,11 @@ export function AppHeader({
             <nav
               aria-label="Staff navigation"
               className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
+              style={{
+                scrollbarColor: "rgba(255, 255, 255, 0.2) transparent",
+                scrollbarGutter: "stable",
+                scrollbarWidth: "thin",
+              }}
             >
               <div className="space-y-1">
                 {groupedNavigationItems.map((group) => {
