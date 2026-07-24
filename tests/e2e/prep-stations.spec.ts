@@ -2,10 +2,14 @@ import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 
 test.describe("prep station foundation", () => {
-  test("stores restaurant-scoped kitchen and bar stations", () => {
+  test("stores restaurant-scoped preparation stations", () => {
     const schemaSource = readFileSync("db/schema.ts", "utf8");
     const migrationSource = readFileSync(
       "drizzle/0054_prep_stations.sql",
+      "utf8",
+    );
+    const genericNamesMigrationSource = readFileSync(
+      "drizzle/0059_generic_prep_station_names.sql",
       "utf8",
     );
 
@@ -26,6 +30,7 @@ test.describe("prep station foundation", () => {
     expect(migrationSource).toContain(
       "SELECT \"id\", 'bar', 'Bar', 'BAR', 1",
     );
+    expect(genericNamesMigrationSource).toContain("\"name\" = 'Drinks'");
   });
 
   test("keeps station routing stable on historical order items", () => {
@@ -88,5 +93,76 @@ test.describe("prep station foundation", () => {
     expect(restaurantAdminSource).toContain(
       "getDefaultPrepStationValues(restaurant.id)",
     );
+  });
+
+  test("lets menu managers configure stations without deleting routing history", () => {
+    const serviceSource = readFileSync("lib/prep-stations.ts", "utf8");
+    const validationSource = readFileSync(
+      "lib/validations/prep-station.ts",
+      "utf8",
+    );
+    const collectionApiSource = readFileSync(
+      "app/api/tenant/admin/prep-stations/route.ts",
+      "utf8",
+    );
+    const itemApiSource = readFileSync(
+      "app/api/tenant/admin/prep-stations/[prepStationId]/route.ts",
+      "utf8",
+    );
+    const pageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/preparation-stations/page.tsx",
+      "utf8",
+    );
+    const managerSource = readFileSync(
+      "components/staff/PrepStationManager.tsx",
+      "utf8",
+    );
+
+    expect(validationSource).toContain("prepStationSchema");
+    expect(serviceSource).toContain("getPrepStationConfiguration");
+    expect(serviceSource).toContain("savePrepStation");
+    expect(serviceSource).toContain(
+      "Reassign this station's menu items before deactivating it.",
+    );
+    expect(collectionApiSource).toContain(
+      'requireStaffPermission("menu.manage")',
+    );
+    expect(itemApiSource).toContain(
+      'requireStaffPermission("menu.manage")',
+    );
+    expect(pageSource).toContain('requiredPermission: "menu.manage"');
+    expect(managerSource).toContain("Preparation stations");
+    expect(managerSource).toContain('BAR: "Drinks"');
+    expect(managerSource).not.toContain("delete");
+  });
+
+  test("uses station-neutral operational language", () => {
+    const kdsPageSource = readFileSync(
+      "app/restaurants/[restaurantSlug]/kds/page.tsx",
+      "utf8",
+    );
+    const kdsBoardSource = readFileSync(
+      "components/staff/KdsBoard.tsx",
+      "utf8",
+    );
+    const orderFormSource = readFileSync(
+      "components/order/OrderForm.tsx",
+      "utf8",
+    );
+    const staffOrderBoardSource = readFileSync(
+      "components/staff/StaffOrderBoard.tsx",
+      "utf8",
+    );
+
+    expect(kdsPageSource).toContain(
+      "Monitor preparation tickets grouped by station.",
+    );
+    expect(kdsBoardSource).toContain(
+      "New preparation items will appear here automatically.",
+    );
+    expect(orderFormSource).toContain("preparation queue");
+    expect(staffOrderBoardSource).toContain("ready for collection");
+    expect(orderFormSource).not.toContain("bar queue");
+    expect(staffOrderBoardSource).not.toContain("from the bar");
   });
 });

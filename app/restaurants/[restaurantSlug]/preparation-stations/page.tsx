@@ -1,28 +1,32 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
-import { KdsBoard } from "@/components/staff/KdsBoard";
+import { PrepStationManager } from "@/components/staff/PrepStationManager";
+import { getPrepStationConfiguration } from "@/lib/prep-stations";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspacePageProps,
 } from "@/lib/restaurant-workspace";
 
-export default async function RestaurantKdsPage({
+export default async function RestaurantPreparationStationsPage({
   params,
 }: RestaurantWorkspacePageProps) {
   const { restaurantSlug } = await params;
   const { access, session } = await requireRestaurantWorkspaceAccess({
-    destination: "kds",
-    requiredPermission: "orders.view",
+    destination: "prepStations",
+    requiredPermission: "menu.manage",
     restaurantSlug,
   });
+  const stations = await getPrepStationConfiguration(access.tenantContext);
 
   return (
     <SaasAdminShell
-      activePath={getRestaurantWorkspaceHref(access.restaurant.slug, "kds")}
-      contentMode="panel"
-      eyebrow="Preparation"
-      title="Kitchen display"
-      description="Monitor preparation tickets grouped by station."
+      activePath={getRestaurantWorkspaceHref(
+        access.restaurant.slug,
+        "prepStations",
+      )}
+      eyebrow="Menu routing"
+      title="Preparation stations"
+      description="Manage the work areas used to prepare restaurant products."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
@@ -30,7 +34,7 @@ export default async function RestaurantKdsPage({
         role: session.user.role,
       }}
     >
-      <KdsBoard />
+      <PrepStationManager initialStations={stations} />
     </SaasAdminShell>
   );
 }

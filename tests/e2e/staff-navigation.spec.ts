@@ -90,6 +90,7 @@ test.describe("staff navigation URL policy", () => {
     expect(groupFor("Restaurant Staff")).toBe("management");
     expect(groupFor("Reports")).toBe("management");
     expect(groupFor("Menu Manager")).toBe("management");
+    expect(groupFor("Preparation stations")).toBe("management");
     expect(groupFor("Audit logs")).toBe("security");
   });
 
@@ -151,6 +152,7 @@ test.describe("staff navigation URL policy", () => {
       ["Cash drawer", ["app/restaurants/[restaurantSlug]/cash-drawer/page.tsx", "cash_drawer.open"]],
       ["Reports", ["app/restaurants/[restaurantSlug]/reports/page.tsx", "reports.view"]],
       ["Menu Manager", ["app/restaurants/[restaurantSlug]/menu/page.tsx", "menu.manage"]],
+      ["Preparation stations", ["app/restaurants/[restaurantSlug]/preparation-stations/page.tsx", "menu.manage"]],
       ["Inventory", ["app/restaurants/[restaurantSlug]/inventory/page.tsx", "inventory.manage"]],
       ["Audit logs", ["app/restaurants/[restaurantSlug]/audit-logs/page.tsx", "audit.view"]],
     ]);

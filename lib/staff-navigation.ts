@@ -175,7 +175,7 @@ const restaurantNavigation: Array<
     group: "operations",
     destination: "kds",
     label: "Kitchen display",
-    description: "Kitchen and bar preparation tickets.",
+    description: "Preparation tickets grouped by station.",
     permission: "orders.view",
   },
   {
@@ -200,6 +200,14 @@ const restaurantNavigation: Array<
     destination: "menu",
     label: "Menu Manager",
     description: "Categories and products.",
+    permission: "menu.manage",
+  },
+  {
+    access: "RESTAURANT_ADMIN",
+    group: "management",
+    destination: "prepStations",
+    label: "Preparation stations",
+    description: "Configure product preparation routing.",
     permission: "menu.manage",
   },
   {

@@ -120,7 +120,7 @@ type CorrectionTarget =
     };
 
 function playAnnouncement(customerName: string, drinkName: string) {
-  const message = `${customerName}, your ${drinkName} is ready. Please collect it from the bar.`;
+  const message = `${customerName}, your ${drinkName} is ready for collection.`;
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.rate = 0.9;
   utterance.pitch = 1;
@@ -128,7 +128,7 @@ function playAnnouncement(customerName: string, drinkName: string) {
 }
 
 function playOrderAnnouncement(customerName: string) {
-  const message = `${customerName}, your order is ready. Please collect it from the bar.`;
+  const message = `${customerName}, your order is ready for collection.`;
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.rate = 0.9;
   utterance.pitch = 1;

@@ -1528,7 +1528,7 @@ export function OrderForm({
               meta={
                 <p className="text-sm text-stone-600">
                   {isStaffOrder
-                    ? "Add a customer name or table number and double-check the cart before sending it to the bar queue."
+                    ? "Add a customer name or table number and double-check the cart before sending it to the preparation queue."
                     : "Double-check your cart and contact details before continuing to payment."}
                 </p>
               }
