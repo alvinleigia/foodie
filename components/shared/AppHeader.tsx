@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ChevronDownIcon,
   ClipboardListIcon,
@@ -46,6 +46,7 @@ type AppHeaderUser = {
 };
 
 type AppHeaderProps = {
+  accountContext?: ReactNode;
   activePath?: string;
   brandHref?: string;
   className?: string;
@@ -113,6 +114,7 @@ function BrandLogo({ href }: { href: string }) {
 }
 
 export function AppHeader({
+  accountContext,
   activePath,
   brandHref = "/",
   className,
@@ -211,11 +213,16 @@ export function AppHeader({
               <span className="mt-1 block text-sm font-semibold text-stone-100">
                 {user.name ?? "Account"}
               </span>
-              <span className="mt-0.5 block text-xs text-stone-400">
-                {user.contextName ? `${user.contextName} - ` : ""}
-                {formatRole(user.role)}
-              </span>
+              {!accountContext ? (
+                <span className="mt-0.5 block text-xs text-stone-400">
+                  {user.contextName ? `${user.contextName} - ` : ""}
+                  {formatRole(user.role)}
+                </span>
+              ) : null}
             </DropdownMenuLabel>
+            {accountContext ? (
+              <div className="shrink-0 px-4 pb-3">{accountContext}</div>
+            ) : null}
             <div className="h-px shrink-0 bg-white/10" />
             <nav
               aria-label="Staff navigation"

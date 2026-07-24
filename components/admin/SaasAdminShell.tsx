@@ -110,6 +110,14 @@ export async function SaasAdminShell({
   return (
     <AppShell variant="dark" contentClassName="max-w-7xl">
       <AppHeader
+        accountContext={
+          <MembershipSwitcher
+            contextName={organizationContext?.name}
+            currentOrganizationId={user.organizationId}
+            currentRole={user.role}
+            placement="account-menu"
+          />
+        }
         activePath={activePath}
         brandHref={brandHref}
         navigationItems={navigationItems}
@@ -120,12 +128,6 @@ export async function SaasAdminShell({
           role: user.role,
         }}
       />
-      <div className="mb-6 flex justify-end">
-        <MembershipSwitcher
-          currentOrganizationId={user.organizationId}
-          currentRole={user.role}
-        />
-      </div>
 
       {contentMode === "plain" ? (
         content

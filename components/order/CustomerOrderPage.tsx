@@ -64,6 +64,17 @@ export function CustomerOrderPage({
       {user ? (
         <>
           <AppHeader
+            accountContext={
+              staffRestaurant ? (
+                <MembershipSwitcher
+                  contextName={staffRestaurant.name}
+                  currentOrganizationId={staffRestaurant.id}
+                  currentRole={user.role}
+                  placement="account-menu"
+                  redirectAfterSwitch="/order"
+                />
+              ) : undefined
+            }
             activePath={staffOrderHref ?? "/order"}
             navigationItems={
               staffRestaurant
@@ -75,15 +86,6 @@ export function CustomerOrderPage({
             staffOrderHref={staffOrderHref}
             user={{ ...user, contextName: staffRestaurant?.name }}
           />
-          {staffRestaurant ? (
-            <div className="flex justify-end">
-              <MembershipSwitcher
-                currentOrganizationId={staffRestaurant.id}
-                currentRole={user.role}
-                redirectAfterSwitch="/order"
-              />
-            </div>
-          ) : null}
         </>
       ) : (
         <AppHeader
