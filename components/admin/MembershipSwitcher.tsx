@@ -37,8 +37,10 @@ type MembershipSwitchResponse = {
 };
 
 type MembershipSwitcherProps = {
+  contextName?: string | null;
   currentOrganizationId?: string | null;
   currentRole?: MembershipRole | null;
+  placement?: "account-menu" | "standalone";
   redirectAfterSwitch?: string;
 };
 
@@ -88,8 +90,10 @@ function findActiveMembership(
 }
 
 export function MembershipSwitcher({
+  contextName,
   currentOrganizationId,
   currentRole,
+  placement = "standalone",
   redirectAfterSwitch,
 }: MembershipSwitcherProps) {
   const router = useRouter();
@@ -131,14 +135,31 @@ export function MembershipSwitcher({
   );
 
   if (!payload || uniqueMemberships.length <= 1) {
+    if (placement === "account-menu") {
+      return (
+        <span className="flex flex-col items-start gap-0.5">
+          <span className="text-sm font-semibold text-stone-100">
+            {contextName ?? "Current access"}
+          </span>
+          {currentRole ? (
+            <span className="text-xs uppercase tracking-[0.14em] text-stone-400">
+              {formatRole(currentRole)}
+            </span>
+          ) : null}
+        </span>
+      );
+    }
+
     return null;
   }
 
   return (
-    <div className="min-w-72">
-      <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
-        Access context
-      </p>
+    <div className={placement === "account-menu" ? "min-w-0" : "min-w-72"}>
+      {placement === "standalone" ? (
+        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
+          Access context
+        </p>
+      ) : null}
       <Select
         value={selectedMembershipId}
         disabled={isPending}
@@ -173,7 +194,10 @@ export function MembershipSwitcher({
           });
         }}
       >
-        <SelectTrigger className="h-auto min-h-10 w-full rounded-lg border-stone-600/60 bg-white/5 px-3 py-2 text-left text-stone-100">
+        <SelectTrigger
+          aria-label="Access context"
+          className="h-auto min-h-10 w-full rounded-lg border-stone-600/60 bg-white/5 px-3 py-2 text-left text-stone-100"
+        >
           <SelectValue placeholder="Choose access">
             {selectedMembership ? (
               <span className="flex flex-col items-start gap-0.5">
