@@ -1,8 +1,10 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
+import { RestaurantWorkingHoursForm } from "@/components/admin/RestaurantWorkingHoursForm";
 import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
+import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -23,7 +25,14 @@ export default async function RestaurantSettingsPage({
     access.restaurant.slug,
     "settings",
   );
-  const taxProfile = await getRestaurantTaxProfile(access.restaurant.id);
+  const [taxProfile, workingHours] = await Promise.all([
+    getRestaurantTaxProfile(access.restaurant.id),
+    getRestaurantWorkingHours(access.restaurant.id),
+  ]);
+
+  if (!workingHours) {
+    throw new Error("Restaurant working hours could not be loaded.");
+  }
 
   return (
     <SaasAdminShell
@@ -45,6 +54,10 @@ export default async function RestaurantSettingsPage({
             "dashboard",
           )}
           organization={snapshot.organization}
+        />
+        <RestaurantWorkingHoursForm
+          apiPath="/api/tenant/admin/working-hours"
+          initialValue={workingHours}
         />
         <RestaurantTaxProfileForm
           apiPath="/api/tenant/admin/tax-profile"

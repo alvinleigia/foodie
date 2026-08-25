@@ -67,8 +67,10 @@ import {
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
 import { getResolvedRestaurantTaxes } from "@/lib/restaurant-taxes";
+import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
+import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
 
 export async function GET(request: NextRequest) {
   try {
@@ -194,6 +196,20 @@ export async function POST(request: NextRequest) {
           "payments.stripe",
         ],
       );
+
+      const workingHours = await getRestaurantWorkingHours(
+        tenantContext.organizationId,
+      );
+
+      if (
+        !workingHours ||
+        !isRestaurantOpenForCustomerOrders(workingHours)
+      ) {
+        return NextResponse.json(
+          { error: "This restaurant is currently closed for customer orders." },
+          { status: 409 },
+        );
+      }
     }
 
     const inventoryEnabled = (
