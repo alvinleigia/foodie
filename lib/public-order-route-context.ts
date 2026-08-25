@@ -11,11 +11,13 @@ import {
 import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrations";
 import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import type { MembershipRole } from "@/lib/staff-auth";
 import {
   getCurrentTenantContext,
   getTenantContextFromQrSlug,
 } from "@/lib/tenant-context";
+import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
 
 type PublicOrderRouteOptions = {
   orderingPointQrSlug?: string;
@@ -47,7 +49,8 @@ export type PublicOrderUnavailableReason =
   | "MISSING_CONTEXT"
   | "DOMAIN_DISABLED"
   | "CUSTOMER_ORDERING_DISABLED"
-  | "CUSTOMER_ACCOUNTS_DISABLED";
+  | "CUSTOMER_ACCOUNTS_DISABLED"
+  | "OUTSIDE_WORKING_HOURS";
 
 export async function getPublicOrderRouteContext({
   orderingPointQrSlug,
@@ -107,6 +110,15 @@ export async function getPublicOrderRouteContext({
     session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
   const socialLoginEnabled = customerFeatures.socialLoginEnabled;
   const stripePaymentsEnabled = customerFeatures.stripePaymentsEnabled;
+  const restaurantWorkingHours = tenantContext
+    ? await getRestaurantWorkingHours(tenantContext.organizationId)
+    : null;
+  const customerOrderingOpen =
+    session?.user.kind === "staff" ||
+    Boolean(
+      restaurantWorkingHours &&
+        isRestaurantOpenForCustomerOrders(restaurantWorkingHours),
+    );
 
   if (!customerAccountsEnabled) {
     customer = null;
@@ -175,17 +187,21 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: true,
       customerAccountsEnabled,
       customerOrderingEnabled,
+      customerOrderingOpen,
       socialLoginEnabled,
       stripePaymentsEnabled,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
       restaurantChoices: [],
+      restaurantWorkingHours,
       tenantContext,
       unavailableReason: !customerOrderingEnabled
         ? ("CUSTOMER_ORDERING_DISABLED" as const)
         : !customerAccountsEnabled
           ? ("CUSTOMER_ACCOUNTS_DISABLED" as const)
+          : !customerOrderingOpen
+            ? ("OUTSIDE_WORKING_HOURS" as const)
           : undefined,
       user,
     };
@@ -196,12 +212,14 @@ export async function getPublicOrderRouteContext({
       hasTenantContext: false,
       customerAccountsEnabled: false,
       customerOrderingEnabled: false,
+      customerOrderingOpen: false,
       socialLoginEnabled: false,
       stripePaymentsEnabled: false,
       customer,
       customerAuthProviders,
       phoneVerificationPolicy,
       restaurantChoices: [],
+      restaurantWorkingHours: null,
       tenantContext: null,
       unavailableReason: "MISSING_CONTEXT" as const,
       user,
@@ -242,12 +260,14 @@ export async function getPublicOrderRouteContext({
     hasTenantContext: false,
     customerAccountsEnabled: false,
     customerOrderingEnabled: false,
+    customerOrderingOpen: false,
     socialLoginEnabled: false,
     stripePaymentsEnabled: false,
     customer,
     customerAuthProviders,
     phoneVerificationPolicy,
     restaurantChoices,
+    restaurantWorkingHours: null,
     tenantContext: null,
     unavailableReason: (await getInactiveTenantDomain(requestDomain).catch(() => null))
       ? ("DOMAIN_DISABLED" as const)

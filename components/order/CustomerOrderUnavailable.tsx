@@ -18,12 +18,15 @@ export function CustomerOrderUnavailable({
   const isDisabledDomain = reason === "DOMAIN_DISABLED";
   const isOrderingDisabled = reason === "CUSTOMER_ORDERING_DISABLED";
   const areCustomerAccountsDisabled = reason === "CUSTOMER_ACCOUNTS_DISABLED";
+  const isOutsideWorkingHours = reason === "OUTSIDE_WORKING_HOURS";
   const eyebrow = isDisabledDomain
     ? "Domain disabled"
     : isOrderingDisabled
       ? "Online ordering unavailable"
       : areCustomerAccountsDisabled
         ? "Customer accounts unavailable"
+        : isOutsideWorkingHours
+          ? "Restaurant closed"
       : "Order link required";
   const title = isDisabledDomain
     ? "This ordering domain is disabled"
@@ -31,6 +34,8 @@ export function CustomerOrderUnavailable({
       ? "Customer ordering is not available"
       : areCustomerAccountsDisabled
         ? "Customer sign-in is not available"
+        : isOutsideWorkingHours
+          ? "Customer ordering is closed"
       : "Open the restaurant menu link";
   const description = isDisabledDomain
     ? "This domain is still pointing to Foodie, but tenant access has been disabled in platform domain settings. Enable it again or use an active QR/menu link."
@@ -38,6 +43,8 @@ export function CustomerOrderUnavailable({
       ? "This restaurant is not currently accepting customer orders online. Contact the restaurant for assistance."
       : areCustomerAccountsDisabled
         ? "Customer accounts, profiles and order history are not enabled for this restaurant. Contact the restaurant for assistance."
+        : isOutsideWorkingHours
+          ? "This restaurant is outside its configured customer ordering hours. Please return during opening hours; signed-in customers can still view existing orders."
       : "This ordering page needs a restaurant QR/menu link, a mapped customer domain, or signed-in restaurant access before it can show the menu.";
 
   return (

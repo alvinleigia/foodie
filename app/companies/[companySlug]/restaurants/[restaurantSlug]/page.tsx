@@ -4,6 +4,7 @@ import { MailIcon, UsersIcon } from "lucide-react";
 import { OrganizationEditPanel } from "@/components/admin/OrganizationEditPanel";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
+import { RestaurantWorkingHoursForm } from "@/components/admin/RestaurantWorkingHoursForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/company-workspace";
 import { requireCompanyRestaurantWorkspaceAccess } from "@/lib/company-workspace-access";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
+import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 
 type CompanyRestaurantPageProps = {
   params: Promise<{ companySlug: string; restaurantSlug: string }>;
@@ -27,7 +29,14 @@ export default async function CompanyWorkspaceRestaurantPage({
       companySlug,
       restaurantSlug,
     });
-  const taxProfile = await getRestaurantTaxProfile(restaurant.id);
+  const [taxProfile, workingHours] = await Promise.all([
+    getRestaurantTaxProfile(restaurant.id),
+    getRestaurantWorkingHours(restaurant.id),
+  ]);
+
+  if (!workingHours) {
+    throw new Error("Restaurant working hours could not be loaded.");
+  }
 
   return (
     <SaasAdminShell
@@ -72,6 +81,10 @@ export default async function CompanyWorkspaceRestaurantPage({
           entityLabel="Restaurant"
           organization={restaurant}
           showCustomerCancellationPolicy
+        />
+        <RestaurantWorkingHoursForm
+          apiPath={`/api/company/restaurants/${restaurant.id}/working-hours`}
+          initialValue={workingHours}
         />
         <RestaurantTaxProfileForm
           apiPath={`/api/company/restaurants/${restaurant.id}/tax-profile`}

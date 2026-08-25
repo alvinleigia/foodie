@@ -368,6 +368,9 @@ export const organizations = pgTable(
     customerCancellationFeeBps: integer("customer_cancellation_fee_bps")
       .default(0)
       .notNull(),
+    customerOrderingHoursEnabled: boolean("customer_ordering_hours_enabled")
+      .default(false)
+      .notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -378,6 +381,54 @@ export const organizations = pgTable(
     check(
       "organizations_customer_cancellation_fee_bps_check",
       sql`${table.customerCancellationFeeBps} >= 0 AND ${table.customerCancellationFeeBps} <= 10000`,
+    ),
+  ],
+);
+
+export const restaurantOrderingPeriods = pgTable(
+  "restaurant_ordering_periods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    dayOfWeek: integer("day_of_week").notNull(),
+    opensAtMinute: integer("opens_at_minute").notNull(),
+    closesAtMinute: integer("closes_at_minute").notNull(),
+    is24Hours: boolean("is_24_hours").default(false).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("restaurant_ordering_periods_org_day_sort_unique").on(
+      table.organizationId,
+      table.dayOfWeek,
+      table.sortOrder,
+    ),
+    index("restaurant_ordering_periods_org_day_idx").on(
+      table.organizationId,
+      table.dayOfWeek,
+    ),
+    check(
+      "restaurant_ordering_periods_day_check",
+      sql`${table.dayOfWeek} >= 0 AND ${table.dayOfWeek} <= 6`,
+    ),
+    check(
+      "restaurant_ordering_periods_open_check",
+      sql`${table.opensAtMinute} >= 0 AND ${table.opensAtMinute} < 1440`,
+    ),
+    check(
+      "restaurant_ordering_periods_close_check",
+      sql`${table.closesAtMinute} >= 0 AND ${table.closesAtMinute} < 1440`,
+    ),
+    check(
+      "restaurant_ordering_periods_sort_check",
+      sql`${table.sortOrder} >= 0`,
+    ),
+    check(
+      "restaurant_ordering_periods_window_check",
+      sql`(${table.is24Hours} = true AND ${table.opensAtMinute} = 0 AND ${table.closesAtMinute} = 0) OR (${table.is24Hours} = false AND ${table.opensAtMinute} <> ${table.closesAtMinute})`,
     ),
   ],
 );
