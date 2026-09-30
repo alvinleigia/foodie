@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireStaffPermission } from "@/lib/auth";
 import { getRestaurantSummary } from "@/lib/saas-reports";
+import { getRestaurantCustomerOrderEntry } from "@/lib/tenant-domains";
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 
 export async function GET() {
@@ -13,9 +14,17 @@ export async function GET() {
     }
 
     const tenantContext = await getCurrentTenantContext();
-    const summary = await getRestaurantSummary(tenantContext.organizationId);
+    const canManageOrderingPoint = session.user.permissions.includes(
+      "ordering_point.manage",
+    );
+    const [summary, customerOrdering] = await Promise.all([
+      getRestaurantSummary(tenantContext.organizationId),
+      canManageOrderingPoint
+        ? getRestaurantCustomerOrderEntry(tenantContext.organizationId)
+        : Promise.resolve(null),
+    ]);
 
-    return NextResponse.json({ summary });
+    return NextResponse.json({ customerOrdering, summary });
   } catch (error) {
     return NextResponse.json(
       {
