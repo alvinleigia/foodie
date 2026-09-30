@@ -3,6 +3,7 @@ import { and, eq, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { orderingPoints, organizations, tenantDomains } from "@/db/schema";
 import { assertTenantSubscriptionAccess } from "@/lib/billing";
+import { buildCustomerOrderUrl } from "@/lib/customer-order-links";
 import {
   isPlatformManagedTenantDomain,
   normalizeDomain,
@@ -345,6 +346,123 @@ export async function getTenantContextFromRequestDomain(
   routeSlug?: string | null,
 ) {
   return getTenantContextFromDomain(getRequestDomain(request), routeSlug);
+}
+
+export async function getRestaurantCustomerOrderEntry(
+  restaurantOrganizationId: string,
+) {
+  const db = getDb();
+  const [restaurant, orderingPoint] = await Promise.all([
+    db
+      .select({
+        parentOrganizationId: organizations.parentOrganizationId,
+        slug: organizations.slug,
+      })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.id, restaurantOrganizationId),
+          eq(organizations.type, "RESTAURANT"),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+    db
+      .select({
+        isActive: orderingPoints.isActive,
+        qrSlug: orderingPoints.qrSlug,
+      })
+      .from(orderingPoints)
+      .where(
+        and(
+          eq(orderingPoints.organizationId, restaurantOrganizationId),
+          eq(orderingPoints.isDefault, true),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
+  ]);
+
+  if (!restaurant || !orderingPoint) {
+    return null;
+  }
+
+  const domainRecords = restaurant.parentOrganizationId
+    ? await db
+        .select({
+          companyOrganizationId: tenantDomains.companyOrganizationId,
+          domain: tenantDomains.domain,
+          isPrimary: tenantDomains.isPrimary,
+          restaurantOrganizationId: tenantDomains.restaurantOrganizationId,
+          scope: tenantDomains.scope,
+        })
+        .from(tenantDomains)
+        .where(
+          and(
+            eq(tenantDomains.isActive, true),
+            eq(tenantDomains.purpose, "ORDERING"),
+            or(
+              and(
+                eq(tenantDomains.scope, "RESTAURANT"),
+                eq(
+                  tenantDomains.restaurantOrganizationId,
+                  restaurantOrganizationId,
+                ),
+              ),
+              and(
+                eq(tenantDomains.scope, "COMPANY"),
+                eq(
+                  tenantDomains.companyOrganizationId,
+                  restaurant.parentOrganizationId,
+                ),
+              ),
+            ),
+          ),
+        )
+    : [];
+  const usableDomains = (
+    await Promise.all(
+      domainRecords.map(async (domainRecord) =>
+        (await canUseTenantDomain(domainRecord)) ? domainRecord : null,
+      ),
+    )
+  ).filter((domainRecord) => domainRecord !== null);
+  const preferredDomain = usableDomains.sort((left, right) => {
+    const priority = (domainRecord: (typeof usableDomains)[number]) => {
+      if (domainRecord.scope === "RESTAURANT" && domainRecord.isPrimary) {
+        return 0;
+      }
+
+      if (domainRecord.scope === "COMPANY" && domainRecord.isPrimary) {
+        return 1;
+      }
+
+      return domainRecord.scope === "RESTAURANT" ? 2 : 3;
+    };
+
+    return priority(left) - priority(right);
+  })[0];
+
+  let customerOrderUrl: string | null = null;
+
+  if (orderingPoint.isActive && (preferredDomain || orderingPoint.qrSlug)) {
+    customerOrderUrl = buildCustomerOrderUrl({
+      domain: preferredDomain?.domain ?? ROOT_DOMAIN,
+      domainScope:
+        preferredDomain?.scope === "COMPANY" ||
+        preferredDomain?.scope === "RESTAURANT"
+          ? preferredDomain.scope
+          : null,
+      qrSlug: orderingPoint.qrSlug,
+      restaurantSlug: restaurant.slug,
+    });
+  }
+
+  return {
+    customerOrderUrl,
+    isActive: orderingPoint.isActive,
+    qrSlug: orderingPoint.qrSlug,
+  };
 }
 
 export type TenantDomainAccessScope =
