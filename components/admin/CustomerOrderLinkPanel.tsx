@@ -138,7 +138,7 @@ export function CustomerOrderLinkPanel({
           <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-dashed border-stone-300 bg-stone-50 p-4">
             <p className="text-sm text-stone-600">
               {isActive
-                ? "Configure a QR slug or active ordering domain to publish the customer menu."
+                ? "Configure a QR slug to publish the customer menu on the company domain."
                 : "Activate the ordering point before sharing the customer menu."}
             </p>
             {manageHref ? (

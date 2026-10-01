@@ -1,22 +1,19 @@
-type CustomerOrderUrlOptions = {
-  domain: string;
-  domainScope: "COMPANY" | "RESTAURANT" | null;
-  qrSlug: string | null;
-  restaurantSlug: string;
-};
+type CustomerOrderUrlOptions =
+  | {
+      domain: string;
+      domainScope: "RESTAURANT";
+    }
+  | {
+      domain: string;
+      domainScope: "COMPANY" | null;
+      qrSlug: string;
+    };
 
-export function buildCustomerOrderUrl({
-  domain,
-  domainScope,
-  qrSlug,
-  restaurantSlug,
-}: CustomerOrderUrlOptions) {
-  const orderUrl = new URL("/order", `https://${domain}`);
+export function buildCustomerOrderUrl(options: CustomerOrderUrlOptions) {
+  const orderUrl = new URL("/order", `https://${options.domain}`);
 
-  if (qrSlug) {
-    orderUrl.searchParams.set("qr", qrSlug);
-  } else if (domainScope === "COMPANY") {
-    orderUrl.pathname = `/order/${encodeURIComponent(restaurantSlug)}`;
+  if (options.domainScope !== "RESTAURANT") {
+    orderUrl.searchParams.set("qr", options.qrSlug);
   }
 
   return orderUrl.toString();

@@ -29,12 +29,7 @@ export default async function RestaurantWorkspacePage({
         role: session.user.role,
       }}
     >
-      <RestaurantAdminPanel
-        canManageOrderingPoint={session.user.permissions.includes(
-          "ordering_point.manage",
-        )}
-        restaurantSlug={access.restaurant.slug}
-      />
+      <RestaurantAdminPanel restaurantSlug={access.restaurant.slug} />
     </SaasAdminShell>
   );
 }

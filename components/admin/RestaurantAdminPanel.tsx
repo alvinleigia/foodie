@@ -12,7 +12,6 @@ import {
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
-import { CustomerOrderLinkPanel } from "@/components/admin/CustomerOrderLinkPanel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { Spinner } from "@/components/shared/Spinner";
@@ -77,11 +76,6 @@ type RestaurantSummary = {
 };
 
 type RestaurantSummaryResponse = {
-  customerOrdering?: {
-    customerOrderUrl: string | null;
-    isActive: boolean;
-    qrSlug: string | null;
-  } | null;
   summary?: RestaurantSummary;
 };
 
@@ -107,11 +101,9 @@ function RestaurantAccessEmptyState() {
 }
 
 export function RestaurantAdminPanel({
-  canManageOrderingPoint = false,
   restaurantSlug,
   view = "dashboard",
 }: {
-  canManageOrderingPoint?: boolean;
   restaurantSlug: string;
   view?: "dashboard" | "staff";
 }) {
@@ -126,9 +118,6 @@ export function RestaurantAdminPanel({
   );
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
   const [summary, setSummary] = useState<RestaurantSummary | null>(null);
-  const [customerOrdering, setCustomerOrdering] = useState<
-    RestaurantSummaryResponse["customerOrdering"]
-  >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,7 +131,6 @@ export function RestaurantAdminPanel({
             "/api/tenant/summary",
           );
           setSummary(payload.summary ?? null);
-          setCustomerOrdering(payload.customerOrdering ?? null);
           setSnapshot(null);
         } else {
           const payload = await fetchJson<TenantAdminSnapshot>(
@@ -150,7 +138,6 @@ export function RestaurantAdminPanel({
           );
           setSnapshot(payload);
           setSummary(null);
-          setCustomerOrdering(null);
         }
 
         setError(null);
@@ -173,48 +160,35 @@ export function RestaurantAdminPanel({
       ) : null}
 
       {view === "dashboard" && summary ? (
-        <>
-          <SummaryCards
-            cards={[
-              {
-                label: "Staff",
-                value: summary.activeStaffMemberships,
-                helper: "Active staff memberships.",
-              },
-              {
-                label: "Menu categories",
-                value: summary.activeMenuCategories,
-                helper: "Active menu sections.",
-              },
-              {
-                label: "Menu items",
-                value: summary.activeMenuItems,
-                helper: "Active products visible in the menu.",
-              },
-              {
-                label: "Active orders",
-                value: summary.activeOrders,
-                helper: "Pending, preparing or ready orders.",
-              },
-              {
-                label: "Non-cancelled orders",
-                value: summary.completedOrders,
-                helper: "All-time orders excluding cancellations.",
-              },
-            ]}
-          />
-          {canManageOrderingPoint && customerOrdering ? (
-            <CustomerOrderLinkPanel
-              customerOrderUrl={customerOrdering.customerOrderUrl}
-              isActive={customerOrdering.isActive}
-              manageHref={getRestaurantWorkspaceHref(
-                restaurantSlug,
-                "orderingPoint",
-              )}
-              restaurantSlug={restaurantSlug}
-            />
-          ) : null}
-        </>
+        <SummaryCards
+          cards={[
+            {
+              label: "Staff",
+              value: summary.activeStaffMemberships,
+              helper: "Active staff memberships.",
+            },
+            {
+              label: "Menu categories",
+              value: summary.activeMenuCategories,
+              helper: "Active menu sections.",
+            },
+            {
+              label: "Menu items",
+              value: summary.activeMenuItems,
+              helper: "Active products visible in the menu.",
+            },
+            {
+              label: "Active orders",
+              value: summary.activeOrders,
+              helper: "Pending, preparing or ready orders.",
+            },
+            {
+              label: "Non-cancelled orders",
+              value: summary.completedOrders,
+              helper: "All-time orders excluding cancellations.",
+            },
+          ]}
+        />
       ) : null}
 
       {view === "staff" && snapshot ? (
