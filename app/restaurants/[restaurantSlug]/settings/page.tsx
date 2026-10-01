@@ -1,11 +1,16 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { CustomerOrderLinkPanel } from "@/components/admin/CustomerOrderLinkPanel";
 import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfileForm";
 import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
 import { RestaurantWorkingHoursForm } from "@/components/admin/RestaurantWorkingHoursForm";
-import { TenantRestaurantSettingsForm } from "@/components/admin/TenantAdminForms";
+import {
+  TenantOrderingPointSettingsForm,
+  TenantRestaurantSettingsForm,
+} from "@/components/admin/TenantAdminForms";
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
+import { getRestaurantCustomerOrderEntry } from "@/lib/tenant-domains";
 import {
   getRestaurantWorkspaceHref,
   type RestaurantWorkspacePageProps,
@@ -25,9 +30,19 @@ export default async function RestaurantSettingsPage({
     access.restaurant.slug,
     "settings",
   );
-  const [taxProfile, workingHours] = await Promise.all([
+  const dashboardHref = getRestaurantWorkspaceHref(
+    access.restaurant.slug,
+    "dashboard",
+  );
+  const canManageOrderingPoint = session.user.permissions.includes(
+    "ordering_point.manage",
+  );
+  const [taxProfile, workingHours, customerOrdering] = await Promise.all([
     getRestaurantTaxProfile(access.restaurant.id),
     getRestaurantWorkingHours(access.restaurant.id),
+    canManageOrderingPoint
+      ? getRestaurantCustomerOrderEntry(access.restaurant.id)
+      : Promise.resolve(null),
   ]);
 
   if (!workingHours) {
@@ -49,12 +64,25 @@ export default async function RestaurantSettingsPage({
     >
       <div className="grid gap-6">
         <TenantRestaurantSettingsForm
-          backHref={getRestaurantWorkspaceHref(
-            access.restaurant.slug,
-            "dashboard",
-          )}
+          backHref={dashboardHref}
           organization={snapshot.organization}
         />
+        {canManageOrderingPoint && snapshot.orderingPoint ? (
+          <section id="customer-ordering" className="grid scroll-mt-6 gap-6">
+            {customerOrdering ? (
+              <CustomerOrderLinkPanel
+                customerOrderUrl={customerOrdering.customerOrderUrl}
+                isActive={customerOrdering.isActive}
+                restaurantSlug={access.restaurant.slug}
+              />
+            ) : null}
+            <TenantOrderingPointSettingsForm
+              backHref={dashboardHref}
+              orderingPoint={snapshot.orderingPoint}
+              saveRedirectHref={`${settingsHref}#customer-ordering`}
+            />
+          </section>
+        ) : null}
         <RestaurantWorkingHoursForm
           apiPath="/api/tenant/admin/working-hours"
           initialValue={workingHours}

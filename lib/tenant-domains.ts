@@ -356,7 +356,6 @@ export async function getRestaurantCustomerOrderEntry(
     db
       .select({
         parentOrganizationId: organizations.parentOrganizationId,
-        slug: organizations.slug,
       })
       .from(organizations)
       .where(
@@ -427,34 +426,34 @@ export async function getRestaurantCustomerOrderEntry(
       ),
     )
   ).filter((domainRecord) => domainRecord !== null);
-  const preferredDomain = usableDomains.sort((left, right) => {
-    const priority = (domainRecord: (typeof usableDomains)[number]) => {
-      if (domainRecord.scope === "RESTAURANT" && domainRecord.isPrimary) {
-        return 0;
-      }
-
-      if (domainRecord.scope === "COMPANY" && domainRecord.isPrimary) {
-        return 1;
-      }
-
-      return domainRecord.scope === "RESTAURANT" ? 2 : 3;
-    };
-
-    return priority(left) - priority(right);
-  })[0];
+  const customDomains = usableDomains.filter(
+    (domainRecord) => !isPlatformManagedTenantDomain(domainRecord.domain),
+  );
+  const restaurantDomains = customDomains.filter(
+    (domainRecord) => domainRecord.scope === "RESTAURANT",
+  );
+  const companyDomains = customDomains.filter(
+    (domainRecord) => domainRecord.scope === "COMPANY",
+  );
+  const preferredRestaurantDomain =
+    restaurantDomains.find((domainRecord) => domainRecord.isPrimary) ??
+    restaurantDomains[0];
+  const preferredCompanyDomain =
+    companyDomains.find((domainRecord) => domainRecord.isPrimary) ??
+    companyDomains[0];
 
   let customerOrderUrl: string | null = null;
 
-  if (orderingPoint.isActive && (preferredDomain || orderingPoint.qrSlug)) {
+  if (orderingPoint.isActive && preferredRestaurantDomain) {
     customerOrderUrl = buildCustomerOrderUrl({
-      domain: preferredDomain?.domain ?? ROOT_DOMAIN,
-      domainScope:
-        preferredDomain?.scope === "COMPANY" ||
-        preferredDomain?.scope === "RESTAURANT"
-          ? preferredDomain.scope
-          : null,
+      domain: preferredRestaurantDomain.domain,
+      domainScope: "RESTAURANT",
+    });
+  } else if (orderingPoint.isActive && orderingPoint.qrSlug) {
+    customerOrderUrl = buildCustomerOrderUrl({
+      domain: preferredCompanyDomain?.domain ?? ROOT_DOMAIN,
+      domainScope: preferredCompanyDomain ? "COMPANY" : null,
       qrSlug: orderingPoint.qrSlug,
-      restaurantSlug: restaurant.slug,
     });
   }
 

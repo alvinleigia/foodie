@@ -290,9 +290,11 @@ export function TenantRestaurantSettingsForm({
 export function TenantOrderingPointSettingsForm({
   backHref,
   orderingPoint,
+  saveRedirectHref = backHref,
 }: {
   backHref: string;
   orderingPoint: OrderingPointSettings;
+  saveRedirectHref?: string;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState({
@@ -376,8 +378,8 @@ export function TenantOrderingPointSettingsForm({
     validation.clearErrors();
     try {
       await submitJson("/api/tenant/admin/ordering-point", "PATCH", draft);
-      toast.success("Ordering point settings updated.");
-      router.push(backHref);
+      toast.success("Customer ordering settings updated.");
+      router.push(saveRedirectHref);
       router.refresh();
     } catch (err) {
       const result = validation.applyCaught(err);
@@ -401,9 +403,11 @@ export function TenantOrderingPointSettingsForm({
   return (
     <Card className="rounded-xl border-stone-200 bg-white">
       <CardHeader className="px-5 pt-5">
-        <h3 className="text-2xl font-semibold text-stone-950">Edit ordering point</h3>
+        <h3 className="text-2xl font-semibold text-stone-950">
+          Customer ordering settings
+        </h3>
         <p className="text-sm text-stone-500">
-          Update the default customer ordering point for this restaurant.
+          Configure the default ordering point and QR slug for this restaurant.
         </p>
       </CardHeader>
       <CardContent className="px-5 pb-5">

@@ -83,7 +83,6 @@ test.describe("staff navigation URL policy", () => {
       navigation.find((item) => item.label === label)?.group;
 
     expect(groupFor("Restaurant")).toBe("overview");
-    expect(groupFor("Customer ordering")).toBe("overview");
     expect(groupFor("Take order")).toBe("operations");
     expect(groupFor("Orders")).toBe("operations");
     expect(groupFor("Kitchen display")).toBe("operations");
@@ -145,7 +144,6 @@ test.describe("staff navigation URL policy", () => {
       ["Restaurant", ["app/restaurants/[restaurantSlug]/page.tsx", "restaurant.dashboard"]],
       ["Restaurant Staff", ["app/restaurants/[restaurantSlug]/staff/page.tsx", "staff.manage"]],
       ["Restaurant settings", ["app/restaurants/[restaurantSlug]/settings/page.tsx", "restaurant.settings"]],
-      ["Customer ordering", ["app/restaurants/[restaurantSlug]/ordering-point/page.tsx", "ordering_point.manage"]],
       ["Restaurant Integrations", ["app/restaurants/[restaurantSlug]/integrations/page.tsx", "integrations.manage"]],
       ["Take order", ["app/restaurants/[restaurantSlug]/order/page.tsx", "orders.create"]],
       ["Orders", ["app/restaurants/[restaurantSlug]/orders/page.tsx", "orders.view"]],

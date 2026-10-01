@@ -140,14 +140,6 @@ const restaurantNavigation: Array<
   },
   {
     access: "RESTAURANT_ADMIN",
-    group: "overview",
-    destination: "orderingPoint",
-    label: "Customer ordering",
-    description: "Share the public menu link and QR code.",
-    permission: "ordering_point.manage",
-  },
-  {
-    access: "RESTAURANT_ADMIN",
     group: "management",
     destination: "integrations",
     label: "Restaurant Integrations",
