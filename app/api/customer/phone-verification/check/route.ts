@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireCustomerSession } from "@/lib/auth";
 import {
+  CustomerPhoneAlreadyInUseError,
   getCustomerProfile,
   markCustomerPhoneVerified,
 } from "@/lib/customer-account";
@@ -137,6 +138,10 @@ export async function POST(request: Request) {
       verifiedAt: verifiedAt.toISOString(),
     });
   } catch (error) {
+    if (error instanceof CustomerPhoneAlreadyInUseError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     if (error instanceof FeatureEntitlementError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
     }

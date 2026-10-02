@@ -15,6 +15,13 @@ import type { TenantContext } from "@/lib/tenant-context";
 
 export type CustomerProfileUpdate = z.infer<typeof customerProfileUpdateSchema>;
 
+export class CustomerPhoneAlreadyInUseError extends Error {
+  constructor() {
+    super("This mobile number is already linked to another customer account.");
+    this.name = "CustomerPhoneAlreadyInUseError";
+  }
+}
+
 export async function getCustomerProfile(
   customerId: string,
   context: TenantContext,
@@ -24,6 +31,8 @@ export async function getCustomerProfile(
     .select({
       email: customers.email,
       name: customers.name,
+      phone: customers.phone,
+      phoneVerifiedAt: customers.phoneVerifiedAt,
     })
     .from(customers)
     .where(eq(customers.id, customerId))
@@ -39,6 +48,8 @@ export async function getCustomerProfile(
       customerId,
       name: identity.name,
       organizationId: context.organizationId,
+      phone: identity.phone,
+      phoneVerifiedAt: identity.phoneVerifiedAt,
     })
     .onConflictDoNothing({
       target: [
@@ -150,19 +161,51 @@ export async function markCustomerPhoneVerified(
   expectedPhone: string,
 ) {
   const verifiedAt = new Date();
-  const [customer] = await getDb()
-    .update(organizationCustomers)
-    .set({ phoneVerifiedAt: verifiedAt, updatedAt: verifiedAt })
-    .where(
-      and(
-        eq(organizationCustomers.customerId, customerId),
-        eq(organizationCustomers.organizationId, context.organizationId),
-        eq(organizationCustomers.phone, expectedPhone),
-      ),
-    )
-    .returning({ phoneVerifiedAt: organizationCustomers.phoneVerifiedAt });
 
-  return customer?.phoneVerifiedAt ?? null;
+  return getDb().transaction(async (tx) => {
+    const [organizationCustomer] = await tx
+      .select({ id: organizationCustomers.id })
+      .from(organizationCustomers)
+      .where(
+        and(
+          eq(organizationCustomers.customerId, customerId),
+          eq(organizationCustomers.organizationId, context.organizationId),
+          eq(organizationCustomers.phone, expectedPhone),
+        ),
+      )
+      .limit(1);
+
+    if (!organizationCustomer) {
+      return null;
+    }
+
+    const [existingIdentity] = await tx
+      .select({ id: customers.id })
+      .from(customers)
+      .where(eq(customers.phone, expectedPhone))
+      .limit(1);
+
+    if (existingIdentity && existingIdentity.id !== customerId) {
+      throw new CustomerPhoneAlreadyInUseError();
+    }
+
+    await tx
+      .update(customers)
+      .set({
+        phone: expectedPhone,
+        phoneVerifiedAt: verifiedAt,
+        updatedAt: verifiedAt,
+      })
+      .where(eq(customers.id, customerId));
+
+    const [customer] = await tx
+      .update(organizationCustomers)
+      .set({ phoneVerifiedAt: verifiedAt, updatedAt: verifiedAt })
+      .where(eq(organizationCustomers.id, organizationCustomer.id))
+      .returning({ phoneVerifiedAt: organizationCustomers.phoneVerifiedAt });
+
+    return customer?.phoneVerifiedAt ?? null;
+  });
 }
 
 export async function getCustomerOrderHistory(

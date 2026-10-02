@@ -240,18 +240,25 @@ export function serializeOrder(
     orderDate: order.orderDate,
     organizationId: order.organizationId,
     customerName: order.customerName,
+    customerEmail: order.customerEmail,
+    customerPhone: order.customerPhone,
+    checkoutMode: order.checkoutMode,
+    paymentTiming: order.paymentTiming,
     source: order.source,
     fulfilmentType: order.fulfilmentType,
     deliveryAddress:
       order.fulfilmentType === "DELIVERY" &&
       order.deliveryAddressLine1 &&
       order.deliveryCity &&
-      order.deliveryPostalCode
+      order.deliveryPostalCode &&
+      order.deliveryCountryCode
         ? {
             line1: order.deliveryAddressLine1,
             line2: order.deliveryAddressLine2,
             city: order.deliveryCity,
+            region: order.deliveryRegion,
             postalCode: order.deliveryPostalCode,
+            countryCode: order.deliveryCountryCode,
             instructions: order.deliveryInstructions,
           }
         : null,

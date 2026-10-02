@@ -428,7 +428,9 @@ export function CustomerOrderStatus({
                         order.deliveryAddress.line1,
                         order.deliveryAddress.line2,
                         order.deliveryAddress.city,
+                        order.deliveryAddress.region,
                         order.deliveryAddress.postalCode,
+                        order.deliveryAddress.countryCode,
                       ]
                         .filter(Boolean)
                         .join(", ")}

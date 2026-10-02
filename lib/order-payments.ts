@@ -666,3 +666,28 @@ export async function getCustomerPaymentResult(
 
   return order ?? null;
 }
+
+export async function getGuestPaymentResult(
+  checkoutSessionId: string,
+  context: TenantContext,
+) {
+  const [order] = await getDb()
+    .select({
+      customerName: orders.customerName,
+      orderId: orders.id,
+      orderNo: orders.orderNo,
+      paymentStatus: orders.paymentStatus,
+      status: orders.status,
+    })
+    .from(orders)
+    .where(
+      and(
+        eq(orders.checkoutMode, "GUEST"),
+        eq(orders.stripeCheckoutSessionId, checkoutSessionId),
+        eq(orders.organizationId, context.organizationId),
+      ),
+    )
+    .limit(1);
+
+  return order ?? null;
+}

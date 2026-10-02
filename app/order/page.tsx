@@ -26,12 +26,12 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const routeSlug = typeof routeValue === "string" ? routeValue : undefined;
   const {
     customer,
-    customerAccountsEnabled,
     customerAuthProviders,
+    checkoutPolicies,
+    customerCheckoutEnabled,
     customerOrderingEnabled,
     customerOrderingOpen,
     hasTenantContext,
-    phoneVerificationPolicy,
     restaurantChoices,
     restaurantWorkingHours,
     stripePaymentsEnabled,
@@ -45,14 +45,14 @@ export default async function OrderPage(props: PageProps<"/order">) {
         <RestaurantWorkingHoursWatcher workingHours={restaurantWorkingHours} />
       ) : null}
       {hasTenantContext &&
+      customerCheckoutEnabled &&
       customerOrderingEnabled &&
-      customerAccountsEnabled &&
       customerOrderingOpen ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
+          checkoutPolicies={checkoutPolicies}
           orderingPointQrSlug={orderingPointQrSlug}
-          phoneVerificationPolicy={phoneVerificationPolicy}
           routeSlug={routeSlug}
           stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}

@@ -2,6 +2,21 @@ import { z } from "zod";
 
 import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
 import { optionalManagerApprovalSchema } from "@/lib/validations/manager-approval";
+import { normalizeCustomerPhone, isValidCustomerPhone } from "@/lib/validations/customer";
+
+const optionalContactEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address")
+  .max(254)
+  .nullable();
+
+const optionalContactPhoneSchema = z
+  .string()
+  .transform(normalizeCustomerPhone)
+  .refine(isValidCustomerPhone, "Enter a valid mobile number with country code")
+  .nullable();
 
 export const createOrderSchema = z
   .object({
@@ -12,6 +27,15 @@ export const createOrderSchema = z
       .min(2, "Name is required")
       .max(80, "Name is too long")
       .optional(),
+    checkoutMode: z.enum(["GUEST", "ACCOUNT"]).optional(),
+    paymentTiming: z.enum(["ONLINE", "PAY_LATER"]).optional(),
+    customerContact: z
+      .object({
+        name: z.string().trim().min(2, "Name is required").max(100),
+        email: optionalContactEmailSchema,
+        phone: optionalContactPhoneSchema,
+      })
+      .optional(),
     fulfilmentType: z.enum(orderFulfilmentTypes),
     openDineInOrderId: z.string().uuid("Choose a valid open dine-in check").optional(),
     deliveryAddress: z
@@ -19,7 +43,13 @@ export const createOrderSchema = z
         line1: z.string().trim().min(1, "Address line 1 is required").max(120),
         line2: z.string().trim().max(120).optional().or(z.literal("")),
         city: z.string().trim().min(1, "Town or city is required").max(80),
+        region: z.string().trim().max(80).optional().or(z.literal("")),
         postalCode: z.string().trim().min(1, "Postcode is required").max(24),
+        countryCode: z
+          .string()
+          .trim()
+          .length(2, "Use a two-letter country code")
+          .transform((value) => value.toUpperCase()),
         instructions: z.string().trim().max(300).optional().or(z.literal("")),
       })
       .nullable()
@@ -46,6 +76,22 @@ export const createOrderSchema = z
       .min(1, "Add at least one drink"),
   })
   .superRefine((order, context) => {
+    if (order.checkoutMode && (!order.paymentTiming || !order.customerContact)) {
+      context.addIssue({
+        code: "custom",
+        message: "Checkout contact and payment details are required",
+        path: ["customerContact"],
+      });
+    }
+
+    if (order.checkoutMode === "GUEST" && order.paymentTiming !== "ONLINE") {
+      context.addIssue({
+        code: "custom",
+        message: "Guest checkout requires online payment",
+        path: ["paymentTiming"],
+      });
+    }
+
     if (order.fulfilmentType === "DELIVERY" && !order.deliveryAddress) {
       context.addIssue({
         code: "custom",

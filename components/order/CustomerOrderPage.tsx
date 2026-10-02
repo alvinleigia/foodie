@@ -14,7 +14,7 @@ import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { StaffPermission } from "@/lib/staff-permissions";
-import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
+import type { RestaurantCheckoutPolicy } from "@/lib/checkout-policy";
 
 type CustomerOrderPageProps = {
   customer?: {
@@ -24,6 +24,7 @@ type CustomerOrderPageProps = {
     phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
+  checkoutPolicies: RestaurantCheckoutPolicy[];
   orderingPointQrSlug?: string;
   inventoryEnabled?: boolean;
   openDineInOrder?: {
@@ -31,7 +32,6 @@ type CustomerOrderPageProps = {
     id: string;
     orderNo: number;
   } | null;
-  phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   stripePaymentsEnabled?: boolean;
   staffRestaurant?: {
@@ -49,10 +49,10 @@ type CustomerOrderPageProps = {
 export function CustomerOrderPage({
   customer,
   customerAuthProviders,
+  checkoutPolicies,
   orderingPointQrSlug,
   inventoryEnabled = true,
   openDineInOrder,
-  phoneVerificationPolicy,
   routeSlug,
   stripePaymentsEnabled = true,
   staffRestaurant,
@@ -117,10 +117,10 @@ export function CustomerOrderPage({
       <OrderForm
         customer={customer}
         customerAuthProviders={customerAuthProviders}
+        checkoutPolicies={checkoutPolicies}
         isStaffOrder={Boolean(user)}
         openDineInOrder={openDineInOrder}
         orderingPointQrSlug={orderingPointQrSlug}
-        phoneVerificationPolicy={phoneVerificationPolicy}
         routeSlug={routeSlug}
         stripePaymentsEnabled={stripePaymentsEnabled}
         staffRestaurantSlug={staffRestaurant?.slug}

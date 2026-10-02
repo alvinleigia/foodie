@@ -7,13 +7,16 @@ import { AppShell } from "@/components/shared/AppShell";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { requireCustomerSession } from "@/lib/auth";
+import { auth } from "@/auth";
 import {
   getCustomerOrderHref,
   getCustomerPrivacyHref,
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
-import { getCustomerPaymentResult } from "@/lib/order-payments";
+import {
+  getCustomerPaymentResult,
+  getGuestPaymentResult,
+} from "@/lib/order-payments";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 export default async function OrderPaymentSuccessPage(
@@ -31,28 +34,34 @@ export default async function OrderPaymentSuccessPage(
   const orderHref = getCustomerOrderHref("/order", customerContext);
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
   const [session, routeContext] = await Promise.all([
-    requireCustomerSession(),
+    auth(),
     getPublicOrderRouteContext(customerContext),
   ]);
 
-  if (!session || !routeContext.hasTenantContext || !routeContext.tenantContext) {
+  if (!routeContext.hasTenantContext || !routeContext.tenantContext) {
     redirect(orderHref);
   }
 
   const sessionId = searchParams.session_id;
 
   if (typeof sessionId !== "string") {
-    redirect(accountHref);
+    redirect(session?.user.kind === "customer" ? accountHref : orderHref);
   }
 
-  const order = await getCustomerPaymentResult(
-    session.user.id,
-    sessionId,
-    routeContext.tenantContext,
-  );
+  const accountOrder =
+    session?.user.kind === "customer"
+      ? await getCustomerPaymentResult(
+          session.user.id,
+          sessionId,
+          routeContext.tenantContext,
+        )
+      : null;
+  const order =
+    accountOrder ??
+    (await getGuestPaymentResult(sessionId, routeContext.tenantContext));
 
   if (!order) {
-    redirect(accountHref);
+    redirect(session?.user.kind === "customer" ? accountHref : orderHref);
   }
 
   const isPaid = order.paymentStatus === "PAID";
@@ -64,7 +73,7 @@ export default async function OrderPaymentSuccessPage(
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-3xl space-y-6 pb-8">
       <AppHeader
         customerMenu={{
-          accountHref,
+          accountHref: session?.user.kind === "customer" ? accountHref : undefined,
           customerName: order.customerName,
           orderHref,
           ordersHref,
@@ -101,7 +110,7 @@ export default async function OrderPaymentSuccessPage(
                 ? "Your order has been released to the restaurant team."
                 : hasFailed
                   ? "The order was not sent for preparation."
-                  : "Stripe is still confirming the payment. Refresh shortly or check your account."}
+                  : "Stripe is still confirming the payment. Refresh shortly or view your orders."}
             </p>
           </div>
           <div className="flex flex-wrap justify-center gap-3">

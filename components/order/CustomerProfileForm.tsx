@@ -42,7 +42,7 @@ type CustomerProfileField =
 type CustomerProfileFormProps = {
   customer: {
     dateOfBirth: string | null;
-    email: string;
+    email: string | null;
     gender: string | null;
     marketingOptIn: boolean;
     name: string;
@@ -160,7 +160,8 @@ export function CustomerProfileForm({
           <Input
             id="customer-email"
             type="email"
-            value={customer.email}
+            value={customer.email ?? ""}
+            placeholder="Not added"
             readOnly
             className="h-11 bg-stone-100 text-stone-600"
           />

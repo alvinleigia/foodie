@@ -87,12 +87,18 @@ export type LocalCustomerOrder = {
   organizationId?: string;
   customerToken: string;
   customerName: string;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  checkoutMode?: "GUEST" | "ACCOUNT" | "STAFF";
+  paymentTiming?: "ONLINE" | "PAY_LATER" | null;
   fulfilmentType: OrderFulfilmentType;
   deliveryAddress?: {
     line1: string;
     line2: string | null;
     city: string;
+    region?: string | null;
     postalCode: string;
+    countryCode?: string;
     instructions: string | null;
   } | null;
   requestedFulfilmentAt?: string | null;

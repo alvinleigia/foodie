@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { KeyRoundIcon, LogInIcon, MailIcon } from "lucide-react";
+import { KeyRoundIcon, LogInIcon, MailIcon, SmartphoneIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
@@ -24,6 +24,7 @@ export type CustomerAuthProviders = {
   email: boolean;
   facebook: boolean;
   google: boolean;
+  phone: boolean;
 };
 
 type CustomerLoginFormProps = {
@@ -31,7 +32,7 @@ type CustomerLoginFormProps = {
   description?: string;
   orderingPointQrSlug?: string;
   routeSlug?: string;
-  onSignedIn?: () => void;
+  onSignedIn?: (contact: { email?: string; phone?: string }) => void;
   providers: CustomerAuthProviders;
   redirectTo?: string;
   title?: string;
@@ -58,6 +59,12 @@ export function CustomerLoginForm({
   const [error, setError] = useState<string | null>(null);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<"email" | "phone">(
+    providers.email ? "email" : "phone",
+  );
+  const [phone, setPhone] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneStep, setPhoneStep] = useState<"phone" | "code">("phone");
   const hasSocialProvider = providers.google || providers.apple || providers.facebook;
   const privacyHref = getCustomerPrivacyHref({
     orderingPointQrSlug,
@@ -171,7 +178,83 @@ export function CustomerLoginForm({
       toast.success("Signed in successfully.");
 
       if (onSignedIn) {
-        onSignedIn();
+        onSignedIn({ phone });
+      } else {
+        router.replace(getRedirectTarget());
+        router.refresh();
+      }
+    } catch {
+      setError("The code could not be verified. Please try again.");
+    } finally {
+      setIsVerifyingCode(false);
+    }
+  }
+
+  async function requestPhoneCode() {
+    const normalizedPhone = phone.trim().replace(/[\s()-]/g, "");
+
+    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
+      setError("Enter a valid mobile number with country code.");
+      return;
+    }
+
+    setIsRequestingCode(true);
+    setError(null);
+
+    try {
+      await requestJson(
+        withPublicCustomerContext("/api/customer/auth/request-phone-code", {
+          orderingPointQrSlug,
+          routeSlug,
+        }),
+        {
+          body: { phone: normalizedPhone },
+          fallbackError: "The mobile sign-in code could not be sent.",
+        },
+      );
+      setPhone(normalizedPhone);
+      setPhoneCode("");
+      setPhoneStep("code");
+      setRetrySeconds(60);
+      toast.success("Mobile sign-in code sent.");
+    } catch (requestError) {
+      setError(
+        getCaughtErrorMessage(
+          requestError,
+          "The mobile sign-in code could not be sent.",
+        ),
+      );
+    } finally {
+      setIsRequestingCode(false);
+    }
+  }
+
+  async function verifyPhoneCode() {
+    if (!/^\d{4,10}$/.test(phoneCode.trim())) {
+      setError("Enter the verification code.");
+      return;
+    }
+
+    setIsVerifyingCode(true);
+    setError(null);
+
+    try {
+      const result = await signIn("customer-phone-otp", {
+        code: phoneCode.trim(),
+        phone,
+        redirect: false,
+        redirectTo: getRedirectTarget(),
+      });
+
+      if (!result.ok) {
+        setError("The code is invalid or has expired. Request a new code and try again.");
+        return;
+      }
+
+      toast.success("Signed in successfully.");
+
+      if (onSignedIn) {
+        onSignedIn({ email });
       } else {
         router.replace(getRedirectTarget());
         router.refresh();
@@ -190,7 +273,32 @@ export function CustomerLoginForm({
         <p className="mt-1 text-sm text-stone-600">{description}</p>
       </div>
 
-      {providers.email ? (
+      {providers.email && providers.phone ? (
+        <div className="grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
+          <Button
+            type="button"
+            variant={loginMethod === "email" ? "default" : "ghost"}
+            onClick={() => {
+              setLoginMethod("email");
+              setError(null);
+            }}
+          >
+            <ButtonLabel icon={MailIcon}>Email</ButtonLabel>
+          </Button>
+          <Button
+            type="button"
+            variant={loginMethod === "phone" ? "default" : "ghost"}
+            onClick={() => {
+              setLoginMethod("phone");
+              setError(null);
+            }}
+          >
+            <ButtonLabel icon={SmartphoneIcon}>Mobile</ButtonLabel>
+          </Button>
+        </div>
+      ) : null}
+
+      {providers.email && loginMethod === "email" ? (
         step === "email" ? (
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <FormField label="Email address" htmlFor="customer-login-email">
@@ -301,7 +409,98 @@ export function CustomerLoginForm({
         )
       ) : null}
 
-      {hasSocialProvider && providers.email ? (
+      {providers.phone && loginMethod === "phone" ? (
+        phoneStep === "phone" ? (
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+            <FormField label="Mobile number" htmlFor="customer-login-phone">
+              <Input
+                id="customer-login-phone"
+                type="tel"
+                value={phone}
+                onChange={(event) => {
+                  setPhone(event.target.value);
+                  setError(null);
+                }}
+                placeholder="+44 7700 900123"
+                autoComplete="tel"
+                disabled={isRequestingCode}
+                className="h-11 bg-white"
+              />
+            </FormField>
+            <Button
+              type="button"
+              onClick={requestPhoneCode}
+              disabled={isRequestingCode}
+              className="min-h-11 px-4"
+            >
+              {isRequestingCode ? (
+                <Spinner className="text-white" />
+              ) : (
+                <ButtonLabel icon={SmartphoneIcon}>Text me a code</ButtonLabel>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-stone-600">
+                Enter the code sent to <span className="font-medium text-stone-900">{phone}</span>.
+              </p>
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => {
+                  setPhoneStep("phone");
+                  setPhoneCode("");
+                  setError(null);
+                }}
+                className="h-auto p-0 text-stone-700"
+              >
+                Change mobile
+              </Button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <FormField label="Verification code" htmlFor="customer-login-phone-code">
+                <Input
+                  id="customer-login-phone-code"
+                  value={phoneCode}
+                  onChange={(event) => {
+                    setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 10));
+                    setError(null);
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  disabled={isVerifyingCode}
+                  className="h-11 bg-white text-base"
+                />
+              </FormField>
+              <Button
+                type="button"
+                onClick={verifyPhoneCode}
+                disabled={isVerifyingCode}
+                className="min-h-11 px-4"
+              >
+                {isVerifyingCode ? (
+                  <Spinner className="text-white" />
+                ) : (
+                  <ButtonLabel icon={KeyRoundIcon}>Verify code</ButtonLabel>
+                )}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="link"
+              onClick={requestPhoneCode}
+              disabled={isRequestingCode || retrySeconds > 0}
+              className="h-auto w-fit p-0 text-stone-700"
+            >
+              {retrySeconds > 0 ? `Resend code in ${retrySeconds}s` : "Resend code"}
+            </Button>
+          </div>
+        )
+      ) : null}
+
+      {hasSocialProvider && (providers.email || providers.phone) ? (
         <div className="flex items-center gap-3 text-xs font-medium uppercase text-stone-400">
           <span className="h-px flex-1 bg-stone-200" />
           Or
@@ -355,7 +554,7 @@ export function CustomerLoginForm({
             </Button>
           ) : null}
         </div>
-      ) : !providers.email ? (
+      ) : !providers.email && !providers.phone ? (
         <p className="text-sm font-medium text-amber-700">
           Customer login is temporarily unavailable.
         </p>
