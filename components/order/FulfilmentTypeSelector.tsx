@@ -21,10 +21,12 @@ const fulfilmentIcons: Record<OrderFulfilmentType, LucideIcon> = {
 };
 
 export function FulfilmentTypeSelector({
+  allowedTypes = orderFulfilmentTypes,
   disabled = false,
   onChange,
   value,
 }: {
+  allowedTypes?: readonly OrderFulfilmentType[];
   disabled?: boolean;
   onChange: (value: OrderFulfilmentType) => void;
   value: OrderFulfilmentType;
@@ -35,7 +37,7 @@ export function FulfilmentTypeSelector({
         How should this order be fulfilled?
       </legend>
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-        {orderFulfilmentTypes.map((type) => {
+        {allowedTypes.map((type) => {
           const Icon = fulfilmentIcons[type];
           const selected = value === type;
 

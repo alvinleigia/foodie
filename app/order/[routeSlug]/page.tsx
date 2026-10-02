@@ -10,12 +10,12 @@ export default async function RestaurantOrderPage(
   const params = await props.params;
   const {
     customer,
-    customerAccountsEnabled,
     customerAuthProviders,
+    checkoutPolicies,
+    customerCheckoutEnabled,
     customerOrderingEnabled,
     customerOrderingOpen,
     hasTenantContext,
-    phoneVerificationPolicy,
     restaurantWorkingHours,
     stripePaymentsEnabled,
     unavailableReason,
@@ -28,13 +28,13 @@ export default async function RestaurantOrderPage(
         <RestaurantWorkingHoursWatcher workingHours={restaurantWorkingHours} />
       ) : null}
       {hasTenantContext &&
+      customerCheckoutEnabled &&
       customerOrderingEnabled &&
-      customerAccountsEnabled &&
       customerOrderingOpen ? (
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
-          phoneVerificationPolicy={phoneVerificationPolicy}
+          checkoutPolicies={checkoutPolicies}
           routeSlug={params.routeSlug}
           stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}

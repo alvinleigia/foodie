@@ -11,7 +11,6 @@ import {
   ImageIcon,
   MinusIcon,
   PlusIcon,
-  PhoneIcon,
   SendIcon,
   ShoppingCartIcon,
   TagsIcon,
@@ -25,7 +24,7 @@ import {
   syncCustomerOrdersResetMarker,
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
-import { getApiErrorMessage, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
+import { getApiErrorMessage } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
@@ -52,7 +51,6 @@ import {
   CustomerLoginForm,
   type CustomerAuthProviders,
 } from "@/components/order/CustomerLoginForm";
-import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerification";
 import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { SectionHeader } from "@/components/shared/SectionHeader";
@@ -88,8 +86,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import type { CustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+import {
+  checkoutContactRequirementLabels,
+  getPayLaterLabel,
+  isCheckoutContactValid,
+  type CheckoutPaymentTiming,
+  type RestaurantCheckoutPolicy,
+} from "@/lib/checkout-policy";
 import { toLocalDateTimeInputValue } from "@/lib/order-fulfilment-time";
 import {
   MenuCategoryRecord,
@@ -106,6 +110,7 @@ type OrderFormProps = {
     phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
+  checkoutPolicies: RestaurantCheckoutPolicy[];
   isStaffOrder?: boolean;
   openDineInOrder?: {
     customerName: string;
@@ -113,7 +118,6 @@ type OrderFormProps = {
     orderNo: number;
   } | null;
   orderingPointQrSlug?: string;
-  phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   staffRestaurantSlug?: string;
   stripePaymentsEnabled?: boolean;
@@ -151,11 +155,17 @@ type CustomizerState = {
 
 type OrderDraft = {
   customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  checkoutMode: "GUEST" | "ACCOUNT";
+  paymentTiming: CheckoutPaymentTiming;
   fulfilmentType: OrderFulfilmentType;
   deliveryAddressLine1: string;
   deliveryAddressLine2: string;
   deliveryCity: string;
+  deliveryRegion: string;
   deliveryPostalCode: string;
+  deliveryCountryCode: string;
   deliveryInstructions: string;
   fulfilmentTiming: "ASAP" | "SCHEDULED";
   scheduledFulfilmentAt: string;
@@ -334,43 +344,90 @@ function hasSameCartConfiguration(left: CartItem, right: CartItem) {
 export function OrderForm({
   customer,
   customerAuthProviders,
+  checkoutPolicies,
   isStaffOrder = false,
   openDineInOrder,
   orderingPointQrSlug,
-  phoneVerificationPolicy,
   routeSlug,
   staffRestaurantSlug,
   stripePaymentsEnabled = true,
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
+  const enabledCheckoutPolicies = checkoutPolicies.filter((policy) => {
+    if (!policy.isEnabled) {
+      return false;
+    }
+
+    if (isStaffOrder) {
+      return true;
+    }
+
+    const hasPaymentPath =
+      policy.payLaterEnabled ||
+      (policy.onlinePaymentEnabled && stripePaymentsEnabled);
+    const hasLoginProvider =
+      customerAuthProviders.google ||
+      customerAuthProviders.apple ||
+      customerAuthProviders.facebook ||
+      (customerAuthProviders.email && policy.emailOtpLoginEnabled) ||
+      (customerAuthProviders.phone && policy.smsOtpLoginEnabled);
+
+    return (
+      (policy.guestCheckoutEnabled &&
+        policy.onlinePaymentEnabled &&
+        stripePaymentsEnabled) ||
+      (policy.accountCheckoutEnabled &&
+        hasPaymentPath &&
+        (Boolean(customer) || hasLoginProvider))
+    );
+  });
+  const initialCheckoutPolicy =
+    enabledCheckoutPolicies.find((policy) => policy.fulfilmentType === "PICKUP") ??
+    enabledCheckoutPolicies[0] ??
+    checkoutPolicies[0];
+  const initialCheckoutMode =
+    customer && initialCheckoutPolicy?.accountCheckoutEnabled
+      ? "ACCOUNT"
+      : initialCheckoutPolicy?.guestCheckoutEnabled && stripePaymentsEnabled
+        ? "GUEST"
+        : "ACCOUNT";
+  const initialPaymentTiming =
+    initialCheckoutMode === "GUEST"
+      ? "ONLINE"
+      : initialCheckoutPolicy?.defaultPaymentTiming === "ONLINE" &&
+          !stripePaymentsEnabled &&
+          initialCheckoutPolicy.payLaterEnabled
+        ? "PAY_LATER"
+        : initialCheckoutPolicy?.defaultPaymentTiming ?? "ONLINE";
   const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: openDineInOrder?.customerName ?? customer?.name ?? "",
-    fulfilmentType: openDineInOrder ? "DINE_IN" : "PICKUP",
+    customerEmail: customer?.email ?? "",
+    customerPhone: customer?.phone ?? "",
+    checkoutMode: initialCheckoutMode,
+    paymentTiming: initialPaymentTiming,
+    fulfilmentType: openDineInOrder
+      ? "DINE_IN"
+      : initialCheckoutPolicy?.fulfilmentType ?? "PICKUP",
     deliveryAddressLine1: "",
     deliveryAddressLine2: "",
     deliveryCity: "",
+    deliveryRegion: "",
     deliveryPostalCode: "",
+    deliveryCountryCode: "GB",
     deliveryInstructions: "",
     fulfilmentTiming: "ASAP",
     scheduledFulfilmentAt: "",
   });
+
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isLoadingMenu, setIsLoadingMenu] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [customerName, setCustomerName] = useState<string | null>(null);
-  const [savedCustomerName, setSavedCustomerName] = useState<string | null>(null);
-  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
-  const [savedCustomerPhone, setSavedCustomerPhone] = useState<string | null>(null);
-  const [customerPhoneVerifiedAt, setCustomerPhoneVerifiedAt] = useState<
-    string | null
-  >(customer?.phoneVerifiedAt ?? null);
   const [selectedStaffCustomer, setSelectedStaffCustomer] =
     useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -383,27 +440,65 @@ export function OrderForm({
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
-  const customerNameValue = customerName ?? customer?.name ?? "";
-  const savedCustomerNameValue = savedCustomerName ?? customer?.name ?? null;
-  const customerPhoneValue = customerPhone ?? customer?.phone ?? "";
-  const savedCustomerPhoneValue = savedCustomerPhone ?? customer?.phone ?? null;
-  const hasVerifiedCustomerPhone = Boolean(
-    customerPhoneVerifiedAt &&
-      isValidCustomerPhone(savedCustomerPhoneValue) &&
-      normalizeCustomerPhone(customerPhoneValue) ===
-        normalizeCustomerPhone(savedCustomerPhoneValue!),
+  const checkoutPolicy =
+    checkoutPolicies.find(
+      (policy) => policy.fulfilmentType === draft.fulfilmentType,
+    ) ?? initialCheckoutPolicy;
+  const effectiveCheckoutMode =
+    customer && checkoutPolicy?.accountCheckoutEnabled
+      ? "ACCOUNT"
+      : draft.checkoutMode;
+  const guestCheckoutAvailable = Boolean(
+    checkoutPolicy?.guestCheckoutEnabled && stripePaymentsEnabled,
   );
-  const hasCompleteCustomerProfile = Boolean(
-    customer &&
-      savedCustomerNameValue &&
-      savedCustomerNameValue.trim().length >= 2 &&
-      isValidCustomerPhone(savedCustomerPhoneValue),
+  const normalizedContactEmail = draft.customerEmail.trim().toLowerCase();
+  const normalizedContactPhone = normalizeCustomerPhone(draft.customerPhone);
+  const hasValidContactEmail =
+    !normalizedContactEmail || /^\S+@\S+\.\S+$/.test(normalizedContactEmail);
+  const hasValidContactPhone =
+    !normalizedContactPhone || isValidCustomerPhone(normalizedContactPhone);
+  const hasRequiredContact = Boolean(
+    checkoutPolicy &&
+      isCheckoutContactValid(checkoutPolicy.contactRequirement, {
+        email: normalizedContactEmail,
+        phone: normalizedContactPhone,
+      }),
   );
+  const allowedFulfilmentTypes = enabledCheckoutPolicies.map(
+    (policy) => policy.fulfilmentType,
+  );
+  const availableCustomerAuthProviders: CustomerAuthProviders = {
+    ...customerAuthProviders,
+    email:
+      customerAuthProviders.email &&
+      Boolean(checkoutPolicy?.emailOtpLoginEnabled),
+    phone:
+      customerAuthProviders.phone &&
+      Boolean(checkoutPolicy?.smsOtpLoginEnabled),
+  };
+  const hasCustomerLoginProvider = Object.values(
+    availableCustomerAuthProviders,
+  ).some(Boolean);
+  const contactRequirement = checkoutPolicy?.contactRequirement;
+  const isEmailRequired =
+    contactRequirement === "EMAIL" || contactRequirement === "EMAIL_AND_PHONE";
+  const isPhoneRequired =
+    contactRequirement === "PHONE" || contactRequirement === "EMAIL_AND_PHONE";
   const canPlaceOrder =
     isStaffOrder ||
-    (stripePaymentsEnabled &&
-      hasCompleteCustomerProfile &&
-      (!phoneVerificationPolicy.required || hasVerifiedCustomerPhone));
+    Boolean(
+      checkoutPolicy?.isEnabled &&
+        draft.customerName.trim().length >= 2 &&
+        hasValidContactEmail &&
+        hasValidContactPhone &&
+        hasRequiredContact &&
+        (effectiveCheckoutMode === "GUEST"
+          ? guestCheckoutAvailable
+          : customer && checkoutPolicy.accountCheckoutEnabled) &&
+        (draft.paymentTiming === "ONLINE"
+          ? checkoutPolicy.onlinePaymentEnabled && stripePaymentsEnabled
+          : effectiveCheckoutMode === "ACCOUNT" && checkoutPolicy.payLaterEnabled),
+    );
   const privacyHref = getCustomerPrivacyHref({
     orderingPointQrSlug,
     routeSlug,
@@ -985,17 +1080,8 @@ export function OrderForm({
   }
 
   async function confirmOrder() {
-    if (!isStaffOrder && !customer) {
-      setError("Sign in before placing your order.");
-      return;
-    }
-
     if (!canPlaceOrder) {
-      setError(
-        phoneVerificationPolicy.required && !hasVerifiedCustomerPhone
-          ? "Verify your phone number before placing your order."
-          : "Add a valid phone number before placing your order.",
-      );
+      setError("Complete the required contact and payment details before placing your order.");
       return;
     }
 
@@ -1008,9 +1094,10 @@ export function OrderForm({
       draft.fulfilmentType === "DELIVERY" &&
       (!draft.deliveryAddressLine1.trim() ||
         !draft.deliveryCity.trim() ||
-        !draft.deliveryPostalCode.trim())
+        !draft.deliveryPostalCode.trim() ||
+        draft.deliveryCountryCode.trim().length !== 2)
     ) {
-      setError("Enter the delivery address, town or city, and postcode.");
+      setError("Enter the delivery address, town or city, postcode, and two-letter country code.");
       return;
     }
 
@@ -1053,6 +1140,15 @@ export function OrderForm({
         body: JSON.stringify({
           customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
           customerName: isStaffOrder ? draft.customerName.trim() : undefined,
+          checkoutMode: isStaffOrder ? undefined : effectiveCheckoutMode,
+          paymentTiming: isStaffOrder ? undefined : draft.paymentTiming,
+          customerContact: isStaffOrder
+            ? undefined
+            : {
+                name: draft.customerName.trim(),
+                email: normalizedContactEmail || null,
+                phone: normalizedContactPhone || null,
+              },
           fulfilmentType: draft.fulfilmentType,
           openDineInOrderId: openDineInOrder?.id,
           deliveryAddress:
@@ -1061,7 +1157,9 @@ export function OrderForm({
                   line1: draft.deliveryAddressLine1.trim(),
                   line2: draft.deliveryAddressLine2.trim(),
                   city: draft.deliveryCity.trim(),
+                  region: draft.deliveryRegion.trim(),
                   postalCode: draft.deliveryPostalCode.trim(),
+                  countryCode: draft.deliveryCountryCode.trim().toUpperCase(),
                   instructions: draft.deliveryInstructions.trim(),
                 }
               : null,
@@ -1130,12 +1228,18 @@ export function OrderForm({
 
     toast.success(`Order #${payload.orderNo} placed successfully.`);
     setDraft({
-      customerName: "",
-      fulfilmentType: "PICKUP",
+      customerName: customer?.name ?? "",
+      customerEmail: customer?.email ?? "",
+      customerPhone: customer?.phone ?? "",
+      checkoutMode: initialCheckoutMode,
+      paymentTiming: initialPaymentTiming,
+      fulfilmentType: initialCheckoutPolicy?.fulfilmentType ?? "PICKUP",
       deliveryAddressLine1: "",
       deliveryAddressLine2: "",
       deliveryCity: "",
+      deliveryRegion: "",
       deliveryPostalCode: "",
+      deliveryCountryCode: "GB",
       deliveryInstructions: "",
       fulfilmentTiming: "ASAP",
       scheduledFulfilmentAt: "",
@@ -1156,54 +1260,6 @@ export function OrderForm({
         ? `/order/status/${encodeURIComponent(routeSlug)}`
         : withOrderContext("/order/status", { orderingPointQrSlug }),
     );
-  }
-
-  async function saveCustomerProfile() {
-    if (customerNameValue.trim().length < 2) {
-      setError("Enter your name before continuing.");
-      return;
-    }
-
-    if (!isValidCustomerPhone(customerPhoneValue)) {
-      setError("Enter a valid phone number with country code.");
-      return;
-    }
-
-    setIsSavingProfile(true);
-    setError(null);
-
-    try {
-      const payload = await requestJson<{
-        customer: {
-          name: string;
-          phone: string | null;
-          phoneVerifiedAt: string | null;
-        };
-      }>(
-        withOrderContext("/api/customer/profile", {
-          orderingPointQrSlug,
-          routeSlug,
-        }),
-        {
-          body: { name: customerNameValue, phone: customerPhoneValue },
-          fallbackError: "Profile could not be saved.",
-          method: "PATCH",
-        },
-      );
-      const name = payload.customer.name.trim();
-      const phone = payload.customer.phone ?? normalizeCustomerPhone(customerPhoneValue);
-      setCustomerName(name);
-      setSavedCustomerName(name);
-      setCustomerPhone(phone);
-      setSavedCustomerPhone(phone);
-      setCustomerPhoneVerifiedAt(payload.customer.phoneVerifiedAt);
-      toast.success("Profile saved.");
-      router.refresh();
-    } catch (profileError) {
-      setError(getCaughtErrorMessage(profileError, "Profile could not be saved."));
-    } finally {
-      setIsSavingProfile(false);
-    }
   }
 
   return (
@@ -1642,10 +1698,29 @@ export function OrderForm({
               </div>
             ) : (
               <FulfilmentTypeSelector
+                allowedTypes={allowedFulfilmentTypes}
                 disabled={isSubmitting}
                 value={draft.fulfilmentType}
                 onChange={(fulfilmentType) => {
-                  updateDraft("fulfilmentType", fulfilmentType);
+                  const nextPolicy = checkoutPolicies.find(
+                    (policy) => policy.fulfilmentType === fulfilmentType,
+                  );
+                  const nextCheckoutMode =
+                    customer && nextPolicy?.accountCheckoutEnabled
+                      ? "ACCOUNT"
+                      : nextPolicy?.guestCheckoutEnabled && stripePaymentsEnabled
+                        ? "GUEST"
+                        : "ACCOUNT";
+
+                  setDraft((currentDraft) => ({
+                    ...currentDraft,
+                    fulfilmentType,
+                    checkoutMode: nextCheckoutMode,
+                    paymentTiming:
+                      nextCheckoutMode === "GUEST"
+                        ? "ONLINE"
+                        : nextPolicy?.defaultPaymentTiming ?? "ONLINE",
+                  }));
                   setError(null);
                 }}
               />
@@ -1689,6 +1764,16 @@ export function OrderForm({
                       }}
                     />
                   </FormField>
+                  <FormField label="County / region (optional)">
+                    <Input
+                      autoComplete="address-level1"
+                      value={draft.deliveryRegion}
+                      disabled={isSubmitting}
+                      onChange={(event) =>
+                        updateDraft("deliveryRegion", event.target.value)
+                      }
+                    />
+                  </FormField>
                   <FormField label="Postcode">
                     <Input
                       autoComplete="postal-code"
@@ -1696,6 +1781,22 @@ export function OrderForm({
                       disabled={isSubmitting}
                       onChange={(event) => {
                         updateDraft("deliveryPostalCode", event.target.value);
+                        setError(null);
+                      }}
+                    />
+                  </FormField>
+                  <FormField label="Country code">
+                    <Input
+                      autoComplete="country"
+                      value={draft.deliveryCountryCode}
+                      disabled={isSubmitting}
+                      maxLength={2}
+                      placeholder="GB"
+                      onChange={(event) => {
+                        updateDraft(
+                          "deliveryCountryCode",
+                          event.target.value.toUpperCase(),
+                        );
                         setError(null);
                       }}
                     />
@@ -1774,97 +1875,191 @@ export function OrderForm({
             </fieldset>
             ) : null}
 
-            {!isStaffOrder && !customer ? (
-              <CustomerLoginForm
-                providers={customerAuthProviders}
-                orderingPointQrSlug={orderingPointQrSlug}
-                routeSlug={routeSlug}
-                onSignedIn={() => router.refresh()}
-                className="rounded-lg border border-stone-200 bg-stone-50 p-4"
-              />
-            ) : customer ? (
-              <div className="grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-emerald-950">
-                    {hasCompleteCustomerProfile
-                      ? `Signed in as ${savedCustomerNameValue}`
-                      : "Complete your profile"}
-                  </p>
-                  {customer.email ? (
-                    <p className="mt-1 text-sm text-emerald-800">{customer.email}</p>
-                  ) : null}
-                  {!hasCompleteCustomerProfile ? (
-                    <p className="mt-2 text-sm text-emerald-800">
-                      A phone number is required for order fulfilment. Include the country code.
+            {!isStaffOrder ? (
+              <div className="grid gap-4">
+                {!customer &&
+                guestCheckoutAvailable &&
+                checkoutPolicy.accountCheckoutEnabled ? (
+                  <fieldset>
+                    <legend className="text-sm font-semibold text-stone-950">
+                      How would you like to continue?
+                    </legend>
+                    <div className="mt-3 grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
+                      {([
+                        ["GUEST", "Guest checkout"],
+                        ["ACCOUNT", "Sign in"],
+                      ] as const).map(([mode, label]) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={effectiveCheckoutMode === mode}
+                          disabled={isSubmitting || (mode === "ACCOUNT" && !hasCustomerLoginProvider)}
+                          onClick={() => {
+                            setDraft((currentDraft) => ({
+                              ...currentDraft,
+                              checkoutMode: mode,
+                              paymentTiming:
+                                mode === "GUEST"
+                                  ? "ONLINE"
+                                  : checkoutPolicy.defaultPaymentTiming,
+                            }));
+                            setError(null);
+                          }}
+                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                            effectiveCheckoutMode === mode
+                              ? "bg-stone-950 text-white"
+                              : "text-stone-600 hover:bg-white hover:text-stone-950"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                {!customer && effectiveCheckoutMode === "ACCOUNT" ? (
+                  hasCustomerLoginProvider ? (
+                    <CustomerLoginForm
+                      providers={availableCustomerAuthProviders}
+                      orderingPointQrSlug={orderingPointQrSlug}
+                      routeSlug={routeSlug}
+                      onSignedIn={(contact) => {
+                        setDraft((currentDraft) => ({
+                          ...currentDraft,
+                          checkoutMode: "ACCOUNT",
+                          customerEmail:
+                            currentDraft.customerEmail || contact.email || "",
+                          customerPhone:
+                            currentDraft.customerPhone || contact.phone || "",
+                          paymentTiming:
+                            checkoutPolicy.defaultPaymentTiming === "ONLINE" &&
+                            !stripePaymentsEnabled &&
+                            checkoutPolicy.payLaterEnabled
+                              ? "PAY_LATER"
+                              : checkoutPolicy.defaultPaymentTiming,
+                        }));
+                        router.refresh();
+                      }}
+                      title="Sign in to checkout"
+                      className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                    />
+                  ) : (
+                    <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                      Account sign-in is temporarily unavailable. Choose guest checkout or contact the restaurant.
                     </p>
-                  ) : null}
-                </div>
-                {hasCompleteCustomerProfile ? (
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-emerald-900">
-                    <span>{savedCustomerNameValue}</span>
-                    <span className="flex items-center gap-2">
-                      <PhoneIcon className="size-4" />
-                      {savedCustomerPhoneValue}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Name" htmlFor="review-customer-profile-name">
+                  )
+                ) : null}
+
+                {customer || effectiveCheckoutMode === "GUEST" ? (
+                  <fieldset className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4">
+                    <legend className="px-1 text-sm font-semibold text-stone-950">
+                      Contact details
+                    </legend>
+                    {customer ? (
+                      <p className="text-sm text-emerald-800">
+                        Signed in{customer.name ? ` as ${customer.name}` : ""}. Details are prefilled and can be updated for this order.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-stone-600">
+                        Guest orders require online payment. No account will be created.
+                      </p>
+                    )}
+                    <p className="text-xs text-stone-500">
+                      {contactRequirement
+                        ? checkoutContactRequirementLabels[contactRequirement]
+                        : "Email or mobile required"}
+                      . Include the country code with mobile numbers.
+                    </p>
+                    <FormField label="Full name" htmlFor="review-contact-name">
                       <Input
-                        id="review-customer-profile-name"
-                        value={customerNameValue}
-                        onChange={(event) => {
-                          setCustomerName(event.target.value);
-                          setError(null);
-                        }}
+                        id="review-contact-name"
                         autoComplete="name"
-                        disabled={isSavingProfile}
-                        className="h-11 border-emerald-200 bg-white"
-                      />
-                    </FormField>
-                    <FormField label="Phone number" htmlFor="review-customer-phone">
-                      <Input
-                        id="review-customer-phone"
-                        type="tel"
-                        value={customerPhoneValue}
+                        value={draft.customerName}
+                        disabled={isSubmitting}
                         onChange={(event) => {
-                          setCustomerPhone(event.target.value);
+                          updateDraft("customerName", event.target.value);
                           setError(null);
                         }}
-                        placeholder="+91 98765 43210"
-                        autoComplete="tel"
-                        disabled={isSavingProfile}
-                        className="h-11 border-emerald-200 bg-white"
                       />
                     </FormField>
-                    <Button
-                      type="button"
-                      onClick={saveCustomerProfile}
-                      disabled={isSavingProfile}
-                      className="min-h-11 sm:col-span-2 sm:w-fit"
-                    >
-                      {isSavingProfile ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Spinner className="text-white" />
-                          Saving...
-                        </span>
-                      ) : (
-                        <ButtonLabel icon={CheckIcon}>Save and continue</ButtonLabel>
-                      )}
-                    </Button>
-                  </div>
-                )}
-                <CustomerPhoneVerification
-                  key={savedCustomerPhoneValue ?? "no-saved-phone"}
-                  disabled={isSavingProfile || isSubmitting}
-                  onVerified={setCustomerPhoneVerifiedAt}
-                  orderingPointQrSlug={orderingPointQrSlug}
-                  phone={customerPhoneValue}
-                  phoneVerifiedAt={customerPhoneVerifiedAt}
-                  policy={phoneVerificationPolicy}
-                  routeSlug={routeSlug}
-                  savedPhone={savedCustomerPhoneValue}
-                />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <FormField
+                        label={`Email address${isEmailRequired ? " (required)" : ""}`}
+                        htmlFor="review-contact-email"
+                      >
+                        <Input
+                          id="review-contact-email"
+                          type="email"
+                          autoComplete="email"
+                          value={draft.customerEmail}
+                          disabled={isSubmitting}
+                          onChange={(event) => {
+                            updateDraft("customerEmail", event.target.value);
+                            setError(null);
+                          }}
+                        />
+                      </FormField>
+                      <FormField
+                        label={`Mobile number${isPhoneRequired ? " (required)" : ""}`}
+                        htmlFor="review-contact-phone"
+                      >
+                        <Input
+                          id="review-contact-phone"
+                          type="tel"
+                          autoComplete="tel"
+                          placeholder="+44 7700 900123"
+                          value={draft.customerPhone}
+                          disabled={isSubmitting}
+                          onChange={(event) => {
+                            updateDraft("customerPhone", event.target.value);
+                            setError(null);
+                          }}
+                        />
+                      </FormField>
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                {customer && effectiveCheckoutMode === "ACCOUNT" ? (
+                  <fieldset>
+                    <legend className="text-sm font-semibold text-stone-950">
+                      Payment
+                    </legend>
+                    <div className="mt-3 grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
+                      {checkoutPolicy?.onlinePaymentEnabled ? (
+                        <button
+                          type="button"
+                          aria-pressed={draft.paymentTiming === "ONLINE"}
+                          disabled={isSubmitting || !stripePaymentsEnabled}
+                          onClick={() => updateDraft("paymentTiming", "ONLINE")}
+                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                            draft.paymentTiming === "ONLINE"
+                              ? "bg-stone-950 text-white"
+                              : "text-stone-600 hover:bg-white"
+                          }`}
+                        >
+                          Pay online
+                        </button>
+                      ) : null}
+                      {checkoutPolicy?.payLaterEnabled ? (
+                        <button
+                          type="button"
+                          aria-pressed={draft.paymentTiming === "PAY_LATER"}
+                          disabled={isSubmitting}
+                          onClick={() => updateDraft("paymentTiming", "PAY_LATER")}
+                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors ${
+                            draft.paymentTiming === "PAY_LATER"
+                              ? "bg-stone-950 text-white"
+                              : "text-stone-600 hover:bg-white"
+                          }`}
+                        >
+                          {getPayLaterLabel(draft.fulfilmentType)}
+                        </button>
+                      ) : null}
+                    </div>
+                  </fieldset>
+                ) : null}
               </div>
             ) : null}
 
@@ -2068,15 +2263,25 @@ export function OrderForm({
                       ? "Adding Items..."
                       : isStaffOrder
                         ? "Placing Order..."
-                        : "Opening Payment..."}
+                        : draft.paymentTiming === "ONLINE"
+                          ? "Opening Payment..."
+                          : "Placing Order..."}
                   </span>
                 ) : (
-                  <ButtonLabel icon={isStaffOrder ? SendIcon : CreditCardIcon}>
+                  <ButtonLabel
+                    icon={
+                      isStaffOrder || draft.paymentTiming === "PAY_LATER"
+                        ? SendIcon
+                        : CreditCardIcon
+                    }
+                  >
                     {openDineInOrder
                       ? "Add Items"
                       : isStaffOrder
                         ? "Confirm Order"
-                        : "Proceed to Payment"}
+                        : draft.paymentTiming === "ONLINE"
+                          ? "Proceed to Payment"
+                          : "Place Order"}
                   </ButtonLabel>
                 )}
               </Button>

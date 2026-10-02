@@ -24,7 +24,9 @@ function orderRequest(fulfilmentType: string) {
             line1: "10 High Street",
             line2: "",
             city: "London",
+            region: "Greater London",
             postalCode: "SW1A 1AA",
+            countryCode: "GB",
             instructions: "Ring the bell",
           },
         }

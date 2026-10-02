@@ -7,17 +7,15 @@ import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import { getAppendableDineInOrder } from "@/lib/orders";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import { OPEN_DINE_IN_ORDER_QUERY_PARAM } from "@/lib/staff-restaurant-navigation";
+import { getDefaultCheckoutPolicy } from "@/lib/checkout-policy";
+import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
 
 const noCustomerAuthProviders = {
   apple: false,
   email: false,
   facebook: false,
   google: false,
-};
-
-const noCustomerPhoneVerification = {
-  available: false,
-  required: false,
+  phone: false,
 };
 
 export default async function StaffRestaurantOrderPage({
@@ -63,8 +61,8 @@ export default async function StaffRestaurantOrderPage({
     <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
       <CustomerOrderPage
         customerAuthProviders={noCustomerAuthProviders}
+        checkoutPolicies={orderFulfilmentTypes.map(getDefaultCheckoutPolicy)}
         inventoryEnabled={inventoryEnabled}
-        phoneVerificationPolicy={noCustomerPhoneVerification}
         openDineInOrder={openDineInOrder}
         staffRestaurant={{
           id: access.restaurant.id,

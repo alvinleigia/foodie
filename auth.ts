@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import { authenticateCustomerEmailOtp } from "@/lib/customer-email-otp";
+import { authenticateCustomerPhoneOtp } from "@/lib/customer-phone-otp";
 import { consumeCustomerAuthHandoff } from "@/lib/customer-auth-handoff";
 import { authenticateStaff } from "@/lib/staff-auth";
 import { isPlatformAdministrationDomain } from "@/lib/deployment-domain";
@@ -58,6 +59,26 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
       },
     }),
     Credentials({
+      id: "customer-phone-otp",
+      name: "Mobile code",
+      credentials: {
+        phone: { label: "Mobile", type: "tel" },
+        code: { label: "Code", inputMode: "numeric", type: "text" },
+      },
+      async authorize(credentials) {
+        const customer = await authenticateCustomerPhoneOtp(credentials);
+
+        return customer
+          ? {
+              id: customer.id,
+              email: customer.email,
+              kind: "customer" as const,
+              name: customer.name,
+            }
+          : null;
+      },
+    }),
+    Credentials({
       id: "customer-auth-handoff",
       name: "Customer session handoff",
       credentials: {
@@ -93,6 +114,10 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
 
       if (account.provider === "customer-email-otp") {
         return user.kind === "customer" && Boolean(user.email);
+      }
+
+      if (account.provider === "customer-phone-otp") {
+        return user.kind === "customer";
       }
 
       if (account.provider === "customer-auth-handoff") {

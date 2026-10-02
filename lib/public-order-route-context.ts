@@ -12,6 +12,9 @@ import { resolveOrganizationEmailIntegration } from "@/lib/organization-integrat
 import { resolveOrganizationOAuthIntegration } from "@/lib/organization-oauth-settings";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
+import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
+import { getDefaultCheckoutPolicy } from "@/lib/checkout-policy";
+import { orderFulfilmentTypes } from "@/lib/order-fulfilment";
 import type { MembershipRole } from "@/lib/staff-auth";
 import {
   getCurrentTenantContext,
@@ -50,6 +53,7 @@ export type PublicOrderUnavailableReason =
   | "DOMAIN_DISABLED"
   | "CUSTOMER_ORDERING_DISABLED"
   | "CUSTOMER_ACCOUNTS_DISABLED"
+  | "CUSTOMER_CHECKOUT_DISABLED"
   | "OUTSIDE_WORKING_HOURS";
 
 export async function getPublicOrderRouteContext({
@@ -104,12 +108,31 @@ export async function getPublicOrderRouteContext({
         socialLoginEnabled: false,
         stripePaymentsEnabled: false,
       };
+  const checkoutPolicies = tenantContext
+    ? await getRestaurantCheckoutPolicies(tenantContext.organizationId)
+    : orderFulfilmentTypes.map(getDefaultCheckoutPolicy);
   const customerOrderingEnabled =
     session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
   const customerAccountsEnabled =
     session?.user.kind === "staff" || customerFeatures.customerAccountsEnabled;
   const socialLoginEnabled = customerFeatures.socialLoginEnabled;
   const stripePaymentsEnabled = customerFeatures.stripePaymentsEnabled;
+  const hasGuestCheckout = checkoutPolicies.some(
+    (policy) =>
+      policy.isEnabled &&
+      policy.guestCheckoutEnabled &&
+      policy.onlinePaymentEnabled &&
+      stripePaymentsEnabled,
+  );
+  const hasAccountCheckout = checkoutPolicies.some(
+    (policy) =>
+      policy.isEnabled &&
+      policy.accountCheckoutEnabled &&
+      (policy.payLaterEnabled ||
+        (policy.onlinePaymentEnabled && stripePaymentsEnabled)),
+  );
+  const hasAvailableCheckout =
+    hasGuestCheckout || (customerAccountsEnabled && hasAccountCheckout);
   const restaurantWorkingHours = tenantContext
     ? await getRestaurantWorkingHours(tenantContext.organizationId)
     : null;
@@ -120,7 +143,7 @@ export async function getPublicOrderRouteContext({
         isRestaurantOpenForCustomerOrders(restaurantWorkingHours),
     );
 
-  if (!customerAccountsEnabled) {
+  if (!customerAccountsEnabled || !hasAccountCheckout) {
     customer = null;
   }
 
@@ -180,12 +203,15 @@ export async function getPublicOrderRouteContext({
       customerAccountsEnabled &&
       socialLoginEnabled &&
       googleIntegration?.status === "CONFIGURED",
+    phone: customerAccountsEnabled && phoneVerificationPolicy.available,
   };
 
   if (tenantContext) {
     return {
       hasTenantContext: true,
+      checkoutPolicies,
       customerAccountsEnabled,
+      customerCheckoutEnabled: hasAvailableCheckout,
       customerOrderingEnabled,
       customerOrderingOpen,
       socialLoginEnabled,
@@ -198,11 +224,13 @@ export async function getPublicOrderRouteContext({
       tenantContext,
       unavailableReason: !customerOrderingEnabled
         ? ("CUSTOMER_ORDERING_DISABLED" as const)
-        : !customerAccountsEnabled
-          ? ("CUSTOMER_ACCOUNTS_DISABLED" as const)
+        : !hasAvailableCheckout
+          ? !hasGuestCheckout && hasAccountCheckout && !customerAccountsEnabled
+            ? ("CUSTOMER_ACCOUNTS_DISABLED" as const)
+            : ("CUSTOMER_CHECKOUT_DISABLED" as const)
           : !customerOrderingOpen
             ? ("OUTSIDE_WORKING_HOURS" as const)
-          : undefined,
+            : undefined,
       user,
     };
   }
@@ -210,7 +238,9 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      checkoutPolicies,
       customerAccountsEnabled: false,
+      customerCheckoutEnabled: false,
       customerOrderingEnabled: false,
       customerOrderingOpen: false,
       socialLoginEnabled: false,
@@ -239,11 +269,24 @@ export async function getPublicOrderRouteContext({
                 socialLoginEnabled: false,
                 stripePaymentsEnabled: false,
               }));
+              const policies = await getRestaurantCheckoutPolicies(
+                restaurant.id,
+              ).catch(() => []);
+              const hasCheckoutPath = policies.some(
+                (policy) =>
+                  policy.isEnabled &&
+                  ((policy.guestCheckoutEnabled &&
+                    policy.onlinePaymentEnabled &&
+                    features.stripePaymentsEnabled) ||
+                    (features.customerAccountsEnabled &&
+                      policy.accountCheckoutEnabled &&
+                      (policy.payLaterEnabled ||
+                        (policy.onlinePaymentEnabled &&
+                          features.stripePaymentsEnabled)))),
+              );
 
               return {
-                enabled:
-                  features.customerOrderingEnabled &&
-                  features.customerAccountsEnabled,
+                enabled: features.customerOrderingEnabled && hasCheckoutPath,
                 restaurant,
               };
             }),
@@ -258,7 +301,9 @@ export async function getPublicOrderRouteContext({
 
   return {
     hasTenantContext: false,
+    checkoutPolicies,
     customerAccountsEnabled: false,
+    customerCheckoutEnabled: false,
     customerOrderingEnabled: false,
     customerOrderingOpen: false,
     socialLoginEnabled: false,

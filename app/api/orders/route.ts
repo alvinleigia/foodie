@@ -47,7 +47,7 @@ import {
   getPublicTenantContextFromRequest,
   StaffRestaurantContextError,
 } from "@/lib/tenant-context";
-import { isValidCustomerPhone } from "@/lib/validations/customer";
+import { normalizeCustomerPhone } from "@/lib/validations/customer";
 import {
   buildOrderLineTaxSnapshot,
   buildOrderPaymentPricing,
@@ -60,7 +60,6 @@ import { logError } from "@/lib/logger";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
-import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import {
   assertOrganizationFeaturesEnabled,
   FeatureEntitlementError,
@@ -73,6 +72,8 @@ import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
 import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
 import { deriveOrderStatusFromItems } from "@/lib/order-status";
+import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
+import { isCheckoutContactValid } from "@/lib/checkout-policy";
 
 class OpenDineInCheckError extends Error {
   status: number;
@@ -157,15 +158,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-
-    if (!session?.user || (session.user.kind !== "staff" && session.user.kind !== "customer")) {
-      return NextResponse.json({ error: "Sign in before placing an order." }, { status: 401 });
-    }
+    const staffUser = session?.user.kind === "staff" ? session.user : null;
+    const customerUser = session?.user.kind === "customer" ? session.user : null;
+    const isStaff = Boolean(staffUser);
+    const isCustomer = Boolean(customerUser);
 
     if (
-      session.user.kind === "staff" &&
+      isStaff &&
       (!isPlatformAdministrationRequest(request) ||
-        !session.user.permissions.includes("orders.create"))
+        !staffUser!.permissions.includes("orders.create"))
     ) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
@@ -188,7 +189,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    if (parsed.data.openDineInOrderId && session.user.kind !== "staff") {
+    if (parsed.data.openDineInOrderId && !isStaff) {
       return NextResponse.json(
         { error: "Only restaurant staff can add items to an open dine-in check." },
         { status: 403 },
@@ -206,14 +207,78 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: fulfilmentTimeError }, { status: 400 });
     }
 
-    if (session.user.kind === "customer") {
+    const checkoutMode = isStaff ? "STAFF" : parsed.data.checkoutMode;
+    const paymentTiming = isStaff ? "PAY_LATER" : parsed.data.paymentTiming;
+
+    if (!checkoutMode || (!isStaff && !paymentTiming)) {
+      return NextResponse.json(
+        { error: "Choose a checkout and payment option." },
+        { status: 400 },
+      );
+    }
+
+    if (checkoutMode === "ACCOUNT" && !isCustomer) {
+      return NextResponse.json(
+        { error: "Sign in before using account checkout." },
+        { status: 401 },
+      );
+    }
+
+    const checkoutPolicies = await getRestaurantCheckoutPolicies(
+      tenantContext.organizationId,
+    );
+    const checkoutPolicy = checkoutPolicies.find(
+      (policy) => policy.fulfilmentType === parsed.data.fulfilmentType,
+    );
+
+    if (!isStaff) {
+      if (!checkoutPolicy?.isEnabled) {
+        return NextResponse.json(
+          { error: "This fulfilment option is not currently available." },
+          { status: 409 },
+        );
+      }
+
+      if (checkoutMode === "GUEST" && !checkoutPolicy.guestCheckoutEnabled) {
+        return NextResponse.json(
+          { error: "Guest checkout is not available for this order." },
+          { status: 403 },
+        );
+      }
+
+      if (checkoutMode === "ACCOUNT" && !checkoutPolicy.accountCheckoutEnabled) {
+        return NextResponse.json(
+          { error: "Account checkout is not available for this order." },
+          { status: 403 },
+        );
+      }
+
+      if (
+        paymentTiming === "ONLINE"
+          ? !checkoutPolicy.onlinePaymentEnabled
+          : !checkoutPolicy.payLaterEnabled || checkoutMode === "GUEST"
+      ) {
+        return NextResponse.json(
+          { error: "The selected payment option is not available." },
+          { status: 403 },
+        );
+      }
+
+      const requestedFeatures = ["ordering.customer"] as Array<
+        "ordering.customer" | "ordering.customer_accounts" | "payments.stripe"
+      >;
+
+      if (checkoutMode === "ACCOUNT") {
+        requestedFeatures.push("ordering.customer_accounts");
+      }
+
+      if (paymentTiming === "ONLINE") {
+        requestedFeatures.push("payments.stripe");
+      }
+
       await assertOrganizationFeaturesEnabled(
         tenantContext.organizationId,
-        [
-          "ordering.customer",
-          "ordering.customer_accounts",
-          "payments.stripe",
-        ],
+        requestedFeatures,
       );
 
       const workingHours = await getRestaurantWorkingHours(
@@ -239,70 +304,54 @@ export async function POST(request: NextRequest) {
     ).enabled;
 
     const customerProfile =
-      session.user.kind === "customer"
-        ? await getCustomerProfile(session.user.id, tenantContext)
+      checkoutMode === "ACCOUNT" && isCustomer
+        ? await getCustomerProfile(customerUser!.id, tenantContext)
         : null;
 
-    if (session.user.kind === "customer" && !customerProfile) {
+    if (checkoutMode === "ACCOUNT" && !customerProfile) {
       return NextResponse.json(
         { error: "Your customer profile could not be loaded." },
         { status: 409 },
       );
     }
 
+    const customerContact = isStaff ? null : parsed.data.customerContact;
+
     if (
-      session.user.kind === "customer" &&
-      customerProfile &&
-      customerProfile.name.trim().length < 2
+      !isStaff &&
+      (!customerContact ||
+        !isCheckoutContactValid(checkoutPolicy!.contactRequirement, customerContact))
     ) {
       return NextResponse.json(
-        { error: "Add your name before placing your order." },
-        { status: 409 },
+        { error: "Add the required email or mobile contact details." },
+        { status: 400 },
       );
     }
 
-    if (
-      session.user.kind === "customer" &&
-      customerProfile &&
-      !isValidCustomerPhone(customerProfile.phone)
-    ) {
-      return NextResponse.json(
-        { error: "Add a valid phone number before placing your order." },
-        { status: 409 },
-      );
-    }
-
-    const phoneVerificationPolicy = getCustomerPhoneVerificationPolicy();
-
-    if (
-      session.user.kind === "customer" &&
-      phoneVerificationPolicy.required &&
-      !phoneVerificationPolicy.available
-    ) {
-      return NextResponse.json(
-        { error: "Phone verification is temporarily unavailable." },
-        { status: 503 },
-      );
-    }
-
-    if (
-      session.user.kind === "customer" &&
-      phoneVerificationPolicy.required &&
-      !customerProfile?.phoneVerifiedAt
-    ) {
-      return NextResponse.json(
-        { error: "Verify your phone number before placing your order." },
-        { status: 409 },
-      );
-    }
+    const customerEmailVerifiedAt =
+      checkoutMode === "ACCOUNT" &&
+      customerProfile?.email &&
+      customerContact?.email &&
+      customerProfile.email.toLowerCase() === customerContact.email.toLowerCase()
+        ? customerProfile.emailVerifiedAt
+        : null;
+    const customerPhoneVerifiedAt =
+      checkoutMode === "ACCOUNT" &&
+      customerProfile?.phone &&
+      customerContact?.phone &&
+      normalizeCustomerPhone(customerProfile.phone) ===
+        normalizeCustomerPhone(customerContact.phone)
+        ? customerProfile.phoneVerifiedAt
+        : null;
 
     const paymentIntegration =
-      session.user.kind === "customer"
+      !isStaff && paymentTiming === "ONLINE"
         ? await resolveOrganizationPaymentIntegration(tenantContext.organizationId)
         : null;
 
     if (
-      session.user.kind === "customer" &&
+      !isStaff &&
+      paymentTiming === "ONLINE" &&
       (!process.env.STRIPE_SECRET_KEY || paymentIntegration?.status !== "CONFIGURED")
     ) {
       return NextResponse.json(
@@ -312,8 +361,8 @@ export async function POST(request: NextRequest) {
     }
 
     const orderCustomerName =
-      session.user.kind === "customer"
-        ? customerProfile?.name.trim() ?? ""
+      !isStaff
+        ? customerContact?.name.trim() ?? ""
         : parsed.data.customerName?.trim() ?? "";
 
     if (orderCustomerName.length < 2) {
@@ -324,12 +373,12 @@ export async function POST(request: NextRequest) {
     }
 
     const linkedStaffCustomer =
-      session.user.kind === "staff" && parsed.data.customerId
+      isStaff && parsed.data.customerId
         ? await getStaffVisibleCustomer(parsed.data.customerId, tenantContext)
         : null;
 
     if (
-      session.user.kind === "staff" &&
+      isStaff &&
       parsed.data.customerId &&
       !linkedStaffCustomer
     ) {
@@ -482,13 +531,12 @@ export async function POST(request: NextRequest) {
         taxPricing,
       );
     } catch (pricingError) {
-      if (session.user.kind === "customer") {
+      if (!isStaff) {
         throw pricingError;
       }
     }
 
-    const paymentPricing =
-      session.user.kind === "customer" ? orderPricing : null;
+    const paymentPricing = !isStaff ? orderPricing : null;
     const customerFinancialSnapshot = paymentPricing
       ? buildOrderFinancialSnapshot({
           currency: paymentPricing.currency,
@@ -502,7 +550,7 @@ export async function POST(request: NextRequest) {
     const orderTaxRateSnapshot = getOrderTaxRateSnapshot(
       orderLineTaxSnapshots,
     );
-    const paymentExpiresAt = paymentPricing
+    const paymentExpiresAt = paymentPricing && paymentTiming === "ONLINE"
       ? new Date(Date.now() + 30 * 60 * 1000)
       : null;
     const summaryCategoryName =
@@ -547,19 +595,24 @@ export async function POST(request: NextRequest) {
             customerName: orderCustomerName,
             customerToken,
             customerId:
-              session.user.kind === "customer"
+              checkoutMode === "ACCOUNT"
                 ? customerProfile?.customerId ?? null
                 : linkedStaffCustomer?.customerId ?? null,
             organizationCustomerId:
-              session.user.kind === "customer"
+              checkoutMode === "ACCOUNT"
                 ? customerProfile?.id ?? null
                 : linkedStaffCustomer?.id ?? null,
-            createdByUserId:
-              session.user.kind === "staff" ? session.user.id : null,
+            createdByUserId: staffUser?.id ?? null,
             source:
-              session.user.kind === "staff"
+              isStaff
                 ? "STAFF_CREATED"
                 : "CUSTOMER_SELF_SERVICE",
+            checkoutMode,
+            paymentTiming,
+            customerEmail: customerContact?.email ?? null,
+            customerPhone: customerContact?.phone ?? null,
+            customerEmailVerifiedAt,
+            customerPhoneVerifiedAt,
             fulfilmentType: parsed.data.fulfilmentType,
             deliveryAddressLine1:
               parsed.data.fulfilmentType === "DELIVERY"
@@ -573,20 +626,27 @@ export async function POST(request: NextRequest) {
               parsed.data.fulfilmentType === "DELIVERY"
                 ? parsed.data.deliveryAddress?.city
                 : null,
+            deliveryRegion:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.region || null
+                : null,
             deliveryPostalCode:
               parsed.data.fulfilmentType === "DELIVERY"
                 ? parsed.data.deliveryAddress?.postalCode
+                : null,
+            deliveryCountryCode:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.countryCode
                 : null,
             deliveryInstructions:
               parsed.data.fulfilmentType === "DELIVERY"
                 ? parsed.data.deliveryAddress?.instructions || null
                 : null,
             requestedFulfilmentAt:
-              session.user.kind === "customer" ? scheduledFulfilmentAt : null,
+              !isStaff ? scheduledFulfilmentAt : null,
             promisedFulfilmentAt:
-              session.user.kind === "staff" ? scheduledFulfilmentAt : null,
-            paymentStatus:
-              session.user.kind === "customer" ? "PENDING" : "UNPAID",
+              isStaff ? scheduledFulfilmentAt : null,
+            paymentStatus: paymentTiming === "ONLINE" ? "PENDING" : "UNPAID",
             paymentAmount: orderPricing?.amountTotal ?? null,
             paymentCurrency: orderPricing?.currency ?? currency,
             ...(customerFinancialSnapshot
@@ -759,7 +819,6 @@ export async function POST(request: NextRequest) {
     if (
       paymentPricing &&
       paymentExpiresAt &&
-      customerProfile &&
       paymentIntegration?.status === "CONFIGURED"
     ) {
       let checkoutSessionId: string | null = null;
@@ -768,7 +827,9 @@ export async function POST(request: NextRequest) {
         routeSlug: request.nextUrl.searchParams.get("route") ?? undefined,
       };
       const cancelPath = withPublicCustomerContext(
-        "/account?payment=cancelled",
+        checkoutMode === "GUEST"
+          ? "/order/status?payment=cancelled"
+          : "/account?payment=cancelled",
         customerContext,
       );
       const successPath = withPublicCustomerContext(
@@ -783,8 +844,8 @@ export async function POST(request: NextRequest) {
           amountTotalMinor: paymentPricing.amountTotalMinor,
           applicationFeeBps: paymentIntegration.applicationFeeBps,
           cancelUrl: new URL(cancelPath, request.url).toString(),
-          customerEmail: customerProfile.email,
-          customerId: customerProfile.customerId,
+          customerEmail: customerContact?.email ?? null,
+          customerId: customerProfile?.customerId ?? null,
           expiresAt: paymentExpiresAt,
           lineItems: paymentPricing.lineItems,
           orderId: createdOrder.id,

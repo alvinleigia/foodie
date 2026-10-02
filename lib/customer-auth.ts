@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { customerOAuthAccounts, customers } from "@/db/schema";
+import { normalizeCustomerPhone } from "@/lib/validations/customer";
 
 type OAuthCustomerInput = {
   email: string;
@@ -216,6 +217,70 @@ export async function getOrCreateEmailCustomer(emailInput: string) {
     await tx
       .update(customers)
       .set({ emailVerifiedAt: new Date(), updatedAt: new Date() })
+      .where(eq(customers.id, customer.id));
+
+    return customer;
+  });
+}
+
+export async function getOrCreatePhoneCustomer(phoneInput: string) {
+  const phone = normalizeCustomerPhone(phoneInput);
+
+  if (!phone) {
+    throw new Error("Customer mobile number is required.");
+  }
+
+  return getDb().transaction(async (tx) => {
+    let [customer] = await tx
+      .select({
+        email: customers.email,
+        id: customers.id,
+        name: customers.name,
+        phone: customers.phone,
+      })
+      .from(customers)
+      .where(eq(customers.phone, phone))
+      .limit(1);
+
+    if (!customer) {
+      [customer] = await tx
+        .insert(customers)
+        .values({
+          email: null,
+          name: "",
+          phone,
+          phoneVerifiedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing()
+        .returning({
+          email: customers.email,
+          id: customers.id,
+          name: customers.name,
+          phone: customers.phone,
+        });
+    }
+
+    if (!customer) {
+      [customer] = await tx
+        .select({
+          email: customers.email,
+          id: customers.id,
+          name: customers.name,
+          phone: customers.phone,
+        })
+        .from(customers)
+        .where(eq(customers.phone, phone))
+        .limit(1);
+    }
+
+    if (!customer) {
+      throw new Error("Unable to create the customer account.");
+    }
+
+    await tx
+      .update(customers)
+      .set({ phoneVerifiedAt: new Date(), updatedAt: new Date() })
       .where(eq(customers.id, customer.id));
 
     return customer;

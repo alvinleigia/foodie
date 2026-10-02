@@ -113,6 +113,22 @@ export const orderFulfilmentTypeEnum = pgEnum("order_fulfilment_type", [
   "DELIVERY",
 ]);
 
+export const checkoutContactRequirementEnum = pgEnum(
+  "checkout_contact_requirement",
+  ["EMAIL", "PHONE", "EMAIL_OR_PHONE", "EMAIL_AND_PHONE"],
+);
+
+export const checkoutPaymentTimingEnum = pgEnum("checkout_payment_timing", [
+  "ONLINE",
+  "PAY_LATER",
+]);
+
+export const orderCheckoutModeEnum = pgEnum("order_checkout_mode", [
+  "GUEST",
+  "ACCOUNT",
+  "STAFF",
+]);
+
 export const paymentStatusEnum = pgEnum("payment_status", [
   "NOT_REQUIRED",
   "UNPAID",
@@ -295,7 +311,7 @@ export const customers = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
-    email: text("email").notNull(),
+    email: text("email"),
     emailVerifiedAt: timestamp("email_verified_at"),
     phone: text("phone"),
     phoneVerifiedAt: timestamp("phone_verified_at"),
@@ -306,8 +322,12 @@ export const customers = pgTable(
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => [
-    uniqueIndex("customers_email_unique").on(sql`lower(${table.email})`),
-    index("customers_phone_idx").on(table.phone),
+    uniqueIndex("customers_email_unique")
+      .on(sql`lower(${table.email})`)
+      .where(sql`${table.email} IS NOT NULL`),
+    uniqueIndex("customers_phone_unique")
+      .on(table.phone)
+      .where(sql`${table.phone} IS NOT NULL`),
   ],
 );
 
@@ -428,6 +448,55 @@ export const restaurantOrderingPeriods = pgTable(
     check(
       "restaurant_ordering_periods_window_check",
       sql`(${table.is24Hours} = true AND ${table.opensAtMinute} = 0 AND ${table.closesAtMinute} = 0) OR (${table.is24Hours} = false AND ${table.opensAtMinute} <> ${table.closesAtMinute})`,
+    ),
+  ],
+);
+
+export const restaurantCheckoutPolicies = pgTable(
+  "restaurant_checkout_policies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type").notNull(),
+    isEnabled: boolean("is_enabled").default(true).notNull(),
+    guestCheckoutEnabled: boolean("guest_checkout_enabled").default(true).notNull(),
+    accountCheckoutEnabled: boolean("account_checkout_enabled").default(true).notNull(),
+    emailOtpLoginEnabled: boolean("email_otp_login_enabled").default(true).notNull(),
+    smsOtpLoginEnabled: boolean("sms_otp_login_enabled").default(true).notNull(),
+    onlinePaymentEnabled: boolean("online_payment_enabled").default(true).notNull(),
+    payLaterEnabled: boolean("pay_later_enabled").default(true).notNull(),
+    defaultPaymentTiming: checkoutPaymentTimingEnum("default_payment_timing")
+      .default("ONLINE")
+      .notNull(),
+    contactRequirement: checkoutContactRequirementEnum("contact_requirement")
+      .default("EMAIL_OR_PHONE")
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("restaurant_checkout_policies_org_type_unique").on(
+      table.organizationId,
+      table.fulfilmentType,
+    ),
+    index("restaurant_checkout_policies_org_idx").on(table.organizationId),
+    check(
+      "restaurant_checkout_policies_checkout_path_check",
+      sql`${table.guestCheckoutEnabled} OR ${table.accountCheckoutEnabled}`,
+    ),
+    check(
+      "restaurant_checkout_policies_guest_online_check",
+      sql`NOT ${table.guestCheckoutEnabled} OR ${table.onlinePaymentEnabled}`,
+    ),
+    check(
+      "restaurant_checkout_policies_payment_path_check",
+      sql`${table.onlinePaymentEnabled} OR ${table.payLaterEnabled}`,
+    ),
+    check(
+      "restaurant_checkout_policies_default_payment_check",
+      sql`(${table.defaultPaymentTiming} = 'ONLINE' AND ${table.onlinePaymentEnabled}) OR (${table.defaultPaymentTiming} = 'PAY_LATER' AND ${table.payLaterEnabled})`,
     ),
   ],
 );
@@ -1682,13 +1751,21 @@ export const orders = pgTable("orders", {
     onDelete: "set null",
   }),
   source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
+  checkoutMode: orderCheckoutModeEnum("checkout_mode").default("ACCOUNT").notNull(),
+  paymentTiming: checkoutPaymentTimingEnum("payment_timing"),
+  customerEmail: text("customer_email"),
+  customerPhone: text("customer_phone"),
+  customerEmailVerifiedAt: timestamp("customer_email_verified_at"),
+  customerPhoneVerifiedAt: timestamp("customer_phone_verified_at"),
   fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type")
     .default("PICKUP")
     .notNull(),
   deliveryAddressLine1: text("delivery_address_line_1"),
   deliveryAddressLine2: text("delivery_address_line_2"),
   deliveryCity: text("delivery_city"),
+  deliveryRegion: text("delivery_region"),
   deliveryPostalCode: text("delivery_postal_code"),
+  deliveryCountryCode: text("delivery_country_code"),
   deliveryInstructions: text("delivery_instructions"),
   requestedFulfilmentAt: timestamp("requested_fulfilment_at"),
   promisedFulfilmentAt: timestamp("promised_fulfilment_at"),
