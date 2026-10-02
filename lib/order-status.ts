@@ -19,7 +19,7 @@ export function deriveOrderStatusFromItems(
   );
   const allOpenItemsReady =
     openItems.length > 0 && openItems.every((status) => status === "READY");
-  const hasStartedItem = itemStatuses.some((status) => status !== "PENDING");
+  const hasStartedItem = openItems.some((status) => status !== "PENDING");
 
   if (allItemsCancelled) {
     return "CANCELLED";

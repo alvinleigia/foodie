@@ -88,6 +88,13 @@ export type LocalCustomerOrder = {
   customerToken: string;
   customerName: string;
   fulfilmentType: OrderFulfilmentType;
+  deliveryAddress?: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    postalCode: string;
+    instructions: string | null;
+  } | null;
   requestedFulfilmentAt?: string | null;
   promisedFulfilmentAt?: string | null;
   categoryName: string;

@@ -19,7 +19,7 @@ Foodie POS is a Next.js restaurant operations app with a multi-tenant SaaS hiera
 - Company admin can create restaurant manager/order operator invite links.
 - Users with multiple active organization memberships can switch company or restaurant context from the admin/operations header.
 - Platform/company dashboards show summary cards for companies, restaurants, staff and order activity.
-- Company and restaurant dashboards show range-filtered operational reports for revenue, status counts, prep/collection timing, cancelled items, category mix, staff activity, restaurant activity, top products and stock alerts, with CSV export.
+- Company and restaurant dashboards show range-filtered operational reports for revenue, status counts, prep/handoff timing, cancelled items, category mix, staff activity, restaurant activity, top products and stock alerts, with CSV export.
 - Platform commercial foundation includes seeded SaaS plans, company trial subscriptions, subscription status controls and platform commercial metrics.
 - Suspended or cancelled tenants are blocked from login, tenant APIs, operations pages and public QR ordering.
 - Platform admin can export company tenant data and disable company tenants.

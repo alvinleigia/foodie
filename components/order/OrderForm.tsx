@@ -107,6 +107,11 @@ type OrderFormProps = {
   } | null;
   customerAuthProviders: CustomerAuthProviders;
   isStaffOrder?: boolean;
+  openDineInOrder?: {
+    customerName: string;
+    id: string;
+    orderNo: number;
+  } | null;
   orderingPointQrSlug?: string;
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
@@ -147,6 +152,11 @@ type CustomizerState = {
 type OrderDraft = {
   customerName: string;
   fulfilmentType: OrderFulfilmentType;
+  deliveryAddressLine1: string;
+  deliveryAddressLine2: string;
+  deliveryCity: string;
+  deliveryPostalCode: string;
+  deliveryInstructions: string;
   fulfilmentTiming: "ASAP" | "SCHEDULED";
   scheduledFulfilmentAt: string;
 };
@@ -325,6 +335,7 @@ export function OrderForm({
   customer,
   customerAuthProviders,
   isStaffOrder = false,
+  openDineInOrder,
   orderingPointQrSlug,
   phoneVerificationPolicy,
   routeSlug,
@@ -337,8 +348,13 @@ export function OrderForm({
   const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
   const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
   const [draft, setDraft] = useState<OrderDraft>({
-    customerName: customer?.name ?? "",
-    fulfilmentType: "COLLECTION",
+    customerName: openDineInOrder?.customerName ?? customer?.name ?? "",
+    fulfilmentType: openDineInOrder ? "DINE_IN" : "PICKUP",
+    deliveryAddressLine1: "",
+    deliveryAddressLine2: "",
+    deliveryCity: "",
+    deliveryPostalCode: "",
+    deliveryInstructions: "",
     fulfilmentTiming: "ASAP",
     scheduledFulfilmentAt: "",
   });
@@ -988,6 +1004,16 @@ export function OrderForm({
       return;
     }
 
+    if (
+      draft.fulfilmentType === "DELIVERY" &&
+      (!draft.deliveryAddressLine1.trim() ||
+        !draft.deliveryCity.trim() ||
+        !draft.deliveryPostalCode.trim())
+    ) {
+      setError("Enter the delivery address, town or city, and postcode.");
+      return;
+    }
+
     const scheduledFulfilmentAt =
       draft.fulfilmentTiming === "SCHEDULED"
         ? new Date(draft.scheduledFulfilmentAt)
@@ -1028,6 +1054,17 @@ export function OrderForm({
           customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
           customerName: isStaffOrder ? draft.customerName.trim() : undefined,
           fulfilmentType: draft.fulfilmentType,
+          openDineInOrderId: openDineInOrder?.id,
+          deliveryAddress:
+            draft.fulfilmentType === "DELIVERY"
+              ? {
+                  line1: draft.deliveryAddressLine1.trim(),
+                  line2: draft.deliveryAddressLine2.trim(),
+                  city: draft.deliveryCity.trim(),
+                  postalCode: draft.deliveryPostalCode.trim(),
+                  instructions: draft.deliveryInstructions.trim(),
+                }
+              : null,
           scheduledFulfilmentAt: scheduledFulfilmentAt?.toISOString() ?? null,
           items: cartItems.map((item) => ({
             categoryId: item.categoryId,
@@ -1052,6 +1089,15 @@ export function OrderForm({
       return;
     }
 
+    if (openDineInOrder && isStaffOrder && staffRestaurantSlug) {
+      toast.success(`Items added to check #${openDineInOrder.orderNo}.`);
+      router.push(
+        `/restaurants/${encodeURIComponent(staffRestaurantSlug)}/orders`,
+      );
+      router.refresh();
+      return;
+    }
+
     const nextOrder: LocalCustomerOrder = {
       orderId: payload.orderId,
       orderNo: payload.orderNo,
@@ -1059,6 +1105,7 @@ export function OrderForm({
       customerToken: payload.customerToken,
       customerName: payload.customerName,
       fulfilmentType: payload.fulfilmentType,
+      deliveryAddress: payload.deliveryAddress,
       requestedFulfilmentAt: payload.requestedFulfilmentAt,
       promisedFulfilmentAt: payload.promisedFulfilmentAt,
       categoryName: payload.categoryName,
@@ -1084,7 +1131,12 @@ export function OrderForm({
     toast.success(`Order #${payload.orderNo} placed successfully.`);
     setDraft({
       customerName: "",
-      fulfilmentType: "COLLECTION",
+      fulfilmentType: "PICKUP",
+      deliveryAddressLine1: "",
+      deliveryAddressLine2: "",
+      deliveryCity: "",
+      deliveryPostalCode: "",
+      deliveryInstructions: "",
       fulfilmentTiming: "ASAP",
       scheduledFulfilmentAt: "",
     });
@@ -1541,10 +1593,18 @@ export function OrderForm({
           <CardHeader className="px-6 pt-6">
             <SectionHeader
               eyebrow="Review order"
-              title={isStaffOrder ? "Confirm order" : "Review and pay"}
+              title={
+                openDineInOrder
+                  ? `Add items to check #${openDineInOrder.orderNo}`
+                  : isStaffOrder
+                    ? "Confirm order"
+                    : "Review and pay"
+              }
               meta={
                 <p className="text-sm text-stone-600">
-                  {isStaffOrder
+                  {openDineInOrder
+                    ? `Review the new items for ${openDineInOrder.customerName} before sending them to preparation.`
+                    : isStaffOrder
                     ? "Add a customer name or table number and double-check the cart before sending it to the preparation queue."
                     : "Double-check your cart and contact details before continuing to payment."}
                 </p>
@@ -1554,7 +1614,7 @@ export function OrderForm({
           </CardHeader>
 
           <CardContent className="grid gap-4 px-6 pb-6">
-            {isStaffOrder ? (
+            {isStaffOrder && !openDineInOrder ? (
               <StaffCustomerSearch
                 staffRestaurantSlug={staffRestaurantSlug}
                 selectedCustomer={selectedStaffCustomer}
@@ -1571,15 +1631,91 @@ export function OrderForm({
               />
             ) : null}
 
-            <FulfilmentTypeSelector
-              disabled={isSubmitting}
-              value={draft.fulfilmentType}
-              onChange={(fulfilmentType) => {
-                updateDraft("fulfilmentType", fulfilmentType);
-                setError(null);
-              }}
-            />
+            {openDineInOrder ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                <p className="text-sm font-semibold text-emerald-950">
+                  Open dine-in check #{openDineInOrder.orderNo}
+                </p>
+                <p className="mt-1 text-sm text-emerald-800">
+                  {openDineInOrder.customerName}. New items will be sent to preparation and added to the existing bill.
+                </p>
+              </div>
+            ) : (
+              <FulfilmentTypeSelector
+                disabled={isSubmitting}
+                value={draft.fulfilmentType}
+                onChange={(fulfilmentType) => {
+                  updateDraft("fulfilmentType", fulfilmentType);
+                  setError(null);
+                }}
+              />
+            )}
 
+            {draft.fulfilmentType === "DELIVERY" ? (
+              <fieldset className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4">
+                <legend className="px-1 text-sm font-semibold text-stone-900">
+                  Delivery address
+                </legend>
+                <FormField label="Address line 1">
+                  <Input
+                    autoComplete="address-line1"
+                    value={draft.deliveryAddressLine1}
+                    disabled={isSubmitting}
+                    onChange={(event) => {
+                      updateDraft("deliveryAddressLine1", event.target.value);
+                      setError(null);
+                    }}
+                  />
+                </FormField>
+                <FormField label="Address line 2 (optional)">
+                  <Input
+                    autoComplete="address-line2"
+                    value={draft.deliveryAddressLine2}
+                    disabled={isSubmitting}
+                    onChange={(event) =>
+                      updateDraft("deliveryAddressLine2", event.target.value)
+                    }
+                  />
+                </FormField>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField label="Town or city">
+                    <Input
+                      autoComplete="address-level2"
+                      value={draft.deliveryCity}
+                      disabled={isSubmitting}
+                      onChange={(event) => {
+                        updateDraft("deliveryCity", event.target.value);
+                        setError(null);
+                      }}
+                    />
+                  </FormField>
+                  <FormField label="Postcode">
+                    <Input
+                      autoComplete="postal-code"
+                      value={draft.deliveryPostalCode}
+                      disabled={isSubmitting}
+                      onChange={(event) => {
+                        updateDraft("deliveryPostalCode", event.target.value);
+                        setError(null);
+                      }}
+                    />
+                  </FormField>
+                </div>
+                <FormField label="Delivery instructions (optional)">
+                  <Textarea
+                    rows={3}
+                    value={draft.deliveryInstructions}
+                    disabled={isSubmitting}
+                    placeholder="Entrance, floor, access code, or a safe handoff note"
+                    onChange={(event) =>
+                      updateDraft("deliveryInstructions", event.target.value)
+                    }
+                  />
+                </FormField>
+              </fieldset>
+            ) : null}
+
+            {!openDineInOrder ? (
             <fieldset className="grid gap-3">
               <legend className="text-sm font-medium text-stone-800">
                 When should it be ready?
@@ -1636,6 +1772,7 @@ export function OrderForm({
                   : "The restaurant may confirm or revise your requested time."}
               </p>
             </fieldset>
+            ) : null}
 
             {!isStaffOrder && !customer ? (
               <CustomerLoginForm
@@ -1731,7 +1868,7 @@ export function OrderForm({
               </div>
             ) : null}
 
-            {isStaffOrder ? (
+            {isStaffOrder && !openDineInOrder ? (
               <FormField label="Customer name or table number" htmlFor="review-customer-name">
                 <Input
                   id="review-customer-name"
@@ -1927,11 +2064,19 @@ export function OrderForm({
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
                     <Spinner className="text-white" />
-                    {isStaffOrder ? "Placing Order..." : "Opening Payment..."}
+                    {openDineInOrder
+                      ? "Adding Items..."
+                      : isStaffOrder
+                        ? "Placing Order..."
+                        : "Opening Payment..."}
                   </span>
                 ) : (
                   <ButtonLabel icon={isStaffOrder ? SendIcon : CreditCardIcon}>
-                    {isStaffOrder ? "Confirm Order" : "Proceed to Payment"}
+                    {openDineInOrder
+                      ? "Add Items"
+                      : isStaffOrder
+                        ? "Confirm Order"
+                        : "Proceed to Payment"}
                   </ButtonLabel>
                 )}
               </Button>
@@ -1942,11 +2087,17 @@ export function OrderForm({
       <Card className="overflow-visible rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardHeader className="px-6 pt-6">
           <SectionHeader
-            eyebrow="Place an order"
-            title="What Are You Having Today?"
+            eyebrow={openDineInOrder ? "Open dine-in check" : "Place an order"}
+            title={
+              openDineInOrder
+                ? `Add items to check #${openDineInOrder.orderNo}`
+                : "What Are You Having Today?"
+            }
             meta={
               <p className="text-sm text-stone-600">
-                Build the order from the menu, then review everything in the cart drawer.
+                {openDineInOrder
+                  ? `Select additional items for ${openDineInOrder.customerName}.`
+                  : "Build the order from the menu, then review everything in the cart drawer."}
               </p>
             }
             className="mb-0"
