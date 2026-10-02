@@ -421,6 +421,19 @@ export function CustomerOrderStatus({
                       ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
                       : "As soon as possible"}
                   </p>
+                  {order.fulfilmentType === "DELIVERY" && order.deliveryAddress ? (
+                    <p className="mt-1 text-sm text-stone-600">
+                      Delivering to{" "}
+                      {[
+                        order.deliveryAddress.line1,
+                        order.deliveryAddress.line2,
+                        order.deliveryAddress.city,
+                        order.deliveryAddress.postalCode,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </p>
+                  ) : null}
                 </div>
                 <OrderStatusBadge status={order.status} />
               </div>
@@ -453,13 +466,13 @@ export function CustomerOrderStatus({
                     ? "Your order is ready for delivery."
                     : order.fulfilmentType === "DINE_IN"
                       ? "Your order is ready to be served."
-                      : "Your order is ready for collection.")}
+                      : "Your takeaway is ready.")}
                 {order.status === "DELIVERED" &&
                   (order.fulfilmentType === "DELIVERY"
                     ? "Delivered successfully."
                     : order.fulfilmentType === "DINE_IN"
                       ? "Served successfully."
-                      : "Collected successfully.")}
+                      : "Handed over successfully.")}
                 {order.status === "CANCELLED" &&
                   order.paymentStatus === "REFUND_PENDING" &&
                   "This order was cancelled. Your refund is being processed."}

@@ -109,8 +109,7 @@ export const orderSourceEnum = pgEnum("order_source", [
 
 export const orderFulfilmentTypeEnum = pgEnum("order_fulfilment_type", [
   "DINE_IN",
-  "TAKEAWAY",
-  "COLLECTION",
+  "PICKUP",
   "DELIVERY",
 ]);
 
@@ -1684,8 +1683,13 @@ export const orders = pgTable("orders", {
   }),
   source: orderSourceEnum("source").default("CUSTOMER_SELF_SERVICE").notNull(),
   fulfilmentType: orderFulfilmentTypeEnum("fulfilment_type")
-    .default("COLLECTION")
+    .default("PICKUP")
     .notNull(),
+  deliveryAddressLine1: text("delivery_address_line_1"),
+  deliveryAddressLine2: text("delivery_address_line_2"),
+  deliveryCity: text("delivery_city"),
+  deliveryPostalCode: text("delivery_postal_code"),
+  deliveryInstructions: text("delivery_instructions"),
   requestedFulfilmentAt: timestamp("requested_fulfilment_at"),
   promisedFulfilmentAt: timestamp("promised_fulfilment_at"),
   paymentStatus: paymentStatusEnum("payment_status")

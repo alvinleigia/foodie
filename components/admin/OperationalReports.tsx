@@ -278,7 +278,7 @@ export function OperationalReports({
 
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Prep and collection time</h3>
+          <h3 className="text-xl font-semibold text-stone-950">Prep and handoff time</h3>
           <p className="text-sm text-stone-500">
             Average item-level timing for the selected period.
           </p>
@@ -290,7 +290,7 @@ export function OperationalReports({
           />
           <Metric
             label={`${report.timing.deliveredItems} delivered items`}
-            valueLabel={formatMinutes(report.timing.averageCollectionMinutes)}
+            valueLabel={formatMinutes(report.timing.averageHandoffMinutes)}
           />
         </CardContent>
       </Card>

@@ -21,7 +21,7 @@ checks pass in every deployment cell.
 Foodie should first launch as a cloud ordering and counter-service POS for:
 
 - Quick-service restaurants.
-- Takeaway and collection businesses.
+- Takeaway and counter-service businesses.
 - Bars and counter-service venues.
 - Restaurants using customer QR or online payments.
 
@@ -156,8 +156,9 @@ These changes should be designed before real tenants build transaction history.
 
 ## Now: Core Restaurant Operations
 
-- [x] Add fulfilment types: dine-in, takeaway, collection and delivery.
+- [x] Add fulfilment types: dine-in, takeaway and delivery.
 - [x] Add promised or scheduled fulfilment time.
+- [x] Keep staff-created dine-in checks open for additional items and final settlement.
 - [x] Add basic discount and comp actions with reason codes.
 - [x] Add granular staff permissions instead of role-only action access.
 - [x] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
@@ -226,6 +227,9 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 ## Conditional: Full-Service Restaurant Module
 
 Move this section into **Now** before onboarding full-service table restaurants.
+
+The current dine-in foundation supports one open check with repeated item sends and
+one final settlement. It does not yet model a table session, seats, courses or split bills.
 
 - [ ] Add restaurant floor plans.
 - [ ] Add structured dining tables instead of free-text table numbers.

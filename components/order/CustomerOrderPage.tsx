@@ -26,6 +26,11 @@ type CustomerOrderPageProps = {
   customerAuthProviders: CustomerAuthProviders;
   orderingPointQrSlug?: string;
   inventoryEnabled?: boolean;
+  openDineInOrder?: {
+    customerName: string;
+    id: string;
+    orderNo: number;
+  } | null;
   phoneVerificationPolicy: CustomerPhoneVerificationPolicy;
   routeSlug?: string;
   stripePaymentsEnabled?: boolean;
@@ -46,6 +51,7 @@ export function CustomerOrderPage({
   customerAuthProviders,
   orderingPointQrSlug,
   inventoryEnabled = true,
+  openDineInOrder,
   phoneVerificationPolicy,
   routeSlug,
   stripePaymentsEnabled = true,
@@ -112,6 +118,7 @@ export function CustomerOrderPage({
         customer={customer}
         customerAuthProviders={customerAuthProviders}
         isStaffOrder={Boolean(user)}
+        openDineInOrder={openDineInOrder}
         orderingPointQrSlug={orderingPointQrSlug}
         phoneVerificationPolicy={phoneVerificationPolicy}
         routeSlug={routeSlug}

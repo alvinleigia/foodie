@@ -1,4 +1,4 @@
-import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne, not, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -21,6 +21,7 @@ import {
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { calculateTaxPricing } from "@/lib/tax-pricing";
 import { findActiveDiscountAdjustment } from "@/lib/order-adjustments";
+import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
 
 const activeOrderStatuses: OrderStatus[] = [
   "PENDING",
@@ -52,6 +53,15 @@ function activeOrderRank() {
 
 function pastOrderClosedAt() {
   return sql<Date>`coalesce(${orders.deliveredAt}, ${orders.cancelledAt}, ${orders.createdAt})`;
+}
+
+function openDineInCheckFilter() {
+  return and(
+    eq(orders.source, "STAFF_CREATED"),
+    eq(orders.fulfilmentType, "DINE_IN"),
+    ne(orders.status, "CANCELLED"),
+    inArray(orders.paymentStatus, ["UNPAID", "PARTIALLY_PAID", "PENDING"]),
+  )!;
 }
 
 export function isActiveOrderStatus(status: OrderStatus) {
@@ -232,6 +242,19 @@ export function serializeOrder(
     customerName: order.customerName,
     source: order.source,
     fulfilmentType: order.fulfilmentType,
+    deliveryAddress:
+      order.fulfilmentType === "DELIVERY" &&
+      order.deliveryAddressLine1 &&
+      order.deliveryCity &&
+      order.deliveryPostalCode
+        ? {
+            line1: order.deliveryAddressLine1,
+            line2: order.deliveryAddressLine2,
+            city: order.deliveryCity,
+            postalCode: order.deliveryPostalCode,
+            instructions: order.deliveryInstructions,
+          }
+        : null,
     requestedFulfilmentAt: order.requestedFulfilmentAt?.toISOString() ?? null,
     promisedFulfilmentAt: order.promisedFulfilmentAt?.toISOString() ?? null,
     categoryName: order.categoryName,
@@ -343,7 +366,10 @@ export async function getActiveOrders(context: TenantContext = getDefaultTenantC
     .where(
       and(
         eq(orders.organizationId, context.organizationId),
-        inArray(orders.status, activeOrderStatuses),
+        or(
+          inArray(orders.status, activeOrderStatuses),
+          openDineInCheckFilter(),
+        ),
       ),
     )
     .orderBy(activeOrderRank(), desc(orders.createdAt));
@@ -360,6 +386,7 @@ export async function getStaffOrders(
     const pastOrderFilter = and(
       eq(orders.organizationId, context.organizationId),
       inArray(orders.status, pastOrderStatuses),
+      not(openDineInCheckFilter()),
       or(
         inArray(orders.paymentStatus, [
           "NOT_REQUIRED",
@@ -416,7 +443,10 @@ export async function getStaffOrders(
     .where(
       and(
         eq(orders.organizationId, context.organizationId),
-        inArray(orders.status, activeOrderStatuses),
+        or(
+          inArray(orders.status, activeOrderStatuses),
+          openDineInCheckFilter(),
+        ),
         or(
           inArray(orders.paymentStatus, [
             "NOT_REQUIRED",
@@ -445,6 +475,32 @@ export async function getStaffOrders(
     total: activeOrders.length,
     totalPages: 1,
     view,
+  };
+}
+
+export async function getAppendableDineInOrder(
+  orderId: string,
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const [order] = await getDb()
+    .select()
+    .from(orders)
+    .where(
+      and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, context.organizationId),
+      ),
+    )
+    .limit(1);
+
+  if (!order || !canAppendToDineInCheck(order)) {
+    return null;
+  }
+
+  return {
+    customerName: order.customerName,
+    id: order.id,
+    orderNo: order.orderNo,
   };
 }
 

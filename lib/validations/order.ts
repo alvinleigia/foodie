@@ -13,6 +13,17 @@ export const createOrderSchema = z
       .max(80, "Name is too long")
       .optional(),
     fulfilmentType: z.enum(orderFulfilmentTypes),
+    openDineInOrderId: z.string().uuid("Choose a valid open dine-in check").optional(),
+    deliveryAddress: z
+      .object({
+        line1: z.string().trim().min(1, "Address line 1 is required").max(120),
+        line2: z.string().trim().max(120).optional().or(z.literal("")),
+        city: z.string().trim().min(1, "Town or city is required").max(80),
+        postalCode: z.string().trim().min(1, "Postcode is required").max(24),
+        instructions: z.string().trim().max(300).optional().or(z.literal("")),
+      })
+      .nullable()
+      .optional(),
     scheduledFulfilmentAt: z.iso.datetime().nullable().optional(),
     items: z
       .array(
@@ -33,6 +44,23 @@ export const createOrderSchema = z
         }),
       )
       .min(1, "Add at least one drink"),
+  })
+  .superRefine((order, context) => {
+    if (order.fulfilmentType === "DELIVERY" && !order.deliveryAddress) {
+      context.addIssue({
+        code: "custom",
+        message: "Delivery address is required",
+        path: ["deliveryAddress"],
+      });
+    }
+
+    if (order.openDineInOrderId && order.fulfilmentType !== "DINE_IN") {
+      context.addIssue({
+        code: "custom",
+        message: "Only dine-in checks can accept additional items",
+        path: ["openDineInOrderId"],
+      });
+    }
   });
 
 export const customerCancelOrderSchema = z.object({

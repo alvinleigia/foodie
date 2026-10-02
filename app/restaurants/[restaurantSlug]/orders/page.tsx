@@ -42,6 +42,7 @@ export default async function RestaurantOrdersPage({
       }}
     >
       <StaffOrderBoard
+        canCreateOrders={session.user.permissions.includes("orders.create")}
         restaurantSlug={access.restaurant.slug}
         staffBillingEnabled={staffBillingEnabled}
         stripePaymentsEnabled={stripePaymentsEnabled}
