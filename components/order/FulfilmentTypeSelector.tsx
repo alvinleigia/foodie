@@ -3,7 +3,6 @@
 import {
   BikeIcon,
   ShoppingBagIcon,
-  StoreIcon,
   UtensilsIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -17,8 +16,7 @@ import {
 
 const fulfilmentIcons: Record<OrderFulfilmentType, LucideIcon> = {
   DINE_IN: UtensilsIcon,
-  TAKEAWAY: ShoppingBagIcon,
-  COLLECTION: StoreIcon,
+  PICKUP: ShoppingBagIcon,
   DELIVERY: BikeIcon,
 };
 
@@ -36,7 +34,7 @@ export function FulfilmentTypeSelector({
       <legend className="text-sm font-semibold text-stone-950">
         How should this order be fulfilled?
       </legend>
-      <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {orderFulfilmentTypes.map((type) => {
           const Icon = fulfilmentIcons[type];
           const selected = value === type;

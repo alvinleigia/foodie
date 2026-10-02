@@ -161,7 +161,7 @@ test.describe("prep station foundation", () => {
       "New preparation items will appear here automatically.",
     );
     expect(orderFormSource).toContain("preparation queue");
-    expect(staffOrderBoardSource).toContain("ready for collection");
+    expect(staffOrderBoardSource).toContain("your order is ready");
     expect(orderFormSource).not.toContain("bar queue");
     expect(staffOrderBoardSource).not.toContain("from the bar");
   });

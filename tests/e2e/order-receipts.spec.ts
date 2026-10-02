@@ -29,7 +29,7 @@ function receiptFixture(): OrderReceipt {
     customerName: "A & B",
     discountAmount: "0.00",
     finalTotalAmount: "7.50",
-    fulfilmentType: "COLLECTION",
+    fulfilmentType: "PICKUP",
     requestedFulfilmentAt: null,
     promisedFulfilmentAt: null,
     invoiceCustomerAddressLine1: null,
@@ -103,7 +103,7 @@ test.describe("order receipts", () => {
 
     expect(email.subject).toBe("Cafe & Co receipt R-000007");
     expect(email.textBody).toContain("Total: £7.50");
-    expect(email.textBody).toContain("Fulfilment: Collection");
+    expect(email.textBody).toContain("Fulfilment: Takeaway");
     expect(email.htmlBody).toContain("Lunch &lt;special&gt;");
     expect(email.htmlBody).not.toContain("Lunch <special>");
   });

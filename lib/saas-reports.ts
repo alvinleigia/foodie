@@ -86,7 +86,7 @@ export type TimingReport = {
   preparedItems: number;
   deliveredItems: number;
   averagePrepMinutes: number | null;
-  averageCollectionMinutes: number | null;
+  averageHandoffMinutes: number | null;
 };
 
 export type CancelledItemReportRow = {
@@ -342,7 +342,7 @@ async function getTimingReport(
       preparedItems: 0,
       deliveredItems: 0,
       averagePrepMinutes: null,
-      averageCollectionMinutes: null,
+      averageHandoffMinutes: null,
     };
   }
 
@@ -357,7 +357,7 @@ async function getTimingReport(
       preparedItems: sql<number>`count(*) filter (where ${orderItems.startedAt} is not null and ${orderItems.readyAt} is not null)`,
       deliveredItems: sql<number>`count(*) filter (where ${orderItems.readyAt} is not null and ${orderItems.deliveredAt} is not null)`,
       averagePrepMinutes: sql<number | null>`avg(extract(epoch from (${orderItems.readyAt} - ${orderItems.startedAt})) / 60) filter (where ${orderItems.startedAt} is not null and ${orderItems.readyAt} is not null)`,
-      averageCollectionMinutes: sql<number | null>`avg(extract(epoch from (${orderItems.deliveredAt} - ${orderItems.readyAt})) / 60) filter (where ${orderItems.readyAt} is not null and ${orderItems.deliveredAt} is not null)`,
+      averageHandoffMinutes: sql<number | null>`avg(extract(epoch from (${orderItems.deliveredAt} - ${orderItems.readyAt})) / 60) filter (where ${orderItems.readyAt} is not null and ${orderItems.deliveredAt} is not null)`,
     })
     .from(orderItems)
     .where(and(...conditions));
@@ -369,10 +369,10 @@ async function getTimingReport(
     deliveredItems: Number(row?.deliveredItems ?? 0),
     averagePrepMinutes:
       row?.averagePrepMinutes == null ? null : Number(row.averagePrepMinutes),
-    averageCollectionMinutes:
-      row?.averageCollectionMinutes == null
+    averageHandoffMinutes:
+      row?.averageHandoffMinutes == null
         ? null
-        : Number(row.averageCollectionMinutes),
+        : Number(row.averageHandoffMinutes),
   };
 }
 
@@ -1242,12 +1242,12 @@ export function exportOperationalReportCsv(report: OperationalReport, title: str
     ),
     "",
     csvRow(["Timing"]),
-    csvRow(["Prepared items", "Average prep minutes", "Delivered items", "Average collection minutes"]),
+    csvRow(["Prepared items", "Average prep minutes", "Delivered items", "Average handoff minutes"]),
     csvRow([
       report.timing.preparedItems,
       report.timing.averagePrepMinutes?.toFixed(2) ?? "",
       report.timing.deliveredItems,
-      report.timing.averageCollectionMinutes?.toFixed(2) ?? "",
+      report.timing.averageHandoffMinutes?.toFixed(2) ?? "",
     ]),
     "",
     csvRow(["Order status"]),

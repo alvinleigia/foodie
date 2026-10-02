@@ -71,6 +71,18 @@ import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
+import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
+import { deriveOrderStatusFromItems } from "@/lib/order-status";
+
+class OpenDineInCheckError extends Error {
+  status: number;
+
+  constructor(message: string, status = 409) {
+    super(message);
+    this.name = "OpenDineInCheckError";
+    this.status = status;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -174,6 +186,13 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    if (parsed.data.openDineInOrderId && session.user.kind !== "staff") {
+      return NextResponse.json(
+        { error: "Only restaurant staff can add items to an open dine-in check." },
+        { status: 403 },
+      );
     }
 
     const scheduledFulfilmentAt = parsed.data.scheduledFulfilmentAt
@@ -493,62 +512,111 @@ export async function POST(request: NextRequest) {
     );
 
     const createdOrder = await db.transaction(async (tx) => {
-      const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
       const now = new Date();
-      const [newOrder] = await tx
-        .insert(orders)
-        .values({
-          organizationId: tenantContext.organizationId,
-          orderingPointId: tenantContext.orderingPointId,
-          orderDate,
-          orderNo,
-          customerName: orderCustomerName,
-          customerToken,
-          customerId:
-            session.user.kind === "customer"
-              ? customerProfile?.customerId ?? null
-              : linkedStaffCustomer?.customerId ?? null,
-          organizationCustomerId:
-            session.user.kind === "customer"
-              ? customerProfile?.id ?? null
-              : linkedStaffCustomer?.id ?? null,
-          createdByUserId: session.user.kind === "staff" ? session.user.id : null,
-          source:
-            session.user.kind === "staff" ? "STAFF_CREATED" : "CUSTOMER_SELF_SERVICE",
-          fulfilmentType: parsed.data.fulfilmentType,
-          requestedFulfilmentAt:
-            session.user.kind === "customer" ? scheduledFulfilmentAt : null,
-          promisedFulfilmentAt:
-            session.user.kind === "staff" ? scheduledFulfilmentAt : null,
-          paymentStatus:
-            session.user.kind === "customer" ? "PENDING" : "UNPAID",
-          paymentAmount: orderPricing?.amountTotal ?? null,
-          paymentCurrency: orderPricing?.currency ?? currency,
-          ...(customerFinancialSnapshot
-            ? {
-                ...customerFinancialSnapshot,
-                financialSnapshotAt: now,
-              }
-            : {}),
-          paymentAccountOrganizationId:
-            paymentIntegration?.status === "CONFIGURED"
-              ? paymentIntegration.organizationId
-              : null,
-          stripeConnectedAccountId:
-            paymentIntegration?.status === "CONFIGURED"
-              ? paymentIntegration.stripeAccountId
-              : null,
-          paymentExpiresAt,
-          taxPricingModeSnapshot: taxPricing.pricingMode,
-          taxRateBpsSnapshot: orderTaxRateSnapshot,
-          customerCancellationFeeBpsSnapshot:
-            restaurantPolicy.customerCancellationFeeBps,
-          categoryId: cartItems[0].categoryId,
-          categoryName: summaryCategoryName,
-          drinkId: cartItems[0].drinkId,
-          drinkName: summaryDrinkName,
-        })
-        .returning();
+      let targetOrder: typeof orders.$inferSelect;
+
+      if (parsed.data.openDineInOrderId) {
+        const [openOrder] = await tx
+          .select()
+          .from(orders)
+          .where(
+            and(
+              eq(orders.id, parsed.data.openDineInOrderId),
+              eq(orders.organizationId, tenantContext.organizationId),
+            ),
+          )
+          .limit(1)
+          .for("update");
+
+        if (!openOrder || !canAppendToDineInCheck(openOrder)) {
+          throw new OpenDineInCheckError(
+            "This dine-in check can no longer accept additional items. Refresh the orders panel.",
+          );
+        }
+
+        targetOrder = openOrder;
+      } else {
+        const orderNo = await getNextOrderNumber(tx, tenantContext, orderDate);
+        const [newOrder] = await tx
+          .insert(orders)
+          .values({
+            organizationId: tenantContext.organizationId,
+            orderingPointId: tenantContext.orderingPointId,
+            orderDate,
+            orderNo,
+            customerName: orderCustomerName,
+            customerToken,
+            customerId:
+              session.user.kind === "customer"
+                ? customerProfile?.customerId ?? null
+                : linkedStaffCustomer?.customerId ?? null,
+            organizationCustomerId:
+              session.user.kind === "customer"
+                ? customerProfile?.id ?? null
+                : linkedStaffCustomer?.id ?? null,
+            createdByUserId:
+              session.user.kind === "staff" ? session.user.id : null,
+            source:
+              session.user.kind === "staff"
+                ? "STAFF_CREATED"
+                : "CUSTOMER_SELF_SERVICE",
+            fulfilmentType: parsed.data.fulfilmentType,
+            deliveryAddressLine1:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.line1
+                : null,
+            deliveryAddressLine2:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.line2 || null
+                : null,
+            deliveryCity:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.city
+                : null,
+            deliveryPostalCode:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.postalCode
+                : null,
+            deliveryInstructions:
+              parsed.data.fulfilmentType === "DELIVERY"
+                ? parsed.data.deliveryAddress?.instructions || null
+                : null,
+            requestedFulfilmentAt:
+              session.user.kind === "customer" ? scheduledFulfilmentAt : null,
+            promisedFulfilmentAt:
+              session.user.kind === "staff" ? scheduledFulfilmentAt : null,
+            paymentStatus:
+              session.user.kind === "customer" ? "PENDING" : "UNPAID",
+            paymentAmount: orderPricing?.amountTotal ?? null,
+            paymentCurrency: orderPricing?.currency ?? currency,
+            ...(customerFinancialSnapshot
+              ? {
+                  ...customerFinancialSnapshot,
+                  financialSnapshotAt: now,
+                }
+              : {}),
+            paymentAccountOrganizationId:
+              paymentIntegration?.status === "CONFIGURED"
+                ? paymentIntegration.organizationId
+                : null,
+            stripeConnectedAccountId:
+              paymentIntegration?.status === "CONFIGURED"
+                ? paymentIntegration.stripeAccountId
+                : null,
+            paymentExpiresAt,
+            taxPricingModeSnapshot: taxPricing.pricingMode,
+            taxRateBpsSnapshot: orderTaxRateSnapshot,
+            customerCancellationFeeBpsSnapshot:
+              restaurantPolicy.customerCancellationFeeBps,
+            categoryId: cartItems[0].categoryId,
+            categoryName: summaryCategoryName,
+            drinkId: cartItems[0].drinkId,
+            drinkName: summaryDrinkName,
+          })
+          .returning();
+
+        targetOrder = newOrder;
+      }
 
       for (const [itemIndex, item] of cartItems.entries()) {
         const lineTaxSnapshot = orderLineTaxSnapshots[itemIndex];
@@ -562,7 +630,7 @@ export async function POST(request: NextRequest) {
           .insert(orderItems)
           .values({
             organizationId: tenantContext.organizationId,
-            orderId: newOrder.id,
+            orderId: targetOrder.id,
             categoryId: item.categoryId,
             categoryName: item.categoryName,
             drinkId: item.drinkId,
@@ -584,7 +652,7 @@ export async function POST(request: NextRequest) {
           await tx.insert(orderItemTaxComponents).values(
             lineTaxSnapshot.components.map((component) => ({
               organizationId: tenantContext.organizationId,
-              orderId: newOrder.id,
+              orderId: targetOrder.id,
               orderItemId: newOrderItem.id,
               taxDefinitionId: component.definitionId,
               taxCodeSnapshot: component.code,
@@ -616,7 +684,74 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      return newOrder;
+      if (!parsed.data.openDineInOrderId) {
+        return targetOrder;
+      }
+
+      const currentItems = await tx
+        .select()
+        .from(orderItems)
+        .where(
+          and(
+            eq(orderItems.orderId, targetOrder.id),
+            eq(orderItems.organizationId, tenantContext.organizationId),
+          ),
+        );
+      const activeItems = currentItems.filter(
+        (item) => item.status !== "CANCELLED",
+      );
+      const firstItem = activeItems[0];
+
+      if (!firstItem) {
+        throw new OpenDineInCheckError(
+          "This dine-in check has no active items.",
+        );
+      }
+
+      const categoryNames = Array.from(
+        new Set(activeItems.map((item) => item.categoryName)),
+      );
+      const nextStatus = deriveOrderStatusFromItems(
+        currentItems.map((item) => item.status),
+        targetOrder.status,
+      );
+      const [updatedOrder] = await tx
+        .update(orders)
+        .set({
+          cancelledAt: null,
+          cancelledByType: null,
+          cancelledByUserId: null,
+          categoryId: firstItem.categoryId,
+          categoryName:
+            categoryNames.length === 1
+              ? categoryNames[0]
+              : `${categoryNames.length} categories`,
+          deliveredAt: null,
+          drinkId: firstItem.drinkId,
+          drinkName: buildOrderSummary(activeItems),
+          paymentAmount: null,
+          preparedById: null,
+          readyAt: null,
+          startedAt: nextStatus === "PENDING" ? null : targetOrder.startedAt,
+          status: nextStatus,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(orders.id, targetOrder.id),
+            eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.paymentStatus, "UNPAID"),
+          ),
+        )
+        .returning();
+
+      if (!updatedOrder) {
+        throw new OpenDineInCheckError(
+          "This dine-in check changed while items were being added. Refresh and try again.",
+        );
+      }
+
+      return updatedOrder;
     });
 
     let checkoutUrl: string | null = null;
@@ -722,13 +857,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const responseItems = parsed.data.openDineInOrderId
+      ? (await getOrderItemsForOrders([createdOrder.id], tenantContext)).get(
+          createdOrder.id,
+        ) ?? []
+      : cartItems.map((item, itemIndex) => ({
+          ...item,
+          ...orderLineTaxSnapshots[itemIndex],
+        }));
+
     return NextResponse.json({
       ...serializeOrder(
         createdOrder,
-        cartItems.map((item, itemIndex) => ({
-          ...item,
-          ...orderLineTaxSnapshots[itemIndex],
-        })),
+        responseItems,
       ),
       checkoutUrl,
       currency,
@@ -741,6 +882,10 @@ export async function POST(request: NextRequest) {
 
     if (error instanceof FeatureEntitlementError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+
+    if (error instanceof OpenDineInCheckError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
     }
 
     return NextResponse.json(

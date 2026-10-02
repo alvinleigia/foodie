@@ -17,7 +17,7 @@ function source(relativePath: string) {
 
 function orderRequest(scheduledFulfilmentAt: string | null) {
   return {
-    fulfilmentType: "COLLECTION",
+    fulfilmentType: "PICKUP",
     scheduledFulfilmentAt,
     items: [
       {

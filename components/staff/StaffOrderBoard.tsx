@@ -120,7 +120,7 @@ type CorrectionTarget =
     };
 
 function playAnnouncement(customerName: string, drinkName: string) {
-  const message = `${customerName}, your ${drinkName} is ready for collection.`;
+  const message = `${customerName}, your ${drinkName} is ready.`;
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.rate = 0.9;
   utterance.pitch = 1;
@@ -128,7 +128,7 @@ function playAnnouncement(customerName: string, drinkName: string) {
 }
 
 function playOrderAnnouncement(customerName: string) {
-  const message = `${customerName}, your order is ready for collection.`;
+  const message = `${customerName}, your order is ready.`;
   const utterance = new SpeechSynthesisUtterance(message);
   utterance.rate = 0.9;
   utterance.pitch = 1;
@@ -143,10 +143,12 @@ function formatMoney(amount: number, currency: string) {
 }
 
 export function StaffOrderBoard({
+  canCreateOrders = false,
   restaurantSlug,
   staffBillingEnabled = true,
   stripePaymentsEnabled = true,
 }: {
+  canCreateOrders?: boolean;
   restaurantSlug: string;
   staffBillingEnabled?: boolean;
   stripePaymentsEnabled?: boolean;
@@ -1273,6 +1275,7 @@ export function StaffOrderBoard({
               onCancelPayment={cancelPaymentRequest}
               onEmailReceipt={emailReceipt}
               canCorrectStatuses={orders.canCorrectStatuses}
+              canCreateOrders={canCreateOrders}
               canManageRefunds={orders.canManageRefunds}
               canSettleBills={staffBillingEnabled}
               onRetryRefund={retryRefund}

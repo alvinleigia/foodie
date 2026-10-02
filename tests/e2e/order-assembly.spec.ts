@@ -37,6 +37,9 @@ test.describe("order final assembly", () => {
     expect(deriveOrderStatusFromItems(["DELIVERED", "CANCELLED"])).toBe(
       "DELIVERED",
     );
+    expect(deriveOrderStatusFromItems(["DELIVERED", "PENDING"])).toBe(
+      "PENDING",
+    );
   });
 
   test("requires final assembly before item handoff", () => {

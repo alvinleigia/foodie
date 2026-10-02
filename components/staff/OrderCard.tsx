@@ -1,17 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import {
   BanknoteIcon,
   BadgePercentIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   CirclePlayIcon,
   ClockIcon,
   CookingPotIcon,
   CreditCardIcon,
   MailIcon,
+  MapPinIcon,
   MegaphoneIcon,
   PackageIcon,
+  PlusIcon,
   RefreshCwIcon,
   ReceiptTextIcon,
   RotateCcwIcon,
@@ -48,6 +53,11 @@ import {
   staffOrderAdjustmentReasonLabels,
   type StaffOrderAdjustmentReasonCode,
 } from "@/lib/order-adjustments";
+import {
+  canAppendToDineInCheck,
+  isOpenDineInCheck,
+} from "@/lib/dine-in-checks";
+import { getStaffRestaurantAddItemsHref } from "@/lib/staff-restaurant-navigation";
 
 export type StaffOrder = {
   orderId: string;
@@ -56,6 +66,13 @@ export type StaffOrder = {
   customerName: string;
   source: "CUSTOMER_SELF_SERVICE" | "STAFF_CREATED";
   fulfilmentType: OrderFulfilmentType;
+  deliveryAddress: {
+    line1: string;
+    line2: string | null;
+    city: string;
+    postalCode: string;
+    instructions: string | null;
+  } | null;
   requestedFulfilmentAt: string | null;
   promisedFulfilmentAt: string | null;
   categoryName: string;
@@ -158,6 +175,7 @@ type OrderCardProps = {
   onCancelPayment: (order: StaffOrder) => Promise<void>;
   onEmailReceipt: (order: StaffOrder) => Promise<void>;
   canCorrectStatuses: boolean;
+  canCreateOrders: boolean;
   canManageRefunds: boolean;
   canSettleBills: boolean;
   onRetryRefund: (order: StaffOrder) => Promise<void>;
@@ -181,13 +199,19 @@ export function OrderCard({
   onCancelPayment,
   onEmailReceipt,
   canCorrectStatuses,
+  canCreateOrders,
   canManageRefunds,
   canSettleBills,
   onRetryRefund,
   pendingAction,
   disabled,
 }: OrderCardProps) {
-  const closedAt = order.deliveredAt ?? order.cancelledAt;
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const openDineInCheck = isOpenDineInCheck(order);
+  const canAddItems = canCreateOrders && canAppendToDineInCheck(order);
+  const closedAt = openDineInCheck
+    ? null
+    : order.deliveredAt ?? order.cancelledAt;
   const orderDisplay = formatOrderDisplay(order);
   const itemCount =
     order.itemCount ?? order.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 1;
@@ -646,10 +670,104 @@ export function OrderCard({
             </div>
           </div>
         </div>
-        <OrderStatusBadge status={order.status} />
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            {openDineInCheck ? (
+              <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase text-emerald-800">
+                Open check
+              </span>
+            ) : null}
+            <OrderStatusBadge status={order.status} />
+          </div>
+          {openDineInCheck ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              title={isCollapsed ? "Expand check" : "Minimize check"}
+              aria-label={isCollapsed ? "Expand check" : "Minimize check"}
+              aria-expanded={!isCollapsed}
+              onClick={() => setIsCollapsed((current) => !current)}
+              className="size-8 text-stone-500 hover:text-stone-900"
+            >
+              {isCollapsed ? (
+                <ChevronDownIcon aria-hidden="true" />
+              ) : (
+                <ChevronUpIcon aria-hidden="true" />
+              )}
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
 
+      {isCollapsed ? (
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-5">
+          <p className="text-sm text-stone-600">
+            {itemCount} item(s) on this open dine-in check.
+          </p>
+          {canAddItems ? (
+            <Button asChild variant="outline">
+              <Link
+                href={getStaffRestaurantAddItemsHref(
+                  restaurantSlug,
+                  order.orderId,
+                )}
+              >
+                <ButtonLabel icon={PlusIcon}>Add items</ButtonLabel>
+              </Link>
+            </Button>
+          ) : null}
+        </CardContent>
+      ) : (
       <CardContent className="px-5 pt-4 pb-5">
+        {openDineInCheck ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+            <div>
+              <p className="text-sm font-semibold text-emerald-950">
+                Dine-in check remains open
+              </p>
+              <p className="mt-0.5 text-xs text-emerald-800">
+                Add items as the guest orders, then settle the complete bill at the end.
+              </p>
+            </div>
+            {canAddItems ? (
+              <Button asChild className="bg-stone-950 text-white hover:bg-stone-800">
+                <Link
+                  href={getStaffRestaurantAddItemsHref(
+                    restaurantSlug,
+                    order.orderId,
+                  )}
+                >
+                  <ButtonLabel icon={PlusIcon}>Add items</ButtonLabel>
+                </Link>
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+        {order.fulfilmentType === "DELIVERY" && order.deliveryAddress ? (
+          <div className="mb-4 flex gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-sm text-stone-700">
+            <MapPinIcon className="mt-0.5 size-4 shrink-0 text-stone-500" />
+            <div>
+              <p className="font-semibold text-stone-900">Delivery address</p>
+              <p>
+                {[
+                  order.deliveryAddress.line1,
+                  order.deliveryAddress.line2,
+                  order.deliveryAddress.city,
+                  order.deliveryAddress.postalCode,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </p>
+              {order.deliveryAddress.instructions ? (
+                <p className="mt-1 text-stone-600">
+                  {order.deliveryAddress.instructions}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
         {closedAt ? (
           <p className="mt-2 text-sm text-stone-500">
             {order.status === "DELIVERED" ? "Delivered" : "Cancelled"}{" "}
@@ -858,6 +976,7 @@ export function OrderCard({
           </div>
         ) : null}
       </CardContent>
+      )}
     </Card>
   );
 }
