@@ -115,6 +115,10 @@ export const customerCancelOrderSchema = z.object({
   cancelReason: z.string().trim().max(200).optional(),
 });
 
+export const claimGuestOrderSchema = z.object({
+  customerToken: z.string().min(20),
+});
+
 export const staffCancelOrderSchema = z.object({
   applyCustomerCancellationFee: z.boolean().default(false),
   cancellationFeePercent: z.coerce.number().min(0).max(100).optional(),

@@ -74,6 +74,7 @@ import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
 import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
 import { isCheckoutContactValid } from "@/lib/checkout-policy";
+import { supportsScheduledFulfilment } from "@/lib/order-fulfilment";
 
 class OpenDineInCheckError extends Error {
   status: number;
@@ -196,9 +197,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const scheduledFulfilmentAt = parsed.data.scheduledFulfilmentAt
-      ? new Date(parsed.data.scheduledFulfilmentAt)
-      : null;
+    const scheduledFulfilmentAt =
+      supportsScheduledFulfilment(parsed.data.fulfilmentType) &&
+      parsed.data.scheduledFulfilmentAt
+        ? new Date(parsed.data.scheduledFulfilmentAt)
+        : null;
     const fulfilmentTimeError = scheduledFulfilmentAt
       ? validateFutureFulfilmentTime(scheduledFulfilmentAt)
       : null;

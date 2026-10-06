@@ -29,6 +29,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
     customer,
     customerAccountsEnabled,
     hasTenantContext,
+    tenantContext,
     unavailableReason,
     user,
   } =
@@ -82,6 +83,7 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
             />
           )}
           <CustomerOrderStatus
+            organizationId={tenantContext!.organizationId}
             orderingPointQrSlug={orderingPointQrSlug}
             routeSlug={routeSlug}
             refreshKey={0}

@@ -90,6 +90,7 @@ export type LocalCustomerOrder = {
   customerEmail?: string | null;
   customerPhone?: string | null;
   checkoutMode?: "GUEST" | "ACCOUNT" | "STAFF";
+  isAccountLinked?: boolean;
   paymentTiming?: "ONLINE" | "PAY_LATER" | null;
   fulfilmentType: OrderFulfilmentType;
   deliveryAddress?: {

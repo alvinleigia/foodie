@@ -24,3 +24,7 @@ export const orderFulfilmentDescriptions: Record<
 export function getOrderFulfilmentLabel(type: OrderFulfilmentType) {
   return orderFulfilmentLabels[type];
 }
+
+export function supportsScheduledFulfilment(type: OrderFulfilmentType) {
+  return type !== "DINE_IN";
+}

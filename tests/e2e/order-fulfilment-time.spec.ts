@@ -7,6 +7,7 @@ import {
   getEffectiveFulfilmentTime,
   validateFutureFulfilmentTime,
 } from "@/lib/order-fulfilment-time";
+import { supportsScheduledFulfilment } from "@/lib/order-fulfilment";
 import { createOrderSchema } from "@/lib/validations/order";
 
 const root = process.cwd();
@@ -58,6 +59,22 @@ test.describe("order fulfilment timing", () => {
     ).toContain("30 days");
   });
 
+  test("only schedules takeaway and delivery orders", () => {
+    expect(supportsScheduledFulfilment("DINE_IN")).toBe(false);
+    expect(supportsScheduledFulfilment("PICKUP")).toBe(true);
+    expect(supportsScheduledFulfilment("DELIVERY")).toBe(true);
+
+    const api = source("app/api/orders/route.ts");
+    const orderForm = source("components/order/OrderForm.tsx");
+
+    expect(api).toContain(
+      "supportsScheduledFulfilment(parsed.data.fulfilmentType)",
+    );
+    expect(orderForm).toContain(
+      "supportsScheduledFulfilment(draft.fulfilmentType) ? (",
+    );
+  });
+
   test("prefers the restaurant promise over the customer request", () => {
     expect(
       getEffectiveFulfilmentTime({
@@ -79,8 +96,8 @@ test.describe("order fulfilment timing", () => {
     );
     const migration = source("drizzle/0048_order_fulfilment_times.sql");
 
-    expect(api).toContain('session.user.kind === "customer" ? scheduledFulfilmentAt');
-    expect(api).toContain('session.user.kind === "staff" ? scheduledFulfilmentAt');
+    expect(api).toContain("!isStaff ? scheduledFulfilmentAt : null");
+    expect(api).toContain("isStaff ? scheduledFulfilmentAt : null");
     expect(staffApi).toContain('action: "order.fulfilment_time_updated"');
     expect(migration).toContain('ADD COLUMN "requested_fulfilment_at"');
     expect(migration).toContain('ADD COLUMN "promised_fulfilment_at"');

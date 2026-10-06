@@ -648,6 +648,7 @@ export async function getCustomerPaymentResult(
 ) {
   const [order] = await getDb()
     .select({
+      checkoutMode: orders.checkoutMode,
       customerName: orders.customerName,
       orderId: orders.id,
       orderNo: orders.orderNo,
@@ -673,6 +674,7 @@ export async function getGuestPaymentResult(
 ) {
   const [order] = await getDb()
     .select({
+      checkoutMode: orders.checkoutMode,
       customerName: orders.customerName,
       orderId: orders.id,
       orderNo: orders.orderNo,
