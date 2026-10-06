@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CheckCircle2Icon, Clock3Icon, XCircleIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  Clock3Icon,
+  LogInIcon,
+  XCircleIcon,
+} from "lucide-react";
 
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
@@ -9,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { auth } from "@/auth";
 import {
+  getCustomerLoginHref,
   getCustomerOrderHref,
   getCustomerPrivacyHref,
   withPublicCustomerContext,
@@ -67,6 +73,14 @@ export default async function OrderPaymentSuccessPage(
   const isPaid = order.paymentStatus === "PAID";
   const hasFailed =
     order.paymentStatus === "FAILED" || order.paymentStatus === "CANCELLED";
+  const shouldOfferGuestSignIn =
+    order.checkoutMode === "GUEST" && session?.user.kind !== "customer";
+  const primaryHref = shouldOfferGuestSignIn
+    ? getCustomerLoginHref({
+        ...customerContext,
+        returnTo: ordersHref,
+      })
+    : ordersHref;
   const Icon = isPaid ? CheckCircle2Icon : hasFailed ? XCircleIcon : Clock3Icon;
 
   return (
@@ -115,8 +129,14 @@ export default async function OrderPaymentSuccessPage(
           </div>
           <div className="flex flex-wrap justify-center gap-3">
             <Button asChild>
-              <Link href={ordersHref}>
-                <ButtonLabel icon={Clock3Icon}>View your orders</ButtonLabel>
+              <Link href={primaryHref}>
+                <ButtonLabel
+                  icon={shouldOfferGuestSignIn ? LogInIcon : Clock3Icon}
+                >
+                  {shouldOfferGuestSignIn
+                    ? "Sign in to save order"
+                    : "View your orders"}
+                </ButtonLabel>
               </Link>
             </Button>
             <Button asChild variant="outline">

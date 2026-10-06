@@ -36,7 +36,7 @@ export function FulfilmentTypeSelector({
       <legend className="text-sm font-semibold text-stone-950">
         How should this order be fulfilled?
       </legend>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-3 gap-2">
         {allowedTypes.map((type) => {
           const Icon = fulfilmentIcons[type];
           const selected = value === type;

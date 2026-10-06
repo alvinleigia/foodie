@@ -1,12 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ReceiptTextIcon, XIcon } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { Link2Icon, ReceiptTextIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { LocalCustomerOrder, OrderLineItem } from "@/lib/constants";
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { calculateCancellationAmounts } from "@/lib/order-cancellation-financials";
+import {
+  getServerCustomerOrdersSnapshot,
+  getStoredCustomerOrdersSnapshot,
+  parseStoredCustomerOrdersSnapshot,
+  readStoredCustomerOrders,
+  subscribeToStoredCustomerOrders,
+  writeStoredCustomerOrders,
+} from "@/lib/customer-orders";
 import { formatOrderDisplay } from "@/lib/order-display";
 import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
 import {
@@ -51,6 +66,7 @@ type ApiOrder = LocalCustomerOrder & {
 };
 
 type CustomerOrderStatusProps = {
+  organizationId: string;
   orderingPointQrSlug?: string;
   routeSlug?: string;
   refreshKey: number;
@@ -117,6 +133,7 @@ function withPublicContext(path: string, options: { orderingPointQrSlug?: string
 }
 
 export function CustomerOrderStatus({
+  organizationId,
   orderingPointQrSlug,
   routeSlug,
   refreshKey,
@@ -127,16 +144,33 @@ export function CustomerOrderStatus({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedView, setSelectedView] = useState<OrderView>("active");
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [pendingClaimId, setPendingClaimId] = useState<string | null>(null);
+  const [claimRefreshKey, setClaimRefreshKey] = useState(0);
   const [confirmingCancelOrder, setConfirmingCancelOrder] = useState<ApiOrder | null>(null);
   const hasLoadedOrdersRef = useRef(false);
   const ordersContextRef = useRef<string | null>(null);
   const ordersRef = useRef<ApiOrder[]>([]);
   const statusRequestRef = useRef<AbortController | null>(null);
+  const storedOrdersSnapshot = useSyncExternalStore(
+    subscribeToStoredCustomerOrders,
+    getStoredCustomerOrdersSnapshot,
+    getServerCustomerOrdersSnapshot,
+  );
+  const claimableGuestOrders = useMemo(
+    () =>
+      parseStoredCustomerOrdersSnapshot(storedOrdersSnapshot).filter(
+        (order) =>
+          order.organizationId === organizationId &&
+          order.checkoutMode === "GUEST" &&
+          !order.isAccountLinked,
+      ),
+    [organizationId, storedOrdersSnapshot],
+  );
 
   useEffect(() => {
     let isMounted = true;
     let refreshTimeout: number | undefined;
-    const ordersContext = `${orderingPointQrSlug ?? ""}:${routeSlug ?? ""}:${refreshKey}`;
+    const ordersContext = `${orderingPointQrSlug ?? ""}:${routeSlug ?? ""}:${refreshKey}:${claimRefreshKey}`;
 
     if (ordersContextRef.current !== ordersContext) {
       ordersContextRef.current = ordersContext;
@@ -273,7 +307,44 @@ export function CustomerOrderStatus({
         window.clearTimeout(refreshTimeout);
       }
     };
-  }, [orderingPointQrSlug, routeSlug, refreshKey, selectedView]);
+  }, [claimRefreshKey, orderingPointQrSlug, routeSlug, refreshKey, selectedView]);
+
+  async function linkGuestOrder(order: LocalCustomerOrder) {
+    setPendingClaimId(order.orderId);
+    setError(null);
+
+    try {
+      await requestJson(
+        withPublicContext(
+          `/api/orders/${encodeURIComponent(order.orderId)}/claim`,
+          { orderingPointQrSlug, routeSlug },
+        ),
+        {
+          body: { customerToken: order.customerToken },
+          fallbackError: "The guest order could not be added to your account.",
+        },
+      );
+      const storedOrders = readStoredCustomerOrders();
+      writeStoredCustomerOrders(
+        storedOrders.map((storedOrder) =>
+          storedOrder.orderId === order.orderId
+            ? { ...storedOrder, isAccountLinked: true }
+            : storedOrder,
+        ),
+      );
+      setClaimRefreshKey((currentKey) => currentKey + 1);
+      toast.success(`Order #${order.orderNo} added to your account.`);
+    } catch (claimError) {
+      const message = getCaughtErrorMessage(
+        claimError,
+        "The guest order could not be added to your account.",
+      );
+      setError(message);
+      toast.error(message);
+    } finally {
+      setPendingClaimId(null);
+    }
+  }
 
   async function cancelOrder(order: ApiOrder) {
     setPendingCancelId(order.orderId);
@@ -341,6 +412,52 @@ export function CustomerOrderStatus({
         />
       </CardHeader>
       <CardContent className="px-6 pb-6">
+      {claimableGuestOrders.length > 0 ? (
+        <div className="mb-5 grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+          <div className="flex items-start gap-3">
+            <Link2Icon className="mt-0.5 size-5 shrink-0 text-emerald-700" />
+            <div>
+              <p className="font-semibold text-emerald-950">
+                Save guest orders to your account
+              </p>
+              <p className="mt-1 text-sm text-emerald-800">
+                Link an order placed on this device after signing in with the
+                verified email or mobile used at checkout.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {claimableGuestOrders.map((order) => (
+              <div
+                key={order.orderId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-white px-3 py-2"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-stone-950">
+                    Order #{order.orderNo}
+                  </p>
+                  <p className="text-xs text-stone-600">{order.drinkName}</p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={pendingClaimId === order.orderId}
+                  onClick={() => void linkGuestOrder(order)}
+                >
+                  {pendingClaimId === order.orderId ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="text-white" />
+                      Adding...
+                    </span>
+                  ) : (
+                    <ButtonLabel icon={Link2Icon}>Add to my account</ButtonLabel>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <Tabs
         value={selectedView}
         onValueChange={(value) => setSelectedView(value as OrderView)}

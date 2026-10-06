@@ -5,6 +5,9 @@ import {
   LocalCustomerOrder,
 } from "@/lib/constants";
 
+const CUSTOMER_ORDERS_CHANGED_EVENT = "foodie:customer-orders-changed";
+const EMPTY_CUSTOMER_ORDERS_SNAPSHOT = "[]";
+
 function getOrderAgeMs(order: LocalCustomerOrder) {
   const createdTime = new Date(order.createdAt).getTime();
 
@@ -32,26 +35,64 @@ export function pruneCustomerOrders(orders: LocalCustomerOrder[]) {
   return orders.filter(shouldKeepCustomerOrder);
 }
 
-export function readStoredCustomerOrders() {
-  const parsed = JSON.parse(
-    window.localStorage.getItem(CUSTOMER_ORDERS_STORAGE_KEY) ?? "[]",
-  ) as LocalCustomerOrder[];
+export function parseStoredCustomerOrdersSnapshot(snapshot: string) {
+  try {
+    return pruneCustomerOrders(JSON.parse(snapshot) as LocalCustomerOrder[]);
+  } catch {
+    return [];
+  }
+}
 
-  const pruned = pruneCustomerOrders(parsed);
+export function getStoredCustomerOrdersSnapshot() {
+  return (
+    window.localStorage.getItem(CUSTOMER_ORDERS_STORAGE_KEY) ??
+    EMPTY_CUSTOMER_ORDERS_SNAPSHOT
+  );
+}
 
-  if (pruned.length !== parsed.length) {
-    window.localStorage.setItem(CUSTOMER_ORDERS_STORAGE_KEY, JSON.stringify(pruned));
+export function getServerCustomerOrdersSnapshot() {
+  return EMPTY_CUSTOMER_ORDERS_SNAPSHOT;
+}
+
+export function subscribeToStoredCustomerOrders(onStoreChange: () => void) {
+  function handleStorage(event: StorageEvent) {
+    if (!event.key || event.key === CUSTOMER_ORDERS_STORAGE_KEY) {
+      onStoreChange();
+    }
   }
 
-  return pruned;
+  window.addEventListener("storage", handleStorage);
+  window.addEventListener(CUSTOMER_ORDERS_CHANGED_EVENT, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", handleStorage);
+    window.removeEventListener(CUSTOMER_ORDERS_CHANGED_EVENT, onStoreChange);
+  };
+}
+
+function notifyStoredCustomerOrdersChanged() {
+  window.dispatchEvent(new Event(CUSTOMER_ORDERS_CHANGED_EVENT));
+}
+
+export function readStoredCustomerOrders() {
+  const snapshot = getStoredCustomerOrdersSnapshot();
+  const parsed = parseStoredCustomerOrdersSnapshot(snapshot);
+
+  if (JSON.stringify(parsed) !== snapshot) {
+    window.localStorage.setItem(CUSTOMER_ORDERS_STORAGE_KEY, JSON.stringify(parsed));
+  }
+
+  return parsed;
 }
 
 export function writeStoredCustomerOrders(orders: LocalCustomerOrder[]) {
   window.localStorage.setItem(CUSTOMER_ORDERS_STORAGE_KEY, JSON.stringify(pruneCustomerOrders(orders)));
+  notifyStoredCustomerOrdersChanged();
 }
 
 export function clearStoredCustomerOrders() {
   window.localStorage.removeItem(CUSTOMER_ORDERS_STORAGE_KEY);
+  notifyStoredCustomerOrdersChanged();
 }
 
 export function readStoredCustomerOrdersResetMarker() {

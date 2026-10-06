@@ -86,7 +86,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
+import {
+  supportsScheduledFulfilment,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
 import {
   checkoutContactRequirementLabels,
   getPayLaterLabel,
@@ -1102,15 +1105,16 @@ export function OrderForm({
     }
 
     const scheduledFulfilmentAt =
+      supportsScheduledFulfilment(draft.fulfilmentType) &&
       draft.fulfilmentTiming === "SCHEDULED"
         ? new Date(draft.scheduledFulfilmentAt)
         : null;
 
     if (
-      draft.fulfilmentTiming === "SCHEDULED" &&
+      scheduledFulfilmentAt &&
       (!draft.scheduledFulfilmentAt ||
-        Number.isNaN(scheduledFulfilmentAt?.getTime()) ||
-        scheduledFulfilmentAt!.getTime() <= Date.now())
+        Number.isNaN(scheduledFulfilmentAt.getTime()) ||
+        scheduledFulfilmentAt.getTime() <= Date.now())
     ) {
       setError("Choose a future fulfilment time.");
       return;
@@ -1200,8 +1204,13 @@ export function OrderForm({
       orderId: payload.orderId,
       orderNo: payload.orderNo,
       orderDate: payload.orderDate,
+      organizationId: payload.organizationId,
       customerToken: payload.customerToken,
       customerName: payload.customerName,
+      customerEmail: payload.customerEmail,
+      customerPhone: payload.customerPhone,
+      checkoutMode: payload.checkoutMode,
+      paymentTiming: payload.paymentTiming,
       fulfilmentType: payload.fulfilmentType,
       deliveryAddress: payload.deliveryAddress,
       requestedFulfilmentAt: payload.requestedFulfilmentAt,
@@ -1705,6 +1714,8 @@ export function OrderForm({
                   const nextPolicy = checkoutPolicies.find(
                     (policy) => policy.fulfilmentType === fulfilmentType,
                   );
+                  const supportsScheduling =
+                    supportsScheduledFulfilment(fulfilmentType);
                   const nextCheckoutMode =
                     customer && nextPolicy?.accountCheckoutEnabled
                       ? "ACCOUNT"
@@ -1716,10 +1727,16 @@ export function OrderForm({
                     ...currentDraft,
                     fulfilmentType,
                     checkoutMode: nextCheckoutMode,
+                    fulfilmentTiming: supportsScheduling
+                      ? currentDraft.fulfilmentTiming
+                      : "ASAP",
                     paymentTiming:
                       nextCheckoutMode === "GUEST"
                         ? "ONLINE"
                         : nextPolicy?.defaultPaymentTiming ?? "ONLINE",
+                    scheduledFulfilmentAt: supportsScheduling
+                      ? currentDraft.scheduledFulfilmentAt
+                      : "",
                   }));
                   setError(null);
                 }}
@@ -1727,10 +1744,16 @@ export function OrderForm({
             )}
 
             {draft.fulfilmentType === "DELIVERY" ? (
-              <fieldset className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4">
-                <legend className="px-1 text-sm font-semibold text-stone-900">
+              <section
+                aria-labelledby="delivery-address-heading"
+                className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4"
+              >
+                <h3
+                  id="delivery-address-heading"
+                  className="text-sm font-semibold text-stone-900"
+                >
                   Delivery address
-                </legend>
+                </h3>
                 <FormField label="Address line 1">
                   <Input
                     autoComplete="address-line1"
@@ -1813,10 +1836,11 @@ export function OrderForm({
                     }
                   />
                 </FormField>
-              </fieldset>
+              </section>
             ) : null}
 
-            {!openDineInOrder ? (
+            {!openDineInOrder &&
+            supportsScheduledFulfilment(draft.fulfilmentType) ? (
             <fieldset className="grid gap-3">
               <legend className="text-sm font-medium text-stone-800">
                 When should it be ready?
@@ -1884,6 +1908,10 @@ export function OrderForm({
                     <legend className="text-sm font-semibold text-stone-950">
                       How would you like to continue?
                     </legend>
+                    <p className="mt-1 text-sm text-stone-600">
+                      Sign in to save this order to your account, or continue as
+                      a guest.
+                    </p>
                     <div className="mt-3 grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
                       {([
                         ["GUEST", "Guest checkout"],
@@ -1952,10 +1980,16 @@ export function OrderForm({
                 ) : null}
 
                 {customer || effectiveCheckoutMode === "GUEST" ? (
-                  <fieldset className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4">
-                    <legend className="px-1 text-sm font-semibold text-stone-950">
+                  <section
+                    aria-labelledby="contact-details-heading"
+                    className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4"
+                  >
+                    <h3
+                      id="contact-details-heading"
+                      className="text-sm font-semibold text-stone-950"
+                    >
                       Contact details
-                    </legend>
+                    </h3>
                     {customer ? (
                       <p className="text-sm text-emerald-800">
                         Signed in{customer.name ? ` as ${customer.name}` : ""}. Details are prefilled and can be updated for this order.
@@ -2018,7 +2052,7 @@ export function OrderForm({
                         />
                       </FormField>
                     </div>
-                  </fieldset>
+                  </section>
                 ) : null}
 
                 {customer && effectiveCheckoutMode === "ACCOUNT" ? (
