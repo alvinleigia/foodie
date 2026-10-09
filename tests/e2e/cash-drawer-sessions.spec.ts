@@ -125,12 +125,16 @@ test.describe("cash drawer session foundation", () => {
     expect(serviceSource).toContain('.for("update")');
     expect(serviceSource).toContain('eq(orderPayments.status, "SUCCEEDED")');
     expect(serviceSource).toContain('eq(orderRefunds.status, "SUCCEEDED")');
+    expect(serviceSource.indexOf("snapshot.expectedCashMinor < 0")).toBeGreaterThan(
+      serviceSource.indexOf("export async function closeCashDrawerSession"),
+    );
     expect(serviceSource).toContain(".insert(cashDrawerReconciliations)");
     expect(serviceSource).toContain('eq(cashDrawerSessions.status, "OPEN")');
     expect(serviceSource).toContain('action: "cash_drawer.session.closed"');
     expect(panelSource).toContain("Close and reconcile");
     expect(panelSource).toContain("Expected cash");
     expect(panelSource).toContain("Counted cash");
+    expect(panelSource).toContain("Drawer needs attention");
   });
 
   test("records manager-authorized drawer movements against an open session", () => {
