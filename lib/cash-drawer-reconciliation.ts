@@ -140,13 +140,6 @@ async function calculateReconciliationSnapshot(
     cashRefundsMinor -
     paidOutMinor;
 
-  if (expectedCashMinor < 0) {
-    throw new CashDrawerReconciliationError(
-      "Expected cash is below zero. Review paid-out movements and cash refunds before closing.",
-      409,
-    );
-  }
-
   return {
     cashRefundsAmount: minorUnitsToDecimal(cashRefundsMinor, currency),
     cashSalesAmount: minorUnitsToDecimal(cashSalesMinor, currency),
@@ -212,6 +205,14 @@ export async function closeCashDrawerSession(input: {
   const result = await getDb().transaction(async (tx) => {
     const session = await findOpenSession(tx, input, true);
     const snapshot = await calculateReconciliationSnapshot(tx, session);
+
+    if (snapshot.expectedCashMinor < 0) {
+      throw new CashDrawerReconciliationError(
+        "Expected cash is below zero. Review paid-out movements and cash refunds before closing.",
+        409,
+      );
+    }
+
     const counted = normalizeCountedCash(
       input.countedCashAmount,
       snapshot.currency,

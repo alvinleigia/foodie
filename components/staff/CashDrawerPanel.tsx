@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
   Banknote,
@@ -332,6 +333,7 @@ export function CashDrawerPanel({
   if (session) {
     const countedCash = Number(countedCashAmount);
     const expectedCash = Number(reconciliation?.expectedCashAmount ?? 0);
+    const expectedCashNeedsAttention = expectedCash < 0;
     const displayedVariance =
       countedCashAmount && Number.isFinite(countedCash)
         ? countedCash - expectedCash
@@ -540,6 +542,22 @@ export function CashDrawerPanel({
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {expectedCashNeedsAttention ? (
+                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                  <AlertTriangle
+                    className="mt-0.5 size-5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <div>
+                    <p className="font-semibold">Drawer needs attention</p>
+                    <p className="mt-1 text-sm">
+                      {canAdjust
+                        ? "Record a paid-in movement or review refunds and paid-out movements before closing the drawer."
+                        : "Ask a manager to review refunds and paid-out movements before closing the drawer."}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
               {reconciliation ? (
                 <dl className="divide-y rounded-lg border px-4">
                   {[
@@ -617,7 +635,10 @@ export function CashDrawerPanel({
               </div>
               <Button
                 disabled={
-                  isClosing || !reconciliation || !countedCashAmount.trim()
+                  isClosing ||
+                  !reconciliation ||
+                  expectedCashNeedsAttention ||
+                  !countedCashAmount.trim()
                 }
                 onClick={closeDrawer}
                 type="button"
