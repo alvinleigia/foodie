@@ -87,12 +87,13 @@ test.describe("open dine-in checks", () => {
     expect(orders).toContain("not(openDineInCheckFilter())");
   });
 
-  test("offers add-items and minimize controls on the staff card", () => {
+  test("offers add-items and order detail controls on the staff card", () => {
     const card = source("components/staff/OrderCard.tsx");
     const form = source("components/order/OrderForm.tsx");
 
     expect(card).toContain("Open check");
-    expect(card).toContain("Minimize check");
+    expect(card).toContain("Show order details");
+    expect(card).toContain("Hide order details");
     expect(card).toContain("getStaffRestaurantAddItemsHref");
     expect(form).toContain("openDineInOrderId: openDineInOrder?.id");
     expect(form).toContain("Items added to check");
