@@ -40,6 +40,9 @@ test.describe("staff order board scalability", () => {
       "activeOrderCountRef.current > 0 ? 4_000 : 10_000",
     );
     expect(boardSource).toContain("Search order, customer, email or phone");
+    expect(boardSource).toContain("Filter orders");
+    expect(boardSource).toContain("Date range");
+    expect(boardSource).toContain("activeFilterCount");
     expect(boardSource).toContain('searchParams.set("status"');
     expect(boardSource).toContain('searchParams.set("fulfilmentType"');
     expect(boardSource).toContain('searchParams.set("fromDate"');

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BanknoteIcon,
+  CalendarDaysIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -10,7 +11,7 @@ import {
   ExternalLinkIcon,
   RotateCcwIcon,
   SearchIcon,
-  XIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
@@ -50,6 +51,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -202,6 +208,7 @@ export function StaffOrderBoard({
     useState<FulfilmentFilter>("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [loadedTabs, setLoadedTabs] = useState<Record<StaffTab, boolean>>({
@@ -1163,6 +1170,10 @@ export function StaffOrderBoard({
       fromDate ||
       toDate,
   );
+  const activeFilterCount =
+    Number(statusFilter !== "ALL") +
+    Number(fulfilmentFilter !== "ALL") +
+    Number(Boolean(fromDate || toDate));
   const firstVisibleOrder =
     selectedTotal === 0 ? 0 : (orders.page - 1) * orders.pageSize + 1;
   const lastVisibleOrder = Math.min(
@@ -1286,7 +1297,7 @@ export function StaffOrderBoard({
       <CardContent className="px-6 pb-6">
       {error ? <p className="mb-4 text-sm text-rose-600">{error}</p> : null}
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      <div className="mb-6 flex flex-col gap-3 border-b border-stone-200 pb-4 lg:flex-row lg:items-center lg:justify-between">
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
@@ -1304,11 +1315,9 @@ export function StaffOrderBoard({
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>
 
-      <div className="mb-6 grid gap-3 border-y border-stone-200 py-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1.6fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
-          <label className="relative block">
+        <div className="flex w-full items-center gap-2 lg:w-auto">
+          <label className="relative min-w-0 flex-1 lg:w-80 lg:flex-none xl:w-96">
             <span className="sr-only">Search orders</span>
             <SearchIcon
               aria-hidden="true"
@@ -1323,94 +1332,145 @@ export function StaffOrderBoard({
               disabled={Boolean(pendingAction)}
             />
           </label>
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => {
-              setStatusFilter(value as StatusFilter);
-              setCurrentPage(1);
-            }}
-            disabled={Boolean(pendingAction)}
-          >
-            <SelectTrigger
-              className="h-10 w-full bg-white"
-              aria-label="Order status"
+
+          <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 bg-white"
+                aria-label={
+                  activeFilterCount > 0
+                    ? `Filters, ${activeFilterCount} applied`
+                    : "Filter orders"
+                }
+                disabled={Boolean(pendingAction)}
+              >
+                <SlidersHorizontalIcon aria-hidden="true" />
+                Filters
+                {activeFilterCount > 0 ? (
+                  <span className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full bg-stone-900 text-xs text-white">
+                    {activeFilterCount}
+                  </span>
+                ) : null}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              sideOffset={8}
+              className="w-[calc(100vw-2rem)] max-w-sm gap-4 p-4"
             >
-              <SelectValue placeholder="All statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All statuses</SelectItem>
-              {statusOptions.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {orderStatusLabels[status]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={fulfilmentFilter}
-            onValueChange={(value) => {
-              setFulfilmentFilter(value as FulfilmentFilter);
-              setCurrentPage(1);
-            }}
-            disabled={Boolean(pendingAction)}
-          >
-            <SelectTrigger
-              className="h-10 w-full bg-white"
-              aria-label="Fulfilment type"
-            >
-              <SelectValue placeholder="All fulfilment types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All fulfilment types</SelectItem>
-              {Object.entries(orderFulfilmentLabels).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,0.8fr)_minmax(10rem,0.8fr)_1fr]">
-          <label className="grid gap-1.5 text-xs font-medium text-stone-600">
-            From date
-            <Input
-              type="date"
-              value={fromDate}
-              max={toDate || undefined}
-              onChange={(event) => {
-                setFromDate(event.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-10 bg-white"
-              disabled={Boolean(pendingAction)}
-            />
-          </label>
-          <label className="grid gap-1.5 text-xs font-medium text-stone-600">
-            To date
-            <Input
-              type="date"
-              value={toDate}
-              min={fromDate || undefined}
-              onChange={(event) => {
-                setToDate(event.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-10 bg-white"
-              disabled={Boolean(pendingAction)}
-            />
-          </label>
-          <div className="flex items-end xl:justify-end">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10 w-full sm:w-auto"
-              onClick={clearOrderFilters}
-              disabled={!hasActiveFilters || Boolean(pendingAction)}
-            >
-              <XIcon aria-hidden="true" />
-              Clear filters
-            </Button>
-          </div>
+              <div>
+                <p className="font-semibold text-stone-950">Filter orders</p>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  Narrow the current order view.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+                  Status
+                  <Select
+                    value={statusFilter}
+                    onValueChange={(value) => {
+                      setStatusFilter(value as StatusFilter);
+                      setCurrentPage(1);
+                    }}
+                    disabled={Boolean(pendingAction)}
+                  >
+                    <SelectTrigger className="h-10 w-full bg-white">
+                      <SelectValue placeholder="All statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All statuses</SelectItem>
+                      {statusOptions.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {orderStatusLabels[status]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+
+                <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+                  Fulfilment
+                  <Select
+                    value={fulfilmentFilter}
+                    onValueChange={(value) => {
+                      setFulfilmentFilter(value as FulfilmentFilter);
+                      setCurrentPage(1);
+                    }}
+                    disabled={Boolean(pendingAction)}
+                  >
+                    <SelectTrigger className="h-10 w-full bg-white">
+                      <SelectValue placeholder="All types" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All fulfilment types</SelectItem>
+                      {Object.entries(orderFulfilmentLabels).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </label>
+              </div>
+
+              <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-stone-700">
+                  <CalendarDaysIcon aria-hidden="true" className="size-4" />
+                  Date range
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="grid gap-1 text-xs text-stone-600">
+                    From
+                    <Input
+                      type="date"
+                      value={fromDate}
+                      max={toDate || undefined}
+                      onChange={(event) => {
+                        setFromDate(event.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="h-10 bg-white px-2"
+                      disabled={Boolean(pendingAction)}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-xs text-stone-600">
+                    To
+                    <Input
+                      type="date"
+                      value={toDate}
+                      min={fromDate || undefined}
+                      onChange={(event) => {
+                        setToDate(event.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="h-10 bg-white px-2"
+                      disabled={Boolean(pendingAction)}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 border-t border-stone-200 pt-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={clearOrderFilters}
+                  disabled={!hasActiveFilters || Boolean(pendingAction)}
+                >
+                  Clear all
+                </Button>
+                <Button type="button" onClick={() => setFiltersOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
