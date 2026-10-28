@@ -76,7 +76,7 @@ function sumAmounts(
   }, 0);
 }
 
-async function calculateReconciliationSnapshot(
+export async function calculateCashDrawerReconciliationSnapshot(
   tx: CashDrawerTransaction,
   session: CashDrawerSession,
 ) {
@@ -187,7 +187,10 @@ export async function getOpenCashDrawerReconciliation(input: {
 }) {
   return getDb().transaction(async (tx) => {
     const session = await findOpenSession(tx, input, false);
-    const snapshot = await calculateReconciliationSnapshot(tx, session);
+    const snapshot = await calculateCashDrawerReconciliationSnapshot(
+      tx,
+      session,
+    );
 
     return { sessionId: session.id, ...snapshot };
   });
@@ -204,7 +207,10 @@ export async function closeCashDrawerSession(input: {
   const now = new Date();
   const result = await getDb().transaction(async (tx) => {
     const session = await findOpenSession(tx, input, true);
-    const snapshot = await calculateReconciliationSnapshot(tx, session);
+    const snapshot = await calculateCashDrawerReconciliationSnapshot(
+      tx,
+      session,
+    );
 
     if (snapshot.expectedCashMinor < 0) {
       throw new CashDrawerReconciliationError(
@@ -221,6 +227,13 @@ export async function closeCashDrawerSession(input: {
       counted.amountMinor - snapshot.expectedCashMinor,
       snapshot.currency,
     );
+
+    if (counted.amountMinor !== snapshot.expectedCashMinor && !closingNote) {
+      throw new CashDrawerReconciliationError(
+        "Add a closing note explaining the cash variance.",
+      );
+    }
+
     const [reconciliation] = await tx
       .insert(cashDrawerReconciliations)
       .values({

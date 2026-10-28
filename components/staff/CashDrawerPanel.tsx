@@ -338,6 +338,8 @@ export function CashDrawerPanel({
       countedCashAmount && Number.isFinite(countedCash)
         ? countedCash - expectedCash
         : null;
+    const closingNoteRequired =
+      displayedVariance !== null && Math.abs(displayedVariance) > 0.000001;
 
     return (
       <div className="max-w-3xl space-y-6">
@@ -405,6 +407,11 @@ export function CashDrawerPanel({
                     Paid out
                   </Button>
                 </div>
+                <p className="text-sm text-muted-foreground">
+                  {movementType === "PAID_IN"
+                    ? "Use this only for non-order cash added to the till. Cash order payments are recorded automatically."
+                    : "Use this only when cash is physically removed from the till. The amount cannot exceed expected drawer cash."}
+                </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-sm font-medium" htmlFor="movement-amount">
@@ -413,6 +420,14 @@ export function CashDrawerPanel({
                     <Input
                       id="movement-amount"
                       inputMode="decimal"
+                      max={
+                        movementType === "PAID_OUT" && reconciliation
+                          ? Math.max(
+                              0,
+                              Number(reconciliation.expectedCashAmount),
+                            )
+                          : undefined
+                      }
                       min="0.01"
                       onChange={(event) => setMovementAmount(event.target.value)}
                       step="0.01"
@@ -623,7 +638,9 @@ export function CashDrawerPanel({
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="closing-note">
                   Closing note{" "}
-                  <span className="text-muted-foreground">(optional)</span>
+                  <span className="text-muted-foreground">
+                    {closingNoteRequired ? "(required for variance)" : "(optional)"}
+                  </span>
                 </label>
                 <Textarea
                   className="min-h-20"
@@ -638,7 +655,8 @@ export function CashDrawerPanel({
                   isClosing ||
                   !reconciliation ||
                   expectedCashNeedsAttention ||
-                  !countedCashAmount.trim()
+                  !countedCashAmount.trim() ||
+                  (closingNoteRequired && !closingNote.trim())
                 }
                 onClick={closeDrawer}
                 type="button"

@@ -1,9 +1,10 @@
 import "server-only";
 
-import { and, asc, count, eq, gte, lt, sql } from "drizzle-orm";
+import { aliasedTable, and, asc, count, eq, gte, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
+  cashDrawerMovements,
   cashDrawerReconciliations,
   cashDrawerSessions,
   orderPayments,
@@ -11,16 +12,17 @@ import {
   orderingPoints,
   orders,
   organizations,
+  users,
 } from "@/db/schema";
 import {
   getBusinessDateRange,
   getCurrentBusinessDate,
 } from "@/lib/business-date";
-import {
-  decimalToMinorUnits,
-  minorUnitsToDecimal,
-} from "@/lib/currency-money";
-import type { CashDrawerCloseReport } from "@/lib/cash-drawer-close-report-types";
+import { aggregateCashActivityTotals } from "@/lib/cash-drawer-close-report-calculations";
+import type {
+  CashDrawerCloseReport,
+  CashDrawerLedgerEntry,
+} from "@/lib/cash-drawer-close-report-types";
 
 export class CashDrawerCloseReportError extends Error {
   status: number;
@@ -39,87 +41,8 @@ type AmountRow = {
   method: string;
 };
 
-function aggregateCashTotals(
-  shifts: Array<{
-    cashRefundsAmount: string;
-    cashSalesAmount: string;
-    countedCashAmount: string;
-    currency: string;
-    expectedCashAmount: string;
-    openingFloat: string;
-    paidInAmount: string;
-    paidOutAmount: string;
-    varianceAmount: string;
-  }>,
-) {
-  const totals = new Map<
-    string,
-    {
-      cashRefundsMinor: number;
-      cashSalesMinor: number;
-      countedCashMinor: number;
-      expectedCashMinor: number;
-      openingFloatMinor: number;
-      paidInMinor: number;
-      paidOutMinor: number;
-      varianceMinor: number;
-    }
-  >();
-
-  for (const shift of shifts) {
-    const currency = shift.currency.trim().toUpperCase();
-    const current = totals.get(currency) ?? {
-      cashRefundsMinor: 0,
-      cashSalesMinor: 0,
-      countedCashMinor: 0,
-      expectedCashMinor: 0,
-      openingFloatMinor: 0,
-      paidInMinor: 0,
-      paidOutMinor: 0,
-      varianceMinor: 0,
-    };
-
-    current.cashRefundsMinor += decimalToMinorUnits(
-      shift.cashRefundsAmount,
-      currency,
-    );
-    current.cashSalesMinor += decimalToMinorUnits(
-      shift.cashSalesAmount,
-      currency,
-    );
-    current.countedCashMinor += decimalToMinorUnits(
-      shift.countedCashAmount,
-      currency,
-    );
-    current.expectedCashMinor += decimalToMinorUnits(
-      shift.expectedCashAmount,
-      currency,
-    );
-    current.openingFloatMinor += decimalToMinorUnits(
-      shift.openingFloat,
-      currency,
-    );
-    current.paidInMinor += decimalToMinorUnits(shift.paidInAmount, currency);
-    current.paidOutMinor += decimalToMinorUnits(shift.paidOutAmount, currency);
-    current.varianceMinor += decimalToMinorUnits(
-      shift.varianceAmount,
-      currency,
-    );
-    totals.set(currency, current);
-  }
-
-  return [...totals.entries()].map(([currency, total]) => ({
-    cashRefundsAmount: minorUnitsToDecimal(total.cashRefundsMinor, currency),
-    cashSalesAmount: minorUnitsToDecimal(total.cashSalesMinor, currency),
-    countedCashAmount: minorUnitsToDecimal(total.countedCashMinor, currency),
-    currency,
-    expectedCashAmount: minorUnitsToDecimal(total.expectedCashMinor, currency),
-    openingFloat: minorUnitsToDecimal(total.openingFloatMinor, currency),
-    paidInAmount: minorUnitsToDecimal(total.paidInMinor, currency),
-    paidOutAmount: minorUnitsToDecimal(total.paidOutMinor, currency),
-    varianceAmount: minorUnitsToDecimal(total.varianceMinor, currency),
-  }));
-}
+const openedByUsers = aliasedTable(users, "cash_drawer_opened_by_user");
+const closedByUsers = aliasedTable(users, "cash_drawer_closed_by_user");
 
 function normalizeAmountRows(rows: AmountRow[]) {
   return rows.map((row) => ({
@@ -168,7 +91,16 @@ export async function getCashDrawerCloseReport(input: {
 
   const amountTotal = sql<string>`coalesce(sum(${orderPayments.amount}), 0)`;
   const refundTotal = sql<string>`coalesce(sum(${orderRefunds.amount}), 0)`;
-  const [shifts, openDrawers, payments, refunds, orderStatuses] =
+  const [
+    drawerSessions,
+    openDrawers,
+    payments,
+    refunds,
+    orderStatuses,
+    sessionPayments,
+    sessionRefunds,
+    sessionMovements,
+  ] =
     await Promise.all([
       db
         .select({
@@ -177,6 +109,7 @@ export async function getCashDrawerCloseReport(input: {
           closedAt: cashDrawerSessions.closedAt,
           closedByMembershipId:
             cashDrawerReconciliations.closedByMembershipId,
+          closedByName: closedByUsers.name,
           closingNote: cashDrawerReconciliations.closingNote,
           countedCashAmount: cashDrawerReconciliations.countedCashAmount,
           currency: cashDrawerReconciliations.currency,
@@ -184,6 +117,7 @@ export async function getCashDrawerCloseReport(input: {
           id: cashDrawerReconciliations.id,
           openedAt: cashDrawerSessions.openedAt,
           openedByMembershipId: cashDrawerSessions.openedByMembershipId,
+          openedByName: openedByUsers.name,
           openingFloat: cashDrawerReconciliations.openingFloat,
           orderingPointName: orderingPoints.name,
           paidInAmount: cashDrawerReconciliations.paidInAmount,
@@ -214,6 +148,14 @@ export async function getCashDrawerCloseReport(input: {
               cashDrawerSessions.organizationId,
             ),
           ),
+        )
+        .leftJoin(
+          openedByUsers,
+          eq(openedByUsers.id, cashDrawerSessions.openedByUserId),
+        )
+        .leftJoin(
+          closedByUsers,
+          eq(closedByUsers.id, cashDrawerReconciliations.closedByUserId),
         )
         .where(
           and(
@@ -293,12 +235,205 @@ export async function getCashDrawerCloseReport(input: {
           ),
         )
         .groupBy(orders.status),
+      db
+        .select({
+          amount: orderPayments.amount,
+          changeAmount: orderPayments.changeAmount,
+          completedAt: orderPayments.completedAt,
+          createdAt: orderPayments.createdAt,
+          currency: orderPayments.currency,
+          id: orderPayments.id,
+          orderNo: orders.orderNo,
+          recordedByName: users.name,
+          sessionId: orderPayments.cashDrawerSessionId,
+          tenderedAmount: orderPayments.tenderedAmount,
+        })
+        .from(orderPayments)
+        .innerJoin(
+          cashDrawerSessions,
+          and(
+            eq(cashDrawerSessions.id, orderPayments.cashDrawerSessionId),
+            eq(
+              cashDrawerSessions.organizationId,
+              orderPayments.organizationId,
+            ),
+          ),
+        )
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderPayments.orderId),
+            eq(orders.organizationId, orderPayments.organizationId),
+          ),
+        )
+        .leftJoin(users, eq(users.id, orderPayments.receivedByUserId))
+        .where(
+          and(
+            eq(orderPayments.organizationId, input.organizationId),
+            eq(orderPayments.method, "CASH"),
+            eq(orderPayments.status, "SUCCEEDED"),
+            eq(cashDrawerSessions.status, "CLOSED"),
+            gte(cashDrawerSessions.closedAt, range.start),
+            lt(cashDrawerSessions.closedAt, range.end),
+          ),
+        )
+        .orderBy(asc(orderPayments.completedAt)),
+      db
+        .select({
+          amount: orderRefunds.amount,
+          currency: orderRefunds.currency,
+          id: orderRefunds.id,
+          orderNo: orders.orderNo,
+          processedAt: orderRefunds.processedAt,
+          recordedByName: users.name,
+          requestedAt: orderRefunds.requestedAt,
+          sessionId: orderRefunds.cashDrawerSessionId,
+        })
+        .from(orderRefunds)
+        .innerJoin(
+          cashDrawerSessions,
+          and(
+            eq(cashDrawerSessions.id, orderRefunds.cashDrawerSessionId),
+            eq(
+              cashDrawerSessions.organizationId,
+              orderRefunds.organizationId,
+            ),
+          ),
+        )
+        .innerJoin(
+          orders,
+          and(
+            eq(orders.id, orderRefunds.orderId),
+            eq(orders.organizationId, orderRefunds.organizationId),
+          ),
+        )
+        .leftJoin(users, eq(users.id, orderRefunds.requestedByUserId))
+        .where(
+          and(
+            eq(orderRefunds.organizationId, input.organizationId),
+            eq(orderRefunds.provider, "CASH"),
+            eq(orderRefunds.status, "SUCCEEDED"),
+            eq(cashDrawerSessions.status, "CLOSED"),
+            gte(cashDrawerSessions.closedAt, range.start),
+            lt(cashDrawerSessions.closedAt, range.end),
+          ),
+        )
+        .orderBy(asc(orderRefunds.processedAt)),
+      db
+        .select({
+          amount: cashDrawerMovements.amount,
+          createdAt: cashDrawerMovements.createdAt,
+          currency: cashDrawerMovements.currency,
+          id: cashDrawerMovements.id,
+          note: cashDrawerMovements.note,
+          reason: cashDrawerMovements.reason,
+          recordedByName: users.name,
+          sessionId: cashDrawerMovements.cashDrawerSessionId,
+          type: cashDrawerMovements.type,
+        })
+        .from(cashDrawerMovements)
+        .innerJoin(
+          cashDrawerSessions,
+          and(
+            eq(cashDrawerSessions.id, cashDrawerMovements.cashDrawerSessionId),
+            eq(
+              cashDrawerSessions.organizationId,
+              cashDrawerMovements.organizationId,
+            ),
+          ),
+        )
+        .leftJoin(users, eq(users.id, cashDrawerMovements.recordedByUserId))
+        .where(
+          and(
+            eq(cashDrawerMovements.organizationId, input.organizationId),
+            eq(cashDrawerSessions.status, "CLOSED"),
+            gte(cashDrawerSessions.closedAt, range.start),
+            lt(cashDrawerSessions.closedAt, range.end),
+          ),
+        )
+        .orderBy(asc(cashDrawerMovements.createdAt)),
     ]);
+
+  const ledgerEntriesBySession = new Map<string, CashDrawerLedgerEntry[]>();
+  const appendLedgerEntry = (
+    sessionId: string | null,
+    entry: CashDrawerLedgerEntry,
+  ) => {
+    if (!sessionId) {
+      return;
+    }
+
+    const entries = ledgerEntriesBySession.get(sessionId) ?? [];
+    entries.push(entry);
+    ledgerEntriesBySession.set(sessionId, entries);
+  };
+
+  for (const payment of sessionPayments) {
+    appendLedgerEntry(payment.sessionId, {
+      amount: payment.amount,
+      changeAmount: payment.changeAmount,
+      currency: payment.currency,
+      id: payment.id,
+      kind: "CASH_PAYMENT",
+      note: null,
+      occurredAt: (payment.completedAt ?? payment.createdAt).toISOString(),
+      orderNo: payment.orderNo,
+      reason: null,
+      recordedByName: payment.recordedByName,
+      tenderedAmount: payment.tenderedAmount,
+    });
+  }
+
+  for (const refund of sessionRefunds) {
+    appendLedgerEntry(refund.sessionId, {
+      amount: refund.amount,
+      changeAmount: null,
+      currency: refund.currency,
+      id: refund.id,
+      kind: "CASH_REFUND",
+      note: null,
+      occurredAt: (refund.processedAt ?? refund.requestedAt).toISOString(),
+      orderNo: refund.orderNo,
+      reason: null,
+      recordedByName: refund.recordedByName,
+      tenderedAmount: null,
+    });
+  }
+
+  for (const movement of sessionMovements) {
+    appendLedgerEntry(movement.sessionId, {
+      amount: movement.amount,
+      changeAmount: null,
+      currency: movement.currency,
+      id: movement.id,
+      kind: movement.type,
+      note: movement.note,
+      occurredAt: movement.createdAt.toISOString(),
+      orderNo: null,
+      reason: movement.reason,
+      recordedByName: movement.recordedByName,
+      tenderedAmount: null,
+    });
+  }
+
+  for (const entries of ledgerEntriesBySession.values()) {
+    entries.sort(
+      (left, right) =>
+        new Date(left.occurredAt).getTime() -
+        new Date(right.occurredAt).getTime(),
+    );
+  }
 
   return {
     businessDate,
-    cashTotals: aggregateCashTotals(shifts),
+    cashActivityTotals: aggregateCashActivityTotals(drawerSessions),
     currency: restaurant.currency.trim().toUpperCase(),
+    drawerSessions: drawerSessions.map((session) => ({
+      ...session,
+      closedAt: session.closedAt?.toISOString() ?? null,
+      ledgerEntries: ledgerEntriesBySession.get(session.sessionId) ?? [],
+      openedAt: session.openedAt.toISOString(),
+    })),
     generatedAt: new Date().toISOString(),
     isReadyToClose: openDrawers.length === 0,
     openDrawers: openDrawers.map((drawer) => ({
@@ -312,11 +447,6 @@ export async function getCashDrawerCloseReport(input: {
     payments: normalizeAmountRows(payments),
     refunds: normalizeAmountRows(refunds),
     restaurantName: restaurant.name,
-    shifts: shifts.map((shift) => ({
-      ...shift,
-      closedAt: shift.closedAt?.toISOString() ?? null,
-      openedAt: shift.openedAt.toISOString(),
-    })),
     timezone: restaurant.timezone,
   };
 }
@@ -340,12 +470,15 @@ export function exportCashDrawerCloseReportCsv(
     csvRow(["Ready to close", report.isReadyToClose ? "Yes" : "No"]),
     csvRow(["Open drawers", report.openDrawers.length]),
     "",
-    csvRow(["Shift closes"]),
+    csvRow(["Drawer sessions"]),
     csvRow([
       "Ordering point",
       "Opened",
       "Closed",
+      "Opened by",
+      "Closed by",
       "Currency",
+      "Opening float",
       "Cash sales",
       "Cash refunds",
       "Paid in",
@@ -355,21 +488,58 @@ export function exportCashDrawerCloseReportCsv(
       "Variance",
       "Closing note",
     ]),
-    ...report.shifts.map((shift) =>
+    ...report.drawerSessions.map((session) =>
       csvRow([
-        shift.orderingPointName,
-        shift.openedAt,
-        shift.closedAt,
-        shift.currency,
-        shift.cashSalesAmount,
-        shift.cashRefundsAmount,
-        shift.paidInAmount,
-        shift.paidOutAmount,
-        shift.expectedCashAmount,
-        shift.countedCashAmount,
-        shift.varianceAmount,
-        shift.closingNote,
+        session.orderingPointName,
+        session.openedAt,
+        session.closedAt,
+        session.openedByName,
+        session.closedByName,
+        session.currency,
+        session.openingFloat,
+        session.cashSalesAmount,
+        session.cashRefundsAmount,
+        session.paidInAmount,
+        session.paidOutAmount,
+        session.expectedCashAmount,
+        session.countedCashAmount,
+        session.varianceAmount,
+        session.closingNote,
       ]),
+    ),
+    "",
+    csvRow(["Drawer session ledger"]),
+    csvRow([
+      "Session ID",
+      "Ordering point",
+      "Time",
+      "Entry type",
+      "Order number",
+      "Reason",
+      "Note",
+      "Recorded by",
+      "Currency",
+      "Amount",
+      "Tendered",
+      "Change",
+    ]),
+    ...report.drawerSessions.flatMap((session) =>
+      session.ledgerEntries.map((entry) =>
+        csvRow([
+          session.sessionId,
+          session.orderingPointName,
+          entry.occurredAt,
+          entry.kind,
+          entry.orderNo,
+          entry.reason,
+          entry.note,
+          entry.recordedByName,
+          entry.currency,
+          entry.amount,
+          entry.tenderedAmount,
+          entry.changeAmount,
+        ]),
+      ),
     ),
     "",
     csvRow(["Payment totals"]),

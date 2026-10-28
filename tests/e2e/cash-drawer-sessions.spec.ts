@@ -131,6 +131,9 @@ test.describe("cash drawer session foundation", () => {
     expect(serviceSource).toContain(".insert(cashDrawerReconciliations)");
     expect(serviceSource).toContain('eq(cashDrawerSessions.status, "OPEN")');
     expect(serviceSource).toContain('action: "cash_drawer.session.closed"');
+    expect(serviceSource).toContain(
+      '"Add a closing note explaining the cash variance."',
+    );
     expect(panelSource).toContain("Close and reconcile");
     expect(panelSource).toContain("Expected cash");
     expect(panelSource).toContain("Counted cash");
@@ -154,6 +157,9 @@ test.describe("cash drawer session foundation", () => {
     expect(serviceSource).toContain('eq(cashDrawerSessions.status, "OPEN")');
     expect(serviceSource).toContain('.for("update")');
     expect(serviceSource).toContain("cashDrawerSessionId: openSession.id");
+    expect(serviceSource).toContain(
+      '"Paid-out cash cannot exceed the expected cash currently in the drawer."',
+    );
     expect(serviceSource).toContain("cash_drawer.movement.");
   });
 
