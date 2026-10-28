@@ -71,10 +71,14 @@ import { buildOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { validateFutureFulfilmentTime } from "@/lib/order-fulfilment-time";
 import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
 import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
+import {
+  orderFulfilmentTypes,
+  supportsScheduledFulfilment,
+} from "@/lib/order-fulfilment";
+import { orderStatuses } from "@/lib/constants";
 import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
 import { isCheckoutContactValid } from "@/lib/checkout-policy";
-import { supportsScheduledFulfilment } from "@/lib/order-fulfilment";
 
 class OpenDineInCheckError extends Error {
   status: number;
@@ -102,8 +106,37 @@ export async function GET(request: NextRequest) {
     const page = Number.isFinite(requestedPage)
       ? Math.max(1, Math.trunc(requestedPage))
       : 1;
+    const search = request.nextUrl.searchParams
+      .get("search")
+      ?.trim()
+      .slice(0, 100);
+    const requestedStatus = request.nextUrl.searchParams.get("status");
+    const status = orderStatuses.find((value) => value === requestedStatus);
+    const requestedFulfilmentType = request.nextUrl.searchParams.get(
+      "fulfilmentType",
+    );
+    const fulfilmentType = orderFulfilmentTypes.find(
+      (value) => value === requestedFulfilmentType,
+    );
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    const requestedFromDate = request.nextUrl.searchParams.get("fromDate");
+    const requestedToDate = request.nextUrl.searchParams.get("toDate");
+    const fromDate = requestedFromDate && datePattern.test(requestedFromDate)
+      ? requestedFromDate
+      : undefined;
+    const toDate = requestedToDate && datePattern.test(requestedToDate)
+      ? requestedToDate
+      : undefined;
     const [orderPage, currency] = await Promise.all([
-      getStaffOrders(tenantContext, { page, view }),
+      getStaffOrders(tenantContext, {
+        fromDate,
+        fulfilmentType,
+        page,
+        search,
+        status,
+        toDate,
+        view,
+      }),
       getTenantMenuCurrency(tenantContext),
     ]);
     const { activeOrders, pastOrders } = orderPage;
@@ -140,9 +173,10 @@ export async function GET(request: NextRequest) {
       canManageRefunds: session.user.permissions.includes("payments.refund"),
       currency,
       pageInfo: {
-        activeHasMore: orderPage.activeHasMore,
+        activeTotal: orderPage.activeTotal,
         page: orderPage.page,
         pageSize: orderPage.pageSize,
+        pastTotal: orderPage.pastTotal,
         total: orderPage.total,
         totalPages: orderPage.totalPages,
         view: orderPage.view,

@@ -1,4 +1,16 @@
-import { and, count, desc, eq, inArray, ne, not, or, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  lte,
+  ne,
+  not,
+  or,
+  sql,
+} from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -22,6 +34,7 @@ import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
 import { calculateTaxPricing } from "@/lib/tax-pricing";
 import { findActiveDiscountAdjustment } from "@/lib/order-adjustments";
 import { canAppendToDineInCheck } from "@/lib/dine-in-checks";
+import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 
 const activeOrderStatuses: OrderStatus[] = [
   "PENDING",
@@ -31,13 +44,17 @@ const activeOrderStatuses: OrderStatus[] = [
 ];
 const pastOrderStatuses: OrderStatus[] = ["DELIVERED", "CANCELLED"];
 
-export const STAFF_ACTIVE_ORDER_LIMIT = 200;
-export const STAFF_ORDER_HISTORY_PAGE_SIZE = 20;
+export const STAFF_ORDER_PAGE_SIZE = 20;
 
 type StaffOrderView = "active" | "past";
 
 type StaffOrderQueryOptions = {
+  fromDate?: string;
+  fulfilmentType?: OrderFulfilmentType;
   page?: number;
+  search?: string;
+  status?: OrderStatus;
+  toDate?: string;
   view?: StaffOrderView;
 };
 
@@ -62,6 +79,43 @@ function openDineInCheckFilter() {
     ne(orders.status, "CANCELLED"),
     inArray(orders.paymentStatus, ["UNPAID", "PARTIALLY_PAID", "PENDING"]),
   )!;
+}
+
+function staffOrderCommonFilters(
+  context: TenantContext,
+  options: StaffOrderQueryOptions,
+) {
+  const filters = [eq(orders.organizationId, context.organizationId)];
+  const search = options.search?.trim().toLowerCase();
+
+  if (search) {
+    filters.push(
+      or(
+        sql`position(${search} in lower(${orders.customerName})) > 0`,
+        sql`position(${search} in lower(coalesce(${orders.customerEmail}, ''))) > 0`,
+        sql`position(${search} in lower(coalesce(${orders.customerPhone}, ''))) > 0`,
+        sql`position(${search} in cast(${orders.orderNo} as text)) > 0`,
+      )!,
+    );
+  }
+
+  if (options.status) {
+    filters.push(eq(orders.status, options.status));
+  }
+
+  if (options.fulfilmentType) {
+    filters.push(eq(orders.fulfilmentType, options.fulfilmentType));
+  }
+
+  if (options.fromDate) {
+    filters.push(gte(orders.orderDate, options.fromDate));
+  }
+
+  if (options.toDate) {
+    filters.push(lte(orders.orderDate, options.toDate));
+  }
+
+  return filters;
 }
 
 export function isActiveOrderStatus(status: OrderStatus) {
@@ -388,99 +442,80 @@ export async function getStaffOrders(
 ) {
   const db = getDb();
   const view = options.view ?? "active";
-
-  if (view === "past") {
-    const pastOrderFilter = and(
-      eq(orders.organizationId, context.organizationId),
-      inArray(orders.status, pastOrderStatuses),
-      not(openDineInCheckFilter()),
-      or(
-        inArray(orders.paymentStatus, [
-          "NOT_REQUIRED",
-          "UNPAID",
-          "PARTIALLY_PAID",
-          "PAID",
-          "REFUND_PENDING",
-          "PARTIALLY_REFUNDED",
-          "REFUND_FAILED",
-          "REFUNDED",
-        ]),
-        and(
-          eq(orders.source, "STAFF_CREATED"),
-          eq(orders.paymentStatus, "PENDING"),
-        ),
+  const commonFilters = staffOrderCommonFilters(context, options);
+  const activeOrderFilter = and(
+    ...commonFilters,
+    or(
+      inArray(orders.status, activeOrderStatuses),
+      openDineInCheckFilter(),
+    ),
+    or(
+      inArray(orders.paymentStatus, [
+        "NOT_REQUIRED",
+        "UNPAID",
+        "PARTIALLY_PAID",
+        "PAID",
+      ]),
+      and(
+        eq(orders.source, "STAFF_CREATED"),
+        eq(orders.paymentStatus, "PENDING"),
       ),
-    );
-    const [totalRow] = await db
-      .select({ value: count() })
-      .from(orders)
-      .where(pastOrderFilter);
-    const total = Number(totalRow?.value ?? 0);
-    const totalPages = Math.max(
-      1,
-      Math.ceil(total / STAFF_ORDER_HISTORY_PAGE_SIZE),
-    );
-    const page = Math.min(
-      Math.max(1, Math.trunc(options.page ?? 1)),
-      totalPages,
-    );
-    const pastOrders = await db
-      .select()
-      .from(orders)
-      .where(pastOrderFilter)
-      .orderBy(desc(pastOrderClosedAt()))
-      .limit(STAFF_ORDER_HISTORY_PAGE_SIZE)
-      .offset((page - 1) * STAFF_ORDER_HISTORY_PAGE_SIZE);
-
-    return {
-      activeHasMore: false,
-      activeOrders: [],
-      page,
-      pageSize: STAFF_ORDER_HISTORY_PAGE_SIZE,
-      pastOrders,
-      total,
-      totalPages,
-      view,
-    };
-  }
-
-  const activeRows = await db
+    ),
+  );
+  const pastOrderFilter = and(
+    ...commonFilters,
+    inArray(orders.status, pastOrderStatuses),
+    not(openDineInCheckFilter()),
+    or(
+      inArray(orders.paymentStatus, [
+        "NOT_REQUIRED",
+        "UNPAID",
+        "PARTIALLY_PAID",
+        "PAID",
+        "REFUND_PENDING",
+        "PARTIALLY_REFUNDED",
+        "REFUND_FAILED",
+        "REFUNDED",
+      ]),
+      and(
+        eq(orders.source, "STAFF_CREATED"),
+        eq(orders.paymentStatus, "PENDING"),
+      ),
+    ),
+  );
+  const [[activeTotalRow], [pastTotalRow]] = await Promise.all([
+    db.select({ value: count() }).from(orders).where(activeOrderFilter),
+    db.select({ value: count() }).from(orders).where(pastOrderFilter),
+  ]);
+  const activeTotal = Number(activeTotalRow?.value ?? 0);
+  const pastTotal = Number(pastTotalRow?.value ?? 0);
+  const total = view === "active" ? activeTotal : pastTotal;
+  const totalPages = Math.max(1, Math.ceil(total / STAFF_ORDER_PAGE_SIZE));
+  const page = Math.min(
+    Math.max(1, Math.trunc(options.page ?? 1)),
+    totalPages,
+  );
+  const selectedOrders = await db
     .select()
     .from(orders)
-    .where(
-      and(
-        eq(orders.organizationId, context.organizationId),
-        or(
-          inArray(orders.status, activeOrderStatuses),
-          openDineInCheckFilter(),
-        ),
-        or(
-          inArray(orders.paymentStatus, [
-            "NOT_REQUIRED",
-            "UNPAID",
-            "PARTIALLY_PAID",
-            "PAID",
-          ]),
-          and(
-            eq(orders.source, "STAFF_CREATED"),
-            eq(orders.paymentStatus, "PENDING"),
-          ),
-        ),
-      ),
+    .where(view === "active" ? activeOrderFilter : pastOrderFilter)
+    .orderBy(
+      ...(view === "active"
+        ? [activeOrderRank(), desc(orders.createdAt)]
+        : [desc(pastOrderClosedAt())]),
     )
-    .orderBy(activeOrderRank(), desc(orders.createdAt))
-    .limit(STAFF_ACTIVE_ORDER_LIMIT + 1);
-  const activeHasMore = activeRows.length > STAFF_ACTIVE_ORDER_LIMIT;
-  const activeOrders = activeRows.slice(0, STAFF_ACTIVE_ORDER_LIMIT);
+    .limit(STAFF_ORDER_PAGE_SIZE)
+    .offset((page - 1) * STAFF_ORDER_PAGE_SIZE);
 
   return {
-    activeHasMore,
-    activeOrders,
-    page: 1,
-    pageSize: STAFF_ACTIVE_ORDER_LIMIT,
-    pastOrders: [],
-    total: activeOrders.length,
-    totalPages: 1,
+    activeOrders: view === "active" ? selectedOrders : [],
+    activeTotal,
+    page,
+    pageSize: STAFF_ORDER_PAGE_SIZE,
+    pastOrders: view === "past" ? selectedOrders : [],
+    pastTotal,
+    total,
+    totalPages,
     view,
   };
 }
