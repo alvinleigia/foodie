@@ -1225,7 +1225,7 @@ export function StaffOrderBoard({
       </div>
 
       {!loadedTabs[activeTab] && isRefreshing ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <Card key={index} className="rounded-xl border-stone-200 bg-white shadow-none">
               <CardContent className="space-y-4 px-5 py-5">
@@ -1256,7 +1256,7 @@ export function StaffOrderBoard({
           }
         />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4">
           {visibleOrders.map((order) => (
             <OrderCard
               key={order.orderId}

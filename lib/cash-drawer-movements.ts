@@ -13,6 +13,7 @@ import {
   decimalToMinorUnits,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
+import { calculateCashDrawerReconciliationSnapshot } from "@/lib/cash-drawer-reconciliation";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CashDrawerMovementActor = {
@@ -137,6 +138,22 @@ export async function recordCashDrawerMovement(
     }
 
     const amount = normalizeMovementAmount(input.amount, openSession.currency);
+
+    if (input.type === "PAID_OUT") {
+      const snapshot = await calculateCashDrawerReconciliationSnapshot(
+        tx,
+        openSession,
+      );
+      const amountMinor = decimalToMinorUnits(amount, openSession.currency);
+
+      if (amountMinor > snapshot.expectedCashMinor) {
+        throw new CashDrawerMovementError(
+          "Paid-out cash cannot exceed the expected cash currently in the drawer.",
+          409,
+        );
+      }
+    }
+
     const [createdMovement] = await tx
       .insert(cashDrawerMovements)
       .values({

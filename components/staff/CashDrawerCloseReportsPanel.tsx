@@ -3,13 +3,23 @@
 import { useState } from "react";
 import {
   AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Banknote,
   CheckCircle2,
   Download,
   Loader2,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import type {
   CashDrawerCloseReport,
+  CashDrawerLedgerEntry,
   CashDrawerReportAmount,
 } from "@/lib/cash-drawer-close-report-types";
 
@@ -56,6 +67,39 @@ function formatLabel(value: string) {
 
 function sumCounts(rows: Array<{ count: number }>) {
   return rows.reduce((total, row) => total + row.count, 0);
+}
+
+function getLedgerEntryDisplay(entry: CashDrawerLedgerEntry) {
+  switch (entry.kind) {
+    case "CASH_PAYMENT":
+      return {
+        Icon: Banknote,
+        label: entry.orderNo ? `Cash payment for order #${entry.orderNo}` : "Cash payment",
+        prefix: "+",
+        tone: "text-emerald-700",
+      };
+    case "CASH_REFUND":
+      return {
+        Icon: RotateCcw,
+        label: entry.orderNo ? `Cash refund for order #${entry.orderNo}` : "Cash refund",
+        prefix: "-",
+        tone: "text-rose-700",
+      };
+    case "PAID_IN":
+      return {
+        Icon: ArrowDownLeft,
+        label: entry.reason ?? "Paid in",
+        prefix: "+",
+        tone: "text-emerald-700",
+      };
+    case "PAID_OUT":
+      return {
+        Icon: ArrowUpRight,
+        label: entry.reason ?? "Paid out",
+        prefix: "-",
+        tone: "text-rose-700",
+      };
+  }
 }
 
 function AmountBreakdown({
@@ -130,9 +174,9 @@ export function CashDrawerCloseReportsPanel({
       <CardHeader className="border-b">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <CardTitle>Shift and day close reports</CardTitle>
+            <CardTitle>Cash drawer reports</CardTitle>
             <CardDescription>
-              Review closed shifts and restaurant totals for a business date.
+              Review drawer sessions and cash activity for a business date.
             </CardDescription>
           </div>
           <div className="flex flex-wrap items-end gap-2">
@@ -216,38 +260,39 @@ export function CashDrawerCloseReportsPanel({
         </dl>
 
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold">Cash reconciliation</h3>
-          {report.cashTotals.length === 0 ? (
+          <h3 className="text-sm font-semibold">Daily cash activity</h3>
+          <p className="text-sm text-muted-foreground">
+            Cash flows from drawer sessions closed on this business date. Opening
+            and closing balances are shown within each session to avoid counting
+            carried-forward cash more than once.
+          </p>
+          {report.cashActivityTotals.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No drawers were closed on this business date.
             </p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-4xl text-left text-sm">
+              <table className="w-full min-w-3xl text-left text-sm">
                 <thead className="bg-muted/60 text-xs text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Currency</th>
-                    <th className="px-4 py-3 font-medium">Opening</th>
                     <th className="px-4 py-3 font-medium">Cash sales</th>
-                    <th className="px-4 py-3 font-medium">Refunds</th>
+                    <th className="px-4 py-3 font-medium">Cash refunds</th>
                     <th className="px-4 py-3 font-medium">Paid in</th>
                     <th className="px-4 py-3 font-medium">Paid out</th>
-                    <th className="px-4 py-3 font-medium">Expected</th>
-                    <th className="px-4 py-3 font-medium">Counted</th>
-                    <th className="px-4 py-3 font-medium">Variance</th>
+                    <th className="px-4 py-3 font-medium">Net movement</th>
+                    <th className="px-4 py-3 font-medium">Total variance</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {report.cashTotals.map((total) => (
+                  {report.cashActivityTotals.map((total) => (
                     <tr key={total.currency}>
                       <td className="px-4 py-3 font-medium">{total.currency}</td>
-                      <td className="px-4 py-3">{formatMoney(total.openingFloat, total.currency)}</td>
                       <td className="px-4 py-3">{formatMoney(total.cashSalesAmount, total.currency)}</td>
                       <td className="px-4 py-3">{formatMoney(total.cashRefundsAmount, total.currency)}</td>
                       <td className="px-4 py-3">{formatMoney(total.paidInAmount, total.currency)}</td>
                       <td className="px-4 py-3">{formatMoney(total.paidOutAmount, total.currency)}</td>
-                      <td className="px-4 py-3 font-medium">{formatMoney(total.expectedCashAmount, total.currency)}</td>
-                      <td className="px-4 py-3 font-medium">{formatMoney(total.countedCashAmount, total.currency)}</td>
+                      <td className="px-4 py-3 font-medium">{formatMoney(total.netCashMovementAmount, total.currency)}</td>
                       <td className="px-4 py-3 font-semibold">{formatMoney(total.varianceAmount, total.currency)}</td>
                     </tr>
                   ))}
@@ -269,40 +314,128 @@ export function CashDrawerCloseReportsPanel({
         </div>
 
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold">Closed shifts</h3>
-          {report.shifts.length === 0 ? (
+          <h3 className="text-sm font-semibold">Drawer sessions</h3>
+          {report.drawerSessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No closed shifts for this business date.
+              No closed drawer sessions for this business date.
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-3xl text-left text-sm">
-                <thead className="bg-muted/60 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Ordering point</th>
-                    <th className="px-4 py-3 font-medium">Opened</th>
-                    <th className="px-4 py-3 font-medium">Closed</th>
-                    <th className="px-4 py-3 font-medium">Expected</th>
-                    <th className="px-4 py-3 font-medium">Counted</th>
-                    <th className="px-4 py-3 font-medium">Variance</th>
-                    <th className="px-4 py-3 font-medium">Note</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {report.shifts.map((shift) => (
-                    <tr key={shift.id}>
-                      <td className="px-4 py-3 font-medium">{shift.orderingPointName}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(shift.openedAt, report.timezone)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(shift.closedAt, report.timezone)}</td>
-                      <td className="px-4 py-3">{formatMoney(shift.expectedCashAmount, shift.currency)}</td>
-                      <td className="px-4 py-3">{formatMoney(shift.countedCashAmount, shift.currency)}</td>
-                      <td className="px-4 py-3 font-semibold">{formatMoney(shift.varianceAmount, shift.currency)}</td>
-                      <td className="max-w-64 px-4 py-3 text-muted-foreground">{shift.closingNote ?? "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Accordion className="space-y-2" type="multiple">
+              {report.drawerSessions.map((session) => (
+                <AccordionItem
+                  className="overflow-hidden rounded-lg"
+                  key={session.id}
+                  value={session.id}
+                >
+                  <AccordionTrigger className="items-start">
+                    <div className="grid flex-1 gap-3 pr-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p>{session.orderingPointName}</p>
+                        <p className="mt-1 text-xs font-normal text-muted-foreground">
+                          {session.ledgerEntries.length} ledger entr{session.ledgerEntries.length === 1 ? "y" : "ies"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-normal text-muted-foreground">Opened</p>
+                        <p className="mt-1 font-medium">{formatDateTime(session.openedAt, report.timezone)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-normal text-muted-foreground">Counted</p>
+                        <p className="mt-1 font-medium">{formatMoney(session.countedCashAmount, session.currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-normal text-muted-foreground">Variance</p>
+                        <p className="mt-1 font-semibold">{formatMoney(session.varianceAmount, session.currency)}</p>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="border-t pt-4">
+                    <dl className="grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2 lg:grid-cols-4">
+                      {[
+                        ["Opening float", session.openingFloat],
+                        ["Cash sales", session.cashSalesAmount],
+                        ["Cash refunds", session.cashRefundsAmount],
+                        ["Paid in", session.paidInAmount],
+                        ["Paid out", session.paidOutAmount],
+                        ["Expected", session.expectedCashAmount],
+                        ["Counted", session.countedCashAmount],
+                        ["Variance", session.varianceAmount],
+                      ].map(([label, amount]) => (
+                        <div className="bg-background p-3" key={label}>
+                          <dt className="text-xs text-muted-foreground">{label}</dt>
+                          <dd className="mt-1 font-semibold">{formatMoney(amount, session.currency)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Closed</p>
+                        <p className="mt-1">{formatDateTime(session.closedAt, report.timezone)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Opened by</p>
+                        <p className="mt-1">{session.openedByName ?? "Not recorded"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Closed by</p>
+                        <p className="mt-1">{session.closedByName ?? "Not recorded"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground">Closing note</p>
+                        <p className="mt-1">{session.closingNote ?? "No closing note"}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 border-t pt-4">
+                      <h4 className="font-semibold">Session ledger</h4>
+                      {session.ledgerEntries.length === 0 ? (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          No cash payments, refunds or manual movements were recorded.
+                        </p>
+                      ) : (
+                        <ul className="mt-3 divide-y rounded-lg border">
+                          {session.ledgerEntries.map((entry) => {
+                            const display = getLedgerEntryDisplay(entry);
+                            const EntryIcon = display.Icon;
+
+                            return (
+                              <li className="flex items-start justify-between gap-4 p-4" key={`${entry.kind}-${entry.id}`}>
+                                <div className="flex min-w-0 gap-3">
+                                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+                                    <EntryIcon className="size-4" aria-hidden="true" />
+                                  </span>
+                                  <div className="min-w-0">
+                                    <p className="font-medium">{display.label}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {formatDateTime(entry.occurredAt, report.timezone)}
+                                      {entry.recordedByName ? ` by ${entry.recordedByName}` : ""}
+                                    </p>
+                                    {entry.tenderedAmount && entry.changeAmount ? (
+                                      <p className="mt-1 text-xs text-muted-foreground">
+                                        Tendered {formatMoney(entry.tenderedAmount, entry.currency)}; change {formatMoney(entry.changeAmount, entry.currency)}
+                                      </p>
+                                    ) : null}
+                                    {entry.note ? (
+                                      <p className="mt-1 text-sm text-muted-foreground">{entry.note}</p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <span className={`shrink-0 font-semibold ${display.tone}`}>
+                                  {display.prefix}{formatMoney(entry.amount, entry.currency)}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
           )}
         </section>
 
