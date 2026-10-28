@@ -9,6 +9,8 @@ import {
   CreditCardIcon,
   ExternalLinkIcon,
   RotateCcwIcon,
+  SearchIcon,
+  XIcon,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { toast } from "sonner";
@@ -88,20 +90,28 @@ import {
   staffOrderAdjustmentReasonLabels,
   type StaffOrderAdjustmentReasonCode,
 } from "@/lib/order-adjustments";
+import {
+  orderFulfilmentLabels,
+  type OrderFulfilmentType,
+} from "@/lib/order-fulfilment";
 
 type OrdersPayload = {
-  activeHasMore: boolean;
   activeOrders: StaffOrder[];
+  activeTotal: number;
   canCorrectStatuses: boolean;
   canManageRefunds: boolean;
   currency: string;
-  pastPage: number;
+  page: number;
+  pageSize: number;
   pastOrders: StaffOrder[];
   pastTotal: number;
-  pastTotalPages: number;
+  total: number;
+  totalPages: number;
 };
 
 type StaffTab = "active" | "past";
+type StatusFilter = OrderStatus | "ALL";
+type FulfilmentFilter = OrderFulfilmentType | "ALL";
 type ItemVoidTarget = {
   itemId: string;
   orderId: string;
@@ -142,6 +152,23 @@ function formatMoney(amount: number, currency: string) {
   }).format(amount);
 }
 
+const orderStatusLabels: Record<OrderStatus, string> = {
+  PENDING: "Pending",
+  PREPARING: "Preparing",
+  ASSEMBLING: "Assembling",
+  READY: "Ready",
+  DELIVERED: "Delivered",
+  CANCELLED: "Cancelled",
+};
+
+const activeStatusOptions: OrderStatus[] = [
+  "PENDING",
+  "PREPARING",
+  "ASSEMBLING",
+  "READY",
+];
+const pastStatusOptions: OrderStatus[] = ["DELIVERED", "CANCELLED"];
+
 export function StaffOrderBoard({
   canCreateOrders = false,
   restaurantSlug,
@@ -154,18 +181,27 @@ export function StaffOrderBoard({
   stripePaymentsEnabled?: boolean;
 }) {
   const [orders, setOrders] = useState<OrdersPayload>({
-    activeHasMore: false,
     activeOrders: [],
+    activeTotal: 0,
     canCorrectStatuses: false,
     canManageRefunds: false,
     currency: DEFAULT_CURRENCY,
-    pastPage: 1,
+    page: 1,
+    pageSize: 20,
     pastOrders: [],
     pastTotal: 0,
-    pastTotalPages: 1,
+    total: 0,
+    totalPages: 1,
   });
   const [activeTab, setActiveTab] = useState<StaffTab>("active");
-  const [pastPage, setPastPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [fulfilmentFilter, setFulfilmentFilter] =
+    useState<FulfilmentFilter>("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [loadedTabs, setLoadedTabs] = useState<Record<StaffTab, boolean>>({
@@ -233,10 +269,25 @@ export function StaffOrderBoard({
     }
 
     try {
-      const searchParams = new URLSearchParams({ view: options.view });
+      const searchParams = new URLSearchParams({
+        page: String(options.page ?? 1),
+        view: options.view,
+      });
 
-      if (options.view === "past") {
-        searchParams.set("page", String(options.page ?? 1));
+      if (searchQuery) {
+        searchParams.set("search", searchQuery);
+      }
+      if (statusFilter !== "ALL") {
+        searchParams.set("status", statusFilter);
+      }
+      if (fulfilmentFilter !== "ALL") {
+        searchParams.set("fulfilmentType", fulfilmentFilter);
+      }
+      if (fromDate) {
+        searchParams.set("fromDate", fromDate);
+      }
+      if (toDate) {
+        searchParams.set("toDate", toDate);
       }
 
       const response = await fetch(`/api/orders?${searchParams.toString()}`, {
@@ -256,45 +307,34 @@ export function StaffOrderBoard({
 
       const pageInfo = payload.pageInfo ?? {};
       const nextActiveOrders = payload.activeOrders ?? [];
+      const resolvedPage = Number(pageInfo.page ?? options.page ?? 1);
 
       if (options.view === "active") {
-        activeOrderCountRef.current = nextActiveOrders.length;
-      } else {
-        const resolvedPage = Number(pageInfo.page ?? options.page ?? 1);
-        setPastPage((current) =>
-          current === resolvedPage ? current : resolvedPage,
-        );
+        activeOrderCountRef.current = Number(pageInfo.activeTotal ?? 0);
       }
+      setCurrentPage((current) =>
+        current === resolvedPage ? current : resolvedPage,
+      );
 
       setOrders((current) => ({
         ...current,
-        activeHasMore:
-          options.view === "active"
-            ? Boolean(pageInfo.activeHasMore)
-            : current.activeHasMore,
         activeOrders:
           options.view === "active"
             ? nextActiveOrders
             : current.activeOrders,
+        activeTotal: Number(pageInfo.activeTotal ?? 0),
         canCorrectStatuses: Boolean(payload.canCorrectStatuses),
         canManageRefunds: Boolean(payload.canManageRefunds),
         currency: payload.currency ?? DEFAULT_CURRENCY,
-        pastPage:
-          options.view === "past"
-            ? Number(pageInfo.page ?? options.page ?? 1)
-            : current.pastPage,
+        page: resolvedPage,
+        pageSize: Number(pageInfo.pageSize ?? 20),
         pastOrders:
           options.view === "past"
             ? payload.pastOrders ?? []
             : current.pastOrders,
-        pastTotal:
-          options.view === "past"
-            ? Number(pageInfo.total ?? 0)
-            : current.pastTotal,
-        pastTotalPages:
-          options.view === "past"
-            ? Number(pageInfo.totalPages ?? 1)
-            : current.pastTotalPages,
+        pastTotal: Number(pageInfo.pastTotal ?? 0),
+        total: Number(pageInfo.total ?? 0),
+        totalPages: Number(pageInfo.totalPages ?? 1),
       }));
       setError(null);
     } catch (fetchError) {
@@ -318,7 +358,7 @@ export function StaffOrderBoard({
         }
       }
     }
-  }, []);
+  }, [fromDate, fulfilmentFilter, searchQuery, statusFilter, toDate]);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -328,6 +368,15 @@ export function StaffOrderBoard({
       ordersRequestRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setCurrentPage(1);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
 
   useEffect(() => {
     let stopped = false;
@@ -346,7 +395,7 @@ export function StaffOrderBoard({
 
     const run = async () => {
       await syncOrders({
-        page: activeTab === "past" ? pastPage : 1,
+        page: currentPage,
         showRefreshing: !loadedTabsRef.current[activeTab],
         view: activeTab,
       });
@@ -379,11 +428,11 @@ export function StaffOrderBoard({
         window.clearTimeout(timeoutId);
       }
     };
-  }, [activeTab, pastPage, syncOrders]);
+  }, [activeTab, currentPage, syncOrders]);
 
   function syncVisibleOrders(options: { showRefreshing?: boolean } = {}) {
     return syncOrders({
-      page: activeTab === "past" ? pastPage : 1,
+      page: currentPage,
       showRefreshing: options.showRefreshing,
       view: activeTab,
     });
@@ -1091,8 +1140,35 @@ export function StaffOrderBoard({
     }
   }
 
+  function clearOrderFilters() {
+    setSearchInput("");
+    setSearchQuery("");
+    setStatusFilter("ALL");
+    setFulfilmentFilter("ALL");
+    setFromDate("");
+    setToDate("");
+    setCurrentPage(1);
+  }
+
   const visibleOrders =
     activeTab === "active" ? orders.activeOrders : orders.pastOrders;
+  const selectedTotal =
+    activeTab === "active" ? orders.activeTotal : orders.pastTotal;
+  const statusOptions =
+    activeTab === "active" ? activeStatusOptions : pastStatusOptions;
+  const hasActiveFilters = Boolean(
+    searchInput.trim() ||
+      statusFilter !== "ALL" ||
+      fulfilmentFilter !== "ALL" ||
+      fromDate ||
+      toDate,
+  );
+  const firstVisibleOrder =
+    selectedTotal === 0 ? 0 : (orders.page - 1) * orders.pageSize + 1;
+  const lastVisibleOrder = Math.min(
+    selectedTotal,
+    orders.page * orders.pageSize,
+  );
   const settlementCurrency =
     settlementTarget?.paymentCurrency ?? orders.currency;
   let settlementBalance: ReturnType<typeof calculatePaymentBalance> | null =
@@ -1210,18 +1286,132 @@ export function StaffOrderBoard({
       <CardContent className="px-6 pb-6">
       {error ? <p className="mb-4 text-sm text-rose-600">{error}</p> : null}
 
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as StaffTab)}>
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value as StaffTab);
+            setStatusFilter("ALL");
+            setCurrentPage(1);
+          }}
+        >
           <TabsList>
             <TabsTrigger value="active" disabled={Boolean(pendingAction)}>
-              Active Orders ({orders.activeOrders.length}
-              {orders.activeHasMore ? "+" : ""})
+              Active Orders ({orders.activeTotal})
             </TabsTrigger>
             <TabsTrigger value="past" disabled={Boolean(pendingAction)}>
               Past Orders ({orders.pastTotal})
             </TabsTrigger>
           </TabsList>
         </Tabs>
+      </div>
+
+      <div className="mb-6 grid gap-3 border-y border-stone-200 py-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1.6fr)_minmax(9rem,0.8fr)_minmax(9rem,0.8fr)]">
+          <label className="relative block">
+            <span className="sr-only">Search orders</span>
+            <SearchIcon
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400"
+            />
+            <Input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="Search order, customer, email or phone"
+              className="h-10 bg-white pl-9"
+              disabled={Boolean(pendingAction)}
+            />
+          </label>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => {
+              setStatusFilter(value as StatusFilter);
+              setCurrentPage(1);
+            }}
+            disabled={Boolean(pendingAction)}
+          >
+            <SelectTrigger
+              className="h-10 w-full bg-white"
+              aria-label="Order status"
+            >
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              {statusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {orderStatusLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={fulfilmentFilter}
+            onValueChange={(value) => {
+              setFulfilmentFilter(value as FulfilmentFilter);
+              setCurrentPage(1);
+            }}
+            disabled={Boolean(pendingAction)}
+          >
+            <SelectTrigger
+              className="h-10 w-full bg-white"
+              aria-label="Fulfilment type"
+            >
+              <SelectValue placeholder="All fulfilment types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All fulfilment types</SelectItem>
+              {Object.entries(orderFulfilmentLabels).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(10rem,0.8fr)_minmax(10rem,0.8fr)_1fr]">
+          <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+            From date
+            <Input
+              type="date"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(event) => {
+                setFromDate(event.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 bg-white"
+              disabled={Boolean(pendingAction)}
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+            To date
+            <Input
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(event) => {
+                setToDate(event.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-10 bg-white"
+              disabled={Boolean(pendingAction)}
+            />
+          </label>
+          <div className="flex items-end xl:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 w-full sm:w-auto"
+              onClick={clearOrderFilters}
+              disabled={!hasActiveFilters || Boolean(pendingAction)}
+            >
+              <XIcon aria-hidden="true" />
+              Clear filters
+            </Button>
+          </div>
+        </div>
       </div>
 
       {!loadedTabs[activeTab] && isRefreshing ? (
@@ -1248,11 +1438,19 @@ export function StaffOrderBoard({
         </div>
       ) : visibleOrders.length === 0 ? (
         <EmptyState
-          title={activeTab === "active" ? "No active orders yet" : "No past orders yet"}
+          title={
+            hasActiveFilters
+              ? "No matching orders"
+              : activeTab === "active"
+                ? "No active orders yet"
+                : "No past orders yet"
+          }
           description={
-            activeTab === "active"
-              ? "This tab refreshes automatically while it is visible."
-              : "Delivered and cancelled orders will appear here."
+            hasActiveFilters
+              ? "Try changing or clearing the current filters."
+              : activeTab === "active"
+                ? "This tab refreshes automatically while it is visible."
+                : "Delivered and cancelled orders will appear here."
           }
         />
       ) : (
@@ -1285,41 +1483,51 @@ export function StaffOrderBoard({
           ))}
         </div>
       )}
-      {activeTab === "past" && orders.pastTotalPages > 1 ? (
-        <div className="mt-5 flex items-center justify-center gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            title="Previous page"
-            aria-label="Previous page"
-            disabled={pastPage <= 1 || isRefreshing || Boolean(pendingAction)}
-            onClick={() => setPastPage((current) => Math.max(1, current - 1))}
-          >
-            <ChevronLeftIcon aria-hidden="true" />
-          </Button>
-          <p className="min-w-24 text-center text-sm text-stone-600">
-            Page {orders.pastPage} of {orders.pastTotalPages}
+      {selectedTotal > 0 ? (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-4">
+          <p className="text-sm text-stone-600">
+            Showing {firstVisibleOrder}-{lastVisibleOrder} of {selectedTotal}{" "}
+            orders
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            title="Next page"
-            aria-label="Next page"
-            disabled={
-              pastPage >= orders.pastTotalPages ||
-              isRefreshing ||
-              Boolean(pendingAction)
-            }
-            onClick={() =>
-              setPastPage((current) =>
-                Math.min(orders.pastTotalPages, current + 1),
-              )
-            }
-          >
-            <ChevronRightIcon aria-hidden="true" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Previous page"
+              aria-label="Previous page"
+              disabled={
+                currentPage <= 1 || isRefreshing || Boolean(pendingAction)
+              }
+              onClick={() =>
+                setCurrentPage((current) => Math.max(1, current - 1))
+              }
+            >
+              <ChevronLeftIcon aria-hidden="true" />
+            </Button>
+            <p className="min-w-24 text-center text-sm text-stone-600">
+              Page {orders.page} of {orders.totalPages}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              title="Next page"
+              aria-label="Next page"
+              disabled={
+                currentPage >= orders.totalPages ||
+                isRefreshing ||
+                Boolean(pendingAction)
+              }
+              onClick={() =>
+                setCurrentPage((current) =>
+                  Math.min(orders.totalPages, current + 1),
+                )
+              }
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Button>
+          </div>
         </div>
       ) : null}
       </CardContent>
