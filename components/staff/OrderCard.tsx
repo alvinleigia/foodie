@@ -206,7 +206,7 @@ export function OrderCard({
   pendingAction,
   disabled,
 }: OrderCardProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const openDineInCheck = isOpenDineInCheck(order);
   const canAddItems = canCreateOrders && canAppendToDineInCheck(order);
   const closedAt = openDineInCheck
@@ -286,10 +286,160 @@ export function OrderCard({
                   }).format(Number(order.cancellationFeeAmount))} was retained.`
                 : null;
 
+  const paymentSummary =
+    order.paymentStatus === "NOT_REQUIRED"
+      ? "No payment required"
+      : order.paymentStatus === "UNPAID"
+        ? `Unpaid ${paymentTotal}`
+        : order.paymentStatus === "PARTIALLY_PAID"
+          ? `${paymentRemaining} remaining`
+          : order.paymentStatus === "PENDING"
+            ? "Payment pending"
+            : order.paymentStatus === "PAID"
+              ? `Paid ${paymentTotal}`
+              : order.paymentStatus === "REFUND_PENDING"
+                ? "Refund pending"
+                : order.paymentStatus === "REFUND_FAILED"
+                  ? "Refund needs attention"
+                  : order.paymentStatus === "PARTIALLY_REFUNDED"
+                    ? "Partially refunded"
+                    : "Refunded";
+  const summaryStatusAction: {
+    action: "start" | "ready" | "deliver";
+    className: string;
+    Icon: typeof CookingPotIcon;
+    label: string;
+    pendingLabel: string;
+  } | null = openDineInCheck
+    ? null
+    : order.status === "PENDING"
+      ? {
+          action: "start",
+          className:
+            "border-stone-300 bg-white text-stone-900 hover:bg-stone-100",
+          Icon: CookingPotIcon,
+          label: "Start order",
+          pendingLabel: "Starting...",
+        }
+      : order.status === "PREPARING"
+        ? {
+            action: "ready",
+            className: "bg-amber-500 text-stone-950 hover:bg-amber-400",
+            Icon: CirclePlayIcon,
+            label: "Send to assembly",
+            pendingLabel: "Sending...",
+          }
+        : order.status === "ASSEMBLING"
+          ? {
+              action: "ready",
+              className: "bg-emerald-600 text-white hover:bg-emerald-500",
+              Icon: CheckCircleIcon,
+              label: "Ready for handoff",
+              pendingLabel: "Releasing...",
+            }
+          : order.status === "READY"
+            ? {
+                action: "deliver",
+                className: "bg-emerald-600 text-white hover:bg-emerald-500",
+                Icon: CheckCircleIcon,
+                label: "Mark delivered",
+                pendingLabel: "Delivering...",
+              }
+            : null;
+
+  function renderSummaryPrimaryAction() {
+    if (canRetryRefund) {
+      return (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => onRetryRefund(order)}
+          className="w-full border-amber-300 bg-white text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto"
+        >
+          {pendingAction === `refund-order:${order.orderId}` ? (
+            <span className="inline-flex items-center gap-2">
+              <Spinner className="text-amber-800" />
+              Retrying...
+            </span>
+          ) : (
+            <ButtonLabel icon={RefreshCwIcon}>Retry refund</ButtonLabel>
+          )}
+        </Button>
+      );
+    }
+
+    if (openDineInCheck && canAddItems) {
+      return (
+        <Button asChild variant="outline" className="w-full sm:w-auto">
+          <Link
+            href={getStaffRestaurantAddItemsHref(
+              restaurantSlug,
+              order.orderId,
+            )}
+          >
+            <ButtonLabel icon={PlusIcon}>Add items</ButtonLabel>
+          </Link>
+        </Button>
+      );
+    }
+
+    if (summaryStatusAction) {
+      const SummaryActionIcon = summaryStatusAction.Icon;
+      const actionKey = `${summaryStatusAction.action}-order:${order.orderId}`;
+
+      return (
+        <Button
+          type="button"
+          variant={summaryStatusAction.action === "start" ? "outline" : "default"}
+          disabled={disabled}
+          onClick={() =>
+            onOrderAction(order.orderId, summaryStatusAction.action)
+          }
+          className={`w-full sm:w-auto ${summaryStatusAction.className}`}
+        >
+          {pendingAction === actionKey ? (
+            <span className="inline-flex items-center gap-2">
+              <Spinner />
+              {summaryStatusAction.pendingLabel}
+            </span>
+          ) : (
+            <ButtonLabel icon={SummaryActionIcon}>
+              {summaryStatusAction.label}
+            </ButtonLabel>
+          )}
+        </Button>
+      );
+    }
+
+    if (
+      canSettleBills &&
+      order.source === "STAFF_CREATED" &&
+      (order.paymentStatus === "UNPAID" ||
+        order.paymentStatus === "PARTIALLY_PAID")
+    ) {
+      return (
+        <Button
+          type="button"
+          disabled={disabled || !order.paymentAmount}
+          onClick={() => onSettleOrder(order)}
+          className="w-full bg-stone-950 text-white hover:bg-stone-800 sm:w-auto"
+        >
+          <ButtonLabel icon={BanknoteIcon}>
+            {order.paymentStatus === "PARTIALLY_PAID"
+              ? "Collect balance"
+              : "Settle bill"}
+          </ButtonLabel>
+        </Button>
+      );
+    }
+
+    return null;
+  }
+
   function renderOrderActions() {
     if (
       !canCorrectOrder &&
-      !canRetryRefund &&
       (order.status === "DELIVERED" || order.status === "CANCELLED")
     ) {
       return null;
@@ -301,25 +451,7 @@ export function OrderCard({
           Order actions
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {canRetryRefund ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={disabled}
-              onClick={() => onRetryRefund(order)}
-              className="rounded-lg border-amber-300 bg-white text-amber-800 hover:bg-amber-50 hover:text-amber-900"
-            >
-              {pendingAction === `refund-order:${order.orderId}` ? (
-                <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-amber-800" />
-                  Retrying...
-                </span>
-              ) : (
-                <ButtonLabel icon={RefreshCwIcon}>Retry refund</ButtonLabel>
-              )}
-            </Button>
-          ) : null}
-          {order.status === "PENDING" ? (
+          {openDineInCheck && order.status === "PENDING" ? (
             <Button
               type="button"
               variant="outline"
@@ -338,7 +470,7 @@ export function OrderCard({
             </Button>
           ) : null}
 
-          {order.status === "PREPARING" ? (
+          {openDineInCheck && order.status === "PREPARING" ? (
             <Button
               type="button"
               disabled={disabled}
@@ -356,7 +488,7 @@ export function OrderCard({
             </Button>
           ) : null}
 
-          {order.status === "ASSEMBLING" ? (
+          {openDineInCheck && order.status === "ASSEMBLING" ? (
             <Button
               type="button"
               disabled={disabled}
@@ -392,23 +524,25 @@ export function OrderCard({
                   <ButtonLabel icon={MegaphoneIcon}>Play all messages</ButtonLabel>
                 )}
               </Button>
-              <Button
-                type="button"
-                disabled={disabled}
-                onClick={() => onOrderAction(order.orderId, "deliver")}
-                className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
-              >
-                {pendingAction === `deliver-order:${order.orderId}` ? (
-                  <span className="inline-flex items-center gap-2">
-                    <Spinner className="text-white" />
-                    Delivering...
-                  </span>
-                ) : (
-                  <ButtonLabel icon={CheckCircleIcon}>
-                    Mark whole order delivered
-                  </ButtonLabel>
-                )}
-              </Button>
+              {openDineInCheck ? (
+                <Button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onOrderAction(order.orderId, "deliver")}
+                  className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+                >
+                  {pendingAction === `deliver-order:${order.orderId}` ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner className="text-white" />
+                      Delivering...
+                    </span>
+                  ) : (
+                    <ButtonLabel icon={CheckCircleIcon}>
+                      Mark whole order delivered
+                    </ButtonLabel>
+                  )}
+                </Button>
+              ) : null}
             </>
           ) : null}
 
@@ -627,99 +761,86 @@ export function OrderCard({
 
   return (
     <Card className="rounded-xl border-stone-200 bg-white shadow-[0_14px_40px_rgba(40,26,20,0.08)]">
-      <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5 pb-0">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-stone-500">
-            {orderDisplay.label}
-          </p>
-          {orderDisplay.meta ? (
-            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-stone-400">
-              {orderDisplay.meta}
-            </p>
-          ) : null}
-          <div className="mt-3 flex items-start gap-3">
-            <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-              <UserRoundIcon className="size-5" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-2xl font-semibold text-stone-900">
-                {order.customerName}
-              </h3>
-              <p className="mt-1 text-sm text-stone-600">
-                {order.drinkName}
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
-                  <PackageIcon className="size-3.5" />
-                  {itemCount} item(s)
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
-                  {getOrderFulfilmentLabel(order.fulfilmentType)}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
-                  <ClockIcon className="size-3.5" />
-                  Placed {placedTime}
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 py-1 text-xs font-medium text-stone-700">
-                  <ClockIcon className="size-3.5" />
-                  {fulfilmentTime
-                    ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
-                    : "ASAP"}
-                </span>
+      <CardHeader className="p-0">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            aria-controls={`order-details-${order.orderId}`}
+            aria-expanded={!isCollapsed}
+            className="min-w-0 flex-1 rounded-lg p-1 text-left outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-200"
+            onClick={() => setIsCollapsed((current) => !current)}
+            title={isCollapsed ? "Show order details" : "Hide order details"}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold uppercase text-stone-500">
+                    {orderDisplay.label}
+                  </p>
+                  {orderDisplay.meta ? (
+                    <span className="text-xs font-medium text-stone-400">
+                      {orderDisplay.meta}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex min-w-0 items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                    <UserRoundIcon className="size-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-lg font-semibold text-stone-950">
+                      {order.customerName}
+                    </h3>
+                    <p className="truncate text-sm text-stone-600">
+                      {order.drinkName}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {openDineInCheck ? (
+                  <span className="hidden rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase text-emerald-800 sm:inline-flex">
+                    Open check
+                  </span>
+                ) : null}
+                <OrderStatusBadge status={order.status} />
+                {isCollapsed ? (
+                  <ChevronDownIcon className="size-4 text-stone-500" aria-hidden="true" />
+                ) : (
+                  <ChevronUpIcon className="size-4 text-stone-500" aria-hidden="true" />
+                )}
               </div>
             </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <div className="flex flex-wrap justify-end gap-2">
-            {openDineInCheck ? (
-              <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold uppercase text-emerald-800">
-                Open check
+
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
+              <span className="inline-flex items-center gap-1.5">
+                <PackageIcon className="size-3.5" aria-hidden="true" />
+                {itemCount} item(s)
               </span>
-            ) : null}
-            <OrderStatusBadge status={order.status} />
-          </div>
-          {openDineInCheck ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              title={isCollapsed ? "Expand check" : "Minimize check"}
-              aria-label={isCollapsed ? "Expand check" : "Minimize check"}
-              aria-expanded={!isCollapsed}
-              onClick={() => setIsCollapsed((current) => !current)}
-              className="size-8 text-stone-500 hover:text-stone-900"
-            >
-              {isCollapsed ? (
-                <ChevronDownIcon aria-hidden="true" />
-              ) : (
-                <ChevronUpIcon aria-hidden="true" />
-              )}
-            </Button>
-          ) : null}
+              <span>{getOrderFulfilmentLabel(order.fulfilmentType)}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <ClockIcon className="size-3.5" aria-hidden="true" />
+                Placed {placedTime}
+              </span>
+              <span>
+                {fulfilmentTime
+                  ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                  : "ASAP"}
+              </span>
+              <span className="font-semibold text-stone-800">
+                {paymentSummary}
+              </span>
+            </div>
+          </button>
+          <div className="shrink-0">{renderSummaryPrimaryAction()}</div>
         </div>
       </CardHeader>
 
-      {isCollapsed ? (
-        <CardContent className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4 pb-5">
-          <p className="text-sm text-stone-600">
-            {itemCount} item(s) on this open dine-in check.
-          </p>
-          {canAddItems ? (
-            <Button asChild variant="outline">
-              <Link
-                href={getStaffRestaurantAddItemsHref(
-                  restaurantSlug,
-                  order.orderId,
-                )}
-              >
-                <ButtonLabel icon={PlusIcon}>Add items</ButtonLabel>
-              </Link>
-            </Button>
-          ) : null}
-        </CardContent>
-      ) : (
-      <CardContent className="px-5 pt-4 pb-5">
+      {!isCollapsed ? (
+      <CardContent
+        className="border-t border-stone-200 px-5 pt-4 pb-5"
+        id={`order-details-${order.orderId}`}
+      >
         {openDineInCheck ? (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
             <div>
@@ -976,7 +1097,7 @@ export function OrderCard({
           </div>
         ) : null}
       </CardContent>
-      )}
+      ) : null}
     </Card>
   );
 }

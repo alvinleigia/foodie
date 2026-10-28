@@ -36,4 +36,22 @@ test.describe("staff order board scalability", () => {
     expect(boardSource).toContain('view: activeTab');
     expect(boardSource).not.toContain("window.setInterval");
   });
+
+  test("uses compact expandable order summaries", () => {
+    const boardSource = source(
+      "components",
+      "staff",
+      "StaffOrderBoard.tsx",
+    );
+    const cardSource = source("components", "staff", "OrderCard.tsx");
+
+    expect(cardSource).toContain(
+      "const [isCollapsed, setIsCollapsed] = useState(true)",
+    );
+    expect(cardSource).toContain("aria-expanded={!isCollapsed}");
+    expect(cardSource).toContain("Show order details");
+    expect(cardSource).toContain("renderSummaryPrimaryAction");
+    expect(cardSource).toContain('id={`order-details-${order.orderId}`}');
+    expect(boardSource).not.toContain("lg:grid-cols-2");
+  });
 });

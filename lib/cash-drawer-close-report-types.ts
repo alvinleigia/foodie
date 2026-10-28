@@ -5,15 +5,27 @@ export type CashDrawerReportAmount = {
   method: string;
 };
 
+export type CashDrawerLedgerEntry = {
+  amount: string;
+  changeAmount: string | null;
+  currency: string;
+  id: string;
+  kind: "CASH_PAYMENT" | "CASH_REFUND" | "PAID_IN" | "PAID_OUT";
+  note: string | null;
+  occurredAt: string;
+  orderNo: number | null;
+  reason: string | null;
+  recordedByName: string | null;
+  tenderedAmount: string | null;
+};
+
 export type CashDrawerCloseReport = {
   businessDate: string;
-  cashTotals: Array<{
+  cashActivityTotals: Array<{
     cashRefundsAmount: string;
     cashSalesAmount: string;
-    countedCashAmount: string;
     currency: string;
-    expectedCashAmount: string;
-    openingFloat: string;
+    netCashMovementAmount: string;
     paidInAmount: string;
     paidOutAmount: string;
     varianceAmount: string;
@@ -33,18 +45,21 @@ export type CashDrawerCloseReport = {
   payments: CashDrawerReportAmount[];
   refunds: CashDrawerReportAmount[];
   restaurantName: string;
-  shifts: Array<{
+  drawerSessions: Array<{
     cashRefundsAmount: string;
     cashSalesAmount: string;
     closedAt: string | null;
     closedByMembershipId: string | null;
+    closedByName: string | null;
     closingNote: string | null;
     countedCashAmount: string;
     currency: string;
     expectedCashAmount: string;
     id: string;
+    ledgerEntries: CashDrawerLedgerEntry[];
     openedAt: string;
     openedByMembershipId: string | null;
+    openedByName: string | null;
     openingFloat: string;
     orderingPointName: string;
     paidInAmount: string;

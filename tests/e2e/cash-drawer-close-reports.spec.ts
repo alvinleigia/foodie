@@ -5,6 +5,7 @@ import {
   getBusinessDateRange,
   getCurrentBusinessDate,
 } from "@/lib/business-date";
+import { aggregateCashActivityTotals } from "@/lib/cash-drawer-close-report-calculations";
 
 test.describe("cash drawer close reports", () => {
   test("uses restaurant-local calendar boundaries across daylight saving", () => {
@@ -29,6 +30,55 @@ test.describe("cash drawer close reports", () => {
     );
   });
 
+  test("does not count carried-forward drawer balances as new daily cash", () => {
+    const totals = aggregateCashActivityTotals([
+      {
+        cashRefundsAmount: "0.00",
+        cashSalesAmount: "0.00",
+        currency: "GBP",
+        paidInAmount: "0.00",
+        paidOutAmount: "0.00",
+        varianceAmount: "0.00",
+      },
+      {
+        cashRefundsAmount: "0.00",
+        cashSalesAmount: "0.00",
+        currency: "GBP",
+        paidInAmount: "0.00",
+        paidOutAmount: "0.00",
+        varianceAmount: "0.00",
+      },
+      {
+        cashRefundsAmount: "0.00",
+        cashSalesAmount: "123.92",
+        currency: "GBP",
+        paidInAmount: "0.00",
+        paidOutAmount: "0.00",
+        varianceAmount: "0.00",
+      },
+      {
+        cashRefundsAmount: "0.00",
+        cashSalesAmount: "0.00",
+        currency: "GBP",
+        paidInAmount: "100.00",
+        paidOutAmount: "100.00",
+        varianceAmount: "0.00",
+      },
+    ]);
+
+    expect(totals).toEqual([
+      {
+        cashRefundsAmount: "0.00",
+        cashSalesAmount: "123.92",
+        currency: "GBP",
+        netCashMovementAmount: "123.92",
+        paidInAmount: "100.00",
+        paidOutAmount: "100.00",
+        varianceAmount: "0.00",
+      },
+    ]);
+  });
+
   test("scopes close reports to the restaurant and successful ledger entries", () => {
     const serviceSource = readFileSync(
       "lib/cash-drawer-close-reports.ts",
@@ -47,6 +97,10 @@ test.describe("cash drawer close reports", () => {
     expect(serviceSource).toContain('eq(orderPayments.status, "SUCCEEDED")');
     expect(serviceSource).toContain('eq(orderRefunds.status, "SUCCEEDED")');
     expect(serviceSource).toContain("cashDrawerReconciliations");
+    expect(serviceSource).toContain("cashDrawerMovements");
+    expect(serviceSource).toContain("orderPayments.cashDrawerSessionId");
+    expect(serviceSource).toContain("orderRefunds.cashDrawerSessionId");
+    expect(serviceSource).toContain("cashActivityTotals");
     expect(serviceSource).toContain("isReadyToClose: openDrawers.length === 0");
     expect(serviceSource).toContain("exportCashDrawerCloseReportCsv");
   });
@@ -64,12 +118,13 @@ test.describe("cash drawer close reports", () => {
     expect(pageSource).toContain('includes("reports.view")');
     expect(pageSource).toContain("getCashDrawerCloseReport");
     expect(pageSource).toContain("CashDrawerCloseReportsPanel");
-    expect(componentSource).toContain("Shift and day close reports");
+    expect(componentSource).toContain("Cash drawer reports");
     expect(componentSource).toContain("Ready to close");
     expect(componentSource).toContain("Close ${report.openDrawers.length} open drawer");
     expect(componentSource).toContain("/api/cash-drawer/reports?date=");
     expect(componentSource).toContain("&format=csv");
-    expect(componentSource).toContain("Cash reconciliation");
-    expect(componentSource).toContain("Closed shifts");
+    expect(componentSource).toContain("Daily cash activity");
+    expect(componentSource).toContain("Drawer sessions");
+    expect(componentSource).toContain("Session ledger");
   });
 });
