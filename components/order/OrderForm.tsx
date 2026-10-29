@@ -1874,7 +1874,7 @@ export function OrderForm({
                         }}
                         className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                           selected
-                            ? "border-stone-950 bg-stone-950 text-white"
+                            ? "border-stone-700 bg-stone-700 text-white shadow-sm"
                             : "border-stone-200 bg-white text-stone-900 hover:bg-stone-50"
                         }`}
                       >
@@ -1893,6 +1893,7 @@ export function OrderForm({
                       min={toLocalDateTimeInputValue(new Date())}
                       value={draft.scheduledFulfilmentAt}
                       disabled={isSubmitting}
+                      className="h-12 border-stone-300 bg-white px-4 shadow-sm hover:border-stone-400 focus-visible:border-stone-600 focus-visible:ring-stone-400/20"
                       onChange={(event) => {
                         updateDraft("scheduledFulfilmentAt", event.target.value);
                         setError(null);

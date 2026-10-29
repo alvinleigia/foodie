@@ -47,7 +47,7 @@ export function FulfilmentTypeSelector({
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${
                 selected
-                  ? "border-stone-950 bg-stone-950 text-white"
+                  ? "border-stone-700 bg-stone-700 text-white shadow-sm"
                   : "border-stone-200 bg-white text-stone-900 hover:bg-stone-50"
               }`}
             >
