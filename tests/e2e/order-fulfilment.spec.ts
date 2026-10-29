@@ -109,6 +109,7 @@ test.describe("order fulfilment", () => {
     expect(form).toContain("deliveryAddress:");
     expect(selector).toContain("Order type");
     expect(selector).toContain("flex min-h-20 flex-col items-center");
+    expect(selector).toContain("border-stone-700 bg-stone-700");
     expect(selector).not.toContain("orderFulfilmentDescriptions");
   });
 });

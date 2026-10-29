@@ -75,6 +75,9 @@ test.describe("order fulfilment timing", () => {
     );
     expect(orderForm).toContain("Ready time");
     expect(orderForm).toContain('timing === "ASAP" ? "ASAP" : "Schedule"');
+    expect(orderForm).toContain(
+      'className="h-12 border-stone-300 bg-white px-4 shadow-sm',
+    );
     expect(orderForm).not.toContain(
       "The restaurant may confirm or revise your requested time.",
     );
