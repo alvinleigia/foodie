@@ -73,6 +73,11 @@ test.describe("order fulfilment timing", () => {
     expect(orderForm).toContain(
       "supportsScheduledFulfilment(draft.fulfilmentType) ? (",
     );
+    expect(orderForm).toContain("Ready time");
+    expect(orderForm).toContain('timing === "ASAP" ? "ASAP" : "Schedule"');
+    expect(orderForm).not.toContain(
+      "The restaurant may confirm or revise your requested time.",
+    );
   });
 
   test("prefers the restaurant promise over the customer request", () => {

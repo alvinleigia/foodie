@@ -101,10 +101,14 @@ test.describe("order fulfilment", () => {
 
   test("sends the selected fulfilment type from order review", () => {
     const form = source("components/order/OrderForm.tsx");
+    const selector = source("components/order/FulfilmentTypeSelector.tsx");
 
     expect(form).toContain("<FulfilmentTypeSelector");
     expect(form).toContain("fulfilmentType: draft.fulfilmentType");
     expect(form).toContain('draft.fulfilmentType === "DELIVERY"');
     expect(form).toContain("deliveryAddress:");
+    expect(selector).toContain("Order type");
+    expect(selector).toContain("flex min-h-20 flex-col items-center");
+    expect(selector).not.toContain("orderFulfilmentDescriptions");
   });
 });
