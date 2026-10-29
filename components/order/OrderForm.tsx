@@ -14,6 +14,7 @@ import {
   SendIcon,
   ShoppingCartIcon,
   TagsIcon,
+  TimerIcon,
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -1841,62 +1842,65 @@ export function OrderForm({
 
             {!openDineInOrder &&
             supportsScheduledFulfilment(draft.fulfilmentType) ? (
-            <fieldset className="grid gap-3">
-              <legend className="text-sm font-medium text-stone-800">
-                When should it be ready?
-              </legend>
-              <div className="grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
-                {(["ASAP", "SCHEDULED"] as const).map((timing) => (
-                  <button
-                    key={timing}
-                    type="button"
-                    disabled={isSubmitting}
-                    aria-pressed={draft.fulfilmentTiming === timing}
-                    onClick={() => {
-                      setDraft((currentDraft) => ({
-                        ...currentDraft,
-                        fulfilmentTiming: timing,
-                        scheduledFulfilmentAt:
-                          timing === "SCHEDULED" &&
-                          !currentDraft.scheduledFulfilmentAt
-                            ? toLocalDateTimeInputValue(
-                                new Date(Date.now() + 30 * 60 * 1000),
-                              )
-                            : currentDraft.scheduledFulfilmentAt,
-                      }));
-                      setError(null);
-                    }}
-                    className={`flex min-h-10 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold transition-colors ${
-                      draft.fulfilmentTiming === timing
-                        ? "bg-stone-950 text-white"
-                        : "text-stone-600 hover:bg-white hover:text-stone-950"
-                    }`}
+              <fieldset className="grid gap-3">
+                <legend className="text-sm font-semibold text-stone-950">
+                  Ready time
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["ASAP", "SCHEDULED"] as const).map((timing) => {
+                    const TimingIcon =
+                      timing === "ASAP" ? TimerIcon : CalendarClockIcon;
+                    const selected = draft.fulfilmentTiming === timing;
+
+                    return (
+                      <button
+                        key={timing}
+                        type="button"
+                        disabled={isSubmitting}
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setDraft((currentDraft) => ({
+                            ...currentDraft,
+                            fulfilmentTiming: timing,
+                            scheduledFulfilmentAt:
+                              timing === "SCHEDULED" &&
+                              !currentDraft.scheduledFulfilmentAt
+                                ? toLocalDateTimeInputValue(
+                                    new Date(Date.now() + 30 * 60 * 1000),
+                                  )
+                                : currentDraft.scheduledFulfilmentAt,
+                          }));
+                          setError(null);
+                        }}
+                        className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                          selected
+                            ? "border-stone-950 bg-stone-950 text-white"
+                            : "border-stone-200 bg-white text-stone-900 hover:bg-stone-50"
+                        }`}
+                      >
+                        <TimingIcon className="size-5" aria-hidden="true" />
+                        {timing === "ASAP" ? "ASAP" : "Schedule"}
+                      </button>
+                    );
+                  })}
+                </div>
+                {draft.fulfilmentTiming === "SCHEDULED" ? (
+                  <FormField
+                    label={isStaffOrder ? "Promised time" : "Requested time"}
                   >
-                    <CalendarClockIcon className="size-4" />
-                    {timing === "ASAP" ? "As soon as possible" : "Schedule"}
-                  </button>
-                ))}
-              </div>
-              {draft.fulfilmentTiming === "SCHEDULED" ? (
-                <FormField label={isStaffOrder ? "Promised time" : "Requested time"}>
-                  <Input
-                    type="datetime-local"
-                    min={toLocalDateTimeInputValue(new Date())}
-                    value={draft.scheduledFulfilmentAt}
-                    disabled={isSubmitting}
-                    onChange={(event) => {
-                      updateDraft("scheduledFulfilmentAt", event.target.value);
-                      setError(null);
-                    }}
-                  />
-                </FormField>
-              ) : null}
-              <p className="text-xs text-stone-500">
-                {isStaffOrder
-                  ? "This is the time the restaurant is committing to fulfil the order."
-                  : "The restaurant may confirm or revise your requested time."}
-              </p>
-            </fieldset>
+                    <Input
+                      type="datetime-local"
+                      min={toLocalDateTimeInputValue(new Date())}
+                      value={draft.scheduledFulfilmentAt}
+                      disabled={isSubmitting}
+                      onChange={(event) => {
+                        updateDraft("scheduledFulfilmentAt", event.target.value);
+                        setError(null);
+                      }}
+                    />
+                  </FormField>
+                ) : null}
+              </fieldset>
             ) : null}
 
             {!isStaffOrder ? (

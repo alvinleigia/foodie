@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 
 import {
-  orderFulfilmentDescriptions,
   orderFulfilmentLabels,
   orderFulfilmentTypes,
   type OrderFulfilmentType,
@@ -34,7 +33,7 @@ export function FulfilmentTypeSelector({
   return (
     <fieldset disabled={disabled}>
       <legend className="text-sm font-semibold text-stone-950">
-        How should this order be fulfilled?
+        Order type
       </legend>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {allowedTypes.map((type) => {
@@ -44,7 +43,7 @@ export function FulfilmentTypeSelector({
           return (
             <label
               key={type}
-              className={`grid min-h-24 content-start gap-2 rounded-lg border p-3 transition-colors has-focus-visible:ring-2 has-focus-visible:ring-stone-500 has-focus-visible:ring-offset-2 ${
+              className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-stone-500 has-focus-visible:ring-offset-2 ${
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${
                 selected
@@ -61,17 +60,8 @@ export function FulfilmentTypeSelector({
                 className="sr-only"
               />
               <Icon className="size-5" aria-hidden="true" />
-              <span>
-                <span className="block text-sm font-semibold">
-                  {orderFulfilmentLabels[type]}
-                </span>
-                <span
-                  className={`mt-1 block text-xs ${
-                    selected ? "text-stone-300" : "text-stone-500"
-                  }`}
-                >
-                  {orderFulfilmentDescriptions[type]}
-                </span>
+              <span className="text-sm font-semibold">
+                {orderFulfilmentLabels[type]}
               </span>
             </label>
           );
