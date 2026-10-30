@@ -210,6 +210,7 @@ export async function startOrganizationStripeOnboarding(input: {
           },
         },
         display_name: organization.name,
+        identity: { country: "GB" },
         metadata: { organizationId: organization.id },
       },
       { idempotencyKey: `organization-connect-account-v2-${organization.id}` },

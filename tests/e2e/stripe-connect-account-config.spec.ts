@@ -7,6 +7,7 @@ test("Stripe Connect provisioning uses Accounts v2 managed-risk onboarding", () 
 
   expect(source).toContain("stripe.v2.core.accounts.create");
   expect(source).toContain('dashboard: "full"');
+  expect(source).toContain('identity: { country: "GB" }');
   expect(source).toContain('fees_collector: "stripe"');
   expect(source).toContain('losses_collector: "stripe"');
   expect(source).toContain("stripe.v2.core.accountLinks.create");
