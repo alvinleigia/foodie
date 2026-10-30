@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   BanknoteIcon,
   BadgePercentIcon,
+  BikeIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
@@ -20,7 +21,8 @@ import {
   RefreshCwIcon,
   ReceiptTextIcon,
   RotateCcwIcon,
-  UserRoundIcon,
+  ShoppingBagIcon,
+  UtensilsIcon,
   XIcon,
 } from "lucide-react";
 
@@ -286,24 +288,36 @@ export function OrderCard({
                   }).format(Number(order.cancellationFeeAmount))} was retained.`
                 : null;
 
-  const paymentSummary =
-    order.paymentStatus === "NOT_REQUIRED"
-      ? "No payment required"
-      : order.paymentStatus === "UNPAID"
-        ? `Unpaid ${paymentTotal}`
-        : order.paymentStatus === "PARTIALLY_PAID"
-          ? `${paymentRemaining} remaining`
-          : order.paymentStatus === "PENDING"
-            ? "Payment pending"
-            : order.paymentStatus === "PAID"
-              ? `Paid ${paymentTotal}`
-              : order.paymentStatus === "REFUND_PENDING"
-                ? "Refund pending"
-                : order.paymentStatus === "REFUND_FAILED"
-                  ? "Refund needs attention"
-                  : order.paymentStatus === "PARTIALLY_REFUNDED"
-                    ? "Partially refunded"
-                    : "Refunded";
+  const paymentStateLabel: Record<PaymentStatus, string> = {
+    NOT_REQUIRED: "No payment",
+    UNPAID: "Unpaid",
+    PARTIALLY_PAID: "Part paid",
+    PENDING: "Pending",
+    PAID: "Paid",
+    FAILED: "Failed",
+    CANCELLED: "Cancelled",
+    REFUND_PENDING: "Refund pending",
+    PARTIALLY_REFUNDED: "Part refunded",
+    REFUND_FAILED: "Refund issue",
+    REFUNDED: "Refunded",
+  };
+  const paymentStateClass =
+    order.paymentStatus === "PAID"
+      ? "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+      : order.paymentStatus === "UNPAID" ||
+          order.paymentStatus === "PARTIALLY_PAID" ||
+          order.paymentStatus === "PENDING"
+        ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300"
+        : order.paymentStatus === "FAILED" ||
+            order.paymentStatus === "REFUND_FAILED"
+          ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300"
+          : "bg-muted text-muted-foreground";
+  const FulfilmentIcon =
+    order.fulfilmentType === "DINE_IN"
+      ? UtensilsIcon
+      : order.fulfilmentType === "PICKUP"
+        ? ShoppingBagIcon
+        : BikeIcon;
   const summaryStatusAction: {
     action: "start" | "ready" | "deliver";
     className: string;
@@ -316,7 +330,7 @@ export function OrderCard({
       ? {
           action: "start",
           className:
-            "border-stone-300 bg-white text-stone-900 hover:bg-stone-100",
+            "border-border bg-background text-foreground hover:bg-muted",
           Icon: CookingPotIcon,
           label: "Start order",
           pendingLabel: "Starting...",
@@ -355,7 +369,8 @@ export function OrderCard({
           variant="outline"
           disabled={disabled}
           onClick={() => onRetryRefund(order)}
-          className="w-full border-amber-300 bg-white text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto"
+          data-slot="order-primary-action"
+          className="h-10 w-full border-amber-300 bg-background text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto dark:text-amber-300 dark:hover:bg-amber-400/10"
         >
           {pendingAction === `refund-order:${order.orderId}` ? (
             <span className="inline-flex items-center gap-2">
@@ -371,7 +386,7 @@ export function OrderCard({
 
     if (openDineInCheck && canAddItems) {
       return (
-        <Button asChild variant="outline" className="w-full sm:w-auto">
+        <Button asChild variant="outline" data-slot="order-primary-action" className="h-10 w-full sm:w-auto">
           <Link
             href={getStaffRestaurantAddItemsHref(
               restaurantSlug,
@@ -393,10 +408,11 @@ export function OrderCard({
           type="button"
           variant={summaryStatusAction.action === "start" ? "outline" : "default"}
           disabled={disabled}
+          data-slot="order-primary-action"
           onClick={() =>
             onOrderAction(order.orderId, summaryStatusAction.action)
           }
-          className={`w-full sm:w-auto ${summaryStatusAction.className}`}
+          className={`h-10 w-full sm:w-auto ${summaryStatusAction.className}`}
         >
           {pendingAction === actionKey ? (
             <span className="inline-flex items-center gap-2">
@@ -422,8 +438,9 @@ export function OrderCard({
         <Button
           type="button"
           disabled={disabled || !order.paymentAmount}
+          data-slot="order-primary-action"
           onClick={() => onSettleOrder(order)}
-          className="w-full bg-stone-950 text-white hover:bg-stone-800 sm:w-auto"
+          className="h-10 w-full bg-stone-950 text-white hover:bg-stone-800 sm:w-auto"
         >
           <ButtonLabel icon={BanknoteIcon}>
             {order.paymentStatus === "PARTIALLY_PAID"
@@ -651,8 +668,8 @@ export function OrderCard({
             }
             className={
               item.status === "PREPARING"
-                ? "rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400"
-                : "rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
+                ? "w-full rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400"
+                : "w-full rounded-lg border-border bg-background text-foreground hover:bg-muted"
             }
           >
             {pendingAction ===
@@ -760,85 +777,86 @@ export function OrderCard({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white shadow-[0_14px_40px_rgba(40,26,20,0.08)]">
-      <CardHeader className="p-0">
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            aria-controls={`order-details-${order.orderId}`}
-            aria-expanded={!isCollapsed}
-            className="min-w-0 flex-1 rounded-lg p-1 text-left outline-none transition hover:bg-stone-50 focus-visible:ring-2 focus-visible:ring-amber-200"
-            onClick={() => setIsCollapsed((current) => !current)}
-            title={isCollapsed ? "Show order details" : "Hide order details"}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-xs font-semibold uppercase text-stone-500">
-                    {orderDisplay.label}
-                  </p>
-                  {orderDisplay.meta ? (
-                    <span className="text-xs font-medium text-stone-400">
-                      {orderDisplay.meta}
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-2 flex min-w-0 items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
-                    <UserRoundIcon className="size-4" aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="truncate text-lg font-semibold text-stone-950">
-                      {order.customerName}
-                    </h3>
-                    <p className="truncate text-sm text-stone-600">
-                      {order.drinkName}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
+    <Card tone="themed" className="rounded-xl border-border bg-card shadow-[0_14px_40px_rgba(40,26,20,0.08)]">
+      <CardHeader className="p-4">
+        <div
+          data-slot="order-summary"
+          className="rounded-lg bg-muted/35 p-4 transition-colors hover:bg-muted/55"
+        >
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="min-w-0 truncate text-lg font-semibold text-foreground">
+                  {orderDisplay.label} <span aria-hidden="true">&middot;</span>{" "}
+                  {order.customerName}
+                </h3>
+                <OrderStatusBadge status={order.status} className="px-2 py-1 tracking-normal" />
                 {openDineInCheck ? (
-                  <span className="hidden rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold uppercase text-emerald-800 sm:inline-flex">
+                  <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
                     Open check
                   </span>
                 ) : null}
-                <OrderStatusBadge status={order.status} />
-                {isCollapsed ? (
-                  <ChevronDownIcon className="size-4 text-stone-500" aria-hidden="true" />
-                ) : (
-                  <ChevronUpIcon className="size-4 text-stone-500" aria-hidden="true" />
-                )}
+              </div>
+              <p className="mt-1 truncate text-sm text-muted-foreground">
+                {[orderDisplay.meta, order.drinkName].filter(Boolean).join(" / ")}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-1 font-medium text-foreground ring-1 ring-border">
+                  <FulfilmentIcon className="size-3.5" aria-hidden="true" />
+                  {getOrderFulfilmentLabel(order.fulfilmentType)}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <PackageIcon className="size-3.5" aria-hidden="true" />
+                  {itemCount} {itemCount === 1 ? "item" : "items"}
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <ClockIcon className="size-3.5" aria-hidden="true" />
+                  Placed {placedTime}
+                </span>
+                <span>
+                  {fulfilmentTime
+                    ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
+                    : "ASAP"}
+                </span>
               </div>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-stone-600">
-              <span className="inline-flex items-center gap-1.5">
-                <PackageIcon className="size-3.5" aria-hidden="true" />
-                {itemCount} item(s)
-              </span>
-              <span>{getOrderFulfilmentLabel(order.fulfilmentType)}</span>
-              <span className="inline-flex items-center gap-1.5">
-                <ClockIcon className="size-3.5" aria-hidden="true" />
-                Placed {placedTime}
-              </span>
-              <span>
-                {fulfilmentTime
-                  ? `${fulfilmentTime.label} ${formatOrderFulfilmentTime(fulfilmentTime.at)}`
-                  : "ASAP"}
-              </span>
-              <span className="font-semibold text-stone-800">
-                {paymentSummary}
+            <div className="flex items-start justify-between gap-3 sm:flex-col sm:items-end sm:justify-start">
+              <p className="text-lg font-semibold text-foreground">{paymentTotal}</p>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStateClass}`}>
+                {paymentStateLabel[order.paymentStatus]}
               </span>
             </div>
-          </button>
-          <div className="shrink-0">{renderSummaryPrimaryAction()}</div>
+          </div>
+
+          <div
+            data-slot="order-summary-controls"
+            className="mt-4 flex flex-wrap items-center justify-between gap-2"
+          >
+            <div>{renderSummaryPrimaryAction()}</div>
+            <button
+              type="button"
+              aria-controls={`order-details-${order.orderId}`}
+              aria-expanded={!isCollapsed}
+              aria-label={isCollapsed ? "Show order details" : "Hide order details"}
+              data-slot="order-details-toggle"
+              className="flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-amber-500/30"
+              onClick={() => setIsCollapsed((current) => !current)}
+            >
+              {isCollapsed ? (
+                <ChevronDownIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              ) : (
+                <ChevronUpIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              )}
+              Details
+            </button>
+          </div>
         </div>
       </CardHeader>
 
       {!isCollapsed ? (
       <CardContent
-        className="border-t border-stone-200 px-5 pt-4 pb-5"
+        className="border-t border-border px-5 pt-4 pb-5"
         id={`order-details-${order.orderId}`}
       >
         {openDineInCheck ? (
@@ -887,6 +905,36 @@ export function OrderCard({
               ) : null}
             </div>
           </div>
+        ) : null}
+
+        {order.items?.length ? (
+          <section className="mt-2 border-y border-border py-4" aria-labelledby={`order-items-${order.orderId}`}>
+            <div className="flex items-center justify-between gap-3">
+              <h4 id={`order-items-${order.orderId}`} className="text-base font-semibold text-foreground">
+                Order details
+              </h4>
+              <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                {itemCount} {itemCount === 1 ? "item" : "items"}
+              </span>
+            </div>
+            <div className="mt-2 divide-y divide-border">
+              {order.items.map((item) => (
+                <OrderLineItemRow
+                  key={item.id ?? `${order.orderId}-${item.drinkId}`}
+                  categoryName={item.categoryName}
+                  className="rounded-none border-0 bg-transparent px-0 py-4"
+                  drinkName={item.drinkName}
+                  notes={item.notes}
+                  quantity={item.quantity}
+                  status={item.status}
+                  currency={currency}
+                  unitPrice={item.unitPrice}
+                  modifiers={item.modifiers}
+                  actions={renderItemActions(item)}
+                />
+              ))}
+            </div>
+          </section>
         ) : null}
 
         {closedAt ? (
@@ -1074,28 +1122,6 @@ export function OrderCard({
         ) : null}
 
         {renderOrderActions()}
-
-        {order.items?.length ? (
-          <div className="mt-5 grid gap-3">
-            {order.items.map((item) => {
-              return (
-                <OrderLineItemRow
-                  key={item.id ?? `${order.orderId}-${item.drinkId}`}
-                  categoryName={item.categoryName}
-                  className="bg-white"
-                  drinkName={item.drinkName}
-                  notes={item.notes}
-                  quantity={item.quantity}
-                  status={item.status}
-                  currency={currency}
-                  unitPrice={item.unitPrice}
-                  modifiers={item.modifiers}
-                  actions={renderItemActions(item)}
-                />
-              );
-            })}
-          </div>
-        ) : null}
       </CardContent>
       ) : null}
     </Card>

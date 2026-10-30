@@ -1,4 +1,5 @@
 const businessDatePattern = /^\d{4}-\d{2}-\d{2}$/;
+const localDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
 type DateParts = {
   day: number;
@@ -80,6 +81,49 @@ function toUtcBoundary(
   }
 
   return new Date(candidate);
+}
+
+export function toUtcDateTime(value: string, timezone: string) {
+  if (!localDateTimePattern.test(value)) {
+    throw new Error("Date and time must use YYYY-MM-DDTHH:mm.");
+  }
+
+  const [dateValue, timeValue] = value.split("T");
+  const date = parseBusinessDate(dateValue);
+  const [hour, minute] = timeValue.split(":").map(Number);
+
+  if (hour > 23 || minute > 59) {
+    throw new Error("Date and time are invalid.");
+  }
+
+  const target = Date.UTC(
+    date.year,
+    date.month - 1,
+    date.day,
+    hour,
+    minute,
+  );
+  let candidate = target;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const observed = getDateParts(new Date(candidate), timezone);
+    const observedAsUtc = Date.UTC(
+      observed.year,
+      observed.month - 1,
+      observed.day,
+      observed.hour,
+      observed.minute,
+    );
+    const difference = target - observedAsUtc;
+
+    if (difference === 0) {
+      return new Date(candidate);
+    }
+
+    candidate += difference;
+  }
+
+  throw new Error("The selected time does not exist in the restaurant timezone.");
 }
 
 function nextCalendarDate(date: { day: number; month: number; year: number }) {

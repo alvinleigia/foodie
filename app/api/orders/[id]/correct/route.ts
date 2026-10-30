@@ -14,6 +14,10 @@ import {
   InventoryReservationError,
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
+import {
+  IngredientInventoryReservationError,
+  reserveIngredientsForOrderItem,
+} from "@/lib/ingredient-inventory";
 import { canCorrectOrderStatus } from "@/lib/order-corrections";
 import {
   OrderTransitionConflictError,
@@ -216,6 +220,7 @@ export async function POST(
         );
 
       const reservedItemIds: string[] = [];
+      const ingredientReservedItemIds: string[] = [];
 
       if (
         inventoryEnabled &&
@@ -224,9 +229,18 @@ export async function POST(
       ) {
         for (const item of currentItems) {
           const wasReserved = await reserveInventoryForOrderItem(tx, tenantContext, item);
+          const ingredientsReserved = await reserveIngredientsForOrderItem(
+            tx,
+            tenantContext,
+            item,
+          );
 
           if (wasReserved) {
             reservedItemIds.push(item.id);
+          }
+
+          if (ingredientsReserved) {
+            ingredientReservedItemIds.push(item.id);
           }
         }
       }
@@ -286,6 +300,21 @@ export async function POST(
           );
       }
 
+      if (ingredientReservedItemIds.length > 0) {
+        await tx
+          .update(orderItems)
+          .set({
+            ingredientInventoryReservedAt: now,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              inArray(orderItems.id, ingredientReservedItemIds),
+              eq(orderItems.organizationId, tenantContext.organizationId),
+            ),
+          );
+      }
+
       return { previousOrder: lockedOrder, updatedOrder: nextOrder };
     });
 
@@ -310,6 +339,7 @@ export async function POST(
   } catch (error) {
     if (
       error instanceof InventoryReservationError ||
+      error instanceof IngredientInventoryReservationError ||
       error instanceof OrderTransitionConflictError
     ) {
       return NextResponse.json({ error: error.message }, { status: 409 });

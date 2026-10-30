@@ -15,6 +15,8 @@ export type RestaurantWorkingHoursPeriod = {
   opensAtMinute: number;
 };
 
+export type WeeklyAvailabilityPeriod = RestaurantWorkingHoursPeriod;
+
 export type RestaurantWorkingHours = {
   enabled: boolean;
   periods: RestaurantWorkingHoursPeriod[];
@@ -66,13 +68,26 @@ export function isRestaurantOpenForCustomerOrders(
     return true;
   }
 
+  return isWeeklyScheduleAvailable(
+    workingHours.periods,
+    workingHours.timezone,
+    now,
+  );
+}
+
+export function isWeeklyScheduleAvailable(
+  periods: WeeklyAvailabilityPeriod[],
+  timezone: string,
+  now = new Date(),
+) {
+
   const { dayOfWeek, minuteOfDay } = getZonedDayAndMinute(
     now,
-    workingHours.timezone,
+    timezone,
   );
   const previousDayOfWeek = (dayOfWeek + 6) % 7;
 
-  return workingHours.periods.some((period) => {
+  return periods.some((period) => {
     if (period.dayOfWeek === dayOfWeek) {
       if (period.is24Hours) {
         return true;

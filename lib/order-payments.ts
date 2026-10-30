@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { getDb } from "@/db";
 import { orderItems, orderPayments, orders } from "@/db/schema";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
+import { restoreIngredientsForOrderItem } from "@/lib/ingredient-inventory";
 import { getStripe } from "@/lib/stripe";
 import type { TenantContext } from "@/lib/tenant-context";
 import {
@@ -599,8 +600,17 @@ async function cancelPendingOrderPaymentRecord(
         ),
       );
 
-    for (const item of items.filter((current) => current.inventoryReservedAt)) {
-      await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+    for (const item of items.filter(
+      (current) =>
+        current.inventoryReservedAt || current.ingredientInventoryReservedAt,
+    )) {
+      if (item.inventoryReservedAt) {
+        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      }
+
+      if (item.ingredientInventoryReservedAt) {
+        await restoreIngredientsForOrderItem(tx, tenantContext, item);
+      }
     }
 
     await tx
@@ -608,6 +618,7 @@ async function cancelPendingOrderPaymentRecord(
       .set({
         cancelledAt: now,
         inventoryReservedAt: null,
+        ingredientInventoryReservedAt: null,
         status: "CANCELLED",
         updatedAt: now,
       })

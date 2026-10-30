@@ -5,6 +5,8 @@ import {
   memberships,
   orderingPoints,
   organizations,
+  restaurantJobs,
+  staffJobAssignments,
   users,
 } from "@/db/schema";
 import {
@@ -17,6 +19,7 @@ import {
   buildStaffPermissionOverrides,
   resolveStaffPermissions,
 } from "@/lib/staff-permissions";
+import { getPrimaryStaffJobPermissions } from "@/lib/staff-jobs";
 import { TenantContext } from "@/lib/tenant-context";
 import {
   createStaffUserSchema,
@@ -59,11 +62,30 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
       status: users.status,
       role: memberships.role,
       permissionOverrides: memberships.permissionOverrides,
+      primaryJobId: restaurantJobs.id,
+      primaryJobName: restaurantJobs.name,
+      primaryJobPermissions: restaurantJobs.permissions,
       isActive: memberships.isActive,
       createdAt: memberships.createdAt,
     })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
+    .leftJoin(
+      staffJobAssignments,
+      and(
+        eq(staffJobAssignments.membershipId, memberships.id),
+        eq(staffJobAssignments.organizationId, memberships.organizationId),
+        eq(staffJobAssignments.isPrimary, true),
+      ),
+    )
+    .leftJoin(
+      restaurantJobs,
+      and(
+        eq(restaurantJobs.id, staffJobAssignments.jobId),
+        eq(restaurantJobs.organizationId, memberships.organizationId),
+        eq(restaurantJobs.isActive, true),
+      ),
+    )
     .where(eq(memberships.organizationId, context.organizationId));
 
   return {
@@ -72,7 +94,11 @@ export async function getTenantAdminSnapshot(context: TenantContext) {
     staff: staff.map((item) => ({
       ...item,
       createdAt: item.createdAt.toISOString(),
-      permissions: resolveStaffPermissions(item.role, item.permissionOverrides),
+      permissions: resolveStaffPermissions(
+        item.role,
+        item.permissionOverrides,
+        item.primaryJobPermissions,
+      ),
     })),
   };
 }
@@ -245,10 +271,18 @@ export async function updateStaffMembership(
 ) {
   const parsed = updateStaffMembershipSchema.parse(input);
   const db = getDb();
+  const primaryJobPermissions = await getPrimaryStaffJobPermissions(
+    membershipId,
+    context,
+  );
   const permissionOverrides =
     parsed.permissions === undefined
       ? undefined
-      : buildStaffPermissionOverrides(parsed.role, parsed.permissions);
+      : buildStaffPermissionOverrides(
+          parsed.role,
+          parsed.permissions,
+          primaryJobPermissions,
+        );
   const [membership] = await db
     .update(memberships)
     .set({

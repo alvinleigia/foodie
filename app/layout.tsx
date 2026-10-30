@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { AppThemeProvider } from "@/components/shared/AppThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { RouteTransitionOverlay } from "@/components/shared/RouteTransitionOverlay";
 
@@ -29,14 +30,17 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(geistSans.variable, geistMono.variable, "h-full font-sans antialiased")}
     >
       <body className="min-h-full flex flex-col">
-        {children}
-        <Suspense fallback={null}>
-          <RouteTransitionOverlay />
-        </Suspense>
-        <Toaster position="top-right" richColors />
+        <AppThemeProvider>
+          {children}
+          <Suspense fallback={null}>
+            <RouteTransitionOverlay />
+          </Suspense>
+          <Toaster position="top-right" richColors />
+        </AppThemeProvider>
       </body>
     </html>
   );

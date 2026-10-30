@@ -20,7 +20,7 @@ type DesktopQuickActionProps = {
 };
 
 const quickActionClassName =
-  "hidden rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100 md:inline-flex";
+  "hidden rounded-lg border-border bg-background text-foreground hover:bg-muted md:inline-flex";
 
 export function DesktopQuickAction({
   disabled,

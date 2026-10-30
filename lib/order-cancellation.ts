@@ -14,6 +14,7 @@ import {
 } from "@/db/schema";
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
+import { restoreIngredientsForOrderItem } from "@/lib/ingredient-inventory";
 import { logError } from "@/lib/logger";
 import {
   assertManagerApproval,
@@ -878,16 +879,22 @@ export async function cancelOrder(input: CancelOrderInput) {
       );
 
     for (const item of items.filter(
-      (current) => current.inventoryReservedAt && current.status !== "DELIVERED",
+      (current) =>
+        (current.inventoryReservedAt || current.ingredientInventoryReservedAt) &&
+        current.status !== "DELIVERED",
     )) {
-      await restoreReservedInventoryForOrderItem(
-        tx,
-        {
-          organizationId: order.organizationId,
-          orderingPointId: order.orderingPointId,
-        },
-        item,
-      );
+      const tenantContext = {
+        organizationId: order.organizationId,
+        orderingPointId: order.orderingPointId,
+      };
+
+      if (item.inventoryReservedAt) {
+        await restoreReservedInventoryForOrderItem(tx, tenantContext, item);
+      }
+
+      if (item.ingredientInventoryReservedAt) {
+        await restoreIngredientsForOrderItem(tx, tenantContext, item);
+      }
     }
 
     await tx
@@ -895,6 +902,7 @@ export async function cancelOrder(input: CancelOrderInput) {
       .set({
         cancelledAt: now,
         inventoryReservedAt: null,
+        ingredientInventoryReservedAt: null,
         status: "CANCELLED",
         updatedAt: now,
       })
@@ -911,7 +919,7 @@ export async function cancelOrder(input: CancelOrderInput) {
         actorType: input.actorType,
         actorUserId: input.actorUser?.id ?? null,
         appliedFeeBps,
-        currency: order.paymentCurrency,
+        currency: financials ? order.paymentCurrency : null,
         disclosedFeeBps,
         feeAmount: financials?.feeAmount ?? null,
         grossAmount: financials?.grossAmount ?? null,

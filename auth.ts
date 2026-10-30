@@ -196,6 +196,7 @@ export const { auth, handlers, signIn, signOut, unstable_update } = NextAuth(() 
       token.permissions = resolveStaffPermissions(
         access.role,
         access.permissionOverrides,
+        access.primaryJobPermissions,
       );
       token.sessionVersion = access.sessionVersion;
 

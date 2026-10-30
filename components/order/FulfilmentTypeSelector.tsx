@@ -35,7 +35,7 @@ export function FulfilmentTypeSelector({
       <legend className="text-sm font-semibold text-stone-950">
         Order type
       </legend>
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-2 grid grid-cols-3 gap-2">
         {allowedTypes.map((type) => {
           const Icon = fulfilmentIcons[type];
           const selected = value === type;
@@ -43,12 +43,12 @@ export function FulfilmentTypeSelector({
           return (
             <label
               key={type}
-              className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-stone-500 has-focus-visible:ring-offset-2 ${
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-stone-500 has-focus-visible:ring-offset-2 ${
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${
                 selected
-                  ? "border-stone-700 bg-stone-700 text-white shadow-sm"
-                  : "border-stone-200 bg-white text-stone-900 hover:bg-stone-50"
+                  ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                  : "border-border bg-background text-foreground hover:bg-muted"
               }`}
             >
               <input
@@ -59,8 +59,8 @@ export function FulfilmentTypeSelector({
                 onChange={() => onChange(type)}
                 className="sr-only"
               />
-              <Icon className="size-5" aria-hidden="true" />
-              <span className="text-sm font-semibold">
+              <Icon className="size-4" aria-hidden="true" />
+              <span className="text-xs font-semibold sm:text-sm">
                 {orderFulfilmentLabels[type]}
               </span>
             </label>

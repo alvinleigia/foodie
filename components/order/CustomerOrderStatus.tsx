@@ -33,6 +33,7 @@ import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
+import { OrderCardsSkeleton } from "@/components/shared/SectionSkeletons";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -51,7 +52,6 @@ import {
   CardContent,
   CardHeader,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ApiOrder = LocalCustomerOrder & {
@@ -476,27 +476,7 @@ export function CustomerOrderStatus({
       {error ? <p className="mb-4 text-sm text-rose-600">{error}</p> : null}
 
       {isLoading ? (
-        <div className="grid gap-4">
-          {Array.from({ length: 2 }).map((_, index) => (
-            <Card
-              key={index}
-              className="rounded-xl border-stone-200 bg-stone-50 shadow-none"
-            >
-              <CardContent className="space-y-4 px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-6 w-40" />
-                    <Skeleton className="h-4 w-36" />
-                  </div>
-                  <Skeleton className="h-7 w-20 rounded-lg" />
-                </div>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-9 w-28 rounded-lg" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <OrderCardsSkeleton count={2} label="Loading customer orders" />
       ) : visibleOrders.length === 0 ? (
         <EmptyState
           title={selectedView === "active" ? "No active orders" : "No completed orders"}

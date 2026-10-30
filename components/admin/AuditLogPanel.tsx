@@ -5,7 +5,7 @@ import { DownloadIcon } from "lucide-react";
 
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
-import { Spinner } from "@/components/shared/Spinner";
+import { ListSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { formatAppDateTime } from "@/lib/date-format";
@@ -71,10 +71,10 @@ export function AuditLogPanel() {
   }, []);
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card tone="themed" className="rounded-xl border-border bg-card">
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[rgb(199,76,0)]">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[rgb(199,76,0)] dark:text-amber-400">
             Security
           </p>
           <h3 className="mt-2 text-xl font-semibold text-stone-950">Audit logs</h3>
@@ -90,10 +90,7 @@ export function AuditLogPanel() {
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5">
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-stone-500">
-            <Spinner className="text-stone-500" />
-            Loading audit logs...
-          </div>
+          <ListSectionSkeleton label="Loading audit logs" rows={5} />
         ) : null}
 
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}

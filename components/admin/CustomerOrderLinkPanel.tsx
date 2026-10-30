@@ -123,6 +123,7 @@ export function CustomerOrderLinkPanel({
             </div>
             <div
               ref={qrContainerRef}
+              data-theme-static
               className="mx-auto grid size-44 shrink-0 place-items-center rounded-lg border border-stone-200 bg-white p-2"
             >
               <QRCodeSVG

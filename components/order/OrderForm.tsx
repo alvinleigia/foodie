@@ -12,6 +12,7 @@ import {
   MinusIcon,
   PlusIcon,
   SendIcon,
+  ShieldAlertIcon,
   ShoppingCartIcon,
   TagsIcon,
   TimerIcon,
@@ -29,6 +30,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
+  calculateBasisPointsAmount,
   decimalToMinorUnits,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
@@ -39,6 +41,11 @@ import {
   type TaxPricingMode,
 } from "@/lib/tax-pricing";
 import { withStaffRestaurantContext } from "@/lib/staff-restaurant-navigation";
+import {
+  queueOfflineStaffOrder,
+  readOfflineStaffOrders,
+  syncOfflineStaffOrders,
+} from "@/lib/offline-staff-orders";
 import {
   isValidCustomerPhone,
   normalizeCustomerPhone,
@@ -54,6 +61,8 @@ import {
 } from "@/components/order/CustomerLoginForm";
 import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { AllergenSummary } from "@/components/shared/AllergenSummary";
+import { MenuSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -98,6 +107,7 @@ import {
   type CheckoutPaymentTiming,
   type RestaurantCheckoutPolicy,
 } from "@/lib/checkout-policy";
+import type { RestaurantChargeSettings } from "@/lib/restaurant-charge-settings";
 import { toLocalDateTimeInputValue } from "@/lib/order-fulfilment-time";
 import {
   MenuCategoryRecord,
@@ -114,7 +124,9 @@ type OrderFormProps = {
     phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
+  chargeSettings: RestaurantChargeSettings;
   checkoutPolicies: RestaurantCheckoutPolicy[];
+  initialMenuData?: OrderFormMenuData;
   isStaffOrder?: boolean;
   openDineInOrder?: {
     customerName: string;
@@ -173,15 +185,22 @@ type OrderDraft = {
   deliveryInstructions: string;
   fulfilmentTiming: "ASAP" | "SCHEDULED";
   scheduledFulfilmentAt: string;
+  tipRateBps: number;
 };
 
-type RestaurantTaxPricing = {
+export type RestaurantTaxPricing = {
   pricingMode: TaxPricingMode;
   taxRateBps: number;
   taxesByMenuItemId: Record<string, TaxComponentInput[]>;
   taxOverridesByFulfilmentType: Partial<
     Record<OrderFulfilmentType, Record<string, TaxComponentInput[]>>
   >;
+};
+
+export type OrderFormMenuData = {
+  categories: MenuCategoryRecord[];
+  currency: string;
+  taxPricing: RestaurantTaxPricing;
 };
 
 const defaultTaxPricing: RestaurantTaxPricing = {
@@ -345,10 +364,26 @@ function hasSameCartConfiguration(left: CartItem, right: CartItem) {
   );
 }
 
+function getCartItemCustomizationSummary(item: CartItem) {
+  if (item.modifierSelections.length === 0) {
+    return "No add-ons selected";
+  }
+
+  return item.modifierSelections
+    .map((selection) =>
+      selection.quantity > 1
+        ? `${selection.modifierName} x${selection.quantity}`
+        : selection.modifierName,
+    )
+    .join(" · ");
+}
+
 export function OrderForm({
   customer,
   customerAuthProviders,
+  chargeSettings,
   checkoutPolicies,
+  initialMenuData,
   isStaffOrder = false,
   openDineInOrder,
   orderingPointQrSlug,
@@ -404,9 +439,15 @@ export function OrderForm({
           initialCheckoutPolicy.payLaterEnabled
         ? "PAY_LATER"
         : initialCheckoutPolicy?.defaultPaymentTiming ?? "ONLINE";
-  const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>([]);
-  const [currency, setCurrency] = useState(DEFAULT_CURRENCY);
-  const [taxPricing, setTaxPricing] = useState(defaultTaxPricing);
+  const [menuCategories, setMenuCategories] = useState<MenuCategoryRecord[]>(
+    initialMenuData?.categories ?? [],
+  );
+  const [currency, setCurrency] = useState(
+    initialMenuData?.currency ?? DEFAULT_CURRENCY,
+  );
+  const [taxPricing, setTaxPricing] = useState(
+    initialMenuData?.taxPricing ?? defaultTaxPricing,
+  );
   const [draft, setDraft] = useState<OrderDraft>({
     customerName: openDineInOrder?.customerName ?? customer?.name ?? "",
     customerEmail: customer?.email ?? "",
@@ -425,25 +466,54 @@ export function OrderForm({
     deliveryInstructions: "",
     fulfilmentTiming: "ASAP",
     scheduledFulfilmentAt: "",
+    tipRateBps: 0,
   });
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
-  const [isLoadingMenu, setIsLoadingMenu] = useState(true);
+  const [isLoadingMenu, setIsLoadingMenu] = useState(!initialMenuData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedStaffCustomer, setSelectedStaffCustomer] =
     useState<StaffCustomerSummary | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [focusedCartDrinkId, setFocusedCartDrinkId] = useState<string | null>(null);
   const [customizer, setCustomizer] = useState<CustomizerState | null>(null);
   const [customizerError, setCustomizerError] = useState<string | null>(null);
   const [quantityPromptItem, setQuantityPromptItem] = useState<CartItem | null>(null);
   const [screen, setScreen] = useState<"menu" | "review">("menu");
-  const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>(undefined);
+  const [offlineOrderCount, setOfflineOrderCount] = useState(() =>
+    isStaffOrder ? readOfflineStaffOrders().length : 0,
+  );
+  const [activeCategoryId, setActiveCategoryId] = useState<string | undefined>(
+    initialMenuData?.categories[0]?.id,
+  );
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isStaffOrder) return;
+
+    async function syncQueuedOrders() {
+      if (!navigator.onLine) return;
+      const result = await syncOfflineStaffOrders();
+      setOfflineOrderCount(result.pending);
+
+      if (result.synced > 0) {
+        toast.success(
+          `${result.synced} offline ${result.synced === 1 ? "order" : "orders"} synced.`,
+        );
+      }
+    }
+
+    const handleOnline = () => void syncQueuedOrders();
+    window.addEventListener("online", handleOnline);
+    void syncQueuedOrders();
+
+    return () => window.removeEventListener("online", handleOnline);
+  }, [isStaffOrder]);
   const checkoutPolicy =
     checkoutPolicies.find(
       (policy) => policy.fulfilmentType === draft.fulfilmentType,
@@ -544,6 +614,10 @@ export function OrderForm({
   }, [menuCategories, selectedTagId]);
 
   useEffect(() => {
+    if (initialMenuData) {
+      return;
+    }
+
     let isMounted = true;
 
     async function loadMenu() {
@@ -581,7 +655,7 @@ export function OrderForm({
     return () => {
       isMounted = false;
     };
-  }, [orderingPointQrSlug, routeSlug, staffRestaurantSlug]);
+  }, [initialMenuData, orderingPointQrSlug, routeSlug, staffRestaurantSlug]);
 
   useEffect(() => {
     if (visibleMenuCategories.length === 0) {
@@ -655,6 +729,15 @@ export function OrderForm({
   const totalQuantity = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
     [cartItems],
+  );
+  const focusedCartItems = focusedCartDrinkId
+    ? cartItems.filter((item) => item.drinkId === focusedCartDrinkId)
+    : [];
+  const isCartProductFocused = focusedCartItems.length > 0;
+  const displayedCartItems = isCartProductFocused ? focusedCartItems : cartItems;
+  const focusedCartQuantity = focusedCartItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
   );
 
   const cartPricing = useMemo(() => {
@@ -736,9 +819,35 @@ export function OrderForm({
           taxAmount: minorUnitsToDecimal(component.taxAmountMinor, currency),
         })),
       totalAmount: minorUnitsToDecimal(totalAmountMinor, currency),
+      totalAmountMinor,
     };
   }, [cartItems, currency, draft.fulfilmentType, taxPricing]);
-  const totalAmount = cartPricing?.totalAmount ?? null;
+  const serviceChargeEnabled =
+    chargeSettings.serviceChargeEnabled &&
+    chargeSettings.serviceChargeRateBps > 0 &&
+    (draft.fulfilmentType === "DINE_IN"
+      ? chargeSettings.serviceChargeDineIn
+      : draft.fulfilmentType === "PICKUP"
+        ? chargeSettings.serviceChargePickup
+        : chargeSettings.serviceChargeDelivery);
+  const serviceChargeAmountMinor = cartPricing && serviceChargeEnabled
+    ? calculateBasisPointsAmount(
+        cartPricing.totalAmountMinor,
+        chargeSettings.serviceChargeRateBps,
+      )
+    : 0;
+  const tipAmountMinor = cartPricing && !isStaffOrder && chargeSettings.tipsEnabled
+    ? calculateBasisPointsAmount(
+        cartPricing.totalAmountMinor + serviceChargeAmountMinor,
+        draft.tipRateBps,
+      )
+    : 0;
+  const finalTotalAmountMinor = cartPricing
+    ? cartPricing.totalAmountMinor + serviceChargeAmountMinor + tipAmountMinor
+    : null;
+  const totalAmount = finalTotalAmountMinor === null
+    ? null
+    : minorUnitsToDecimal(finalTotalAmountMinor, currency);
 
   const customerNameError =
     isStaffOrder && screen === "review" && error === "Enter a customer name or table number."
@@ -1064,6 +1173,24 @@ export function OrderForm({
     });
   }
 
+  function openCart() {
+    setFocusedCartDrinkId(null);
+    setIsCartOpen(true);
+  }
+
+  function openCartForDrink(drinkId: string) {
+    setFocusedCartDrinkId(drinkId);
+    setIsCartOpen(true);
+  }
+
+  function handleCartOpenChange(open: boolean) {
+    setIsCartOpen(open);
+
+    if (!open) {
+      setFocusedCartDrinkId(null);
+    }
+  }
+
   function goToReview() {
     if (cartItems.length === 0) {
       setError("Add at least one drink to the cart.");
@@ -1074,11 +1201,13 @@ export function OrderForm({
 
     if (modifierError) {
       setError(modifierError);
+      setFocusedCartDrinkId(null);
       setIsCartOpen(true);
       return;
     }
 
     setError(null);
+    setFocusedCartDrinkId(null);
     setIsCartOpen(false);
     setScreen("review");
   }
@@ -1126,6 +1255,7 @@ export function OrderForm({
     if (modifierError) {
       setError(modifierError);
       setScreen("menu");
+      setFocusedCartDrinkId(null);
       setIsCartOpen(true);
       return;
     }
@@ -1133,56 +1263,84 @@ export function OrderForm({
     setIsSubmitting(true);
     setError(null);
 
-    const response = await fetch(
-      withOrderContext("/api/orders", {
-        orderingPointQrSlug,
-        routeSlug,
-        staffRestaurantSlug,
-      }),
-      {
+    const clientRequestId = isStaffOrder ? crypto.randomUUID() : undefined;
+    const endpoint = withOrderContext("/api/orders", {
+      orderingPointQrSlug,
+      routeSlug,
+      staffRestaurantSlug,
+    });
+    const requestPayload = {
+      clientRequestId,
+      customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
+      customerName: isStaffOrder ? draft.customerName.trim() : undefined,
+      checkoutMode: isStaffOrder ? undefined : effectiveCheckoutMode,
+      paymentTiming: isStaffOrder ? undefined : draft.paymentTiming,
+      tipRateBps: isStaffOrder ? 0 : draft.tipRateBps,
+      customerContact: isStaffOrder
+        ? undefined
+        : {
+            name: draft.customerName.trim(),
+            email: normalizedContactEmail || null,
+            phone: normalizedContactPhone || null,
+          },
+      fulfilmentType: draft.fulfilmentType,
+      openDineInOrderId: openDineInOrder?.id,
+      deliveryAddress:
+        draft.fulfilmentType === "DELIVERY"
+          ? {
+              line1: draft.deliveryAddressLine1.trim(),
+              line2: draft.deliveryAddressLine2.trim(),
+              city: draft.deliveryCity.trim(),
+              region: draft.deliveryRegion.trim(),
+              postalCode: draft.deliveryPostalCode.trim(),
+              countryCode: draft.deliveryCountryCode.trim().toUpperCase(),
+              instructions: draft.deliveryInstructions.trim(),
+            }
+          : null,
+      scheduledFulfilmentAt: scheduledFulfilmentAt?.toISOString() ?? null,
+      items: cartItems.map((item) => ({
+        categoryId: item.categoryId,
+        drinkId: item.drinkId,
+        quantity: item.quantity,
+        notes: item.notes.trim(),
+        modifiers: item.modifierSelections.map((modifier) => ({
+          groupId: modifier.groupId,
+          modifierId: modifier.modifierId,
+          quantity: modifier.quantity,
+        })),
+      })),
+    };
+    let response: Response;
+
+    try {
+      response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: isStaffOrder ? selectedStaffCustomer?.id ?? null : undefined,
-          customerName: isStaffOrder ? draft.customerName.trim() : undefined,
-          checkoutMode: isStaffOrder ? undefined : effectiveCheckoutMode,
-          paymentTiming: isStaffOrder ? undefined : draft.paymentTiming,
-          customerContact: isStaffOrder
-            ? undefined
-            : {
-                name: draft.customerName.trim(),
-                email: normalizedContactEmail || null,
-                phone: normalizedContactPhone || null,
-              },
-          fulfilmentType: draft.fulfilmentType,
-          openDineInOrderId: openDineInOrder?.id,
-          deliveryAddress:
-            draft.fulfilmentType === "DELIVERY"
-              ? {
-                  line1: draft.deliveryAddressLine1.trim(),
-                  line2: draft.deliveryAddressLine2.trim(),
-                  city: draft.deliveryCity.trim(),
-                  region: draft.deliveryRegion.trim(),
-                  postalCode: draft.deliveryPostalCode.trim(),
-                  countryCode: draft.deliveryCountryCode.trim().toUpperCase(),
-                  instructions: draft.deliveryInstructions.trim(),
-                }
-              : null,
-          scheduledFulfilmentAt: scheduledFulfilmentAt?.toISOString() ?? null,
-          items: cartItems.map((item) => ({
-            categoryId: item.categoryId,
-            drinkId: item.drinkId,
-            quantity: item.quantity,
-            notes: item.notes.trim(),
-            modifiers: item.modifierSelections.map((modifier) => ({
-              groupId: modifier.groupId,
-              modifierId: modifier.modifierId,
-              quantity: modifier.quantity,
-            })),
-          })),
-        }),
-      },
-    );
+        body: JSON.stringify(requestPayload),
+      });
+    } catch {
+      if (isStaffOrder && clientRequestId && !openDineInOrder) {
+        const pending = queueOfflineStaffOrder({
+          clientRequestId,
+          endpoint,
+          payload: requestPayload,
+        });
+        setOfflineOrderCount(pending);
+        setCartItems([]);
+        setIsSubmitting(false);
+        setScreen("menu");
+        toast.warning("Connection lost. Order saved on this device and will sync automatically.");
+        return;
+      }
+
+      setError(
+        openDineInOrder
+          ? "Reconnect before adding items to an open dine-in check."
+          : "The order could not reach the restaurant. Check the connection and try again.",
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
     const payload = await response.json();
 
@@ -1253,9 +1411,11 @@ export function OrderForm({
       deliveryInstructions: "",
       fulfilmentTiming: "ASAP",
       scheduledFulfilmentAt: "",
+      tipRateBps: 0,
     });
     setSelectedStaffCustomer(null);
     setCartItems([]);
+    setFocusedCartDrinkId(null);
     setIsCartOpen(false);
     setIsSubmitting(false);
     setScreen("menu");
@@ -1274,12 +1434,18 @@ export function OrderForm({
 
   return (
     <>
-      <Sheet open={isCartOpen} onOpenChange={setIsCartOpen}>
+      <Sheet open={isCartOpen} onOpenChange={handleCartOpenChange}>
         <SheetContent side="right">
           <SheetHeader>
-            <SheetTitle>Your cart</SheetTitle>
+            <SheetTitle>
+              {isCartProductFocused
+                ? `Manage ${focusedCartItems[0].drinkName}`
+                : "Your cart"}
+            </SheetTitle>
             <SheetDescription>
-              Adjust quantities and add notes for each item before reviewing the order.
+              {isCartProductFocused
+                ? `${focusedCartQuantity} item(s) across ${focusedCartItems.length} configuration(s).`
+                : "Adjust quantities and add notes for each item before reviewing the order."}
             </SheetDescription>
           </SheetHeader>
 
@@ -1293,17 +1459,49 @@ export function OrderForm({
               </div>
             ) : (
               <div className="grid gap-4">
-                {cartItems.map((item) => {
+                {isCartProductFocused ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-stone-950">
+                        {focusedCartQuantity} added · {focusedCartItems.length}{" "}
+                        {focusedCartItems.length === 1 ? "configuration" : "variants"}
+                      </p>
+                      <p className="mt-0.5 text-xs text-stone-500">
+                        Other products remain in your cart.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setFocusedCartDrinkId(null)}
+                      className="h-9 rounded-lg bg-white"
+                    >
+                      <ShoppingCartIcon className="size-4" />
+                      Full cart
+                    </Button>
+                  </div>
+                ) : null}
+
+                {displayedCartItems.map((item, itemIndex) => {
                   const modifierUnitTotal = getCartItemModifierUnitTotal(item);
                   const itemUnitTotal = getCartItemUnitTotal(item);
 
                   return (
                     <div
                       key={item.lineId}
-                      className="rounded-xl border border-stone-200 bg-white p-4"
+                      className={`rounded-xl border bg-white p-4 ${
+                        isCartProductFocused
+                          ? "border-emerald-300 ring-1 ring-emerald-100"
+                          : "border-stone-200"
+                      }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
+                          {isCartProductFocused && focusedCartItems.length > 1 ? (
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-stone-500">
+                              Variant {itemIndex + 1}
+                            </p>
+                          ) : null}
                           <p className="text-base font-semibold text-stone-950">
                             {item.drinkName}
                           </p>
@@ -1447,7 +1645,10 @@ export function OrderForm({
           <SheetFooter>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm text-stone-500">{totalQuantity} item(s)</p>
+                <p className="text-sm text-stone-500">
+                  {isCartProductFocused ? "Cart total · " : ""}
+                  {totalQuantity} item(s)
+                </p>
                 <p className="text-base font-semibold text-stone-950">
                   {formatPrice(totalAmount, { currency })}
                 </p>
@@ -1679,7 +1880,9 @@ export function OrderForm({
             />
           </CardHeader>
 
-          <CardContent className="grid gap-4 px-6 pb-6">
+          <CardContent className="grid gap-6 px-6 pb-6">
+            <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)] lg:gap-x-8">
+              <div data-slot="order-review-fields" className="grid content-start gap-4">
             {isStaffOrder && !openDineInOrder ? (
               <StaffCustomerSearch
                 staffRestaurantSlug={staffRestaurantSlug}
@@ -1872,13 +2075,13 @@ export function OrderForm({
                           }));
                           setError(null);
                         }}
-                        className={`flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
+                        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                           selected
-                            ? "border-stone-700 bg-stone-700 text-white shadow-sm"
-                            : "border-stone-200 bg-white text-stone-900 hover:bg-stone-50"
+                            ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                            : "border-border bg-background text-foreground hover:bg-muted"
                         }`}
                       >
-                        <TimingIcon className="size-5" aria-hidden="true" />
+                        <TimingIcon className="size-4" aria-hidden="true" />
                         {timing === "ASAP" ? "ASAP" : "Schedule"}
                       </button>
                     );
@@ -2130,10 +2333,15 @@ export function OrderForm({
 
             {reviewError ? <p className="text-sm text-rose-600">{reviewError}</p> : null}
 
-            <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm">
+              </div>
+
+            <aside
+              data-slot="order-review-summary"
+              className="rounded-xl border border-border bg-card p-4 shadow-sm lg:sticky lg:top-4"
+            >
               <div className="flex items-center justify-between gap-4">
-                <p className="text-sm font-semibold text-stone-950">Order summary</p>
-                <p className="text-xs font-medium uppercase tracking-[0.14em] text-stone-400">
+                <p className="text-sm font-semibold text-foreground">Order summary</p>
+                <p className="text-xs font-medium text-muted-foreground">
                   {totalQuantity} item(s)
                 </p>
               </div>
@@ -2202,6 +2410,31 @@ export function OrderForm({
                 })}
               </div>
 
+              {!isStaffOrder && chargeSettings.tipsEnabled ? (
+                <fieldset className="mt-4 border-t border-dashed border-stone-200 pt-4">
+                  <legend className="text-sm font-semibold text-stone-900">
+                    Add a tip
+                  </legend>
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    {[0, ...chargeSettings.tipPresetsBps].map((rateBps) => (
+                      <button
+                        key={rateBps}
+                        type="button"
+                        aria-pressed={draft.tipRateBps === rateBps}
+                        className={`min-h-10 rounded-lg border px-2 text-sm font-semibold transition-colors ${
+                          draft.tipRateBps === rateBps
+                            ? "border-stone-500 bg-stone-200 text-stone-950"
+                            : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
+                        }`}
+                        onClick={() => updateDraft("tipRateBps", rateBps)}
+                      >
+                        {rateBps === 0 ? "No tip" : `${rateBps / 100}%`}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+
               <div className="my-4 border-t border-dashed border-stone-200" />
 
               <div className="grid gap-2 text-sm">
@@ -2242,11 +2475,33 @@ export function OrderForm({
                     ))}
                   </>
                 ) : null}
+                {serviceChargeAmountMinor > 0 ? (
+                  <div className="flex items-center justify-between gap-4 text-stone-600">
+                    <span>Service charge ({chargeSettings.serviceChargeRateBps / 100}%)</span>
+                    <span>
+                      {formatPrice(
+                        minorUnitsToDecimal(serviceChargeAmountMinor, currency),
+                        { currency },
+                      )}
+                    </span>
+                  </div>
+                ) : null}
+                {tipAmountMinor > 0 ? (
+                  <div className="flex items-center justify-between gap-4 text-stone-600">
+                    <span>Tip</span>
+                    <span>
+                      {formatPrice(minorUnitsToDecimal(tipAmountMinor, currency), {
+                        currency,
+                      })}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
                   <span>To Pay</span>
                   <span>{formatPrice(totalAmount, { currency })}</span>
                 </div>
               </div>
+            </aside>
             </div>
 
             {!isStaffOrder ? (
@@ -2346,6 +2601,11 @@ export function OrderForm({
             }
             className="mb-0"
           />
+          {isStaffOrder && offlineOrderCount > 0 ? (
+            <p className="mt-3 w-fit rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900">
+              {offlineOrderCount} offline {offlineOrderCount === 1 ? "order" : "orders"} waiting to sync
+            </p>
+          ) : null}
         </CardHeader>
 
         <CardContent className="px-6 pb-6">
@@ -2401,30 +2661,15 @@ export function OrderForm({
                 </div>
               ) : null}
 
-              {isLoadingMenu ? (
-                <div className="grid gap-4">
-                  {Array.from({ length: 2 }).map((_, index) => (
-                    <div key={index} className="rounded-xl border border-stone-200 bg-white p-4">
-                      <div className="h-5 w-32 animate-pulse rounded-md bg-stone-200" />
-                      <div className="mt-4 grid gap-4">
-                        {Array.from({ length: 4 }).map((__, cardIndex) => (
-                          <div
-                            key={cardIndex}
-                            className="grid grid-cols-[1fr_92px] gap-4 border-b border-stone-100 pb-4 last:border-b-0"
-                          >
-                            <div className="space-y-2">
-                              <div className="h-4 w-3/4 animate-pulse rounded-md bg-stone-200" />
-                              <div className="h-3 w-full animate-pulse rounded-md bg-stone-100" />
-                              <div className="h-3 w-2/3 animate-pulse rounded-md bg-stone-100" />
-                              <div className="h-8 w-24 animate-pulse rounded-lg bg-stone-100" />
-                            </div>
-                            <div className="aspect-square animate-pulse rounded-lg bg-stone-100" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              {!isLoadingMenu ? (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                  <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
+                  <p>Tell restaurant staff about any food allergy before ordering.</p>
                 </div>
+              ) : null}
+
+              {isLoadingMenu ? (
+                <MenuSectionSkeleton label="Loading order menu" />
               ) : (
                 <div className="grid gap-6">
                   {visibleMenuCategories.length > 0 ? (
@@ -2478,7 +2723,7 @@ export function OrderForm({
                     >
                       <div className="mb-4">
                         <p className="text-xl font-semibold text-stone-950">{category.name}</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-400">
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">
                           {category.items.length} options
                         </p>
                         {category.description ? (
@@ -2501,6 +2746,7 @@ export function OrderForm({
                               (sum, item) => sum + item.quantity,
                               0,
                             );
+                            const configurationCount = selectedCartItems.length;
                             const hasSelectedItem = selectedQuantity > 0;
                             const hasModifiers = Boolean(drink.modifierGroups?.length);
                             const stockLimit = getStockLimit(drink);
@@ -2517,11 +2763,29 @@ export function OrderForm({
                             return (
                               <div
                                 key={drink.id}
-                                className={`grid grid-cols-[1fr_96px] gap-4 border-b border-stone-100 pb-4 last:border-b-0 sm:grid-cols-[1fr_128px] ${
-                                  hasSelectedItem ? "rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-200" : ""
+                                data-slot="menu-item-row"
+                                className={`grid grid-cols-[80px_minmax(0,1fr)] items-start gap-3 border-b border-stone-100 pb-4 last:border-b-0 sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center sm:gap-4 ${
+                                  hasSelectedItem
+                                    ? "rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-800"
+                                    : ""
                                 }`}
                               >
-                                <div className="min-w-0">
+                                <div className="relative aspect-square overflow-hidden rounded-lg bg-stone-100">
+                                  {drink.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={drink.imageUrl}
+                                      alt={drink.name}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center text-stone-300">
+                                      <ImageIcon className="size-7" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div data-slot="menu-item-details" className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
                                     <p className="text-base font-semibold leading-snug text-stone-950">
                                       {drink.name}
@@ -2558,6 +2822,10 @@ export function OrderForm({
                                       ))}
                                     </div>
                                   ) : null}
+                                  <AllergenSummary
+                                    allergens={drink.allergens}
+                                    className="mt-2"
+                                  />
                                   {drink.modifierGroups && drink.modifierGroups.length > 0 ? (
                                     <div className="mt-2">
                                       <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
@@ -2568,8 +2836,60 @@ export function OrderForm({
                                   <p className="mt-3 text-sm font-semibold text-stone-950">
                                     {formatPrice(drink.price ?? null, { currency })}
                                   </p>
-                                  {hasModifiers && latestCartItem ? (
-                                    <div className="mt-3 inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                                  {hasModifiers && configurationCount === 1 && cartItem ? (
+                                    <p
+                                      data-slot="menu-item-customization-summary"
+                                      className="mt-1 line-clamp-2 text-xs text-stone-500"
+                                    >
+                                      {getCartItemCustomizationSummary(cartItem)}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <div
+                                  data-slot="menu-item-action"
+                                  className="col-span-2 flex min-h-9 items-center justify-end sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:min-w-28 sm:self-center"
+                                >
+                                  {hasModifiers && configurationCount > 1 ? (
+                                    <div className="flex flex-col items-end gap-1.5">
+                                      <span
+                                        data-slot="menu-item-variant-count"
+                                        className="text-xs font-medium text-stone-500"
+                                      >
+                                        {selectedQuantity} added · {configurationCount} variants
+                                      </span>
+                                      <div className="flex flex-wrap justify-end gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => addToCart(category, drink)}
+                                          disabled={
+                                            isSubmitting || isUnavailable || hasReachedStockLimit
+                                          }
+                                          className="h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
+                                        >
+                                          {!isUnavailable && !hasReachedStockLimit ? (
+                                            <PlusIcon className="size-4" />
+                                          ) : null}
+                                          {isUnavailable
+                                            ? unavailableLabel
+                                            : hasReachedStockLimit
+                                              ? "Limit reached"
+                                              : "Add another"}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          onClick={() => openCartForDrink(drink.id)}
+                                          className="h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
+                                        >
+                                          <TagsIcon className="size-4" />
+                                          Manage variants
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : hasModifiers && latestCartItem ? (
+                                    <div className="inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -2602,8 +2922,8 @@ export function OrderForm({
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                       className={
                                         isUnavailable || hasReachedStockLimit
-                                          ? "mt-3 h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
-                                          : "mt-3 h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
+                                          ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
+                                          : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                       }
                                     >
                                       {!isUnavailable && !hasReachedStockLimit ? (
@@ -2616,7 +2936,7 @@ export function OrderForm({
                                           : "Customize"}
                                     </Button>
                                   ) : cartItem ? (
-                                    <div className="mt-3 inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                                    <div className="inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -2649,8 +2969,8 @@ export function OrderForm({
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                       className={
                                         isUnavailable || hasReachedStockLimit
-                                          ? "mt-3 h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
-                                          : "mt-3 h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
+                                          ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
+                                          : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                       }
                                     >
                                       {!isUnavailable && !hasReachedStockLimit ? (
@@ -2662,21 +2982,6 @@ export function OrderForm({
                                           ? "Limit reached"
                                           : "Add"}
                                     </Button>
-                                  )}
-                                </div>
-
-                                <div className="relative aspect-square overflow-hidden rounded-lg bg-stone-100">
-                                  {drink.imageUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={drink.imageUrl}
-                                      alt={drink.name}
-                                      className="h-full w-full object-cover"
-                                    />
-                                  ) : (
-                                    <div className="flex h-full items-center justify-center text-stone-300">
-                                      <ImageIcon className="size-7" />
-                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -2713,7 +3018,7 @@ export function OrderForm({
             </div>
             <Button
               type="button"
-              onClick={() => setIsCartOpen(true)}
+              onClick={openCart}
               disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
               className="h-12 shrink-0 rounded-lg bg-stone-950 px-5 text-white hover:bg-stone-800"
             >

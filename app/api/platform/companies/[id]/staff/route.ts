@@ -43,6 +43,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     return NextResponse.json({
       companies: await listPlatformCompanies(),
+      emailDelivery: invitation.emailDelivery,
       inviteUrl: invitation.inviteUrl,
     });
   } catch (error) {

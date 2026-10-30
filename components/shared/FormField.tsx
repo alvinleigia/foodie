@@ -13,6 +13,7 @@ type FormFieldProps = {
   error?: string | null;
   errorId?: string;
   children: ReactNode;
+  tone?: "light" | "themed";
 };
 
 export function FormField({
@@ -23,6 +24,7 @@ export function FormField({
   error,
   errorId,
   children,
+  tone = "light",
 }: FormFieldProps) {
   const generatedId = useId();
   const childArray = Children.toArray(children);
@@ -42,11 +44,26 @@ export function FormField({
 
   return (
     <div className={cn("grid gap-2", className)}>
-      <Label htmlFor={resolvedHtmlFor} className="text-sm text-stone-700">
+      <Label
+        htmlFor={resolvedHtmlFor}
+        className={cn(
+          "text-sm",
+          tone === "themed" ? "text-foreground" : "text-stone-700",
+        )}
+      >
         {label}
       </Label>
       {resolvedChildren}
-      {description ? <p className="text-sm text-stone-500">{description}</p> : null}
+      {description ? (
+        <p
+          className={cn(
+            "text-sm",
+            tone === "themed" ? "text-muted-foreground" : "text-stone-500",
+          )}
+        >
+          {description}
+        </p>
+      ) : null}
       {error ? (
         <p id={errorId} className="text-sm text-rose-600">
           {error}

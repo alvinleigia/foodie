@@ -38,14 +38,14 @@ export function ReportBreakdown({
   showChildRestaurants = false,
 }: ReportBreakdownProps) {
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card tone="themed" className="rounded-xl border-border bg-card">
       <CardHeader className="px-5 pt-5">
-        <h3 className="text-xl font-semibold text-stone-950">{title}</h3>
-        <p className="text-sm text-stone-500">{description}</p>
+        <h3 className="text-xl font-semibold text-card-foreground">{title}</h3>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5">
         {rows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
             {emptyMessage}
           </p>
         ) : null}
@@ -53,11 +53,11 @@ export function ReportBreakdown({
         {rows.map((row) => (
           <div
             key={row.id}
-            className="grid gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4 lg:grid-cols-[1.4fr_2fr]"
+            className="grid gap-4 rounded-lg border border-border bg-muted/50 p-4 lg:grid-cols-[1.4fr_2fr]"
           >
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-semibold text-stone-950">{row.name}</p>
+                <p className="font-semibold text-foreground">{row.name}</p>
                 <span
                   className={
                     row.isActive
@@ -68,11 +68,11 @@ export function ReportBreakdown({
                   {row.isActive ? "Active" : "Disabled"}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-stone-500">{row.slug}</p>
-              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-stone-400">
+              <p className="mt-1 text-sm text-muted-foreground">{row.slug}</p>
+              <p className="mt-3 text-xs uppercase tracking-[0.18em] text-muted-foreground">
                 Last order
               </p>
-              <p className="text-sm text-stone-700">{formatLastOrder(row.lastOrderAt)}</p>
+              <p className="text-sm text-foreground">{formatLastOrder(row.lastOrderAt)}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -93,9 +93,9 @@ export function ReportBreakdown({
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white p-3">
-      <p className="text-lg font-semibold text-stone-950">{value}</p>
-      <p className="text-xs uppercase tracking-[0.14em] text-stone-400">{label}</p>
+    <div className="rounded-lg border border-border bg-card p-3">
+      <p className="text-lg font-semibold text-card-foreground">{value}</p>
+      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
     </div>
   );
 }

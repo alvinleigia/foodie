@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireMenuManagerSession } from "@/lib/auth";
 import {
+  getActiveMenuAllergens,
   getActiveMenuTags,
   getAdminMenu,
   getMenuModifierGroups,
@@ -22,6 +23,7 @@ export async function GET() {
     const tenantContext = await getCurrentTenantContext();
     const [
       categories,
+      allergens,
       currency,
       tags,
       modifierGroups,
@@ -29,6 +31,7 @@ export async function GET() {
       taxConfiguration,
     ] = await Promise.all([
       getAdminMenu(tenantContext),
+      getActiveMenuAllergens(),
       getTenantMenuCurrency(tenantContext),
       getActiveMenuTags(),
       getMenuModifierGroups(tenantContext),
@@ -36,6 +39,7 @@ export async function GET() {
       getRestaurantTaxDefinitions(tenantContext.organizationId),
     ]);
     return NextResponse.json({
+      allergens,
       categories,
       currency,
       modifierGroups,

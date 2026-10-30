@@ -4,7 +4,9 @@ import { drinkCategories } from "@/data/drinks";
 import { getDb } from "@/db";
 import {
   inventoryItems,
+  menuAllergens,
   menuCategories,
+  menuItemAllergens,
   menuItemFulfilmentTaxAssignments,
   menuItemModifierGroups,
   menuItemTaxAssignments,
@@ -19,6 +21,11 @@ import {
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
+  getMenuAvailabilityState,
+  isMenuCategoryAvailable,
+  isMenuItemAvailable,
+} from "@/lib/menu-availability";
+import {
   orderFulfilmentTypes,
   type OrderFulfilmentType,
 } from "@/lib/order-fulfilment";
@@ -27,6 +34,9 @@ import { getActivePrepStation } from "@/lib/prep-stations";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
   MenuItemFulfilmentTaxOverride,
+  MenuAllergenDeclaration,
+  MenuAllergenDeclarationRecord,
+  MenuAllergenDefinitionRecord,
   MenuItemRecord,
   MenuModifierGroupRecord,
   MenuModifierOptionRecord,
@@ -204,6 +214,7 @@ function groupMenuData(
   includeInactive: boolean,
   inventoryByItemId = new Map<string, typeof inventoryItems.$inferSelect>(),
   tagsByItemId = new Map<string, MenuTagRecord[]>(),
+  allergensByItemId = new Map<string, MenuAllergenDeclarationRecord[]>(),
   modifierGroupsByItemId = new Map<string, MenuModifierGroupRecord[]>(),
   includePrepStationRouting = false,
 ) {
@@ -255,6 +266,7 @@ function groupMenuData(
       tags: tagsByItemId.get(item.id) ?? [],
       modifierGroups: modifierGroupsByItemId.get(item.id) ?? [],
       ...getMenuInventoryState(inventoryByItemId.get(item.id)),
+      allergens: allergensByItemId.get(item.id) ?? [],
     });
   }
 
@@ -336,11 +348,17 @@ export async function getActiveMenuTags() {
       name: menuTags.name,
       description: menuTags.description,
       color: menuTags.color,
+      kind: menuTags.kind,
       sortOrder: menuTags.sortOrder,
       isActive: menuTags.isActive,
     })
     .from(menuTags)
-    .where(eq(menuTags.isActive, true))
+    .where(
+      and(
+        eq(menuTags.isActive, true),
+        inArray(menuTags.kind, ["DIETARY", "ATTRIBUTE"]),
+      ),
+    )
     .orderBy(asc(menuTags.sortOrder), asc(menuTags.name));
 }
 
@@ -358,6 +376,7 @@ async function getMenuTagsByItemId(itemIds: string[]) {
       name: menuTags.name,
       description: menuTags.description,
       color: menuTags.color,
+      kind: menuTags.kind,
       sortOrder: menuTags.sortOrder,
       isActive: menuTags.isActive,
     })
@@ -367,6 +386,7 @@ async function getMenuTagsByItemId(itemIds: string[]) {
       and(
         inArray(menuItemTags.menuItemId, itemIds),
         eq(menuTags.isActive, true),
+        inArray(menuTags.kind, ["DIETARY", "ATTRIBUTE"]),
       ),
     )
     .orderBy(asc(menuTags.sortOrder), asc(menuTags.name));
@@ -381,6 +401,7 @@ async function getMenuTagsByItemId(itemIds: string[]) {
       name: row.name,
       description: row.description,
       color: row.color,
+      kind: row.kind as MenuTagRecord["kind"],
       sortOrder: row.sortOrder,
       isActive: row.isActive,
     });
@@ -388,6 +409,74 @@ async function getMenuTagsByItemId(itemIds: string[]) {
   }
 
   return tagsByItemId;
+}
+
+export async function getActiveMenuAllergens(): Promise<
+  MenuAllergenDefinitionRecord[]
+> {
+  return getDb()
+    .select({
+      id: menuAllergens.id,
+      code: menuAllergens.code,
+      name: menuAllergens.name,
+      description: menuAllergens.description,
+      sortOrder: menuAllergens.sortOrder,
+      isActive: menuAllergens.isActive,
+    })
+    .from(menuAllergens)
+    .where(eq(menuAllergens.isActive, true))
+    .orderBy(asc(menuAllergens.sortOrder), asc(menuAllergens.name));
+}
+
+async function getMenuAllergensByItemId(
+  itemIds: string[],
+  context: TenantContext,
+) {
+  if (itemIds.length === 0) {
+    return new Map<string, MenuAllergenDeclarationRecord[]>();
+  }
+
+  const rows = await getDb()
+    .select({
+      menuItemId: menuItemAllergens.menuItemId,
+      id: menuAllergens.id,
+      code: menuAllergens.code,
+      name: menuAllergens.name,
+      description: menuAllergens.description,
+      sortOrder: menuAllergens.sortOrder,
+      isActive: menuAllergens.isActive,
+      declaration: menuItemAllergens.declaration,
+    })
+    .from(menuItemAllergens)
+    .innerJoin(menuAllergens, eq(menuItemAllergens.allergenId, menuAllergens.id))
+    .where(
+      and(
+        eq(menuItemAllergens.organizationId, context.organizationId),
+        inArray(menuItemAllergens.menuItemId, itemIds),
+        eq(menuAllergens.isActive, true),
+      ),
+    )
+    .orderBy(asc(menuAllergens.sortOrder), asc(menuAllergens.name));
+  const allergensByItemId = new Map<
+    string,
+    MenuAllergenDeclarationRecord[]
+  >();
+
+  for (const row of rows) {
+    const itemAllergens = allergensByItemId.get(row.menuItemId) ?? [];
+    itemAllergens.push({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      description: row.description,
+      sortOrder: row.sortOrder,
+      isActive: row.isActive,
+      declaration: row.declaration,
+    });
+    allergensByItemId.set(row.menuItemId, itemAllergens);
+  }
+
+  return allergensByItemId;
 }
 
 function serializeModifierOption(
@@ -550,6 +639,21 @@ function normalizeMenuTagIds(tagIds: string[] | undefined) {
   return Array.from(new Set(tagIds ?? []));
 }
 
+function normalizeMenuAllergens(
+  allergens:
+    | Array<{
+        allergenId: string;
+        declaration: MenuAllergenDeclaration;
+      }>
+    | undefined,
+) {
+  return Array.from(
+    new Map(
+      (allergens ?? []).map((allergen) => [allergen.allergenId, allergen]),
+    ).values(),
+  );
+}
+
 function normalizeMenuModifierGroupIds(groupIds: string[] | undefined) {
   return Array.from(new Set(groupIds ?? []));
 }
@@ -592,11 +696,32 @@ async function assertMenuTagsExist(tagIds: string[]) {
       and(
         inArray(menuTags.id, tagIds),
         eq(menuTags.isActive, true),
+        inArray(menuTags.kind, ["DIETARY", "ATTRIBUTE"]),
       ),
     );
 
   if (existingTags.length !== tagIds.length) {
     throw new Error("One or more menu tags are invalid.");
+  }
+}
+
+async function assertMenuAllergensExist(allergenIds: string[]) {
+  if (allergenIds.length === 0) {
+    return;
+  }
+
+  const existingAllergens = await getDb()
+    .select({ id: menuAllergens.id })
+    .from(menuAllergens)
+    .where(
+      and(
+        inArray(menuAllergens.id, allergenIds),
+        eq(menuAllergens.isActive, true),
+      ),
+    );
+
+  if (existingAllergens.length !== allergenIds.length) {
+    throw new Error("One or more allergen declarations are invalid.");
   }
 }
 
@@ -743,44 +868,50 @@ export async function getPublicMenu(
   options: { includeInventory?: boolean } = {},
 ) {
   const db = getDb();
-  const categories = await db
-    .select()
-    .from(menuCategories)
-    .where(
-      and(
-        eq(menuCategories.organizationId, context.organizationId),
-      ),
-    )
-    .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
-  const items = await db
-    .select()
-    .from(menuItems)
-    .where(
-      and(
-        eq(menuItems.organizationId, context.organizationId),
-      ),
-    )
-    .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
-  const inventoryByItemId =
-    options.includeInventory === false
-      ? new Map<string, typeof inventoryItems.$inferSelect>()
-      : await getInventoryByMenuItemId(
-          items.map((item) => item.id),
-          context,
-        );
-  const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
-  const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
-    items.map((item) => item.id),
-    context,
-    false,
+  const [categories, items, availabilityState] = await Promise.all([
+    db
+      .select()
+      .from(menuCategories)
+      .where(eq(menuCategories.organizationId, context.organizationId))
+      .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name)),
+    db
+      .select()
+      .from(menuItems)
+      .where(eq(menuItems.organizationId, context.organizationId))
+      .orderBy(asc(menuItems.sortOrder), asc(menuItems.name)),
+    getMenuAvailabilityState(context),
+  ]);
+  const availableCategories = categories.filter((category) =>
+    isMenuCategoryAvailable(category.id, availabilityState),
   );
+  const availableItems = items.filter((item) =>
+    isMenuItemAvailable(item.categoryId, item.id, availabilityState),
+  );
+  const itemIds = availableItems.map((item) => item.id);
+  const [
+    inventoryByItemId,
+    tagsByItemId,
+    allergensByItemId,
+    modifierGroupsByItemId,
+  ] =
+    await Promise.all([
+      options.includeInventory === false
+        ? Promise.resolve(
+            new Map<string, typeof inventoryItems.$inferSelect>(),
+          )
+        : getInventoryByMenuItemId(itemIds, context),
+      getMenuTagsByItemId(itemIds),
+      getMenuAllergensByItemId(itemIds, context),
+      getMenuModifierGroupsByItemId(itemIds, context, false),
+    ]);
 
   return groupMenuData(
-    categories,
-    items,
+    availableCategories,
+    availableItems,
     false,
     inventoryByItemId,
     tagsByItemId,
+    allergensByItemId,
     modifierGroupsByItemId,
   );
 }
@@ -805,12 +936,13 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
       ),
     )
     .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
-  const tagsByItemId = await getMenuTagsByItemId(items.map((item) => item.id));
-  const modifierGroupsByItemId = await getMenuModifierGroupsByItemId(
-    items.map((item) => item.id),
-    context,
-    true,
-  );
+  const itemIds = items.map((item) => item.id);
+  const [tagsByItemId, allergensByItemId, modifierGroupsByItemId] =
+    await Promise.all([
+      getMenuTagsByItemId(itemIds),
+      getMenuAllergensByItemId(itemIds, context),
+      getMenuModifierGroupsByItemId(itemIds, context, true),
+    ]);
   const [taxAssignmentsByItemId, fulfilmentTaxOverridesByItemId] =
     await Promise.all([
       getMenuTaxAssignmentsByItemId(
@@ -829,6 +961,7 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
     true,
     undefined,
     tagsByItemId,
+    allergensByItemId,
     modifierGroupsByItemId,
     true,
   ).map((category) => ({
@@ -866,6 +999,7 @@ export async function getMenuSelectionSnapshot(
   options: { includeInventory?: boolean } = {},
 ) {
   const db = getDb();
+  const availabilityState = await getMenuAvailabilityState(context);
 
   const [category] = await db
     .select()
@@ -879,7 +1013,7 @@ export async function getMenuSelectionSnapshot(
     )
     .limit(1);
 
-  if (!category) {
+  if (!category || !isMenuCategoryAvailable(category.id, availabilityState)) {
     return { category: null, inventory: null, item: null, prepStation: null };
   }
 
@@ -897,7 +1031,10 @@ export async function getMenuSelectionSnapshot(
     )
     .limit(1);
 
-  if (!item) {
+  if (
+    !item ||
+    !isMenuItemAvailable(category.id, item.id, availabilityState)
+  ) {
     return { category, inventory: null, item: null, prepStation: null };
   }
 
@@ -1146,6 +1283,10 @@ export async function createMenuItem(input: {
   isActive: boolean;
   isSoldOut?: boolean;
   tagIds?: string[];
+  allergens?: Array<{
+    allergenId: string;
+    declaration: MenuAllergenDeclaration;
+  }>;
   modifierGroupIds?: string[];
   taxAssignmentMode?: "DEFAULT" | "CUSTOM";
   taxDefinitionIds?: string[];
@@ -1173,6 +1314,7 @@ export async function createMenuItem(input: {
     context.organizationId,
   );
   const tagIds = normalizeMenuTagIds(input.tagIds);
+  const allergens = normalizeMenuAllergens(input.allergens);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   const taxDefinitionIds =
     input.taxAssignmentMode === "CUSTOM"
@@ -1182,6 +1324,9 @@ export async function createMenuItem(input: {
     input.fulfilmentTaxOverrides,
   );
   await assertMenuTagsExist(tagIds);
+  await assertMenuAllergensExist(
+    allergens.map((allergen) => allergen.allergenId),
+  );
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
   await assertMenuTaxDefinitionsExist(
     normalizeMenuTaxDefinitionIds([
@@ -1222,6 +1367,17 @@ export async function createMenuItem(input: {
         tagIds.map((tagId) => ({
           menuItemId: item.id,
           tagId,
+        })),
+      );
+    }
+
+    if (allergens.length > 0) {
+      await tx.insert(menuItemAllergens).values(
+        allergens.map((allergen) => ({
+          organizationId: context.organizationId,
+          menuItemId: item.id,
+          allergenId: allergen.allergenId,
+          declaration: allergen.declaration,
         })),
       );
     }
@@ -1282,6 +1438,10 @@ export async function updateMenuItem(
     isActive: boolean;
     isSoldOut?: boolean;
     tagIds?: string[];
+    allergens?: Array<{
+      allergenId: string;
+      declaration: MenuAllergenDeclaration;
+    }>;
     modifierGroupIds?: string[];
     taxAssignmentMode?: "DEFAULT" | "CUSTOM";
     taxDefinitionIds?: string[];
@@ -1312,6 +1472,7 @@ export async function updateMenuItem(
     itemId,
   );
   const tagIds = normalizeMenuTagIds(input.tagIds);
+  const allergens = normalizeMenuAllergens(input.allergens);
   const modifierGroupIds = normalizeMenuModifierGroupIds(input.modifierGroupIds);
   const taxDefinitionIds =
     input.taxAssignmentMode === "CUSTOM"
@@ -1321,6 +1482,9 @@ export async function updateMenuItem(
     input.fulfilmentTaxOverrides,
   );
   await assertMenuTagsExist(tagIds);
+  await assertMenuAllergensExist(
+    allergens.map((allergen) => allergen.allergenId),
+  );
   await assertMenuModifierGroupsExist(modifierGroupIds, context);
   await assertMenuTaxDefinitionsExist(
     normalizeMenuTaxDefinitionIds([
@@ -1368,6 +1532,9 @@ export async function updateMenuItem(
 
     await tx.delete(menuItemTags).where(eq(menuItemTags.menuItemId, item.id));
     await tx
+      .delete(menuItemAllergens)
+      .where(eq(menuItemAllergens.menuItemId, item.id));
+    await tx
       .delete(menuItemModifierGroups)
       .where(eq(menuItemModifierGroups.menuItemId, item.id));
     await tx
@@ -1382,6 +1549,17 @@ export async function updateMenuItem(
         tagIds.map((tagId) => ({
           menuItemId: item.id,
           tagId,
+        })),
+      );
+    }
+
+    if (allergens.length > 0) {
+      await tx.insert(menuItemAllergens).values(
+        allergens.map((allergen) => ({
+          organizationId: context.organizationId,
+          menuItemId: item.id,
+          allergenId: allergen.allergenId,
+          declaration: allergen.declaration,
         })),
       );
     }

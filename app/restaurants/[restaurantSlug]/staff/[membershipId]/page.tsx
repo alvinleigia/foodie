@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { StaffJobAssignmentForm } from "@/components/admin/StaffJobAssignmentForm";
 import { TenantStaffAccessForm } from "@/components/admin/TenantAdminForms";
+import {
+  getStaffJobAssignment,
+  getStaffJobConfiguration,
+} from "@/lib/staff-jobs";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -29,6 +34,17 @@ export default async function RestaurantStaffAccessPage({
   }
 
   const staffHref = getRestaurantWorkspaceHref(access.restaurant.slug, "staff");
+  const jobsHref = getRestaurantWorkspaceHref(
+    access.restaurant.slug,
+    "staffJobs",
+  );
+  const [jobConfiguration, jobAssignment] = await Promise.all([
+    getStaffJobConfiguration(access.tenantContext),
+    getStaffJobAssignment(membershipId, access.tenantContext),
+  ]);
+  const primaryJobPermissions = jobConfiguration.jobs.find(
+    (job) => job.id === jobAssignment.primaryJobId,
+  )?.permissions;
 
   return (
     <SaasAdminShell
@@ -43,7 +59,21 @@ export default async function RestaurantStaffAccessPage({
         role: session.user.role,
       }}
     >
-      <TenantStaffAccessForm backHref={staffHref} staff={staff} />
+      <div className="grid gap-6">
+        <StaffJobAssignmentForm
+          initialAssignment={jobAssignment}
+          jobs={jobConfiguration.jobs}
+          jobsHref={jobsHref}
+          membershipId={membershipId}
+          staffName={staff.name}
+        />
+        <TenantStaffAccessForm
+          key={jobAssignment.primaryJobId ?? "role-defaults"}
+          backHref={staffHref}
+          permissionBaseline={primaryJobPermissions}
+          staff={staff}
+        />
+      </div>
     </SaasAdminShell>
   );
 }

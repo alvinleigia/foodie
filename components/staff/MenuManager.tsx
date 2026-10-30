@@ -33,8 +33,10 @@ import {
   type OrderFulfilmentType,
 } from "@/lib/order-fulfilment";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { AllergenSummary } from "@/components/shared/AllergenSummary";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
+import { MenuSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import {
@@ -63,6 +65,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import {
   MenuCategoryRecord,
+  MenuAllergenDeclaration,
+  MenuAllergenDefinitionRecord,
   MenuItemFulfilmentTaxOverride,
   MenuItemRecord,
   MenuModifierGroupRecord,
@@ -91,6 +95,10 @@ type ItemDraft = {
   isActive: boolean;
   isSoldOut: boolean;
   tagIds: string[];
+  allergens: Array<{
+    allergenId: string;
+    declaration: MenuAllergenDeclaration;
+  }>;
   modifierGroupIds: string[];
   taxAssignmentMode: "DEFAULT" | "CUSTOM";
   taxDefinitionIds: string[];
@@ -142,6 +150,7 @@ const emptyItemDraft: ItemDraft = {
   isActive: true,
   isSoldOut: false,
   tagIds: [],
+  allergens: [],
   modifierGroupIds: [],
   taxAssignmentMode: "DEFAULT",
   taxDefinitionIds: [],
@@ -177,6 +186,9 @@ export function MenuManager() {
   const [modifierGroups, setModifierGroups] = useState<MenuModifierGroupRecord[]>([]);
   const [prepStations, setPrepStations] = useState<PrepStationRecord[]>([]);
   const [tags, setTags] = useState<MenuTagRecord[]>([]);
+  const [allergenDefinitions, setAllergenDefinitions] = useState<
+    MenuAllergenDefinitionRecord[]
+  >([]);
   const [taxDefinitions, setTaxDefinitions] = useState<
     RestaurantTaxDefinitionRecord[]
   >([]);
@@ -226,6 +238,7 @@ export function MenuManager() {
         setCategories([]);
         setModifierGroups([]);
         setPrepStations([]);
+        setAllergenDefinitions([]);
         setTaxDefinitions([]);
         setIsLoading(false);
         return;
@@ -234,6 +247,7 @@ export function MenuManager() {
       setCategories(payload.categories ?? []);
       setModifierGroups(payload.modifierGroups ?? []);
       setPrepStations(payload.prepStations ?? []);
+      setAllergenDefinitions(payload.allergens ?? []);
       setTags(payload.tags ?? []);
       setTaxDefinitions(payload.taxDefinitions ?? []);
       setCurrency(payload.currency ?? DEFAULT_CURRENCY);
@@ -287,6 +301,11 @@ export function MenuManager() {
       isActive: item.isActive,
       isSoldOut: item.isSoldOut,
       tagIds: item.tags?.map((tag) => tag.id) ?? [],
+      allergens:
+        item.allergens?.map((allergen) => ({
+          allergenId: allergen.id,
+          declaration: allergen.declaration,
+        })) ?? [],
       modifierGroupIds: item.modifierGroups?.map((group) => group.id) ?? [],
       taxAssignmentMode: item.taxAssignmentMode ?? "DEFAULT",
       taxDefinitionIds: item.taxDefinitionIds ?? [],
@@ -308,6 +327,26 @@ export function MenuManager() {
       tagIds: isSelected
         ? Array.from(new Set([...current.tagIds, tagId]))
         : current.tagIds.filter((currentTagId) => currentTagId !== tagId),
+    }));
+  }
+
+  function setItemDraftAllergen(
+    allergenId: string,
+    declaration: MenuAllergenDeclaration | "",
+  ) {
+    clearItemFieldError("allergens");
+    setItemDraft((current) => ({
+      ...current,
+      allergens: declaration
+        ? [
+            ...current.allergens.filter(
+              (allergen) => allergen.allergenId !== allergenId,
+            ),
+            { allergenId, declaration },
+          ]
+        : current.allergens.filter(
+            (allergen) => allergen.allergenId !== allergenId,
+          ),
     }));
   }
 
@@ -524,6 +563,7 @@ export function MenuManager() {
         isActive: itemDraft.isActive,
         isSoldOut: itemDraft.isSoldOut,
         tagIds: itemDraft.tagIds,
+        allergens: itemDraft.allergens,
         modifierGroupIds: itemDraft.modifierGroupIds,
         taxAssignmentMode: itemDraft.taxAssignmentMode,
         taxDefinitionIds: itemDraft.taxDefinitionIds,
@@ -805,7 +845,7 @@ export function MenuManager() {
             title="Manage categories and products"
             description="Create menu sections, then add products with price, description, and image links."
             meta={
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-400">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-600">
                 Google-style section layout for fast menu updates
               </p>
             }
@@ -821,10 +861,10 @@ export function MenuManager() {
               variant="outline"
               onClick={() => void seedStarterMenu()}
               disabled={pendingAction === "seed" || sortedCategories.length > 0}
-              className="rounded-lg border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+              className="rounded-lg border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/15 dark:disabled:opacity-100"
             >
               {pendingAction === "seed" ? (
-                <Spinner className="text-amber-900" />
+                <Spinner className="text-amber-900 dark:text-amber-200" />
               ) : (
                 <SparklesIcon className="size-4" />
               )}
@@ -920,16 +960,13 @@ export function MenuManager() {
               Use Seed Starter Menu only for a brand-new empty restaurant. It creates the default
               cocktails and mocktails under the current restaurant.
             </p>
-            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-400">
+            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-500">
               Required columns: category_name, item_name
             </p>
           </div>
 
           {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-stone-500">
-              <Spinner className="text-stone-500" />
-              Loading menu...
-            </div>
+            <MenuSectionSkeleton label="Loading menu manager" />
           ) : sortedCategories.length === 0 ? (
             <EmptyState
               title="No categories yet"
@@ -1038,6 +1075,10 @@ export function MenuManager() {
                                   ))}
                                 </div>
                               ) : null}
+                              <AllergenSummary
+                                allergens={item.allergens}
+                                className="mt-3"
+                              />
                               {item.modifierGroups && item.modifierGroups.length > 0 ? (
                                 <div className="mt-3 flex flex-wrap gap-2">
                                   {item.modifierGroups.map((group) => (
@@ -1080,6 +1121,7 @@ export function MenuManager() {
                               <Button
                                 type="button"
                                 variant="outline"
+                                aria-label={`Edit ${item.name}`}
                                 onClick={() => openEditItemDialog(item)}
                                 className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                               >
@@ -1491,7 +1533,7 @@ export function MenuManager() {
             </FormField>
 
             <FormField
-              label="Tags"
+              label="Dietary and product labels"
               error={getFieldError(itemFieldErrors, "tagIds")}
               errorId="menu-item-tags-error"
             >
@@ -1515,6 +1557,58 @@ export function MenuManager() {
                       <span>{tag.name}</span>
                     </label>
                   ))}
+                </div>
+              )}
+            </FormField>
+
+            <FormField
+              label="Allergens"
+              error={getFieldError(itemFieldErrors, "allergens")}
+              errorId="menu-item-allergens-error"
+            >
+              {allergenDefinitions.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                  No allergen definitions are available.
+                </p>
+              ) : (
+                <div className="divide-y divide-border border-y border-border">
+                  {allergenDefinitions.map((allergen) => {
+                    const declaration = itemDraft.allergens.find(
+                      (selected) => selected.allergenId === allergen.id,
+                    )?.declaration;
+
+                    return (
+                      <div
+                        key={allergen.id}
+                        className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_13rem] sm:items-center"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            {allergen.name}
+                          </p>
+                          {allergen.description ? (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {allergen.description}
+                            </p>
+                          ) : null}
+                        </div>
+                        <NativeSelect
+                          aria-label={`${allergen.name} declaration`}
+                          value={declaration ?? ""}
+                          onChange={(event) =>
+                            setItemDraftAllergen(
+                              allergen.id,
+                              event.target.value as MenuAllergenDeclaration | "",
+                            )
+                          }
+                        >
+                          <option value="">Not declared</option>
+                          <option value="CONTAINS">Contains</option>
+                          <option value="MAY_CONTAIN">May contain</option>
+                        </NativeSelect>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </FormField>

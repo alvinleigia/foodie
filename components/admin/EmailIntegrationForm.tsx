@@ -185,7 +185,7 @@ export function EmailIntegrationForm({
         }}
       >
         <fieldset className="grid gap-3">
-          <legend className="text-sm font-semibold text-stone-900">Delivery mode</legend>
+          <legend className="text-sm font-semibold text-foreground">Delivery mode</legend>
           <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Delivery mode">
             {modeOptions.map((option) => {
               const Icon = option.icon;
@@ -201,8 +201,8 @@ export function EmailIntegrationForm({
                   className={cn(
                     "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
                     isSelected
-                      ? "border-stone-950 bg-stone-950 text-white"
-                      : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-foreground hover:bg-muted",
                   )}
                 >
                   <Icon className="size-4" />
@@ -214,14 +214,15 @@ export function EmailIntegrationForm({
         </fieldset>
 
         {draft.mode === "CUSTOM" ? (
-          <div className="grid gap-4 border-t border-stone-200 pt-5">
+          <div className="grid gap-4 border-t border-border pt-5">
             <div className="flex items-center gap-2">
-              <MailCheckIcon className="size-5 text-stone-700" />
-              <h3 className="text-base font-semibold text-stone-950">SMTP2GO sender</h3>
+              <MailCheckIcon className="size-5 text-muted-foreground" />
+              <h3 className="text-base font-semibold text-foreground">SMTP2GO sender</h3>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField
                 label="Sender name"
+                tone="themed"
                 error={validation.getError("fromName")}
                 errorId="email-integration-from-name-error"
               >
@@ -234,6 +235,7 @@ export function EmailIntegrationForm({
               </FormField>
               <FormField
                 label="Sender email"
+                tone="themed"
                 error={validation.getError("fromEmail")}
                 errorId="email-integration-from-email-error"
               >
@@ -247,6 +249,7 @@ export function EmailIntegrationForm({
               </FormField>
               <FormField
                 label="Reply-to email"
+                tone="themed"
                 error={validation.getError("replyToEmail")}
                 errorId="email-integration-reply-to-error"
               >
@@ -260,6 +263,7 @@ export function EmailIntegrationForm({
               </FormField>
               <FormField
                 label="SMTP2GO API key"
+                tone="themed"
                 description={
                   snapshot.settings.hasApiKey
                     ? `Saved securely (${snapshot.settings.apiKeyHint ?? "key available"}). Leave blank to keep it.`
@@ -281,7 +285,7 @@ export function EmailIntegrationForm({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-3 border-t border-stone-200 pt-5">
+        <div className="flex flex-wrap gap-3 border-t border-border pt-5">
           <Button type="submit" disabled={isSaving || isTesting}>
             <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : "Save changes"}</ButtonLabel>
           </Button>

@@ -7,6 +7,7 @@ import { orderItems, orders } from "@/db/schema";
 import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { restoreReservedInventoryForOrderItem } from "@/lib/inventory";
+import { restoreIngredientsForOrderItem } from "@/lib/ingredient-inventory";
 import {
   authorizeManagerAction,
   ManagerApprovalError,
@@ -240,6 +241,7 @@ export async function POST(
                   status: "CANCELLED" as const,
                   cancelledAt: now,
                   inventoryReservedAt: null,
+                  ingredientInventoryReservedAt: null,
                   updatedAt: now,
                 };
 
@@ -249,6 +251,13 @@ export async function POST(
           tenantContext,
           lockedItem,
         );
+      }
+
+      if (
+        body.action === "cancel" &&
+        lockedItem.ingredientInventoryReservedAt
+      ) {
+        await restoreIngredientsForOrderItem(tx, tenantContext, lockedItem);
       }
 
       const [updatedItem] = await tx

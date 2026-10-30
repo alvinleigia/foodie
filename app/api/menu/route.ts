@@ -17,8 +17,10 @@ import {
 
 export async function GET(request: Request) {
   try {
-    const tenantContext = await getPublicTenantContextFromRequest(request);
-    const session = await auth().catch(() => null);
+    const [tenantContext, session] = await Promise.all([
+      getPublicTenantContextFromRequest(request),
+      auth().catch(() => null),
+    ]);
 
     if (session?.user.kind !== "staff") {
       await assertOrganizationFeatureEnabled(
@@ -27,18 +29,17 @@ export async function GET(request: Request) {
       );
     }
 
-    const inventoryEntitlement = await getOrganizationFeatureEntitlement(
-      tenantContext.organizationId,
-      "operations.inventory",
-    );
-
-    const [categories, currency, businessDate] = await Promise.all([
-      getPublicMenu(tenantContext, {
-        includeInventory: inventoryEntitlement.enabled,
-      }),
+    const [inventoryEntitlement, currency, businessDate] = await Promise.all([
+      getOrganizationFeatureEntitlement(
+        tenantContext.organizationId,
+        "operations.inventory",
+      ),
       getTenantMenuCurrency(tenantContext),
       getRestaurantBusinessDate(getDb(), tenantContext),
     ]);
+    const categories = await getPublicMenu(tenantContext, {
+      includeInventory: inventoryEntitlement.enabled,
+    });
     const resolvedTaxes = await getResolvedRestaurantTaxes(
       tenantContext.organizationId,
       categories.flatMap((category) => category.items.map((item) => item.id)),

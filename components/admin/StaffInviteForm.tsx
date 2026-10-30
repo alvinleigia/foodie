@@ -66,7 +66,14 @@ export function StaffInviteForm({
     validation.clearErrors();
     setIsSubmitting(true);
 
-    let payload: { inviteUrl?: unknown };
+    let payload: {
+      emailDelivery?: {
+        status?: unknown;
+        reason?: unknown;
+        recipientEmail?: unknown;
+      };
+      inviteUrl?: unknown;
+    };
 
     try {
       payload = await requestJson(apiPath, { body: draft });
@@ -84,7 +91,22 @@ export function StaffInviteForm({
     setInviteUrl(typeof payload.inviteUrl === "string" ? payload.inviteUrl : null);
     await onSuccess?.(payload);
     setIsSubmitting(false);
-    toast.success("Invite link created.");
+    const recipientEmail =
+      typeof payload.emailDelivery?.recipientEmail === "string"
+        ? payload.emailDelivery.recipientEmail
+        : draft.email;
+
+    if (payload.emailDelivery?.status === "SENT") {
+      toast.success(`Invitation emailed to ${recipientEmail}.`);
+    } else {
+      toast.warning(
+        payload.emailDelivery?.reason === "DISABLED"
+          ? "Invite created. Email delivery is disabled, so share the link manually."
+          : payload.emailDelivery?.reason === "NOT_CONFIGURED"
+            ? "Invite created. Email delivery is not configured, so share the link manually."
+            : "Invite created, but the email could not be delivered. Share the link manually.",
+      );
+    }
   }
 
   const canAssignExisting =
@@ -217,7 +239,7 @@ export function StaffInviteForm({
                 className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
                 <ButtonLabel icon={UserPlusIcon}>
-                  {isSubmitting ? "Creating..." : "Create invite"}
+                  {isSubmitting ? "Sending..." : "Send invitation"}
                 </ButtonLabel>
               </Button>
               <Button asChild type="button" variant="outline" className="rounded-lg">
@@ -232,7 +254,7 @@ export function StaffInviteForm({
 
       <Card className="rounded-xl border-stone-200 bg-white">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Invite link</h3>
+          <h3 className="text-xl font-semibold text-stone-950">Invitation link</h3>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {inviteUrl ? (
@@ -252,7 +274,7 @@ export function StaffInviteForm({
             </div>
           ) : (
             <p className="text-sm leading-6 text-stone-600">
-              Create an invite and the one-time acceptance link will appear here.
+              Send an invitation and its one-time acceptance link will appear here.
             </p>
           )}
         </CardContent>

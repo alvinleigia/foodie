@@ -18,7 +18,10 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { StaffPermissionOverrides } from "@/lib/staff-permissions";
+import type {
+  StaffPermission,
+  StaffPermissionOverrides,
+} from "@/lib/staff-permissions";
 
 export const userRoleEnum = pgEnum("user_role", ["ADMIN", "STAFF"]);
 
@@ -218,6 +221,11 @@ export const vatInvoiceTypeEnum = pgEnum("vat_invoice_type", [
   "FULL",
 ]);
 
+export const receiptPrintFormatEnum = pgEnum("receipt_print_format", [
+  "THERMAL_80MM",
+  "FULL_PAGE",
+]);
+
 export const emailProviderEnum = pgEnum("email_provider", ["SMTP2GO"]);
 
 export const integrationVerificationStatusEnum = pgEnum(
@@ -390,6 +398,10 @@ export const organizations = pgTable(
     customerOrderingHoursEnabled: boolean("customer_ordering_hours_enabled")
       .default(false)
       .notNull(),
+    receiptPrintFormat: receiptPrintFormatEnum("receipt_print_format")
+      .default("THERMAL_80MM")
+      .notNull(),
+    receiptFooterMessage: text("receipt_footer_message"),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -400,6 +412,10 @@ export const organizations = pgTable(
     check(
       "organizations_customer_cancellation_fee_bps_check",
       sql`${table.customerCancellationFeeBps} >= 0 AND ${table.customerCancellationFeeBps} <= 10000`,
+    ),
+    check(
+      "organizations_receipt_footer_message_length_check",
+      sql`${table.receiptFooterMessage} IS NULL OR char_length(${table.receiptFooterMessage}) <= 160`,
     ),
   ],
 );
@@ -497,6 +513,36 @@ export const restaurantCheckoutPolicies = pgTable(
     check(
       "restaurant_checkout_policies_default_payment_check",
       sql`(${table.defaultPaymentTiming} = 'ONLINE' AND ${table.onlinePaymentEnabled}) OR (${table.defaultPaymentTiming} = 'PAY_LATER' AND ${table.payLaterEnabled})`,
+    ),
+  ],
+);
+
+export const restaurantChargeSettings = pgTable(
+  "restaurant_charge_settings",
+  {
+    organizationId: uuid("organization_id")
+      .primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    serviceChargeEnabled: boolean("service_charge_enabled").default(false).notNull(),
+    serviceChargeRateBps: integer("service_charge_rate_bps").default(0).notNull(),
+    serviceChargeDineIn: boolean("service_charge_dine_in").default(true).notNull(),
+    serviceChargePickup: boolean("service_charge_pickup").default(false).notNull(),
+    serviceChargeDelivery: boolean("service_charge_delivery").default(false).notNull(),
+    tipsEnabled: boolean("tips_enabled").default(false).notNull(),
+    tipPreset1Bps: integer("tip_preset_1_bps").default(1000).notNull(),
+    tipPreset2Bps: integer("tip_preset_2_bps").default(1250).notNull(),
+    tipPreset3Bps: integer("tip_preset_3_bps").default(1500).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "restaurant_charge_settings_service_rate_check",
+      sql`${table.serviceChargeRateBps} BETWEEN 0 AND 5000`,
+    ),
+    check(
+      "restaurant_charge_settings_tip_presets_check",
+      sql`${table.tipPreset1Bps} BETWEEN 1 AND 5000 AND ${table.tipPreset2Bps} BETWEEN 1 AND 5000 AND ${table.tipPreset3Bps} BETWEEN 1 AND 5000 AND ${table.tipPreset1Bps} < ${table.tipPreset2Bps} AND ${table.tipPreset2Bps} < ${table.tipPreset3Bps}`,
     ),
   ],
 );
@@ -1096,9 +1142,623 @@ export const memberships = pgTable(
   },
   (table) => [
     index("memberships_organization_idx").on(table.organizationId),
+    uniqueIndex("memberships_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
     uniqueIndex("memberships_user_org_unique").on(
       table.userId,
       table.organizationId,
+    ),
+  ],
+);
+
+export const restaurantJobs = pgTable(
+  "restaurant_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    permissions: jsonb("permissions")
+      .$type<StaffPermission[]>()
+      .default([])
+      .notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("restaurant_jobs_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("restaurant_jobs_organization_name_unique").on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index("restaurant_jobs_organization_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.sortOrder,
+    ),
+    check(
+      "restaurant_jobs_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "restaurant_jobs_description_check",
+      sql`${table.description} IS NULL OR char_length(${table.description}) <= 240`,
+    ),
+    check(
+      "restaurant_jobs_permissions_check",
+      sql`jsonb_typeof(${table.permissions}) = 'array'`,
+    ),
+    check(
+      "restaurant_jobs_sort_order_check",
+      sql`${table.sortOrder} >= 0`,
+    ),
+  ],
+);
+
+export const staffJobAssignments = pgTable(
+  "staff_job_assignments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    jobId: uuid("job_id").notNull(),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    hourlyRateMinor: integer("hourly_rate_minor"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_job_assignments_membership_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.jobId, table.organizationId],
+      foreignColumns: [restaurantJobs.id, restaurantJobs.organizationId],
+      name: "staff_job_assignments_job_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("staff_job_assignments_membership_job_unique").on(
+      table.membershipId,
+      table.jobId,
+    ),
+    uniqueIndex("staff_job_assignments_primary_unique")
+      .on(table.membershipId)
+      .where(sql`${table.isPrimary} = true`),
+    index("staff_job_assignments_organization_idx").on(
+      table.organizationId,
+      table.membershipId,
+    ),
+    check(
+      "staff_job_assignments_hourly_rate_check",
+      sql`${table.hourlyRateMinor} IS NULL OR ${table.hourlyRateMinor} BETWEEN 0 AND 1000000`,
+    ),
+  ],
+);
+
+export const staffPayrollProfiles = pgTable(
+  "staff_payroll_profiles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    employeeReference: text("employee_reference").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_payroll_profiles_membership_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("staff_payroll_profiles_membership_unique").on(
+      table.membershipId,
+    ),
+    index("staff_payroll_profiles_organization_idx").on(
+      table.organizationId,
+      table.employeeReference,
+    ),
+    check(
+      "staff_payroll_profiles_employee_reference_check",
+      sql`char_length(btrim(${table.employeeReference})) BETWEEN 1 AND 80`,
+    ),
+  ],
+);
+
+export const staffPayrollExportRuns = pgTable(
+  "staff_payroll_export_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    provider: text("provider").default("GENERIC_CSV").notNull(),
+    periodFrom: date("period_from").notNull(),
+    periodTo: date("period_to").notNull(),
+    rowCount: integer("row_count").notNull(),
+    currency: text("currency").notNull(),
+    grossPayMinor: integer("gross_pay_minor").notNull(),
+    csvContent: text("csv_content").notNull(),
+    generatedByUserId: uuid("generated_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    generatedByNameSnapshot: text("generated_by_name_snapshot").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("staff_payroll_export_runs_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    index("staff_payroll_export_runs_organization_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    check(
+      "staff_payroll_export_runs_provider_check",
+      sql`${table.provider} IN ('GENERIC_CSV')`,
+    ),
+    check(
+      "staff_payroll_export_runs_period_check",
+      sql`${table.periodTo} >= ${table.periodFrom}`,
+    ),
+    check(
+      "staff_payroll_export_runs_totals_check",
+      sql`${table.rowCount} > 0 AND ${table.grossPayMinor} >= 0 AND char_length(${table.currency}) = 3 AND ${table.currency} = upper(${table.currency})`,
+    ),
+    check(
+      "staff_payroll_export_runs_content_check",
+      sql`char_length(${table.csvContent}) > 0 AND char_length(btrim(${table.generatedByNameSnapshot})) BETWEEN 1 AND 120`,
+    ),
+  ],
+);
+
+export const staffScheduledShifts = pgTable(
+  "staff_scheduled_shifts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id"),
+    jobId: uuid("job_id").notNull(),
+    startsAt: timestamp("starts_at").notNull(),
+    endsAt: timestamp("ends_at").notNull(),
+    breakMinutes: integer("break_minutes").default(0).notNull(),
+    status: text("status")
+      .$type<"PUBLISHED" | "CANCELLED">()
+      .default("PUBLISHED")
+      .notNull(),
+    note: text("note"),
+    availabilityOverrideReason: text("availability_override_reason"),
+    createdByMembershipId: uuid("created_by_membership_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_scheduled_shifts_membership_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.jobId, table.organizationId],
+      foreignColumns: [restaurantJobs.id, restaurantJobs.organizationId],
+      name: "staff_scheduled_shifts_job_organization_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.createdByMembershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_scheduled_shifts_creator_organization_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("staff_scheduled_shifts_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("staff_scheduled_shifts_member_start_unique").on(
+      table.membershipId,
+      table.startsAt,
+    ),
+    index("staff_scheduled_shifts_organization_start_idx").on(
+      table.organizationId,
+      table.startsAt,
+    ),
+    index("staff_scheduled_shifts_member_start_idx").on(
+      table.membershipId,
+      table.startsAt,
+    ),
+    check(
+      "staff_scheduled_shifts_range_check",
+      sql`${table.endsAt} > ${table.startsAt}`,
+    ),
+    check(
+      "staff_scheduled_shifts_break_minutes_check",
+      sql`${table.breakMinutes} BETWEEN 0 AND 480`,
+    ),
+    check(
+      "staff_scheduled_shifts_status_check",
+      sql`${table.status} IN ('PUBLISHED', 'CANCELLED')`,
+    ),
+    check(
+      "staff_scheduled_shifts_note_check",
+      sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`,
+    ),
+    check(
+      "staff_scheduled_shifts_availability_override_reason_check",
+      sql`${table.availabilityOverrideReason} IS NULL OR (char_length(btrim(${table.availabilityOverrideReason})) > 0 AND char_length(${table.availabilityOverrideReason}) <= 500)`,
+    ),
+  ],
+);
+
+export const staffWeeklyAvailability = pgTable(
+  "staff_weekly_availability",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    dayOfWeek: integer("day_of_week").notNull(),
+    isAvailable: boolean("is_available").default(false).notNull(),
+    startsMinute: integer("starts_minute"),
+    endsMinute: integer("ends_minute"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_weekly_availability_membership_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("staff_weekly_availability_member_day_unique").on(
+      table.membershipId,
+      table.dayOfWeek,
+    ),
+    index("staff_weekly_availability_organization_idx").on(
+      table.organizationId,
+      table.membershipId,
+    ),
+    check(
+      "staff_weekly_availability_day_check",
+      sql`${table.dayOfWeek} BETWEEN 0 AND 6`,
+    ),
+    check(
+      "staff_weekly_availability_window_check",
+      sql`(${table.isAvailable} = false AND ${table.startsMinute} IS NULL AND ${table.endsMinute} IS NULL) OR (${table.isAvailable} = true AND ${table.startsMinute} >= 0 AND ${table.endsMinute} <= 1440 AND ${table.endsMinute} > ${table.startsMinute})`,
+    ),
+  ],
+);
+
+export const staffTimeOffRequests = pgTable(
+  "staff_time_off_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    startsOn: date("starts_on").notNull(),
+    endsOn: date("ends_on").notNull(),
+    reason: text("reason"),
+    status: text("status").default("PENDING").notNull(),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    reviewedByNameSnapshot: text("reviewed_by_name_snapshot"),
+    reviewNote: text("review_note"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_time_off_requests_membership_organization_fk",
+    }).onDelete("cascade"),
+    index("staff_time_off_requests_organization_status_idx").on(
+      table.organizationId,
+      table.status,
+      table.startsOn,
+    ),
+    index("staff_time_off_requests_membership_date_idx").on(
+      table.membershipId,
+      table.startsOn,
+      table.endsOn,
+    ),
+    check(
+      "staff_time_off_requests_date_range_check",
+      sql`${table.endsOn} >= ${table.startsOn}`,
+    ),
+    check(
+      "staff_time_off_requests_status_check",
+      sql`${table.status} IN ('PENDING', 'APPROVED', 'DECLINED', 'CANCELLED')`,
+    ),
+    check(
+      "staff_time_off_requests_reason_check",
+      sql`${table.reason} IS NULL OR char_length(${table.reason}) <= 500`,
+    ),
+    check(
+      "staff_time_off_requests_review_note_check",
+      sql`${table.reviewNote} IS NULL OR char_length(${table.reviewNote}) <= 500`,
+    ),
+  ],
+);
+
+export const staffShiftCoverRequests = pgTable(
+  "staff_shift_cover_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    scheduledShiftId: uuid("scheduled_shift_id").notNull(),
+    requestedByMembershipId: uuid("requested_by_membership_id"),
+    kind: text("kind")
+      .$type<"OPEN_SHIFT" | "COVER_REQUEST">()
+      .notNull(),
+    status: text("status")
+      .$type<"OPEN" | "FILLED" | "CANCELLED">()
+      .default("OPEN")
+      .notNull(),
+    reason: text("reason"),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedByUserId: uuid("reviewed_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.scheduledShiftId, table.organizationId],
+      foreignColumns: [staffScheduledShifts.id, staffScheduledShifts.organizationId],
+      name: "staff_shift_cover_requests_shift_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.requestedByMembershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_shift_cover_requests_requester_organization_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("staff_shift_cover_requests_open_shift_unique")
+      .on(table.scheduledShiftId)
+      .where(sql`${table.status} = 'OPEN'`),
+    uniqueIndex("staff_shift_cover_requests_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    index("staff_shift_cover_requests_organization_status_idx").on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+    ),
+    check(
+      "staff_shift_cover_requests_kind_check",
+      sql`${table.kind} IN ('OPEN_SHIFT', 'COVER_REQUEST')`,
+    ),
+    check(
+      "staff_shift_cover_requests_status_check",
+      sql`${table.status} IN ('OPEN', 'FILLED', 'CANCELLED')`,
+    ),
+    check(
+      "staff_shift_cover_requests_reason_check",
+      sql`${table.reason} IS NULL OR char_length(${table.reason}) <= 500`,
+    ),
+  ],
+);
+
+export const staffShiftCoverClaims = pgTable(
+  "staff_shift_cover_claims",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    requestId: uuid("request_id").notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    note: text("note"),
+    status: text("status")
+      .$type<"PENDING" | "APPROVED" | "DECLINED" | "WITHDRAWN">()
+      .default("PENDING")
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.requestId, table.organizationId],
+      foreignColumns: [staffShiftCoverRequests.id, staffShiftCoverRequests.organizationId],
+      name: "staff_shift_cover_claims_request_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_shift_cover_claims_membership_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("staff_shift_cover_claims_request_member_unique").on(
+      table.requestId,
+      table.membershipId,
+    ),
+    index("staff_shift_cover_claims_organization_status_idx").on(
+      table.organizationId,
+      table.status,
+    ),
+    check(
+      "staff_shift_cover_claims_status_check",
+      sql`${table.status} IN ('PENDING', 'APPROVED', 'DECLINED', 'WITHDRAWN')`,
+    ),
+    check(
+      "staff_shift_cover_claims_note_check",
+      sql`${table.note} IS NULL OR char_length(${table.note}) <= 500`,
+    ),
+  ],
+);
+
+export const staffShifts = pgTable(
+  "staff_shifts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    membershipId: uuid("membership_id").notNull(),
+    jobId: uuid("job_id").notNull(),
+    scheduledShiftId: uuid("scheduled_shift_id"),
+    jobNameSnapshot: text("job_name_snapshot").notNull(),
+    hourlyRateMinorSnapshot: integer("hourly_rate_minor_snapshot"),
+    payCurrencySnapshot: text("pay_currency_snapshot"),
+    clockedInAt: timestamp("clocked_in_at").defaultNow().notNull(),
+    clockedOutAt: timestamp("clocked_out_at"),
+    clockInNote: text("clock_in_note"),
+    clockOutNote: text("clock_out_note"),
+    approvalStatus: text("approval_status").default("PENDING").notNull(),
+    approvedAt: timestamp("approved_at"),
+    approvedByUserId: uuid("approved_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    approvedByNameSnapshot: text("approved_by_name_snapshot"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.membershipId, table.organizationId],
+      foreignColumns: [memberships.id, memberships.organizationId],
+      name: "staff_shifts_membership_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.jobId, table.organizationId],
+      foreignColumns: [restaurantJobs.id, restaurantJobs.organizationId],
+      name: "staff_shifts_job_organization_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.scheduledShiftId, table.organizationId],
+      foreignColumns: [staffScheduledShifts.id, staffScheduledShifts.organizationId],
+      name: "staff_shifts_scheduled_shift_organization_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("staff_shifts_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("staff_shifts_open_membership_unique")
+      .on(table.membershipId)
+      .where(sql`${table.clockedOutAt} IS NULL`),
+    uniqueIndex("staff_shifts_scheduled_shift_unique")
+      .on(table.scheduledShiftId)
+      .where(sql`${table.scheduledShiftId} IS NOT NULL`),
+    index("staff_shifts_organization_clocked_in_idx").on(
+      table.organizationId,
+      table.clockedInAt,
+    ),
+    index("staff_shifts_organization_approval_idx").on(
+      table.organizationId,
+      table.approvalStatus,
+      table.clockedInAt,
+    ),
+    check(
+      "staff_shifts_job_name_snapshot_check",
+      sql`char_length(btrim(${table.jobNameSnapshot})) BETWEEN 1 AND 80`,
+    ),
+    check(
+      "staff_shifts_pay_snapshot_check",
+      sql`(${table.hourlyRateMinorSnapshot} IS NULL AND ${table.payCurrencySnapshot} IS NULL) OR (${table.hourlyRateMinorSnapshot} BETWEEN 0 AND 1000000 AND char_length(${table.payCurrencySnapshot}) = 3 AND ${table.payCurrencySnapshot} = upper(${table.payCurrencySnapshot}))`,
+    ),
+    check(
+      "staff_shifts_clock_range_check",
+      sql`${table.clockedOutAt} IS NULL OR ${table.clockedOutAt} >= ${table.clockedInAt}`,
+    ),
+    check(
+      "staff_shifts_clock_in_note_check",
+      sql`${table.clockInNote} IS NULL OR char_length(${table.clockInNote}) <= 500`,
+    ),
+    check(
+      "staff_shifts_clock_out_note_check",
+      sql`${table.clockOutNote} IS NULL OR char_length(${table.clockOutNote}) <= 500`,
+    ),
+    check(
+      "staff_shifts_approval_status_check",
+      sql`${table.approvalStatus} IN ('PENDING', 'APPROVED')`,
+    ),
+    check(
+      "staff_shifts_approval_metadata_check",
+      sql`(${table.approvalStatus} = 'PENDING' AND ${table.approvedAt} IS NULL AND ${table.approvedByUserId} IS NULL AND ${table.approvedByNameSnapshot} IS NULL) OR (${table.approvalStatus} = 'APPROVED' AND ${table.clockedOutAt} IS NOT NULL AND ${table.approvedAt} IS NOT NULL AND char_length(btrim(${table.approvedByNameSnapshot})) BETWEEN 1 AND 120)`,
+    ),
+  ],
+);
+
+export const staffPayrollExportEntries = pgTable(
+  "staff_payroll_export_entries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    exportRunId: uuid("export_run_id").notNull(),
+    staffShiftId: uuid("staff_shift_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.exportRunId, table.organizationId],
+      foreignColumns: [staffPayrollExportRuns.id, staffPayrollExportRuns.organizationId],
+      name: "staff_payroll_export_entries_run_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.staffShiftId, table.organizationId],
+      foreignColumns: [staffShifts.id, staffShifts.organizationId],
+      name: "staff_payroll_export_entries_shift_organization_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("staff_payroll_export_entries_shift_unique").on(
+      table.staffShiftId,
+    ),
+    index("staff_payroll_export_entries_run_idx").on(table.exportRunId),
+  ],
+);
+
+export const staffShiftBreaks = pgTable(
+  "staff_shift_breaks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    staffShiftId: uuid("staff_shift_id").notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.staffShiftId, table.organizationId],
+      foreignColumns: [staffShifts.id, staffShifts.organizationId],
+      name: "staff_shift_breaks_shift_organization_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("staff_shift_breaks_open_shift_unique")
+      .on(table.staffShiftId)
+      .where(sql`${table.endedAt} IS NULL`),
+    index("staff_shift_breaks_organization_started_idx").on(
+      table.organizationId,
+      table.startedAt,
+    ),
+    check(
+      "staff_shift_breaks_range_check",
+      sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`,
     ),
   ],
 );
@@ -1402,6 +2062,10 @@ export const menuCategories = pgTable("menu_categories", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
   index("menu_categories_organization_idx").on(table.organizationId),
+  uniqueIndex("menu_categories_id_organization_unique").on(
+    table.id,
+    table.organizationId,
+  ),
   uniqueIndex("menu_categories_org_slug_unique").on(
     table.organizationId,
     table.slug,
@@ -1487,6 +2151,143 @@ export const menuItems = pgTable("menu_items", {
     table.slug,
   ),
 ]);
+
+export const menuAvailabilitySchedules = pgTable(
+  "menu_availability_schedules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    isEnabled: boolean("is_enabled").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("menu_availability_schedules_id_org_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("menu_availability_schedules_org_name_unique").on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index("menu_availability_schedules_org_enabled_idx").on(
+      table.organizationId,
+      table.isEnabled,
+      table.name,
+    ),
+    check(
+      "menu_availability_schedules_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 2 AND 80`,
+    ),
+  ],
+);
+
+export const menuAvailabilityPeriods = pgTable(
+  "menu_availability_periods",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
+    dayOfWeek: integer("day_of_week").notNull(),
+    opensAtMinute: integer("opens_at_minute").notNull(),
+    closesAtMinute: integer("closes_at_minute").notNull(),
+    is24Hours: boolean("is_24_hours").default(false).notNull(),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.scheduleId, table.organizationId],
+      foreignColumns: [
+        menuAvailabilitySchedules.id,
+        menuAvailabilitySchedules.organizationId,
+      ],
+      name: "menu_availability_periods_schedule_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_availability_periods_schedule_day_sort_unique").on(
+      table.scheduleId,
+      table.dayOfWeek,
+      table.sortOrder,
+    ),
+    index("menu_availability_periods_org_schedule_idx").on(
+      table.organizationId,
+      table.scheduleId,
+    ),
+    check(
+      "menu_availability_periods_values_check",
+      sql`${table.dayOfWeek} BETWEEN 0 AND 6 AND ${table.opensAtMinute} BETWEEN 0 AND 1439 AND ${table.closesAtMinute} BETWEEN 0 AND 1439 AND ${table.sortOrder} >= 0 AND (${table.is24Hours} OR ${table.opensAtMinute} <> ${table.closesAtMinute})`,
+    ),
+  ],
+);
+
+export const menuCategoryAvailabilitySchedules = pgTable(
+  "menu_category_availability_schedules",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.categoryId, table.organizationId],
+      foreignColumns: [menuCategories.id, menuCategories.organizationId],
+      name: "menu_category_schedules_category_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.scheduleId, table.organizationId],
+      foreignColumns: [
+        menuAvailabilitySchedules.id,
+        menuAvailabilitySchedules.organizationId,
+      ],
+      name: "menu_category_schedules_schedule_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_category_schedules_category_schedule_unique").on(
+      table.categoryId,
+      table.scheduleId,
+    ),
+    index("menu_category_schedules_org_schedule_idx").on(
+      table.organizationId,
+      table.scheduleId,
+    ),
+  ],
+);
+
+export const menuItemAvailabilitySchedules = pgTable(
+  "menu_item_availability_schedules",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    menuItemId: uuid("menu_item_id").notNull(),
+    scheduleId: uuid("schedule_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.menuItemId, table.organizationId],
+      foreignColumns: [menuItems.id, menuItems.organizationId],
+      name: "menu_item_schedules_item_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.scheduleId, table.organizationId],
+      foreignColumns: [
+        menuAvailabilitySchedules.id,
+        menuAvailabilitySchedules.organizationId,
+      ],
+      name: "menu_item_schedules_schedule_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_item_schedules_item_schedule_unique").on(
+      table.menuItemId,
+      table.scheduleId,
+    ),
+    index("menu_item_schedules_org_schedule_idx").on(
+      table.organizationId,
+      table.scheduleId,
+    ),
+  ],
+);
 
 export const menuItemTaxAssignments = pgTable(
   "menu_item_tax_assignments",
@@ -1586,6 +2387,11 @@ export const menuTags = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     color: text("color").default("stone").notNull(),
+    kind: text("kind", {
+      enum: ["DIETARY", "ATTRIBUTE", "LEGACY_ALLERGEN"],
+    })
+      .default("ATTRIBUTE")
+      .notNull(),
     sortOrder: integer("sort_order").default(0).notNull(),
     isActive: boolean("is_active").default(true).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -1594,6 +2400,10 @@ export const menuTags = pgTable(
   (table) => [
     uniqueIndex("menu_tags_slug_unique").on(table.slug),
     index("menu_tags_active_idx").on(table.isActive),
+    check(
+      "menu_tags_kind_check",
+      sql`${table.kind} IN ('DIETARY', 'ATTRIBUTE', 'LEGACY_ALLERGEN')`,
+    ),
   ],
 );
 
@@ -1613,6 +2423,70 @@ export const menuItemTags = pgTable(
     uniqueIndex("menu_item_tags_item_tag_unique").on(table.menuItemId, table.tagId),
     index("menu_item_tags_item_idx").on(table.menuItemId),
     index("menu_item_tags_tag_idx").on(table.tagId),
+  ],
+);
+
+export const menuAllergens = pgTable(
+  "menu_allergens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    sortOrder: integer("sort_order").default(0).notNull(),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("menu_allergens_code_unique").on(table.code),
+    index("menu_allergens_active_idx").on(table.isActive, table.sortOrder),
+    check(
+      "menu_allergens_code_check",
+      sql`${table.code} ~ '^[A-Z][A-Z0-9_]*$'`,
+    ),
+  ],
+);
+
+export const menuItemAllergens = pgTable(
+  "menu_item_allergens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    menuItemId: uuid("menu_item_id")
+      .references(() => menuItems.id, { onDelete: "cascade" })
+      .notNull(),
+    allergenId: uuid("allergen_id")
+      .references(() => menuAllergens.id, { onDelete: "restrict" })
+      .notNull(),
+    declaration: text("declaration", {
+      enum: ["CONTAINS", "MAY_CONTAIN"],
+    })
+      .default("CONTAINS")
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.menuItemId, table.organizationId],
+      foreignColumns: [menuItems.id, menuItems.organizationId],
+      name: "menu_item_allergens_item_org_fk",
+    }).onDelete("cascade"),
+    uniqueIndex("menu_item_allergens_item_allergen_unique").on(
+      table.menuItemId,
+      table.allergenId,
+    ),
+    index("menu_item_allergens_org_item_idx").on(
+      table.organizationId,
+      table.menuItemId,
+    ),
+    check(
+      "menu_item_allergens_declaration_check",
+      sql`${table.declaration} IN ('CONTAINS', 'MAY_CONTAIN')`,
+    ),
   ],
 );
 
@@ -1728,6 +2602,593 @@ export const inventoryItems = pgTable(
   ],
 );
 
+export const inventoryIngredients = pgTable(
+  "inventory_ingredients",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    unit: text("unit").notNull(),
+    currentQuantity: numeric("current_quantity", { precision: 14, scale: 3 })
+      .default("0")
+      .notNull(),
+    lowStockThreshold: numeric("low_stock_threshold", {
+      precision: 14,
+      scale: 3,
+    })
+      .default("0")
+      .notNull(),
+    notes: text("notes"),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("inventory_ingredients_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("inventory_ingredients_organization_name_unique").on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index("inventory_ingredients_organization_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.name,
+    ),
+    check(
+      "inventory_ingredients_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "inventory_ingredients_unit_check",
+      sql`char_length(btrim(${table.unit})) BETWEEN 1 AND 24`,
+    ),
+    check(
+      "inventory_ingredients_quantities_check",
+      sql`${table.currentQuantity} >= 0 AND ${table.lowStockThreshold} >= 0`,
+    ),
+  ],
+);
+
+export const inventoryIngredientMovements = pgTable(
+  "inventory_ingredient_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    ingredientId: uuid("ingredient_id").notNull(),
+    movementType: text("movement_type").notNull(),
+    quantityDelta: numeric("quantity_delta", { precision: 14, scale: 3 })
+      .notNull(),
+    quantityBefore: numeric("quantity_before", { precision: 14, scale: 3 })
+      .notNull(),
+    quantityAfter: numeric("quantity_after", { precision: 14, scale: 3 })
+      .notNull(),
+    reason: text("reason"),
+    referenceType: text("reference_type"),
+    referenceId: uuid("reference_id"),
+    recordedByUserId: uuid("recorded_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.ingredientId, table.organizationId],
+      foreignColumns: [
+        inventoryIngredients.id,
+        inventoryIngredients.organizationId,
+      ],
+      name: "inventory_ingredient_movements_ingredient_org_fk",
+    }).onDelete("restrict"),
+    index("inventory_ingredient_movements_org_created_idx").on(
+      table.organizationId,
+      table.createdAt,
+    ),
+    index("inventory_ingredient_movements_ingredient_created_idx").on(
+      table.ingredientId,
+      table.createdAt,
+    ),
+    index("inventory_ingredient_movements_reference_idx").on(
+      table.referenceType,
+      table.referenceId,
+    ),
+    uniqueIndex("inventory_movements_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    check(
+      "inventory_ingredient_movements_type_check",
+      sql`${table.movementType} IN ('OPENING', 'RECEIPT', 'ADJUSTMENT', 'WASTE', 'SALE', 'RESTORE', 'STOCKTAKE', 'TRANSFER_OUT', 'TRANSFER_IN')`,
+    ),
+    check(
+      "inventory_ingredient_movements_quantities_check",
+      sql`${table.quantityBefore} >= 0 AND ${table.quantityAfter} >= 0 AND ${table.quantityAfter} = ${table.quantityBefore} + ${table.quantityDelta} AND (${table.quantityDelta} <> 0 OR ${table.movementType} = 'STOCKTAKE')`,
+    ),
+    check(
+      "inventory_ingredient_movements_manual_reason_check",
+      sql`${table.movementType} NOT IN ('RECEIPT', 'ADJUSTMENT', 'WASTE', 'STOCKTAKE') OR (${table.reason} IS NOT NULL AND char_length(btrim(${table.reason})) BETWEEN 2 AND 240)`,
+    ),
+  ],
+);
+
+export const inventorySuppliers = pgTable(
+  "inventory_suppliers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    name: text("name").notNull(),
+    contactName: text("contact_name"),
+    email: text("email"),
+    phone: text("phone"),
+    accountReference: text("account_reference"),
+    notes: text("notes"),
+    isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("inventory_suppliers_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("inventory_suppliers_organization_name_unique").on(
+      table.organizationId,
+      sql`lower(${table.name})`,
+    ),
+    index("inventory_suppliers_organization_active_idx").on(
+      table.organizationId,
+      table.isActive,
+      table.name,
+    ),
+    check(
+      "inventory_suppliers_name_check",
+      sql`char_length(btrim(${table.name})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "inventory_suppliers_contact_check",
+      sql`(${table.contactName} IS NULL OR char_length(btrim(${table.contactName})) BETWEEN 1 AND 120) AND (${table.email} IS NULL OR char_length(btrim(${table.email})) BETWEEN 3 AND 254) AND (${table.phone} IS NULL OR char_length(btrim(${table.phone})) BETWEEN 3 AND 40) AND (${table.accountReference} IS NULL OR char_length(btrim(${table.accountReference})) BETWEEN 1 AND 80) AND (${table.notes} IS NULL OR char_length(btrim(${table.notes})) BETWEEN 1 AND 500)`,
+    ),
+  ],
+);
+
+export const inventoryPurchaseOrderCounters = pgTable(
+  "inventory_purchase_order_counters",
+  {
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .primaryKey(),
+    lastNumber: integer("last_number").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "inventory_purchase_order_counters_number_check",
+      sql`${table.lastNumber} >= 0`,
+    ),
+  ],
+);
+
+export const inventoryPurchaseOrders = pgTable(
+  "inventory_purchase_orders",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    supplierId: uuid("supplier_id").notNull(),
+    orderNumber: integer("order_number").notNull(),
+    status: text("status").default("DRAFT").notNull(),
+    currency: text("currency").notNull(),
+    expectedOn: date("expected_on"),
+    notes: text("notes"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    orderedAt: timestamp("ordered_at"),
+    receivedAt: timestamp("received_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.supplierId, table.organizationId],
+      foreignColumns: [inventorySuppliers.id, inventorySuppliers.organizationId],
+      name: "inventory_purchase_orders_supplier_org_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_purchase_orders_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("inventory_purchase_orders_org_number_unique").on(
+      table.organizationId,
+      table.orderNumber,
+    ),
+    index("inventory_purchase_orders_org_status_created_idx").on(
+      table.organizationId,
+      table.status,
+      table.createdAt,
+    ),
+    check("inventory_purchase_orders_number_check", sql`${table.orderNumber} > 0`),
+    check(
+      "inventory_purchase_orders_status_check",
+      sql`${table.status} IN ('DRAFT', 'ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED')`,
+    ),
+    check(
+      "inventory_purchase_orders_currency_check",
+      sql`${table.currency} ~ '^[A-Z]{3}$'`,
+    ),
+    check(
+      "inventory_purchase_orders_notes_check",
+      sql`${table.notes} IS NULL OR char_length(btrim(${table.notes})) BETWEEN 1 AND 500`,
+    ),
+    check(
+      "inventory_purchase_orders_dates_check",
+      sql`(${table.status} = 'DRAFT' AND ${table.orderedAt} IS NULL AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} IN ('ORDERED', 'PARTIALLY_RECEIVED') AND ${table.orderedAt} IS NOT NULL AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'RECEIVED' AND ${table.orderedAt} IS NOT NULL AND ${table.receivedAt} IS NOT NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'CANCELLED' AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const inventoryPurchaseOrderItems = pgTable(
+  "inventory_purchase_order_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    purchaseOrderId: uuid("purchase_order_id").notNull(),
+    ingredientId: uuid("ingredient_id").notNull(),
+    orderedQuantity: numeric("ordered_quantity", { precision: 14, scale: 3 })
+      .notNull(),
+    receivedQuantity: numeric("received_quantity", { precision: 14, scale: 3 })
+      .default("0")
+      .notNull(),
+    unitCost: numeric("unit_cost", { precision: 14, scale: 4 }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.purchaseOrderId, table.organizationId],
+      foreignColumns: [inventoryPurchaseOrders.id, inventoryPurchaseOrders.organizationId],
+      name: "inventory_po_items_order_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ingredientId, table.organizationId],
+      foreignColumns: [inventoryIngredients.id, inventoryIngredients.organizationId],
+      name: "inventory_po_items_ingredient_org_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_po_items_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("inventory_po_items_order_ingredient_unique").on(
+      table.purchaseOrderId,
+      table.ingredientId,
+    ),
+    index("inventory_po_items_organization_order_idx").on(
+      table.organizationId,
+      table.purchaseOrderId,
+    ),
+    check(
+      "inventory_po_items_quantities_check",
+      sql`${table.orderedQuantity} > 0 AND ${table.receivedQuantity} >= 0 AND ${table.receivedQuantity} <= ${table.orderedQuantity} AND (${table.unitCost} IS NULL OR ${table.unitCost} >= 0)`,
+    ),
+    check(
+      "inventory_po_items_notes_check",
+      sql`${table.notes} IS NULL OR char_length(btrim(${table.notes})) BETWEEN 1 AND 240`,
+    ),
+  ],
+);
+
+export const inventoryPurchaseOrderReceipts = pgTable(
+  "inventory_purchase_order_receipts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    purchaseOrderId: uuid("purchase_order_id").notNull(),
+    idempotencyKey: uuid("idempotency_key").notNull(),
+    receivedByUserId: uuid("received_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.purchaseOrderId, table.organizationId],
+      foreignColumns: [inventoryPurchaseOrders.id, inventoryPurchaseOrders.organizationId],
+      name: "inventory_po_receipts_order_org_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_po_receipts_id_organization_unique").on(
+      table.id,
+      table.organizationId,
+    ),
+    uniqueIndex("inventory_po_receipts_org_idempotency_unique").on(
+      table.organizationId,
+      table.idempotencyKey,
+    ),
+    index("inventory_po_receipts_org_order_created_idx").on(
+      table.organizationId,
+      table.purchaseOrderId,
+      table.createdAt,
+    ),
+    check(
+      "inventory_po_receipts_notes_check",
+      sql`${table.notes} IS NULL OR char_length(btrim(${table.notes})) BETWEEN 1 AND 500`,
+    ),
+  ],
+);
+
+export const inventoryPurchaseOrderReceiptItems = pgTable(
+  "inventory_purchase_order_receipt_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    receiptId: uuid("receipt_id").notNull(),
+    purchaseOrderItemId: uuid("purchase_order_item_id").notNull(),
+    ingredientId: uuid("ingredient_id").notNull(),
+    movementId: uuid("movement_id").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.receiptId, table.organizationId],
+      foreignColumns: [
+        inventoryPurchaseOrderReceipts.id,
+        inventoryPurchaseOrderReceipts.organizationId,
+      ],
+      name: "inventory_po_receipt_items_receipt_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.purchaseOrderItemId, table.organizationId],
+      foreignColumns: [
+        inventoryPurchaseOrderItems.id,
+        inventoryPurchaseOrderItems.organizationId,
+      ],
+      name: "inventory_po_receipt_items_order_item_org_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.ingredientId, table.organizationId],
+      foreignColumns: [inventoryIngredients.id, inventoryIngredients.organizationId],
+      name: "inventory_po_receipt_items_ingredient_org_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.movementId, table.organizationId],
+      foreignColumns: [
+        inventoryIngredientMovements.id,
+        inventoryIngredientMovements.organizationId,
+      ],
+      name: "inventory_po_receipt_items_movement_org_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_po_receipt_items_receipt_item_unique").on(
+      table.receiptId,
+      table.purchaseOrderItemId,
+    ),
+    index("inventory_po_receipt_items_org_receipt_idx").on(
+      table.organizationId,
+      table.receiptId,
+    ),
+    check(
+      "inventory_po_receipt_items_quantity_check",
+      sql`${table.quantity} > 0`,
+    ),
+  ],
+);
+
+export const inventoryStockTransferCounters = pgTable(
+  "inventory_stock_transfer_counters",
+  {
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .primaryKey(),
+    lastNumber: integer("last_number").default(0).notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    check(
+      "inventory_stock_transfer_counters_number_check",
+      sql`${table.lastNumber} >= 0`,
+    ),
+  ],
+);
+
+export const inventoryStockTransfers = pgTable(
+  "inventory_stock_transfers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceOrganizationId: uuid("source_organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    destinationOrganizationId: uuid("destination_organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    transferNumber: integer("transfer_number").notNull(),
+    status: text("status").default("DRAFT").notNull(),
+    notes: text("notes"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    sentByUserId: uuid("sent_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    receivedByUserId: uuid("received_by_user_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    sentAt: timestamp("sent_at"),
+    receivedAt: timestamp("received_at"),
+    cancelledAt: timestamp("cancelled_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("inventory_stock_transfers_id_scope_unique").on(
+      table.id,
+      table.sourceOrganizationId,
+      table.destinationOrganizationId,
+    ),
+    uniqueIndex("inventory_stock_transfers_source_number_unique").on(
+      table.sourceOrganizationId,
+      table.transferNumber,
+    ),
+    index("inventory_stock_transfers_source_status_created_idx").on(
+      table.sourceOrganizationId,
+      table.status,
+      table.createdAt,
+    ),
+    index("inventory_stock_transfers_destination_status_created_idx").on(
+      table.destinationOrganizationId,
+      table.status,
+      table.createdAt,
+    ),
+    check(
+      "inventory_stock_transfers_restaurants_check",
+      sql`${table.sourceOrganizationId} <> ${table.destinationOrganizationId}`,
+    ),
+    check(
+      "inventory_stock_transfers_number_check",
+      sql`${table.transferNumber} > 0`,
+    ),
+    check(
+      "inventory_stock_transfers_status_check",
+      sql`${table.status} IN ('DRAFT', 'IN_TRANSIT', 'RECEIVED', 'CANCELLED')`,
+    ),
+    check(
+      "inventory_stock_transfers_notes_check",
+      sql`${table.notes} IS NULL OR char_length(btrim(${table.notes})) BETWEEN 1 AND 500`,
+    ),
+    check(
+      "inventory_stock_transfers_dates_check",
+      sql`(${table.status} = 'DRAFT' AND ${table.sentAt} IS NULL AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'IN_TRANSIT' AND ${table.sentAt} IS NOT NULL AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'RECEIVED' AND ${table.sentAt} IS NOT NULL AND ${table.receivedAt} IS NOT NULL AND ${table.cancelledAt} IS NULL) OR (${table.status} = 'CANCELLED' AND ${table.sentAt} IS NULL AND ${table.receivedAt} IS NULL AND ${table.cancelledAt} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const inventoryStockTransferItems = pgTable(
+  "inventory_stock_transfer_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    transferId: uuid("transfer_id").notNull(),
+    sourceOrganizationId: uuid("source_organization_id").notNull(),
+    destinationOrganizationId: uuid("destination_organization_id").notNull(),
+    sourceIngredientId: uuid("source_ingredient_id").notNull(),
+    destinationIngredientId: uuid("destination_ingredient_id").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
+    receivedQuantity: numeric("received_quantity", {
+      precision: 14,
+      scale: 3,
+    }),
+    sourceMovementId: uuid("source_movement_id"),
+    destinationMovementId: uuid("destination_movement_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [
+        table.transferId,
+        table.sourceOrganizationId,
+        table.destinationOrganizationId,
+      ],
+      foreignColumns: [
+        inventoryStockTransfers.id,
+        inventoryStockTransfers.sourceOrganizationId,
+        inventoryStockTransfers.destinationOrganizationId,
+      ],
+      name: "inventory_stock_transfer_items_transfer_scope_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.sourceIngredientId, table.sourceOrganizationId],
+      foreignColumns: [inventoryIngredients.id, inventoryIngredients.organizationId],
+      name: "inventory_stock_transfer_items_source_ingredient_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.destinationIngredientId, table.destinationOrganizationId],
+      foreignColumns: [inventoryIngredients.id, inventoryIngredients.organizationId],
+      name: "inventory_stock_transfer_items_destination_ingredient_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.sourceMovementId, table.sourceOrganizationId],
+      foreignColumns: [
+        inventoryIngredientMovements.id,
+        inventoryIngredientMovements.organizationId,
+      ],
+      name: "inventory_stock_transfer_items_source_movement_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.destinationMovementId, table.destinationOrganizationId],
+      foreignColumns: [
+        inventoryIngredientMovements.id,
+        inventoryIngredientMovements.organizationId,
+      ],
+      name: "inventory_stock_transfer_items_destination_movement_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_stock_transfer_items_transfer_source_unique").on(
+      table.transferId,
+      table.sourceIngredientId,
+    ),
+    index("inventory_stock_transfer_items_transfer_idx").on(table.transferId),
+    check(
+      "inventory_stock_transfer_items_quantity_check",
+      sql`${table.quantity} > 0 AND (${table.receivedQuantity} IS NULL OR (${table.receivedQuantity} >= 0 AND ${table.receivedQuantity} <= ${table.quantity}))`,
+    ),
+  ],
+);
+
+export const menuItemIngredients = pgTable(
+  "menu_item_ingredients",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    menuItemId: uuid("menu_item_id").notNull(),
+    ingredientId: uuid("ingredient_id").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.menuItemId, table.organizationId],
+      foreignColumns: [menuItems.id, menuItems.organizationId],
+      name: "menu_item_ingredients_item_organization_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ingredientId, table.organizationId],
+      foreignColumns: [
+        inventoryIngredients.id,
+        inventoryIngredients.organizationId,
+      ],
+      name: "menu_item_ingredients_ingredient_organization_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("menu_item_ingredients_item_ingredient_unique").on(
+      table.menuItemId,
+      table.ingredientId,
+    ),
+    index("menu_item_ingredients_organization_item_idx").on(
+      table.organizationId,
+      table.menuItemId,
+    ),
+    index("menu_item_ingredients_ingredient_idx").on(table.ingredientId),
+    check("menu_item_ingredients_quantity_check", sql`${table.quantity} > 0`),
+  ],
+);
+
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -1738,6 +3199,7 @@ export const orders = pgTable("orders", {
   }),
   orderDate: date("order_date").notNull(),
   orderNo: integer("order_no").notNull(),
+  clientRequestId: text("client_request_id"),
   customerName: text("customer_name").notNull(),
   customerToken: text("customer_token").notNull(),
   customerId: uuid("customer_id").references(() => customers.id, {
@@ -1845,6 +3307,10 @@ export const orders = pgTable("orders", {
   )
     .default(0)
     .notNull(),
+  serviceChargeRateBpsSnapshot: integer("service_charge_rate_bps_snapshot")
+    .default(0)
+    .notNull(),
+  tipsEnabledSnapshot: boolean("tips_enabled_snapshot").default(false).notNull(),
   cancellationFeeBpsApplied: integer("cancellation_fee_bps_applied"),
   cancellationFeeAmount: numeric("cancellation_fee_amount", {
     precision: 10,
@@ -1894,6 +3360,9 @@ export const orders = pgTable("orders", {
     table.orderDate,
     table.orderNo,
   ),
+  uniqueIndex("orders_organization_client_request_unique")
+    .on(table.organizationId, table.clientRequestId)
+    .where(sql`${table.clientRequestId} IS NOT NULL`),
   index("orders_restaurant_promised_fulfilment_idx").on(
     table.organizationId,
     table.promisedFulfilmentAt,
@@ -1915,8 +3384,16 @@ export const orders = pgTable("orders", {
     sql`${table.taxRateBpsSnapshot} >= 0 AND ${table.taxRateBpsSnapshot} <= 10000`,
   ),
   check(
+    "orders_client_request_id_check",
+    sql`${table.clientRequestId} IS NULL OR ${table.clientRequestId} ~ '^[0-9a-fA-F-]{36}$'`,
+  ),
+  check(
     "orders_customer_cancellation_fee_bps_snapshot_check",
     sql`${table.customerCancellationFeeBpsSnapshot} >= 0 AND ${table.customerCancellationFeeBpsSnapshot} <= 10000`,
+  ),
+  check(
+    "orders_service_charge_rate_bps_snapshot_check",
+    sql`${table.serviceChargeRateBpsSnapshot} >= 0 AND ${table.serviceChargeRateBpsSnapshot} <= 5000`,
   ),
   check(
     "orders_cancellation_fee_bps_applied_check",
@@ -2182,6 +3659,7 @@ export const orderItems = pgTable("order_items", {
   deliveredAt: timestamp("delivered_at"),
   cancelledAt: timestamp("cancelled_at"),
   inventoryReservedAt: timestamp("inventory_reserved_at"),
+  ingredientInventoryReservedAt: timestamp("ingredient_inventory_reserved_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
@@ -2218,6 +3696,62 @@ export const orderItems = pgTable("order_items", {
     sql`(${table.taxableAmountSnapshot} IS NULL AND ${table.taxAmountSnapshot} IS NULL) OR (${table.taxableAmountSnapshot} IS NOT NULL AND ${table.taxableAmountSnapshot} >= 0 AND ${table.taxAmountSnapshot} IS NOT NULL AND ${table.taxAmountSnapshot} >= 0)`,
   ),
 ]);
+
+export const orderItemIngredientReservations = pgTable(
+  "order_item_ingredient_reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    orderItemId: uuid("order_item_id").notNull(),
+    ingredientId: uuid("ingredient_id").notNull(),
+    ingredientNameSnapshot: text("ingredient_name_snapshot").notNull(),
+    unitSnapshot: text("unit_snapshot").notNull(),
+    quantity: numeric("quantity", { precision: 14, scale: 3 }).notNull(),
+    restoredAt: timestamp("restored_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.orderItemId, table.orderId, table.organizationId],
+      foreignColumns: [
+        orderItems.id,
+        orderItems.orderId,
+        orderItems.organizationId,
+      ],
+      name: "order_item_ingredient_reservations_item_order_org_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.ingredientId, table.organizationId],
+      foreignColumns: [
+        inventoryIngredients.id,
+        inventoryIngredients.organizationId,
+      ],
+      name: "order_item_ingredient_reservations_ingredient_org_fk",
+    }).onDelete("restrict"),
+    uniqueIndex("order_item_ingredient_reservations_item_ingredient_unique").on(
+      table.orderItemId,
+      table.ingredientId,
+    ),
+    index("order_item_ingredient_reservations_org_order_idx").on(
+      table.organizationId,
+      table.orderId,
+    ),
+    check(
+      "order_item_ingredient_reservations_quantity_check",
+      sql`${table.quantity} > 0`,
+    ),
+    check(
+      "order_item_ingredient_reservations_snapshots_check",
+      sql`char_length(btrim(${table.ingredientNameSnapshot})) BETWEEN 1 AND 120 AND char_length(btrim(${table.unitSnapshot})) BETWEEN 1 AND 24`,
+    ),
+  ],
+);
 
 export const orderItemTaxComponents = pgTable(
   "order_item_tax_components",

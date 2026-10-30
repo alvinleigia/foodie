@@ -23,7 +23,7 @@ function EmailContact({ value }: { value: string }) {
       {value}
     </a>
   ) : (
-    <span className="font-medium text-amber-800">{value}</span>
+    <span className="font-medium text-amber-800 dark:text-amber-400">{value}</span>
   );
 }
 

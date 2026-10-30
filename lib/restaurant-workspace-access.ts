@@ -42,11 +42,14 @@ export async function requireRestaurantWorkspaceAccess({
     notFound();
   }
 
-  if (!(await isSessionAccessAllowedForCurrentDomain(session.user))) {
+  const [domainAccessAllowed, access] = await Promise.all([
+    isSessionAccessAllowedForCurrentDomain(session.user),
+    getCurrentStaffRestaurantAccess(session).catch(() => null),
+  ]);
+
+  if (!domainAccessAllowed) {
     notFound();
   }
-
-  const access = await getCurrentStaffRestaurantAccess().catch(() => null);
 
   if (!access) {
     notFound();

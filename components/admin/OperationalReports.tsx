@@ -88,13 +88,13 @@ export function OperationalReports({
 }: OperationalReportsProps) {
   return (
     <div className="grid gap-4">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">
               Reports
             </p>
-            <p className="mt-1 text-sm text-stone-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Filter operational reporting by period.
             </p>
           </div>
@@ -125,12 +125,12 @@ export function OperationalReports({
       </Card>
 
       <div className="grid gap-4 xl:grid-cols-2">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">
+          <h3 className="text-xl font-semibold text-card-foreground">
             Financial reconciliation
           </h3>
-          <p className="text-sm text-stone-500">
+          <p className="text-sm text-muted-foreground">
             Compares finalized order totals with adjustment, payment, and refund ledgers.
           </p>
         </CardHeader>
@@ -152,14 +152,14 @@ export function OperationalReports({
             return (
               <div
                 key={financial.currency}
-                className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4"
+                className="grid gap-3 rounded-lg border border-border bg-muted/50 p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="font-semibold text-stone-950">
+                    <p className="font-semibold text-foreground">
                       {financial.currency}
                     </p>
-                    <p className="text-sm text-stone-500">
+                    <p className="text-sm text-muted-foreground">
                       {financial.orderCount} finalized order(s)
                     </p>
                   </div>
@@ -213,7 +213,7 @@ export function OperationalReports({
                   />
                 </div>
 
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-muted-foreground">
                   Billed {formatMoney(financial.billedTotal, financial.currency)}:
                   {" "}subtotal {formatMoney(financial.subtotalTotal, financial.currency)},
                   {" "}discounts {formatMoney(financial.discountTotal, financial.currency)},
@@ -223,8 +223,8 @@ export function OperationalReports({
                 </p>
 
                 {taxComponents.length > 0 ? (
-                  <div className="border-t border-stone-200 pt-3 text-xs">
-                    <p className="font-semibold text-stone-700">
+                  <div className="border-t border-border pt-3 text-xs">
+                    <p className="font-semibold text-foreground">
                       Issued receipt tax breakdown
                     </p>
                     <div className="mt-2 grid gap-1.5">
@@ -237,7 +237,7 @@ export function OperationalReports({
                             component.rateBps,
                             component.calculationOrder,
                           ].join("-")}
-                          className="flex flex-wrap items-center justify-between gap-2 text-stone-600"
+                          className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground"
                         >
                           <span>{formatTaxComponentLabel(component)}</span>
                           <span>
@@ -276,10 +276,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Prep and handoff time</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Prep and handoff time</h3>
+          <p className="text-sm text-muted-foreground">
             Average item-level timing for the selected period.
           </p>
         </CardHeader>
@@ -295,10 +295,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Cancelled items</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Cancelled items</h3>
+          <p className="text-sm text-muted-foreground">
             Cancelled product entries in the selected period.
           </p>
         </CardHeader>
@@ -310,15 +310,15 @@ export function OperationalReports({
           {report.cancelledItems.map((item) => (
             <div
               key={`${item.categoryName}:${item.drinkName}`}
-              className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4"
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/50 p-4"
             >
               <div>
-                <p className="font-semibold text-stone-950">{item.drinkName}</p>
-                <p className="text-sm text-stone-500">{item.categoryName}</p>
+                <p className="font-semibold text-foreground">{item.drinkName}</p>
+                <p className="text-sm text-muted-foreground">{item.categoryName}</p>
               </div>
               <div className="text-right">
                 <p className="text-xl font-semibold text-rose-700">{item.quantity}</p>
-                <p className="text-xs uppercase tracking-[0.14em] text-stone-400">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {item.cancelledLines} order entries
                 </p>
               </div>
@@ -327,10 +327,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Order status report</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Order status report</h3>
+          <p className="text-sm text-muted-foreground">
             Compare selected-period order status with orders created today.
           </p>
         </CardHeader>
@@ -343,23 +343,23 @@ export function OperationalReports({
             return (
               <div
                 key={row.status}
-                className="rounded-lg border border-stone-200 bg-stone-50 p-4"
+                className="rounded-lg border border-border bg-muted/50 p-4"
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   {formatStatus(row.status)}
                 </p>
-                <p className="mt-2 text-3xl font-semibold text-stone-950">{row.count}</p>
-                <p className="mt-1 text-sm text-stone-500">{todayCount} today</p>
+                <p className="mt-2 text-3xl font-semibold text-foreground">{row.count}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{todayCount} today</p>
               </div>
             );
           })}
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Category mix</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Category mix</h3>
+          <p className="text-sm text-muted-foreground">
             Quantity ordered by menu category for the selected period.
           </p>
         </CardHeader>
@@ -371,22 +371,22 @@ export function OperationalReports({
           {report.categoryBreakdown.map((category) => (
             <div
               key={category.categoryName}
-              className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4"
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/50 p-4"
             >
               <div>
-                <p className="font-semibold text-stone-950">{category.categoryName}</p>
-                <p className="text-sm text-stone-500">{category.orderLines} order entries</p>
+                <p className="font-semibold text-foreground">{category.categoryName}</p>
+                <p className="text-sm text-muted-foreground">{category.orderLines} order entries</p>
               </div>
-              <p className="text-xl font-semibold text-stone-950">{category.quantity}</p>
+              <p className="text-xl font-semibold text-foreground">{category.quantity}</p>
             </div>
           ))}
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Staff activity</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Staff activity</h3>
+          <p className="text-sm text-muted-foreground">
             Orders touched by staff members in the selected period.
           </p>
         </CardHeader>
@@ -398,11 +398,11 @@ export function OperationalReports({
           {report.staffBreakdown.map((staff) => (
             <div
               key={staff.staffName}
-              className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 md:grid-cols-[1fr_2fr]"
+              className="grid gap-3 rounded-lg border border-border bg-muted/50 p-4 md:grid-cols-[1fr_2fr]"
             >
               <div>
-                <p className="font-semibold text-stone-950">{staff.staffName}</p>
-                <p className="text-sm text-stone-500">{staff.totalOrders} total orders</p>
+                <p className="font-semibold text-foreground">{staff.staffName}</p>
+                <p className="text-sm text-muted-foreground">{staff.totalOrders} total orders</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <Metric label="Active" value={staff.activeOrders} />
@@ -413,10 +413,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Top products</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Top products</h3>
+          <p className="text-sm text-muted-foreground">
             Highest quantity ordered, excluding cancelled item rows.
           </p>
         </CardHeader>
@@ -428,15 +428,15 @@ export function OperationalReports({
           {report.topProducts.map((product) => (
             <div
               key={`${product.categoryName}:${product.drinkName}`}
-              className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4"
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/50 p-4"
             >
               <div>
-                <p className="font-semibold text-stone-950">{product.drinkName}</p>
-                <p className="text-sm text-stone-500">{product.categoryName}</p>
+                <p className="font-semibold text-foreground">{product.drinkName}</p>
+                <p className="text-sm text-muted-foreground">{product.categoryName}</p>
               </div>
               <div className="text-right">
-                <p className="text-xl font-semibold text-stone-950">{product.quantity}</p>
-                <p className="text-xs uppercase tracking-[0.14em] text-stone-400">
+                <p className="text-xl font-semibold text-foreground">{product.quantity}</p>
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {product.orderLines} order entries
                 </p>
               </div>
@@ -445,10 +445,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Restaurant activity</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Restaurant activity</h3>
+          <p className="text-sm text-muted-foreground">
             Order activity by restaurant.
           </p>
         </CardHeader>
@@ -460,11 +460,11 @@ export function OperationalReports({
           {report.restaurantBreakdown.map((restaurant) => (
             <div
               key={restaurant.id}
-              className="grid gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4 md:grid-cols-[1.2fr_2fr]"
+              className="grid gap-3 rounded-lg border border-border bg-muted/50 p-4 md:grid-cols-[1.2fr_2fr]"
             >
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-semibold text-stone-950">{restaurant.name}</p>
+                  <p className="font-semibold text-foreground">{restaurant.name}</p>
                   <span
                     className={
                       restaurant.isActive
@@ -476,9 +476,9 @@ export function OperationalReports({
                   </span>
                 </div>
                 {restaurant.label ? (
-                  <p className="mt-1 text-sm text-stone-500">{restaurant.label}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{restaurant.label}</p>
                 ) : null}
-                <p className="mt-2 text-xs uppercase tracking-[0.16em] text-stone-400">
+                <p className="mt-2 text-xs uppercase tracking-[0.16em] text-muted-foreground">
                   {formatLastOrder(restaurant.lastOrderAt)}
                 </p>
               </div>
@@ -493,10 +493,10 @@ export function OperationalReports({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardHeader className="px-5 pt-5">
-          <h3 className="text-xl font-semibold text-stone-950">Stock alerts</h3>
-          <p className="text-sm text-stone-500">
+          <h3 className="text-xl font-semibold text-card-foreground">Stock alerts</h3>
+          <p className="text-sm text-muted-foreground">
             Tracked inventory at or below its low-stock threshold.
           </p>
         </CardHeader>
@@ -508,11 +508,11 @@ export function OperationalReports({
           {report.lowStock.map((item) => (
             <div
               key={item.id}
-              className="flex items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4"
+              className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/50 p-4"
             >
               <div>
-                <p className="font-semibold text-stone-950">{item.productName}</p>
-                <p className="text-sm text-stone-500">
+                <p className="font-semibold text-foreground">{item.productName}</p>
+                <p className="text-sm text-muted-foreground">
                   Alert at {item.lowStockThreshold} {item.unit}
                 </p>
               </div>
@@ -526,7 +526,7 @@ export function OperationalReports({
                 >
                   {item.currentQuantity}
                 </p>
-                <p className="text-xs uppercase tracking-[0.14em] text-stone-400">
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
                   {item.status === "out" ? "Out" : "Low"}
                 </p>
               </div>
@@ -541,7 +541,7 @@ export function OperationalReports({
 
 function EmptyReportLine({ message }: { message: string }) {
   return (
-    <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
+    <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
       {message}
     </p>
   );
@@ -557,9 +557,9 @@ function Metric({
   valueLabel?: string;
 }) {
   return (
-    <div className="rounded-lg border border-stone-200 bg-white p-3">
-      <p className="text-lg font-semibold text-stone-950">{valueLabel ?? value ?? 0}</p>
-      <p className="text-xs uppercase tracking-[0.14em] text-stone-400">{label}</p>
+    <div className="rounded-lg border border-border bg-muted/50 p-3">
+      <p className="text-lg font-semibold text-foreground">{valueLabel ?? value ?? 0}</p>
+      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
     </div>
   );
 }

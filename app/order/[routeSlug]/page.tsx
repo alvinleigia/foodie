@@ -11,6 +11,7 @@ export default async function RestaurantOrderPage(
   const {
     customer,
     customerAuthProviders,
+    chargeSettings,
     checkoutPolicies,
     customerCheckoutEnabled,
     customerOrderingEnabled,
@@ -34,6 +35,7 @@ export default async function RestaurantOrderPage(
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
+          chargeSettings={chargeSettings}
           checkoutPolicies={checkoutPolicies}
           routeSlug={params.routeSlug}
           stripePaymentsEnabled={stripePaymentsEnabled}

@@ -7,6 +7,14 @@ let database:
   | ReturnType<typeof drizzle>
   | undefined;
 
+const globalForDatabase = globalThis as typeof globalThis & {
+  foodieDatabase?: ReturnType<typeof drizzle>;
+};
+
+if (process.env.NODE_ENV !== "production") {
+  database = globalForDatabase.foodieDatabase;
+}
+
 export function getDb() {
   const databaseUrl = process.env.DATABASE_URL;
 
@@ -15,8 +23,15 @@ export function getDb() {
   }
 
   if (!database) {
-    const client = postgres(databaseUrl, { prepare: false });
+    const client = postgres(databaseUrl, {
+      max: process.env.NODE_ENV === "development" ? 5 : 10,
+      prepare: false,
+    });
     database = drizzle(client, { schema });
+
+    if (process.env.NODE_ENV !== "production") {
+      globalForDatabase.foodieDatabase = database;
+    }
   }
 
   return database;

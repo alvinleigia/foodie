@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
+import { IngredientRecipeManager } from "@/components/staff/IngredientRecipeManager";
 import { InventoryManager } from "@/components/staff/InventoryManager";
+import { ProcurementManager } from "@/components/staff/ProcurementManager";
+import { StockTransferManager } from "@/components/staff/StockTransferManager";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
 import {
@@ -41,6 +44,9 @@ export default async function RestaurantInventoryPage({
         role: session.user.role,
       }}
     >
+      <IngredientRecipeManager />
+      <ProcurementManager />
+      <StockTransferManager />
       <InventoryManager />
     </SaasAdminShell>
   );

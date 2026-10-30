@@ -98,4 +98,15 @@ test.describe("open dine-in checks", () => {
     expect(form).toContain("openDineInOrderId: openDineInOrder?.id");
     expect(form).toContain("Items added to check");
   });
+
+  test("preloads the staff menu while retaining the client fallback", () => {
+    const page = source("app/restaurants/[restaurantSlug]/order/page.tsx");
+    const form = source("components/order/OrderForm.tsx");
+
+    expect(page).toContain("loadInitialMenuData");
+    expect(page).toContain("initialMenuData={initialMenuData}");
+    expect(form).toContain("initialMenuData?.categories ?? []");
+    expect(form).toContain("if (initialMenuData)");
+    expect(form).toContain('withOrderContext("/api/menu"');
+  });
 });

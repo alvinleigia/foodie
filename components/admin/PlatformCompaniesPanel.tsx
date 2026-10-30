@@ -12,8 +12,8 @@ import {
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import { ListSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { StatusPill } from "@/components/shared/StatusPill";
-import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -114,10 +114,7 @@ export function PlatformCompaniesPanel() {
         </CardHeader>
         <CardContent className="grid gap-3 px-5 pb-5">
           {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-stone-500">
-              <Spinner className="text-stone-500" />
-              Loading companies...
-            </div>
+            <ListSectionSkeleton label="Loading companies" rows={4} />
           ) : null}
 
           {!isLoading && companies.length === 0 ? (

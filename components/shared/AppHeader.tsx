@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { ThemeSelector } from "@/components/shared/ThemeSelector";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -98,7 +99,7 @@ function getActiveNavigationHref(
 function BrandLogo({ href }: { href: string }) {
   return (
     <Link href={href} className="group inline-flex items-center gap-3">
-      <span className="grid size-10 place-items-center rounded-lg border border-white/15 bg-white text-sm font-black tracking-tight text-stone-950 shadow-sm">
+      <span data-theme-static className="grid size-10 place-items-center rounded-lg border border-white/15 bg-white text-sm font-black tracking-tight text-stone-950 shadow-sm">
         F
       </span>
       <span>
@@ -168,7 +169,7 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "mb-8 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-stone-950/55 px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.18)] backdrop-blur",
+        "mb-8 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-stone-950 px-4 py-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.18)]",
         className,
       )}
     >
@@ -192,7 +193,7 @@ export function AppHeader({
                     {formatRole(user.role)}
                   </span>
                 </span>
-                <span className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
+                <span data-theme-static className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
                   {(user.name ?? "U").trim().slice(0, 1).toUpperCase()}
                 </span>
                 <ChevronDownIcon className="size-4 text-stone-400" />
@@ -295,6 +296,10 @@ export function AppHeader({
                 })}
               </div>
             </nav>
+            <div className="shrink-0 border-t border-white/10 px-3 py-2.5">
+              <p className="mb-2 text-xs font-medium text-stone-500">Appearance</p>
+              <ThemeSelector compact />
+            </div>
             <div className="shrink-0 border-t border-white/10 p-1.5">
               <DropdownMenuItem
                 variant="destructive"
@@ -330,7 +335,7 @@ export function AppHeader({
                       Customer
                     </span>
                   </span>
-                  <span className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
+                  <span data-theme-static className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
                     {(customerMenu.customerName ?? "C").trim().slice(0, 1).toUpperCase()}
                   </span>
                   <ChevronDownIcon className="size-4 text-stone-400" />

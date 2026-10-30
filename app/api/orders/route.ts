@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { generateCustomerToken } from "@/lib/order-token";
@@ -23,10 +24,15 @@ import {
   InventoryReservationError,
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
+import {
+  IngredientInventoryReservationError,
+  reserveIngredientsForOrderItem,
+} from "@/lib/ingredient-inventory";
 import { getDb } from "@/db";
 import {
   orderItemModifiers,
   orderItemTaxComponents,
+  orderAdjustments,
   orderItems,
   orderPayments,
   orders,
@@ -79,6 +85,14 @@ import { orderStatuses } from "@/lib/constants";
 import { deriveOrderStatusFromItems } from "@/lib/order-status";
 import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
 import { isCheckoutContactValid } from "@/lib/checkout-policy";
+import {
+  getRestaurantChargeSettings,
+  isServiceChargeEnabledForFulfilment,
+} from "@/lib/restaurant-charge-settings";
+import {
+  calculateBasisPointsAmount,
+  minorUnitsToDecimal,
+} from "@/lib/currency-money";
 
 class OpenDineInCheckError extends Error {
   status: number;
@@ -222,6 +236,36 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    if (isStaff && parsed.data.clientRequestId) {
+      const [existingOrder] = await getDb()
+        .select()
+        .from(orders)
+        .where(
+          and(
+            eq(orders.organizationId, tenantContext.organizationId),
+            eq(orders.clientRequestId, parsed.data.clientRequestId),
+          ),
+        )
+        .limit(1);
+
+      if (existingOrder) {
+        const existingItems =
+          (await getOrderItemsForOrders([existingOrder.id], tenantContext)).get(
+            existingOrder.id,
+          ) ?? [];
+
+        return NextResponse.json({
+          ...serializeOrder(existingOrder, existingItems),
+          checkoutUrl: null,
+          currency:
+            existingOrder.paymentCurrency ??
+            (await getTenantMenuCurrency(tenantContext)),
+          ordersResetAt: await getOrdersResetAt(),
+          replayed: true,
+        });
+      }
     }
 
     if (parsed.data.openDineInOrderId && !isStaff) {
@@ -519,7 +563,7 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const customerToken = generateCustomerToken();
     const orderDate = await getRestaurantBusinessDate(db, tenantContext);
-    const [currency, restaurantPolicy, resolvedTaxes] = await Promise.all([
+    const [currency, restaurantPolicy, resolvedTaxes, chargeSettings] = await Promise.all([
       getTenantMenuCurrency(tenantContext),
       db
         .select({
@@ -535,6 +579,7 @@ export async function POST(request: NextRequest) {
         cartItems.map((item) => item.drinkId),
         orderDate,
       ),
+      getRestaurantChargeSettings(tenantContext.organizationId),
     ]);
 
     if (!restaurantPolicy) {
@@ -574,11 +619,44 @@ export async function POST(request: NextRequest) {
     }
 
     const paymentPricing = !isStaff ? orderPricing : null;
+    const serviceChargeRateBps = isServiceChargeEnabledForFulfilment(
+      chargeSettings,
+      parsed.data.fulfilmentType,
+    )
+      ? chargeSettings.serviceChargeRateBps
+      : 0;
+    const requestedTipRateBps = isStaff ? 0 : parsed.data.tipRateBps;
+
+    if (
+      requestedTipRateBps > 0 &&
+      (!chargeSettings.tipsEnabled ||
+        !chargeSettings.tipPresetsBps.includes(requestedTipRateBps))
+    ) {
+      return NextResponse.json(
+        { error: "Choose an available tip option." },
+        { status: 400 },
+      );
+    }
+
+    const serviceChargeAmountMinor = paymentPricing
+      ? calculateBasisPointsAmount(
+          paymentPricing.amountTotalMinor,
+          serviceChargeRateBps,
+        )
+      : 0;
+    const tipBasisAmountMinor = paymentPricing
+      ? paymentPricing.amountTotalMinor + serviceChargeAmountMinor
+      : 0;
+    const tipAmountMinor = paymentPricing
+      ? calculateBasisPointsAmount(tipBasisAmountMinor, requestedTipRateBps)
+      : 0;
     const customerFinancialSnapshot = paymentPricing
       ? buildOrderFinancialSnapshot({
+          chargeAmountMinor: serviceChargeAmountMinor,
           currency: paymentPricing.currency,
           subtotalAmountMinor: paymentPricing.taxableAmountMinor,
           taxAmountMinor: paymentPricing.taxAmountMinor,
+          tipAmountMinor,
         })
       : null;
     const orderLineTaxSnapshots = pricedCartItems.map((item) =>
@@ -626,6 +704,7 @@ export async function POST(request: NextRequest) {
           .insert(orders)
           .values({
             organizationId: tenantContext.organizationId,
+            clientRequestId: isStaff ? parsed.data.clientRequestId ?? null : null,
             orderingPointId: tenantContext.orderingPointId,
             orderDate,
             orderNo,
@@ -684,7 +763,10 @@ export async function POST(request: NextRequest) {
             promisedFulfilmentAt:
               isStaff ? scheduledFulfilmentAt : null,
             paymentStatus: paymentTiming === "ONLINE" ? "PENDING" : "UNPAID",
-            paymentAmount: orderPricing?.amountTotal ?? null,
+            paymentAmount:
+              customerFinancialSnapshot?.finalTotalAmountSnapshot ??
+              orderPricing?.amountTotal ??
+              null,
             paymentCurrency: orderPricing?.currency ?? currency,
             ...(customerFinancialSnapshot
               ? {
@@ -705,6 +787,8 @@ export async function POST(request: NextRequest) {
             taxRateBpsSnapshot: orderTaxRateSnapshot,
             customerCancellationFeeBpsSnapshot:
               restaurantPolicy.customerCancellationFeeBps,
+            serviceChargeRateBpsSnapshot: serviceChargeRateBps,
+            tipsEnabledSnapshot: chargeSettings.tipsEnabled,
             categoryId: cartItems[0].categoryId,
             categoryName: summaryCategoryName,
             drinkId: cartItems[0].drinkId,
@@ -743,7 +827,31 @@ export async function POST(request: NextRequest) {
             inventoryReservedAt,
             updatedAt: now,
           })
-          .returning({ id: orderItems.id });
+          .returning({ id: orderItems.id, orderId: orderItems.orderId });
+
+        if (inventoryEnabled && newOrderItem) {
+          const ingredientsReserved = await reserveIngredientsForOrderItem(
+            tx,
+            tenantContext,
+            {
+              ...item,
+              id: newOrderItem.id,
+              orderId: newOrderItem.orderId,
+            },
+          );
+
+          if (ingredientsReserved) {
+            await tx
+              .update(orderItems)
+              .set({ ingredientInventoryReservedAt: now, updatedAt: now })
+              .where(
+                and(
+                  eq(orderItems.id, newOrderItem.id),
+                  eq(orderItems.organizationId, tenantContext.organizationId),
+                ),
+              );
+          }
+        }
 
         if (newOrderItem && lineTaxSnapshot.components.length > 0) {
           await tx.insert(orderItemTaxComponents).values(
@@ -779,6 +887,55 @@ export async function POST(request: NextRequest) {
             })),
           );
         }
+      }
+
+      if (
+        !parsed.data.openDineInOrderId &&
+        paymentPricing &&
+        (serviceChargeAmountMinor > 0 || tipAmountMinor > 0)
+      ) {
+        const adjustmentRows = [];
+
+        if (serviceChargeAmountMinor > 0) {
+          adjustmentRows.push({
+            actorType: "SYSTEM" as const,
+            amount: minorUnitsToDecimal(
+              serviceChargeAmountMinor,
+              paymentPricing.currency,
+            ),
+            basisAmount: paymentPricing.amountTotal,
+            calculation: "PERCENTAGE" as const,
+            currency: paymentPricing.currency,
+            idempotencyKey: randomUUID(),
+            orderId: targetOrder.id,
+            organizationId: tenantContext.organizationId,
+            rateBps: serviceChargeRateBps,
+            scope: "ORDER" as const,
+            type: "SERVICE_CHARGE" as const,
+          });
+        }
+
+        if (tipAmountMinor > 0) {
+          adjustmentRows.push({
+            actorType: "CUSTOMER" as const,
+            actorCustomerId: customerProfile?.customerId ?? null,
+            amount: minorUnitsToDecimal(tipAmountMinor, paymentPricing.currency),
+            basisAmount: minorUnitsToDecimal(
+              tipBasisAmountMinor,
+              paymentPricing.currency,
+            ),
+            calculation: "PERCENTAGE" as const,
+            currency: paymentPricing.currency,
+            idempotencyKey: randomUUID(),
+            orderId: targetOrder.id,
+            organizationId: tenantContext.organizationId,
+            rateBps: requestedTipRateBps,
+            scope: "ORDER" as const,
+            type: "TIP" as const,
+          });
+        }
+
+        await tx.insert(orderAdjustments).values(adjustmentRows);
       }
 
       if (!parsed.data.openDineInOrderId) {
@@ -855,6 +1012,7 @@ export async function POST(request: NextRequest) {
 
     if (
       paymentPricing &&
+      customerFinancialSnapshot &&
       paymentExpiresAt &&
       paymentIntegration?.status === "CONFIGURED"
     ) {
@@ -875,16 +1033,42 @@ export async function POST(request: NextRequest) {
       );
       const successUrl = new URL(successPath, request.url);
       successUrl.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+      const checkoutLineItems = [...paymentPricing.lineItems];
+
+      if (serviceChargeAmountMinor > 0) {
+        checkoutLineItems.push({
+          price_data: {
+            currency: paymentPricing.currency.toLowerCase(),
+            product_data: { name: "Service charge" },
+            unit_amount: serviceChargeAmountMinor,
+          },
+          quantity: 1,
+        });
+      }
+
+      if (tipAmountMinor > 0) {
+        checkoutLineItems.push({
+          price_data: {
+            currency: paymentPricing.currency.toLowerCase(),
+            product_data: { name: "Tip" },
+            unit_amount: tipAmountMinor,
+          },
+          quantity: 1,
+        });
+      }
 
       try {
         const checkoutSession = await createOrderCheckoutSession({
-          amountTotalMinor: paymentPricing.amountTotalMinor,
+          amountTotalMinor:
+            paymentPricing.amountTotalMinor +
+            serviceChargeAmountMinor +
+            tipAmountMinor,
           applicationFeeBps: paymentIntegration.applicationFeeBps,
           cancelUrl: new URL(cancelPath, request.url).toString(),
           customerEmail: customerContact?.email ?? null,
           customerId: customerProfile?.customerId ?? null,
           expiresAt: paymentExpiresAt,
-          lineItems: paymentPricing.lineItems,
+          lineItems: checkoutLineItems,
           orderId: createdOrder.id,
           stripeAccountId: paymentIntegration.stripeAccountId,
           successUrl: successUrl.toString().replace(
@@ -916,7 +1100,7 @@ export async function POST(request: NextRequest) {
           }
 
           await tx.insert(orderPayments).values({
-            amount: paymentPricing.amountTotal,
+            amount: customerFinancialSnapshot.finalTotalAmountSnapshot,
             currency: paymentPricing.currency,
             method: "STRIPE_CHECKOUT",
             orderId: createdOrder.id,
@@ -975,6 +1159,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (error instanceof InventoryReservationError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
+    if (error instanceof IngredientInventoryReservationError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

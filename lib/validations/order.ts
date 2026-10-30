@@ -20,6 +20,7 @@ const optionalContactPhoneSchema = z
 
 export const createOrderSchema = z
   .object({
+    clientRequestId: z.string().uuid().optional(),
     customerId: z.string().uuid("Choose a valid customer").nullable().optional(),
     customerName: z
       .string()
@@ -29,6 +30,7 @@ export const createOrderSchema = z
       .optional(),
     checkoutMode: z.enum(["GUEST", "ACCOUNT"]).optional(),
     paymentTiming: z.enum(["ONLINE", "PAY_LATER"]).optional(),
+    tipRateBps: z.coerce.number().int().min(0).max(5000).optional().default(0),
     customerContact: z
       .object({
         name: z.string().trim().min(2, "Name is required").max(100),

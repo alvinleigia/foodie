@@ -66,9 +66,16 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
   const { customer: customerAddress, supplier: supplierAddress } =
     getInvoiceAddressLines(receipt);
   const fulfilmentTime = getEffectiveFulfilmentTime(receipt);
+  const isThermal = receipt.receiptPrintFormat === "THERMAL_80MM";
 
   return (
-    <article className="mx-auto w-full max-w-2xl rounded-lg border border-stone-200 bg-white p-6 text-stone-950 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
+    <article
+      className={`mx-auto w-full rounded-lg border border-stone-200 bg-white text-stone-950 shadow-sm print:border-0 print:shadow-none ${
+        isThermal
+          ? "max-w-[80mm] p-4 print:w-[80mm] print:max-w-[80mm] print:p-0"
+          : "max-w-2xl p-6 print:max-w-none print:p-0"
+      }`}
+    >
       <header className="border-b-2 border-stone-950 pb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
           {documentLabel}
@@ -256,7 +263,7 @@ export function OrderReceiptDocument({ receipt }: { receipt: OrderReceipt }) {
       ) : null}
 
       <footer className="mt-8 text-center text-sm text-stone-500">
-        Thank you for your order.
+        {receipt.footerMessage ?? "Thank you for your order."}
       </footer>
     </article>
   );

@@ -71,15 +71,15 @@ export function CustomerOrderUnavailable({
               }
         }
       />
-      <Card className="rounded-xl border-stone-200 bg-stone-100/95 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+      <Card tone="themed" className="rounded-xl border-border bg-card/95 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
         <CardContent className="px-8 py-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-brand-700">
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-800 dark:text-amber-400">
             {eyebrow}
           </p>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-stone-950">
+          <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground">
             {title}
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-stone-600">
+          <p className="mt-4 max-w-2xl text-base text-muted-foreground">
             {description}
           </p>
         </CardContent>

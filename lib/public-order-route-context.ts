@@ -21,6 +21,10 @@ import {
   getTenantContextFromQrSlug,
 } from "@/lib/tenant-context";
 import { isRestaurantOpenForCustomerOrders } from "@/lib/working-hours";
+import {
+  defaultRestaurantChargeSettings,
+  getRestaurantChargeSettings,
+} from "@/lib/restaurant-charge-settings";
 
 type PublicOrderRouteOptions = {
   orderingPointQrSlug?: string;
@@ -111,6 +115,9 @@ export async function getPublicOrderRouteContext({
   const checkoutPolicies = tenantContext
     ? await getRestaurantCheckoutPolicies(tenantContext.organizationId)
     : orderFulfilmentTypes.map(getDefaultCheckoutPolicy);
+  const chargeSettings = tenantContext
+    ? await getRestaurantChargeSettings(tenantContext.organizationId)
+    : defaultRestaurantChargeSettings;
   const customerOrderingEnabled =
     session?.user.kind === "staff" || customerFeatures.customerOrderingEnabled;
   const customerAccountsEnabled =
@@ -209,6 +216,7 @@ export async function getPublicOrderRouteContext({
   if (tenantContext) {
     return {
       hasTenantContext: true,
+      chargeSettings,
       checkoutPolicies,
       customerAccountsEnabled,
       customerCheckoutEnabled: hasAvailableCheckout,
@@ -238,6 +246,7 @@ export async function getPublicOrderRouteContext({
   if (!requestDomain) {
     return {
       hasTenantContext: false,
+      chargeSettings,
       checkoutPolicies,
       customerAccountsEnabled: false,
       customerCheckoutEnabled: false,
@@ -301,6 +310,7 @@ export async function getPublicOrderRouteContext({
 
   return {
     hasTenantContext: false,
+    chargeSettings,
     checkoutPolicies,
     customerAccountsEnabled: false,
     customerCheckoutEnabled: false,

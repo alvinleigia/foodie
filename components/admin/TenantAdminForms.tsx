@@ -69,6 +69,7 @@ const staffPermissionGroups = [
   "Orders",
   "Payments",
   "Customers",
+  "Workforce",
   "Administration",
 ] as const;
 
@@ -544,9 +545,11 @@ export function TenantStaffInviteForm({
 
 export function TenantStaffAccessForm({
   backHref,
+  permissionBaseline,
   staff,
 }: {
   backHref: string;
+  permissionBaseline?: StaffPermission[];
   staff: StaffAccess;
 }) {
   const router = useRouter();
@@ -611,7 +614,11 @@ export function TenantStaffAccessForm({
                 setDraft((current) => ({
                   ...current,
                   role,
-                  permissions: resolveStaffPermissions(role, null),
+                  permissions: resolveStaffPermissions(
+                    role,
+                    null,
+                    permissionBaseline,
+                  ),
                 }));
               }}
             />
@@ -620,7 +627,7 @@ export function TenantStaffAccessForm({
             <div>
               <h4 className="font-semibold text-stone-950">Permissions</h4>
               <p className="mt-1 text-sm text-stone-500">
-                Choose the restaurant actions available to this staff member.
+                Choose individual exceptions to the primary job or role defaults.
               </p>
             </div>
             {staffPermissionGroups.map((group) => (

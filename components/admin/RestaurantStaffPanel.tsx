@@ -107,7 +107,7 @@ export function RestaurantStaffPanel({
                 <p className="mt-1 text-sm text-stone-500">
                   {user.username} - {user.email}
                 </p>
-                <p className="mt-1 text-xs text-stone-400">
+                <p className="mt-1 text-xs text-stone-500">
                   {user.role.replaceAll("_", " ")}
                   {user.accessLabel ? ` - ${user.accessLabel}` : ""} - updated{" "}
                   {formatAppDate(user.updatedAt)}
