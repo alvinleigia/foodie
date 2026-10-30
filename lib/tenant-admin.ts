@@ -109,7 +109,11 @@ export async function updateOrganizationSettings(
 ) {
   const parsed = organizationSettingsSchema.parse(input);
   const db = getDb();
-  const slug = await ensureUniqueOrganizationSlug(parsed.name, context.organizationId);
+  const slug = await ensureUniqueOrganizationSlug(
+    parsed.name,
+    "RESTAURANT",
+    context.organizationId,
+  );
 
   return db.transaction(async (tx) => {
     const [organization] = await tx

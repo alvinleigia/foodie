@@ -408,7 +408,7 @@ export const organizations = pgTable(
   },
   (table) => [
     index("organizations_parent_idx").on(table.parentOrganizationId),
-    uniqueIndex("organizations_slug_unique").on(table.slug),
+    uniqueIndex("organizations_type_slug_unique").on(table.type, table.slug),
     check(
       "organizations_customer_cancellation_fee_bps_check",
       sql`${table.customerCancellationFeeBps} >= 0 AND ${table.customerCancellationFeeBps} <= 10000`,
