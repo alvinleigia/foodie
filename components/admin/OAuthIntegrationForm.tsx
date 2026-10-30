@@ -2,16 +2,23 @@
 
 import { useMemo, useState } from "react";
 import {
+  AppleIcon,
   BanIcon,
-  CheckCircle2Icon,
   CopyIcon,
   GitBranchIcon,
-  KeyRoundIcon,
+  Globe2Icon,
   SaveIcon,
   Settings2Icon,
+  UsersIcon,
+  UsersRoundIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  IntegrationModeSelector,
+  IntegrationPanel,
+  IntegrationStatus,
+} from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
@@ -24,7 +31,6 @@ import type {
   OrganizationOAuthSettingsSnapshot,
   SocialAuthProvider,
 } from "@/lib/organization-integration-types";
-import { cn } from "@/lib/utils";
 
 type OAuthIntegrationField = "clientId" | "clientSecret";
 
@@ -45,12 +51,14 @@ const providers: Array<{
   clientIdLabel: string;
   clientIdPlaceholder: string;
   clientSecretLabel: string;
+  icon: typeof Globe2Icon;
   label: string;
   provider: SocialAuthProvider;
 }> = [
   {
     provider: "GOOGLE",
     label: "Google",
+    icon: Globe2Icon,
     clientIdLabel: "Client ID",
     clientIdPlaceholder: "123456789.apps.googleusercontent.com",
     clientSecretLabel: "Client secret",
@@ -58,6 +66,7 @@ const providers: Array<{
   {
     provider: "APPLE",
     label: "Apple",
+    icon: AppleIcon,
     clientIdLabel: "Services ID",
     clientIdPlaceholder: "com.example.web",
     clientSecretLabel: "Generated client secret",
@@ -65,6 +74,7 @@ const providers: Array<{
   {
     provider: "FACEBOOK",
     label: "Facebook",
+    icon: UsersIcon,
     clientIdLabel: "App ID",
     clientIdPlaceholder: "123456789",
     clientSecretLabel: "App secret",
@@ -72,13 +82,29 @@ const providers: Array<{
 ];
 
 const modeOptions: Array<{
+  description: string;
   icon: typeof GitBranchIcon;
   label: string;
   value: IntegrationMode;
 }> = [
-  { icon: GitBranchIcon, label: "Inherit", value: "INHERIT" },
-  { icon: Settings2Icon, label: "Custom", value: "CUSTOM" },
-  { icon: BanIcon, label: "Disabled", value: "DISABLED" },
+  {
+    description: "Use company or platform credentials.",
+    icon: GitBranchIcon,
+    label: "Inherit",
+    value: "INHERIT",
+  },
+  {
+    description: "Configure separate credentials here.",
+    icon: Settings2Icon,
+    label: "Custom",
+    value: "CUSTOM",
+  },
+  {
+    description: "Turn off this provider for this scope.",
+    icon: BanIcon,
+    label: "Disabled",
+    value: "DISABLED",
+  },
 ];
 
 function toDraft(snapshot: OrganizationOAuthSettingsSnapshot): OAuthDraft {
@@ -93,37 +119,27 @@ function toDraft(snapshot: OrganizationOAuthSettingsSnapshot): OAuthDraft {
 function EffectiveStatus({ snapshot }: { snapshot: OrganizationOAuthSettingsSnapshot }) {
   if (snapshot.effective.status === "CONFIGURED") {
     return (
-      <div className="flex items-start gap-3 border-l-4 border-emerald-500 bg-emerald-50 px-4 py-3">
-        <CheckCircle2Icon className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-        <p className="text-sm font-semibold text-emerald-950">
-          Active via {snapshot.effective.sourceOrganizationName}
-        </p>
-      </div>
+      <IntegrationStatus
+        tone="success"
+        title={`Active via ${snapshot.effective.sourceOrganizationName}`}
+      />
     );
   }
 
   const isDisabled = snapshot.effective.status === "DISABLED";
 
   return (
-    <div
-      className={cn(
-        "border-l-4 px-4 py-3",
+    <IntegrationStatus
+      tone={isDisabled ? "neutral" : "warning"}
+      title={isDisabled ? "Customer login is disabled" : "Customer login needs attention"}
+      detail={
         isDisabled
-          ? "border-stone-400 bg-stone-100 text-stone-700"
-          : "border-amber-500 bg-amber-50 text-amber-900",
-      )}
-    >
-      <p className="text-sm font-semibold">
-        {isDisabled ? "Customer login is disabled" : "Customer login needs attention"}
-      </p>
-      {!isDisabled ? (
-        <p className="mt-1 text-sm">
-          {snapshot.effective.reason === "INCOMPLETE"
+          ? undefined
+          : snapshot.effective.reason === "INCOMPLETE"
             ? "Complete the selected custom credentials."
-            : "No inherited or universal credentials are available."}
-        </p>
-      ) : null}
-    </div>
+            : "No inherited or universal credentials are available."
+      }
+    />
   );
 }
 
@@ -161,6 +177,10 @@ export function OAuthIntegrationForm({
   const inheritLabel = snapshot.parent
     ? `Inherit from ${snapshot.parent.name}`
     : "Use Foodie default";
+  const resolvedModeOptions = modeOptions.map((option) => ({
+    ...option,
+    label: option.value === "INHERIT" ? inheritLabel : option.label,
+  }));
 
   function updateDraft<TField extends keyof OAuthDraft>(
     field: TField,
@@ -222,12 +242,12 @@ export function OAuthIntegrationForm({
   }
 
   return (
-    <div className="grid gap-6 border-t border-border pt-8">
-      <div className="flex items-center gap-2">
-        <KeyRoundIcon className="size-5 text-muted-foreground" />
-        <h2 className="text-xl font-semibold text-foreground">Customer social login</h2>
-      </div>
-
+    <IntegrationPanel
+      icon={UsersRoundIcon}
+      title="Customer social login"
+      description="Allow customers to sign in with supported social accounts."
+      status={<EffectiveStatus snapshot={snapshot} />}
+    >
       <Tabs
         value={selectedProvider}
         onValueChange={(value) => {
@@ -235,52 +255,37 @@ export function OAuthIntegrationForm({
           setSelectedProvider(value as SocialAuthProvider);
         }}
       >
-        <TabsList aria-label="Social login provider">
-          {providers.map((provider) => (
-            <TabsTrigger key={provider.provider} value={provider.provider}>
-              {provider.label}
-              {dirtyProviders.has(provider.provider) ? " *" : ""}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
+          <p className="text-sm font-semibold text-foreground">Social provider</p>
+          <TabsList className="gap-2" aria-label="Social login provider">
+            {providers.map((provider) => {
+              const Icon = provider.icon;
+
+              return (
+                <TabsTrigger
+                  key={provider.provider}
+                  value={provider.provider}
+                  className="gap-2 data-[state=active]:border-amber-500 data-[state=active]:bg-amber-500/10 data-[state=active]:text-foreground"
+                >
+                  <Icon className="size-4" />
+                  {provider.label}
+                  {dirtyProviders.has(provider.provider) ? " *" : ""}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </div>
 
         {providers.map((provider) => (
           <TabsContent key={provider.provider} value={provider.provider}>
             <div className="grid gap-6">
-              <EffectiveStatus snapshot={snapshots[provider.provider]} />
-
-              <fieldset className="grid gap-3">
-                <legend className="text-sm font-semibold text-foreground">Login mode</legend>
-                <div
-                  className="grid gap-2 sm:grid-cols-3"
-                  role="radiogroup"
-                  aria-label={`${provider.label} login mode`}
-                >
-                  {modeOptions.map((option) => {
-                    const Icon = option.icon;
-                    const isSelected = draft.mode === option.value;
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        role="radio"
-                        aria-checked={isSelected}
-                        onClick={() => updateDraft("mode", option.value)}
-                        className={cn(
-                          "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
-                          isSelected
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background text-foreground hover:bg-muted",
-                        )}
-                      >
-                        <Icon className="size-4" />
-                        {option.value === "INHERIT" ? inheritLabel : option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
+              <IntegrationModeSelector
+                ariaLabel={`${provider.label} login mode`}
+                label="Login mode"
+                value={draft.mode}
+                options={resolvedModeOptions}
+                onChange={(value) => updateDraft("mode", value)}
+              />
 
               {draft.mode === "CUSTOM" ? (
                 <div className="grid gap-4 border-t border-border pt-5">
@@ -354,6 +359,6 @@ export function OAuthIntegrationForm({
           </TabsContent>
         ))}
       </Tabs>
-    </div>
+    </IntegrationPanel>
   );
 }

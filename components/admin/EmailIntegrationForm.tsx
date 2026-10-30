@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   BanIcon,
-  CheckCircle2Icon,
   GitBranchIcon,
   MailCheckIcon,
   SaveIcon,
@@ -14,6 +13,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  IntegrationModeSelector,
+  IntegrationPanel,
+  IntegrationStatus,
+} from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
@@ -24,7 +28,6 @@ import type {
   IntegrationMode,
   OrganizationEmailSettingsSnapshot,
 } from "@/lib/organization-integration-types";
-import { cn } from "@/lib/utils";
 
 type EmailIntegrationField = "apiKey" | "fromEmail" | "fromName" | "replyToEmail";
 
@@ -35,13 +38,29 @@ type EmailIntegrationFormProps = {
 };
 
 const modeOptions: Array<{
+  description: string;
   icon: typeof GitBranchIcon;
   label: string;
   value: IntegrationMode;
 }> = [
-  { icon: GitBranchIcon, label: "Inherit", value: "INHERIT" },
-  { icon: Settings2Icon, label: "Custom", value: "CUSTOM" },
-  { icon: BanIcon, label: "Disabled", value: "DISABLED" },
+  {
+    description: "Use company or platform email settings.",
+    icon: GitBranchIcon,
+    label: "Inherit",
+    value: "INHERIT",
+  },
+  {
+    description: "Configure a separate sender here.",
+    icon: Settings2Icon,
+    label: "Custom",
+    value: "CUSTOM",
+  },
+  {
+    description: "Turn off email delivery for this scope.",
+    icon: BanIcon,
+    label: "Disabled",
+    value: "DISABLED",
+  },
 ];
 
 function toDraft(snapshot: OrganizationEmailSettingsSnapshot) {
@@ -57,46 +76,30 @@ function toDraft(snapshot: OrganizationEmailSettingsSnapshot) {
 function EffectiveStatus({ snapshot }: { snapshot: OrganizationEmailSettingsSnapshot }) {
   if (snapshot.effective.status === "CONFIGURED") {
     return (
-      <div className="flex items-start gap-3 border-l-4 border-emerald-500 bg-emerald-50 px-4 py-3">
-        <CheckCircle2Icon className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-emerald-950">
-            Active via {snapshot.effective.sourceOrganizationName}
-          </p>
-          {snapshot.effective.sender ? (
-            <p className="mt-1 break-words text-sm text-emerald-800">
-              {snapshot.effective.sender}
-            </p>
-          ) : null}
-        </div>
-      </div>
+      <IntegrationStatus
+        tone="success"
+        title={`Active via ${snapshot.effective.sourceOrganizationName}`}
+        detail={snapshot.effective.sender}
+      />
     );
   }
 
   const isDisabled = snapshot.effective.status === "DISABLED";
 
   return (
-    <div
-      className={cn(
-        "border-l-4 px-4 py-3",
+    <IntegrationStatus
+      tone={isDisabled ? "neutral" : "warning"}
+      title={isDisabled ? "Email delivery is disabled" : "Email delivery needs attention"}
+      detail={
         isDisabled
-          ? "border-stone-400 bg-stone-100 text-stone-700"
-          : "border-amber-500 bg-amber-50 text-amber-900",
-      )}
-    >
-      <p className="text-sm font-semibold">
-        {isDisabled ? "Email delivery is disabled" : "Email delivery needs attention"}
-      </p>
-      {!isDisabled ? (
-        <p className="mt-1 text-sm">
-          {snapshot.effective.reason === "NOT_VERIFIED"
+          ? undefined
+          : snapshot.effective.reason === "NOT_VERIFIED"
             ? "Save the configuration and send a successful test email."
             : snapshot.effective.reason === "INCOMPLETE"
               ? "Complete the selected custom configuration."
-              : "No inherited or custom email service is available."}
-        </p>
-      ) : null}
-    </div>
+              : "No inherited or custom email service is available."
+      }
+    />
   );
 }
 
@@ -173,10 +176,18 @@ export function EmailIntegrationForm({
     }
   }
 
-  return (
-    <div className="grid gap-6">
-      <EffectiveStatus snapshot={snapshot} />
+  const resolvedModeOptions = modeOptions.map((option) => ({
+    ...option,
+    label: option.value === "INHERIT" ? inheritLabel : option.label,
+  }));
 
+  return (
+    <IntegrationPanel
+      icon={MailCheckIcon}
+      title="Email delivery"
+      description="Configure how order and notification emails are delivered for this scope."
+      status={<EffectiveStatus snapshot={snapshot} />}
+    >
       <form
         className="grid gap-6"
         onSubmit={(event) => {
@@ -184,34 +195,13 @@ export function EmailIntegrationForm({
           void save();
         }}
       >
-        <fieldset className="grid gap-3">
-          <legend className="text-sm font-semibold text-foreground">Delivery mode</legend>
-          <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Delivery mode">
-            {modeOptions.map((option) => {
-              const Icon = option.icon;
-              const isSelected = draft.mode === option.value;
-
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => updateDraft("mode", option.value)}
-                  className={cn(
-                    "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-foreground hover:bg-muted",
-                  )}
-                >
-                  <Icon className="size-4" />
-                  {option.value === "INHERIT" ? inheritLabel : option.label}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+        <IntegrationModeSelector
+          ariaLabel="Delivery mode"
+          label="Delivery mode"
+          value={draft.mode}
+          options={resolvedModeOptions}
+          onChange={(value) => updateDraft("mode", value)}
+        />
 
         {draft.mode === "CUSTOM" ? (
           <div className="grid gap-4 border-t border-border pt-5">
@@ -306,6 +296,6 @@ export function EmailIntegrationForm({
           ) : null}
         </div>
       </form>
-    </div>
+    </IntegrationPanel>
   );
 }

@@ -1,4 +1,5 @@
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
+import { IntegrationPageLayout } from "@/components/admin/IntegrationPageLayout";
 import { OAuthIntegrationForm } from "@/components/admin/OAuthIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
@@ -38,6 +39,7 @@ export default async function CompanyWorkspaceRestaurantIntegrationsPage({
   return (
     <SaasAdminShell
       activePath={getCompanyWorkspaceHref(company.slug, "restaurants")}
+      contentMode="plain"
       eyebrow="Company"
       title={`${restaurant.name} integrations`}
       description="Choose whether this restaurant inherits company delivery or uses its own sender."
@@ -47,25 +49,31 @@ export default async function CompanyWorkspaceRestaurantIntegrationsPage({
         role: session.user.role,
       }}
     >
-      <EmailIntegrationForm
-        apiPath={`/api/company/restaurants/${restaurant.id}/integrations/email`}
-        initialSnapshot={emailSnapshot}
-      />
-      <OAuthIntegrationForm
-        apiPath={`/api/company/restaurants/${restaurant.id}/integrations/oauth`}
-        callbackOrigin={callbackOrigin}
-        initialSnapshots={oauthSnapshots}
-      />
-      <StripeIntegrationForm
-        apiPath={`/api/company/restaurants/${restaurant.id}/integrations/stripe`}
-        backHref={getCompanyRestaurantHref(
-          company.slug,
-          restaurant.slug,
-          "settings",
-        )}
-        enabled={stripePayments.enabled}
-        initialSnapshot={paymentSnapshot}
-      />
+      <IntegrationPageLayout
+        eyebrow="Company"
+        title={`${restaurant.name} integrations`}
+        description="Choose whether this restaurant inherits company delivery or uses its own sender."
+      >
+        <EmailIntegrationForm
+          apiPath={`/api/company/restaurants/${restaurant.id}/integrations/email`}
+          initialSnapshot={emailSnapshot}
+        />
+        <OAuthIntegrationForm
+          apiPath={`/api/company/restaurants/${restaurant.id}/integrations/oauth`}
+          callbackOrigin={callbackOrigin}
+          initialSnapshots={oauthSnapshots}
+        />
+        <StripeIntegrationForm
+          apiPath={`/api/company/restaurants/${restaurant.id}/integrations/stripe`}
+          backHref={getCompanyRestaurantHref(
+            company.slug,
+            restaurant.slug,
+            "settings",
+          )}
+          enabled={stripePayments.enabled}
+          initialSnapshot={paymentSnapshot}
+        />
+      </IntegrationPageLayout>
     </SaasAdminShell>
   );
 }
