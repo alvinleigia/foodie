@@ -1,4 +1,5 @@
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
+import { IntegrationPageLayout } from "@/components/admin/IntegrationPageLayout";
 import { OAuthIntegrationForm } from "@/components/admin/OAuthIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
@@ -43,6 +44,7 @@ export default async function RestaurantIntegrationsPage({
   return (
     <SaasAdminShell
       activePath={integrationsHref}
+      contentMode="plain"
       eyebrow="Restaurant"
       title="Integrations"
       description="Inherit company email delivery or configure this restaurant separately."
@@ -53,21 +55,27 @@ export default async function RestaurantIntegrationsPage({
         role: session.user.role,
       }}
     >
-      <EmailIntegrationForm
-        apiPath="/api/tenant/admin/integrations/email"
-        initialSnapshot={emailSnapshot}
-      />
-      <OAuthIntegrationForm
-        apiPath="/api/tenant/admin/integrations/oauth"
-        callbackOrigin={callbackOrigin}
-        initialSnapshots={oauthSnapshots}
-      />
-      <StripeIntegrationForm
-        apiPath="/api/tenant/admin/integrations/stripe"
-        backHref={dashboardHref}
-        enabled={stripePayments.enabled}
-        initialSnapshot={paymentSnapshot}
-      />
+      <IntegrationPageLayout
+        eyebrow="Restaurant"
+        title="Integrations"
+        description="Inherit company email delivery or configure this restaurant separately."
+      >
+        <EmailIntegrationForm
+          apiPath="/api/tenant/admin/integrations/email"
+          initialSnapshot={emailSnapshot}
+        />
+        <OAuthIntegrationForm
+          apiPath="/api/tenant/admin/integrations/oauth"
+          callbackOrigin={callbackOrigin}
+          initialSnapshots={oauthSnapshots}
+        />
+        <StripeIntegrationForm
+          apiPath="/api/tenant/admin/integrations/stripe"
+          backHref={dashboardHref}
+          enabled={stripePayments.enabled}
+          initialSnapshot={paymentSnapshot}
+        />
+      </IntegrationPageLayout>
     </SaasAdminShell>
   );
 }

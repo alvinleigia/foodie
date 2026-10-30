@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   BanIcon,
-  CheckCircle2Icon,
   CreditCardIcon,
   ExternalLinkIcon,
   GitBranchIcon,
@@ -15,6 +14,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  IntegrationModeSelector,
+  IntegrationPanel,
+  IntegrationStatus,
+} from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { requestJson } from "@/lib/api-client";
@@ -22,7 +26,6 @@ import type {
   IntegrationMode,
   OrganizationPaymentSettingsSnapshot,
 } from "@/lib/organization-integration-types";
-import { cn } from "@/lib/utils";
 
 type StripeIntegrationFormProps = {
   apiPath: string;
@@ -32,56 +35,58 @@ type StripeIntegrationFormProps = {
 };
 
 const modeOptions: Array<{
+  description: string;
   icon: typeof GitBranchIcon;
   label: string;
   value: IntegrationMode;
 }> = [
-  { icon: GitBranchIcon, label: "Inherit", value: "INHERIT" },
-  { icon: Settings2Icon, label: "Custom", value: "CUSTOM" },
-  { icon: BanIcon, label: "Disabled", value: "DISABLED" },
+  {
+    description: "Use the connected company account.",
+    icon: GitBranchIcon,
+    label: "Inherit",
+    value: "INHERIT",
+  },
+  {
+    description: "Connect a separate Stripe account.",
+    icon: Settings2Icon,
+    label: "Custom",
+    value: "CUSTOM",
+  },
+  {
+    description: "Turn off online payments for this scope.",
+    icon: BanIcon,
+    label: "Disabled",
+    value: "DISABLED",
+  },
 ];
 
 function EffectiveStatus({ snapshot }: { snapshot: OrganizationPaymentSettingsSnapshot }) {
   if (snapshot.effective.status === "CONFIGURED") {
     return (
-      <div className="flex items-start gap-3 border-l-4 border-emerald-500 bg-emerald-50 px-4 py-3">
-        <CheckCircle2Icon className="mt-0.5 size-5 shrink-0 text-emerald-700" />
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-emerald-950">
-            Payments settle through {snapshot.effective.sourceOrganizationName}
-          </p>
-          <p className="mt-1 break-words font-mono text-xs text-emerald-800">
-            {snapshot.effective.stripeAccountId}
-          </p>
-        </div>
-      </div>
+      <IntegrationStatus
+        tone="success"
+        title={`Payments settle through ${snapshot.effective.sourceOrganizationName}`}
+        detail={<span className="font-mono text-xs">{snapshot.effective.stripeAccountId}</span>}
+      />
     );
   }
 
   const isDisabled = snapshot.effective.status === "DISABLED";
 
   return (
-    <div
-      className={cn(
-        "border-l-4 px-4 py-3",
+    <IntegrationStatus
+      tone={isDisabled ? "neutral" : "warning"}
+      title={isDisabled ? "Online payment is disabled" : "Stripe needs attention"}
+      detail={
         isDisabled
-          ? "border-stone-400 bg-stone-100 text-stone-700"
-          : "border-amber-500 bg-amber-50 text-amber-900",
-      )}
-    >
-      <p className="text-sm font-semibold">
-        {isDisabled ? "Online payment is disabled" : "Stripe needs attention"}
-      </p>
-      {!isDisabled ? (
-        <p className="mt-1 text-sm">
-          {snapshot.effective.reason === "ONBOARDING_INCOMPLETE"
+          ? undefined
+          : snapshot.effective.reason === "ONBOARDING_INCOMPLETE"
             ? "Complete Stripe onboarding before accepting online payments."
             : snapshot.effective.reason === "INCOMPLETE"
               ? "Connect a Stripe account for the selected custom mode."
-              : "No inherited or custom Stripe account is available."}
-        </p>
-      ) : null}
-    </div>
+              : "No inherited or custom Stripe account is available."
+      }
+    />
   );
 }
 
@@ -101,6 +106,10 @@ export function StripeIntegrationForm({
     snapshot.parent?.type === "COMPANY"
       ? `Inherit from ${snapshot.parent.name}`
       : "No connected account";
+  const resolvedModeOptions = modeOptions.map((option) => ({
+    ...option,
+    label: option.value === "INHERIT" ? inheritLabel : option.label,
+  }));
 
   async function save() {
     setIsSaving(true);
@@ -165,133 +174,115 @@ export function StripeIntegrationForm({
   }
 
   return (
-    <div className="grid gap-6 border-t border-border pt-8">
-      <div className="flex items-center gap-2">
-        <CreditCardIcon className="size-5 text-muted-foreground" />
-        <h2 className="text-xl font-semibold text-foreground">Stripe payments</h2>
-      </div>
-      <EffectiveStatus snapshot={snapshot} />
-      {!enabled ? (
-        <div className="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-amber-900">
-          <p className="text-sm font-semibold">Stripe payments are not included</p>
-          <p className="mt-1 text-sm">
-            Enable the Stripe payments feature before connecting or inheriting an account.
-          </p>
-        </div>
-      ) : null}
-
-      <fieldset className="grid gap-3">
-        <legend className="text-sm font-semibold text-foreground">Payment mode</legend>
-        <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Payment mode">
-          {modeOptions.map((option) => {
-            const Icon = option.icon;
-            const isSelected = mode === option.value;
-
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="radio"
-                aria-checked={isSelected}
-                disabled={!enabled && option.value !== "DISABLED"}
-                onClick={() => {
-                  setMode(option.value);
-                  setIsDirty(true);
-                }}
-                className={cn(
-                  "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
-                  isSelected
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground hover:bg-muted",
-                  !enabled && option.value !== "DISABLED"
-                    ? "cursor-not-allowed opacity-50"
-                    : undefined,
-                )}
-              >
-                <Icon className="size-4" />
-                {option.value === "INHERIT" ? inheritLabel : option.label}
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
-
-      {mode === "CUSTOM" ? (
-        <div className="grid gap-3 border-l-2 border-border pl-4 text-sm text-muted-foreground">
-          <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
-            <span>Connected account</span>
-            <span className="font-mono text-xs text-foreground">
-              {snapshot.settings.stripeAccountId ?? "Not connected"}
-            </span>
+    <IntegrationPanel
+      icon={CreditCardIcon}
+      title="Stripe payments"
+      description="Accept and settle online payments through Stripe."
+      status={<EffectiveStatus snapshot={snapshot} />}
+    >
+      <div className="grid gap-6">
+        {!enabled ? (
+          <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-amber-900 dark:text-amber-300">
+            <p className="text-sm font-semibold">Stripe payments are not included</p>
+            <p className="mt-1 text-sm">
+              Enable the Stripe payments feature before connecting or inheriting an account.
+            </p>
           </div>
-          <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
-            <span>Onboarding</span>
-            <span className="font-semibold text-foreground">
-              {snapshot.settings.onboardingStatus.replaceAll("_", " ")}
-            </span>
-          </div>
-          <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
-            <span>Charges</span>
-            <span className="font-semibold text-foreground">
-              {snapshot.settings.chargesEnabled ? "Enabled" : "Not enabled"}
-            </span>
-          </div>
-          <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
-            <span>Payouts</span>
-            <span className="font-semibold text-foreground">
-              {snapshot.settings.payoutsEnabled ? "Enabled" : "Not enabled"}
-            </span>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-        <Button
-          type="button"
-          onClick={() => void save()}
-          disabled={
-            isSaving ||
-            isConnecting ||
-            isSyncing ||
-            (!enabled && mode !== "DISABLED")
-          }
-        >
-          <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : "Save payment mode"}</ButtonLabel>
-        </Button>
+        <IntegrationModeSelector
+          ariaLabel="Payment mode"
+          label="Payment mode"
+          value={mode}
+          options={resolvedModeOptions}
+          isOptionDisabled={(option) => !enabled && option.value !== "DISABLED"}
+          onChange={(value) => {
+            setMode(value);
+            setIsDirty(true);
+          }}
+        />
+
         {mode === "CUSTOM" ? (
+          <div className="grid gap-3 border-l-2 border-border pl-4 text-sm text-muted-foreground">
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
+              <span>Connected account</span>
+              <span className="font-mono text-xs text-foreground">
+                {snapshot.settings.stripeAccountId ?? "Not connected"}
+              </span>
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
+              <span>Onboarding</span>
+              <span className="font-semibold text-foreground">
+                {snapshot.settings.onboardingStatus.replaceAll("_", " ")}
+              </span>
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
+              <span>Charges</span>
+              <span className="font-semibold text-foreground">
+                {snapshot.settings.chargesEnabled ? "Enabled" : "Not enabled"}
+              </span>
+            </div>
+            <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
+              <span>Payouts</span>
+              <span className="font-semibold text-foreground">
+                {snapshot.settings.payoutsEnabled ? "Enabled" : "Not enabled"}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-wrap gap-3 border-t border-border pt-5">
           <Button
             type="button"
-            variant="outline"
-            onClick={() => void connectStripe()}
-            disabled={!enabled || isDirty || isSaving || isConnecting || isSyncing}
+            onClick={() => void save()}
+            disabled={
+              isSaving ||
+              isConnecting ||
+              isSyncing ||
+              (!enabled && mode !== "DISABLED")
+            }
           >
-            <ButtonLabel icon={ExternalLinkIcon}>
-              {isConnecting
-                ? "Opening Stripe..."
-                : snapshot.settings.stripeAccountId
-                  ? snapshot.settings.onboardingStatus === "COMPLETE"
-                    ? "Manage Stripe details"
-                    : "Continue Stripe onboarding"
-                  : "Connect Stripe"}
+            <ButtonLabel icon={SaveIcon}>
+              {isSaving ? "Saving..." : "Save payment mode"}
             </ButtonLabel>
           </Button>
-        ) : null}
-        {mode === "CUSTOM" && snapshot.settings.stripeAccountId ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void syncStripe()}
-            disabled={isDirty || isSaving || isConnecting || isSyncing}
-          >
-            <ButtonLabel icon={RefreshCwIcon}>{isSyncing ? "Refreshing..." : "Refresh status"}</ButtonLabel>
+          {mode === "CUSTOM" ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void connectStripe()}
+              disabled={!enabled || isDirty || isSaving || isConnecting || isSyncing}
+            >
+              <ButtonLabel icon={ExternalLinkIcon}>
+                {isConnecting
+                  ? "Opening Stripe..."
+                  : snapshot.settings.stripeAccountId
+                    ? snapshot.settings.onboardingStatus === "COMPLETE"
+                      ? "Manage Stripe details"
+                      : "Continue Stripe onboarding"
+                    : "Connect Stripe"}
+              </ButtonLabel>
+            </Button>
+          ) : null}
+          {mode === "CUSTOM" && snapshot.settings.stripeAccountId ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void syncStripe()}
+              disabled={isDirty || isSaving || isConnecting || isSyncing}
+            >
+              <ButtonLabel icon={RefreshCwIcon}>
+                {isSyncing ? "Refreshing..." : "Refresh status"}
+              </ButtonLabel>
+            </Button>
+          ) : null}
+          <Button asChild type="button" variant="ghost">
+            <Link href={backHref}>
+              <ButtonLabel icon={XIcon}>Back</ButtonLabel>
+            </Link>
           </Button>
-        ) : null}
-        <Button asChild type="button" variant="ghost">
-          <Link href={backHref}>
-            <ButtonLabel icon={XIcon}>Back</ButtonLabel>
-          </Link>
-        </Button>
+        </div>
       </div>
-    </div>
+    </IntegrationPanel>
   );
 }

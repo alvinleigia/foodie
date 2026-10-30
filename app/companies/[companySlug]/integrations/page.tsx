@@ -1,4 +1,5 @@
 import { EmailIntegrationForm } from "@/components/admin/EmailIntegrationForm";
+import { IntegrationPageLayout } from "@/components/admin/IntegrationPageLayout";
 import { OAuthIntegrationForm } from "@/components/admin/OAuthIntegrationForm";
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { StripeIntegrationForm } from "@/components/admin/StripeIntegrationForm";
@@ -33,6 +34,7 @@ export default async function CompanyWorkspaceIntegrationsPage({
   return (
     <SaasAdminShell
       activePath={getCompanyWorkspaceHref(company.slug, "integrations")}
+      contentMode="plain"
       eyebrow="Company"
       title="Integrations"
       description="Manage the company email delivery default inherited by restaurants."
@@ -42,21 +44,27 @@ export default async function CompanyWorkspaceIntegrationsPage({
         role: session.user.role,
       }}
     >
-      <EmailIntegrationForm
-        apiPath="/api/company/integrations/email"
-        initialSnapshot={emailSnapshot}
-      />
-      <OAuthIntegrationForm
-        apiPath="/api/company/integrations/oauth"
-        callbackOrigin={callbackOrigin}
-        initialSnapshots={oauthSnapshots}
-      />
-      <StripeIntegrationForm
-        apiPath="/api/company/integrations/stripe"
-        backHref={getCompanyWorkspaceHref(company.slug, "dashboard")}
-        enabled={stripePayments.enabled}
-        initialSnapshot={paymentSnapshot}
-      />
+      <IntegrationPageLayout
+        eyebrow="Company"
+        title="Integrations"
+        description="Manage the company email delivery default inherited by restaurants."
+      >
+        <EmailIntegrationForm
+          apiPath="/api/company/integrations/email"
+          initialSnapshot={emailSnapshot}
+        />
+        <OAuthIntegrationForm
+          apiPath="/api/company/integrations/oauth"
+          callbackOrigin={callbackOrigin}
+          initialSnapshots={oauthSnapshots}
+        />
+        <StripeIntegrationForm
+          apiPath="/api/company/integrations/stripe"
+          backHref={getCompanyWorkspaceHref(company.slug, "dashboard")}
+          enabled={stripePayments.enabled}
+          initialSnapshot={paymentSnapshot}
+        />
+      </IntegrationPageLayout>
     </SaasAdminShell>
   );
 }
