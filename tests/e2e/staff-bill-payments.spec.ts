@@ -76,7 +76,7 @@ test.describe("staff bill payment policy", () => {
     const source = readSource("app", "api", "orders", "route.ts");
 
     expect(source).toContain(
-      'session.user.kind === "customer" ? "PENDING" : "UNPAID"',
+      'paymentStatus: paymentTiming === "ONLINE" ? "PENDING" : "UNPAID"',
     );
     expect(source).toContain(".insert(orderPayments)");
     expect(source).toContain('method: "STRIPE_CHECKOUT"');

@@ -189,21 +189,35 @@ export async function startOrganizationStripeOnboarding(input: {
     .where(eq(organizationPaymentAccounts.organizationId, organization.id))
     .limit(1);
   const stripe = getStripe();
-  const account = existing?.stripeAccountId
-    ? await stripe.accounts.retrieve(existing.stripeAccountId)
-    : await stripe.accounts.create(
-        {
-          type: "express",
-          email: input.contactEmail,
-          capabilities: {
-            card_payments: { requested: true },
-            transfers: { requested: true },
+  let stripeAccountId = existing?.stripeAccountId;
+
+  if (!stripeAccountId) {
+    const createdAccount = await stripe.v2.core.accounts.create(
+      {
+        configuration: {
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+            },
           },
-          business_profile: { name: organization.name },
-          metadata: { organizationId: organization.id },
         },
-        { idempotencyKey: `organization-connect-account-${organization.id}` },
-      );
+        contact_email: input.contactEmail,
+        dashboard: "full",
+        defaults: {
+          responsibilities: {
+            fees_collector: "stripe",
+            losses_collector: "stripe",
+          },
+        },
+        display_name: organization.name,
+        metadata: { organizationId: organization.id },
+      },
+      { idempotencyKey: `organization-connect-account-v2-${organization.id}` },
+    );
+    stripeAccountId = createdAccount.id;
+  }
+
+  const account = await stripe.accounts.retrieve(stripeAccountId);
 
   if (account.deleted) {
     throw new PaymentIntegrationConfigurationError(
@@ -240,11 +254,16 @@ export async function startOrganizationStripeOnboarding(input: {
         updatedAt: now,
       },
     });
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await stripe.v2.core.accountLinks.create({
     account: account.id,
-    type: "account_onboarding",
-    return_url: new URL(input.returnPath, input.origin).toString(),
-    refresh_url: new URL(input.refreshPath, input.origin).toString(),
+    use_case: {
+      type: "account_onboarding",
+      account_onboarding: {
+        configurations: ["merchant"],
+        return_url: new URL(input.returnPath, input.origin).toString(),
+        refresh_url: new URL(input.refreshPath, input.origin).toString(),
+      },
+    },
   });
 
   return { onboardingUrl: accountLink.url };
