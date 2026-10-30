@@ -12,6 +12,7 @@ import {
 
 import { getDb } from "@/db";
 import {
+  cashDrawerSessions,
   inventoryItems,
   memberships,
   menuCategories,
@@ -89,6 +90,18 @@ export type TimingReport = {
   averageHandoffMinutes: number | null;
 };
 
+export type FulfilmentReportRow = {
+  fulfilmentType: "DINE_IN" | "PICKUP" | "DELIVERY";
+  count: number;
+};
+
+export type PaymentMethodReportRow = {
+  method: "CASH" | "STRIPE_CHECKOUT";
+  count: number;
+  amount: string;
+  currency: string;
+};
+
 export type CancelledItemReportRow = {
   drinkName: string;
   categoryName: string;
@@ -130,12 +143,20 @@ export type OperationalReport = {
   topProducts: TopProductReportRow[];
   categoryBreakdown: CategoryReportRow[];
   staffBreakdown: StaffReportRow[];
+  fulfilmentBreakdown: FulfilmentReportRow[];
+  paymentMethodBreakdown: PaymentMethodReportRow[];
   timing: TimingReport;
   cancelledItems: CancelledItemReportRow[];
   revenue: RevenueReport;
   lowStock: LowStockReportRow[];
   restaurantBreakdown: RestaurantOrderReportRow[];
 };
+
+const fulfilmentTypes: FulfilmentReportRow["fulfilmentType"][] = [
+  "DINE_IN",
+  "PICKUP",
+  "DELIVERY",
+];
 
 export type ReportRange = "today" | "7d" | "30d" | "all";
 
@@ -330,6 +351,87 @@ async function getStaffBreakdown(
     deliveredOrders: Number(row.deliveredOrders ?? 0),
     activeOrders: Number(row.activeOrders ?? 0),
     totalOrders: Number(row.totalOrders ?? 0),
+  }));
+}
+
+async function getFulfilmentBreakdown(
+  organizationIds: string[],
+  since?: Date,
+): Promise<FulfilmentReportRow[]> {
+  if (organizationIds.length === 0) {
+    return fulfilmentTypes.map((fulfilmentType) => ({
+      fulfilmentType,
+      count: 0,
+    }));
+  }
+
+  const conditions = [
+    orderOrganizationCondition(organizationIds),
+    ne(orders.status, "CANCELLED"),
+  ];
+
+  if (since) {
+    conditions.push(gte(orders.createdAt, since));
+  }
+
+  const rows = await getDb()
+    .select({
+      fulfilmentType: orders.fulfilmentType,
+      value: count(),
+    })
+    .from(orders)
+    .where(and(...conditions))
+    .groupBy(orders.fulfilmentType);
+
+  return fulfilmentTypes.map((fulfilmentType) => ({
+    fulfilmentType,
+    count: Number(
+      rows.find((row) => row.fulfilmentType === fulfilmentType)?.value ?? 0,
+    ),
+  }));
+}
+
+async function getPaymentMethodBreakdown(
+  organizationIds: string[],
+  since?: Date,
+): Promise<PaymentMethodReportRow[]> {
+  if (organizationIds.length === 0) {
+    return [];
+  }
+
+  const conditions = [
+    orderOrganizationCondition(organizationIds),
+    eq(orderPayments.status, "SUCCEEDED"),
+  ];
+
+  if (since) {
+    conditions.push(gte(orders.createdAt, since));
+  }
+
+  const rows = await getDb()
+    .select({
+      method: orderPayments.method,
+      count: count(),
+      amount: sql<string>`coalesce(sum(${orderPayments.amount}), 0)`,
+      currency: orderPayments.currency,
+    })
+    .from(orderPayments)
+    .innerJoin(
+      orders,
+      and(
+        eq(orders.id, orderPayments.orderId),
+        eq(orders.organizationId, orderPayments.organizationId),
+      ),
+    )
+    .where(and(...conditions))
+    .groupBy(orderPayments.method, orderPayments.currency)
+    .orderBy(orderPayments.currency, orderPayments.method);
+
+  return rows.map((row) => ({
+    method: row.method,
+    count: Number(row.count ?? 0),
+    amount: row.amount,
+    currency: row.currency,
   }));
 }
 
@@ -714,6 +816,8 @@ async function getOperationalReportForOrganizations(
     topProducts,
     categoryBreakdown,
     staffBreakdown,
+    fulfilmentBreakdown,
+    paymentMethodBreakdown,
     timing,
     cancelledItems,
     revenue,
@@ -725,6 +829,8 @@ async function getOperationalReportForOrganizations(
     getTopProducts(organizationIds, since),
     getCategoryBreakdown(organizationIds, since),
     getStaffBreakdown(organizationIds, since),
+    getFulfilmentBreakdown(organizationIds, since),
+    getPaymentMethodBreakdown(organizationIds, since),
     getTimingReport(organizationIds, since),
     getCancelledItemBreakdown(organizationIds, since),
     getRevenueReport(organizationIds, since),
@@ -739,6 +845,8 @@ async function getOperationalReportForOrganizations(
     topProducts,
     categoryBreakdown,
     staffBreakdown,
+    fulfilmentBreakdown,
+    paymentMethodBreakdown,
     timing,
     cancelledItems,
     revenue,
@@ -1094,12 +1202,22 @@ export async function getCompanyRestaurantBreakdown(companyOrganizationId: strin
 export async function getRestaurantSummary(restaurantOrganizationId: string) {
   const db = getDb();
   const [
+    organization,
     staff,
     activeCategories,
     activeItems,
-    activeOrders,
+    liveStatusBreakdown,
     completedOrders,
+    openCashDrawers,
   ] = await Promise.all([
+    db
+      .select({
+        currency: organizations.currency,
+        timezone: organizations.timezone,
+      })
+      .from(organizations)
+      .where(eq(organizations.id, restaurantOrganizationId))
+      .limit(1),
     db
       .select({ value: count() })
       .from(memberships)
@@ -1127,15 +1245,7 @@ export async function getRestaurantSummary(restaurantOrganizationId: string) {
           eq(menuItems.isActive, true),
         ),
       ),
-    db
-      .select({ value: count() })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.organizationId, restaurantOrganizationId),
-          inArray(orders.status, activeOrderStatuses),
-        ),
-      ),
+    getOrderStatusBreakdown([restaurantOrganizationId]),
     db
       .select({ value: count() })
       .from(orders)
@@ -1145,14 +1255,29 @@ export async function getRestaurantSummary(restaurantOrganizationId: string) {
           ne(orders.status, "CANCELLED"),
         ),
       ),
+    db
+      .select({ value: count() })
+      .from(cashDrawerSessions)
+      .where(
+        and(
+          eq(cashDrawerSessions.organizationId, restaurantOrganizationId),
+          eq(cashDrawerSessions.status, "OPEN"),
+        ),
+      ),
   ]);
 
   return {
+    currency: organization[0]?.currency ?? "GBP",
+    timezone: organization[0]?.timezone ?? "UTC",
     activeStaffMemberships: firstCount(staff),
     activeMenuCategories: firstCount(activeCategories),
     activeMenuItems: firstCount(activeItems),
-    activeOrders: firstCount(activeOrders),
+    activeOrders: liveStatusBreakdown
+      .filter((row) => activeOrderStatuses.some((status) => status === row.status))
+      .reduce((total, row) => total + row.count, 0),
+    liveStatusBreakdown,
     completedOrders: firstCount(completedOrders),
+    openCashDrawers: firstCount(openCashDrawers),
   };
 }
 
