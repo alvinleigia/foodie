@@ -383,7 +383,7 @@ export function isTenantAdminValidationError(error: unknown) {
 export async function createCompanyOrganization(input: unknown) {
   const parsed = createCompanyOrganizationSchema.parse(input);
   const db = getDb();
-  const slug = await ensureUniqueOrganizationSlug(parsed.name);
+  const slug = await ensureUniqueOrganizationSlug(parsed.name, "COMPANY");
   const starterPlanId = await getStarterPlanId();
   const trialEndsAt = getTrialEndDate();
 
@@ -464,7 +464,11 @@ export async function updateChildRestaurantAdmin(
 ) {
   const parsed = updateChildRestaurantAdminSchema.parse(input);
   const db = getDb();
-  const slug = await ensureUniqueOrganizationSlug(parsed.name, restaurantOrganizationId);
+  const slug = await ensureUniqueOrganizationSlug(
+    parsed.name,
+    "RESTAURANT",
+    restaurantOrganizationId,
+  );
 
   return db.transaction(async (tx) => {
     const [organization] = await tx
@@ -568,7 +572,10 @@ export async function createChildRestaurant(
   const parsed = createChildRestaurantSchema.parse(input);
   const db = getDb();
   await assertCompanyRestaurantCapacity(companyOrganizationId);
-  const organizationSlug = await ensureUniqueOrganizationSlug(parsed.name);
+  const organizationSlug = await ensureUniqueOrganizationSlug(
+    parsed.name,
+    "RESTAURANT",
+  );
 
   return db.transaction(async (tx) => {
     const [restaurant] = await tx

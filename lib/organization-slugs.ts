@@ -6,6 +6,7 @@ import { slugify } from "@/lib/slugs";
 
 export async function ensureUniqueOrganizationSlug(
   baseName: string,
+  organizationType: typeof organizations.$inferSelect.type,
   currentOrganizationId?: string,
 ) {
   const db = getDb();
@@ -20,6 +21,7 @@ export async function ensureUniqueOrganizationSlug(
       .where(
         and(
           eq(organizations.slug, candidate),
+          eq(organizations.type, organizationType),
           currentOrganizationId ? ne(organizations.id, currentOrganizationId) : undefined,
         ),
       )
