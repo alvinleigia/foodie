@@ -18,6 +18,10 @@ import {
   DashboardSectionSkeleton,
   ListSectionSkeleton,
 } from "@/components/shared/SectionSkeletons";
+import {
+  RestaurantDashboardOverview,
+  type RestaurantDashboardSummary,
+} from "@/components/admin/RestaurantDashboardOverview";
 import { SummaryCards } from "@/components/admin/SummaryCards";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -35,6 +39,7 @@ import {
 } from "@/lib/restaurant-workspace";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { StaffPermission } from "@/lib/staff-permissions";
+import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
 
 type StaffRole = Exclude<MembershipRole, "PLATFORM_ADMIN">;
 
@@ -73,16 +78,9 @@ type TenantAdminSnapshot = {
   }>;
 };
 
-type RestaurantSummary = {
-  activeStaffMemberships: number;
-  activeMenuCategories: number;
-  activeMenuItems: number;
-  activeOrders: number;
-  completedOrders: number;
-};
-
 type RestaurantSummaryResponse = {
-  summary?: RestaurantSummary;
+  report?: OperationalReport;
+  summary?: RestaurantDashboardSummary;
 };
 
 function isMissingTenantAccess(error: string | null) {
@@ -127,7 +125,9 @@ export function RestaurantAdminPanel({
     "staffReassign",
   );
   const [snapshot, setSnapshot] = useState<TenantAdminSnapshot | null>(null);
-  const [summary, setSummary] = useState<RestaurantSummary | null>(null);
+  const [summary, setSummary] = useState<RestaurantDashboardSummary | null>(null);
+  const [report, setReport] = useState<OperationalReport | null>(null);
+  const [range, setRange] = useState<ReportRange>("today");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,9 +138,10 @@ export function RestaurantAdminPanel({
       try {
         if (view === "dashboard") {
           const payload = await fetchJson<RestaurantSummaryResponse>(
-            "/api/tenant/summary",
+            `/api/tenant/summary?range=${range}`,
           );
           setSummary(payload.summary ?? null);
+          setReport(payload.report ?? null);
           setSnapshot(null);
         } else {
           const payload = await fetchJson<TenantAdminSnapshot>(
@@ -148,6 +149,7 @@ export function RestaurantAdminPanel({
           );
           setSnapshot(payload);
           setSummary(null);
+          setReport(null);
         }
 
         setError(null);
@@ -159,9 +161,9 @@ export function RestaurantAdminPanel({
     }
 
     void loadTenantAdmin();
-  }, [view]);
+  }, [range, view]);
 
-  if (isLoading) {
+  if (isLoading && !summary && !snapshot) {
     return view === "dashboard" ? (
       <DashboardSectionSkeleton
         label="Loading restaurant dashboard"
@@ -182,7 +184,18 @@ export function RestaurantAdminPanel({
         <p className="text-sm text-rose-600">{error}</p>
       ) : null}
 
-      {view === "dashboard" && summary ? (
+      {view === "dashboard" && summary && report ? (
+        <RestaurantDashboardOverview
+          isLoading={isLoading}
+          onRangeChange={setRange}
+          range={range}
+          report={report}
+          restaurantSlug={restaurantSlug}
+          summary={summary}
+        />
+      ) : null}
+
+      {view === "dashboard" && summary && !report ? (
         <SummaryCards
           cards={[
             {
