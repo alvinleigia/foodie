@@ -80,6 +80,16 @@ test.describe("restaurant kitchen display", () => {
     );
   });
 
+  test("presents station filters as icon and label controls", () => {
+    const boardSource = readFileSync("components/staff/KdsBoard.tsx", "utf8");
+
+    expect(boardSource).toContain("stationTypeIcons");
+    expect(boardSource).toContain("LayoutGridIcon");
+    expect(boardSource).toContain("CupSodaIcon");
+    expect(boardSource).toContain('aria-pressed={selectedStation === "all"}');
+    expect(boardSource).toContain('data-slot="station-filter-indicator"');
+  });
+
   test("adds the display to restaurant navigation", () => {
     const navigationSource = readFileSync("lib/staff-navigation.ts", "utf8");
 

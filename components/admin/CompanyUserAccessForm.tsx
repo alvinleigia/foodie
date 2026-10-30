@@ -168,7 +168,7 @@ export function CompanyUserAccessForm({
             ) : null}
           </div>
 
-          <p className="text-xs uppercase tracking-[0.16em] text-stone-400">
+          <p className="text-xs uppercase tracking-[0.16em] text-stone-500">
             Current account status: {user.userStatus}
           </p>
 

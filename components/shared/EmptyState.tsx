@@ -10,12 +10,12 @@ export function EmptyState({ title, description, className }: EmptyStateProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-dashed border-stone-200 bg-stone-50 px-5 py-6 text-center",
+        "rounded-xl border border-dashed border-border bg-muted/40 px-5 py-6 text-center",
         className,
       )}
     >
-      <p className="text-sm font-semibold text-stone-800">{title}</p>
-      {description ? <p className="mt-2 text-sm text-stone-500">{description}</p> : null}
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      {description ? <p className="mt-2 text-sm text-muted-foreground">{description}</p> : null}
     </div>
   );
 }

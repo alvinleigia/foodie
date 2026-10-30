@@ -87,7 +87,12 @@ test.describe("staff navigation URL policy", () => {
     expect(groupFor("Orders")).toBe("operations");
     expect(groupFor("Kitchen display")).toBe("operations");
     expect(groupFor("Cash drawer")).toBe("operations");
+    expect(groupFor("Time clock")).toBe("operations");
+    expect(groupFor("My schedule")).toBe("operations");
     expect(groupFor("Restaurant Staff")).toBe("management");
+    expect(groupFor("Staff jobs")).toBe("management");
+    expect(groupFor("Staff schedule")).toBe("management");
+    expect(groupFor("Staff shifts")).toBe("management");
     expect(groupFor("Reports")).toBe("management");
     expect(groupFor("Menu Manager")).toBe("management");
     expect(groupFor("Preparation stations")).toBe("management");
@@ -143,12 +148,17 @@ test.describe("staff navigation URL policy", () => {
     const pagePolicies = new Map<string, [string, StaffPermission]>([
       ["Restaurant", ["app/restaurants/[restaurantSlug]/page.tsx", "restaurant.dashboard"]],
       ["Restaurant Staff", ["app/restaurants/[restaurantSlug]/staff/page.tsx", "staff.manage"]],
+      ["Staff jobs", ["app/restaurants/[restaurantSlug]/staff/jobs/page.tsx", "staff.manage"]],
+      ["Staff schedule", ["app/restaurants/[restaurantSlug]/staff/schedule/page.tsx", "staff_schedule.manage"]],
+      ["Staff shifts", ["app/restaurants/[restaurantSlug]/staff/shifts/page.tsx", "time_clock.manage"]],
       ["Restaurant settings", ["app/restaurants/[restaurantSlug]/settings/page.tsx", "restaurant.settings"]],
       ["Restaurant Integrations", ["app/restaurants/[restaurantSlug]/integrations/page.tsx", "integrations.manage"]],
       ["Take order", ["app/restaurants/[restaurantSlug]/order/page.tsx", "orders.create"]],
       ["Orders", ["app/restaurants/[restaurantSlug]/orders/page.tsx", "orders.view"]],
       ["Kitchen display", ["app/restaurants/[restaurantSlug]/kds/page.tsx", "orders.view"]],
       ["Cash drawer", ["app/restaurants/[restaurantSlug]/cash-drawer/page.tsx", "cash_drawer.open"]],
+      ["Time clock", ["app/restaurants/[restaurantSlug]/time-clock/page.tsx", "time_clock.use"]],
+      ["My schedule", ["app/restaurants/[restaurantSlug]/schedule/page.tsx", "staff_schedule.view"]],
       ["Reports", ["app/restaurants/[restaurantSlug]/reports/page.tsx", "reports.view"]],
       ["Menu Manager", ["app/restaurants/[restaurantSlug]/menu/page.tsx", "menu.manage"]],
       ["Preparation stations", ["app/restaurants/[restaurantSlug]/preparation-stations/page.tsx", "menu.manage"]],

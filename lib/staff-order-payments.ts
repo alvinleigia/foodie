@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import type Stripe from "stripe";
 
@@ -8,6 +9,7 @@ import {
   cashDrawerSessions,
   orderItemModifiers,
   orderItemTaxComponents,
+  orderAdjustments,
   orderItems,
   orderPayments,
   orders,
@@ -18,6 +20,7 @@ import {
   calculatePaymentBalance,
 } from "@/lib/order-payment-financials";
 import {
+  calculateBasisPointsAmount,
   decimalToMinorUnits,
   minorUnitsToDecimal,
 } from "@/lib/currency-money";
@@ -234,7 +237,16 @@ async function resolveStaffOrderFinancialSnapshot(
     subtotalAmountMinor: pricing.taxableAmountMinor,
     taxAmountMinor: pricing.taxAmountMinor,
   });
+  const chargeBasisAmountMinor =
+    pricing.taxableAmountMinor -
+    adjusted.discountAmountMinor +
+    adjusted.taxAmountMinor;
+  const chargeAmountMinor = calculateBasisPointsAmount(
+    chargeBasisAmountMinor,
+    order.serviceChargeRateBpsSnapshot,
+  );
   const expected = buildOrderFinancialSnapshot({
+    chargeAmountMinor,
     currency: pricing.currency,
     discountAmountMinor: adjusted.discountAmountMinor,
     subtotalAmountMinor: pricing.taxableAmountMinor,
@@ -244,6 +256,49 @@ async function resolveStaffOrderFinancialSnapshot(
 
   if (finalized) {
     assertOrderFinancialSnapshotMatches({ current: finalized, expected });
+  } else if (chargeAmountMinor > 0) {
+    const [existingCharge] = await tx
+      .select()
+      .from(orderAdjustments)
+      .where(
+        and(
+          eq(orderAdjustments.orderId, order.id),
+          eq(orderAdjustments.organizationId, order.organizationId),
+          eq(orderAdjustments.scope, "ORDER"),
+          eq(orderAdjustments.type, "SERVICE_CHARGE"),
+          eq(orderAdjustments.entryKind, "APPLY"),
+        ),
+      )
+      .limit(1);
+    const chargeAmount = minorUnitsToDecimal(
+      chargeAmountMinor,
+      pricing.currency,
+    );
+
+    if (existingCharge && existingCharge.amount !== chargeAmount) {
+      throw new StaffOrderPaymentError(
+        "The service charge changed while the bill was being prepared. Refresh and try again.",
+      );
+    }
+
+    if (!existingCharge) {
+      await tx.insert(orderAdjustments).values({
+        actorType: "SYSTEM",
+        amount: chargeAmount,
+        basisAmount: minorUnitsToDecimal(
+          chargeBasisAmountMinor,
+          pricing.currency,
+        ),
+        calculation: "PERCENTAGE",
+        currency: pricing.currency,
+        idempotencyKey: randomUUID(),
+        orderId: order.id,
+        organizationId: order.organizationId,
+        rateBps: order.serviceChargeRateBpsSnapshot,
+        scope: "ORDER",
+        type: "SERVICE_CHARGE",
+      });
+    }
   }
 
   return {

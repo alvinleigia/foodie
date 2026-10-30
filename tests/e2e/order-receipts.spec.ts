@@ -29,6 +29,7 @@ function receiptFixture(): OrderReceipt {
     customerName: "A & B",
     discountAmount: "0.00",
     finalTotalAmount: "7.50",
+    footerMessage: null,
     fulfilmentType: "PICKUP",
     requestedFulfilmentAt: null,
     promisedFulfilmentAt: null,
@@ -78,6 +79,7 @@ function receiptFixture(): OrderReceipt {
     paymentStatus: "PAID",
     receiptIssuedAt: new Date("2026-07-21T10:01:00.000Z"),
     receiptNumber: 7,
+    receiptPrintFormat: "THERMAL_80MM",
     refundAmount: null,
     restaurantName: "Cafe & Co",
     restaurantSlug: "cafe-co",
@@ -106,6 +108,16 @@ test.describe("order receipts", () => {
     expect(email.textBody).toContain("Fulfilment: Takeaway");
     expect(email.htmlBody).toContain("Lunch &lt;special&gt;");
     expect(email.htmlBody).not.toContain("Lunch <special>");
+  });
+
+  test("uses and escapes the configured receipt footer", () => {
+    const receipt = receiptFixture();
+    receipt.footerMessage = "Thanks <again> & see you soon";
+
+    const email = buildOrderReceiptEmail(receipt);
+
+    expect(email.textBody).toContain("Thanks <again> & see you soon");
+    expect(email.htmlBody).toContain("Thanks &lt;again&gt; &amp; see you soon");
   });
 
   test("builds a simplified VAT invoice from immutable snapshots", () => {

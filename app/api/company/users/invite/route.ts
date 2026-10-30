@@ -39,7 +39,10 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ inviteUrl: invitation.inviteUrl });
+    return NextResponse.json({
+      emailDelivery: invitation.emailDelivery,
+      inviteUrl: invitation.inviteUrl,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });

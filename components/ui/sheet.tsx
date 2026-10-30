@@ -62,7 +62,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed top-0 z-50 flex h-full w-full max-w-[min(100vw,30rem)] flex-col gap-0 overflow-hidden bg-white shadow-2xl outline-none data-open:animate-in data-closed:animate-out data-open:duration-300 data-closed:duration-200 data-[side=right]:right-0 data-[side=right]:border-l data-[side=right]:border-stone-200 data-[side=right]:slide-in-from-right data-[side=right]:slide-out-to-right data-[side=left]:left-0 data-[side=left]:border-r data-[side=left]:border-stone-200 data-[side=left]:slide-in-from-left data-[side=left]:slide-out-to-left",
+          "fixed top-0 z-50 flex h-full w-full max-w-[min(100vw,30rem)] flex-col gap-0 overflow-hidden border-border bg-popover text-popover-foreground shadow-2xl outline-none data-open:animate-in data-closed:animate-out data-open:duration-300 data-closed:duration-200 data-[side=right]:right-0 data-[side=right]:border-l data-[side=right]:slide-in-from-right data-[side=right]:slide-out-to-right data-[side=left]:left-0 data-[side=left]:border-r data-[side=left]:slide-in-from-left data-[side=left]:slide-out-to-left",
           className,
         )}
         {...props}
@@ -86,7 +86,7 @@ function SheetHeader({
   return (
     <div
       data-slot="sheet-header"
-      className={cn("border-b border-stone-200 px-6 py-5", className)}
+      className={cn("border-b border-border px-6 py-5", className)}
       {...props}
     />
   )
@@ -99,7 +99,7 @@ function SheetFooter({
   return (
     <div
       data-slot="sheet-footer"
-      className={cn("border-t border-stone-200 bg-stone-50/80 px-6 py-4", className)}
+      className={cn("border-t border-border bg-muted/50 px-6 py-4", className)}
       {...props}
     />
   )
@@ -112,7 +112,7 @@ function SheetTitle({
   return (
     <DialogPrimitive.Title
       data-slot="sheet-title"
-      className={cn("font-heading text-2xl font-semibold text-stone-950", className)}
+      className={cn("font-heading text-2xl font-semibold text-foreground", className)}
       {...props}
     />
   )
@@ -125,7 +125,7 @@ function SheetDescription({
   return (
     <DialogPrimitive.Description
       data-slot="sheet-description"
-      className={cn("mt-2 text-sm text-stone-600", className)}
+      className={cn("mt-2 text-sm text-muted-foreground", className)}
       {...props}
     />
   )

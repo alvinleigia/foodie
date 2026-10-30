@@ -108,8 +108,9 @@ test.describe("order fulfilment", () => {
     expect(form).toContain('draft.fulfilmentType === "DELIVERY"');
     expect(form).toContain("deliveryAddress:");
     expect(selector).toContain("Order type");
-    expect(selector).toContain("flex min-h-20 flex-col items-center");
-    expect(selector).toContain("border-stone-700 bg-stone-700");
+    expect(selector).toContain("flex min-h-14 flex-col items-center");
+    expect(selector).toContain("bg-stone-200 text-stone-950");
+    expect(selector).toContain("dark:bg-stone-700 dark:text-white");
     expect(selector).not.toContain("orderFulfilmentDescriptions");
   });
 });

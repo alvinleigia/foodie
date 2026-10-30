@@ -55,7 +55,7 @@ export function OrderLineItemRow({
   return (
     <div
       className={cn(
-        "rounded-lg border border-stone-200 bg-white px-3 py-3",
+        "rounded-lg border border-border bg-card px-3 py-3",
         className,
       )}
     >
@@ -66,25 +66,25 @@ export function OrderLineItemRow({
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-stone-900">
+              <p className="text-sm font-semibold text-foreground">
                 {drinkName}
               </p>
-              <span className="rounded-md bg-stone-100 px-2 py-0.5 text-xs font-semibold text-stone-600">
+              <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
                 x{quantity}
               </span>
             </div>
             {categoryName ? (
-              <p className="mt-1 text-xs text-stone-500">{categoryName}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{categoryName}</p>
             ) : null}
             {notes ? (
-              <p className="mt-1 text-xs text-stone-500">Note: {notes}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Note: {notes}</p>
             ) : null}
             {modifiers.length > 0 ? (
               <div className="mt-2 grid gap-1">
                 {modifiers.map((modifier) => (
                   <p
                     key={modifier.id ?? `${modifier.modifierGroupId}-${modifier.modifierId}`}
-                    className="text-xs text-stone-500"
+                    className="text-xs text-muted-foreground"
                   >
                     {modifier.modifierGroupName}: {modifier.modifierName}
                     {modifier.quantity > 1 ? ` x${modifier.quantity}` : ""}
@@ -102,14 +102,14 @@ export function OrderLineItemRow({
           <div className="flex flex-col items-end gap-2">
             {status ? <OrderStatusBadge status={status} /> : null}
             {linePrice ? (
-              <p className="text-xs font-semibold text-stone-700">{linePrice}</p>
+              <p className="text-xs font-semibold text-foreground">{linePrice}</p>
             ) : null}
           </div>
         ) : null}
       </div>
 
       {actions ? (
-        <div className="mt-3 border-t border-dashed border-stone-200 pt-3">
+        <div className="mt-3 border-t border-dashed border-border pt-3">
           <div className="flex flex-wrap gap-2">{actions}</div>
         </div>
       ) : null}

@@ -146,24 +146,25 @@ export function CustomerProfileForm({
           label="Name"
           error={getFieldError(fieldErrors, "name")}
           htmlFor="customer-name"
+          tone="themed"
         >
           <Input
             id="customer-name"
             value={profile.name}
             onChange={(event) => updateField("name", event.target.value)}
             disabled={isSaving}
-            className="h-11 bg-white"
+            className="h-11 bg-background"
           />
         </FormField>
 
-        <FormField label="Email" htmlFor="customer-email">
+        <FormField label="Email" htmlFor="customer-email" tone="themed">
           <Input
             id="customer-email"
             type="email"
             value={customer.email ?? ""}
             placeholder="Not added"
             readOnly
-            className="h-11 bg-stone-100 text-stone-600"
+            className="h-11 bg-muted text-muted-foreground"
           />
         </FormField>
 
@@ -172,6 +173,7 @@ export function CustomerProfileForm({
           description="Include the country code, for example +91 98765 43210."
           error={getFieldError(fieldErrors, "phone")}
           htmlFor="customer-phone"
+          tone="themed"
         >
           <Input
             id="customer-phone"
@@ -181,7 +183,7 @@ export function CustomerProfileForm({
             placeholder="+91 98765 43210"
             autoComplete="tel"
             disabled={isSaving}
-            className="h-11 bg-white"
+            className="h-11 bg-background"
           />
         </FormField>
 
@@ -189,6 +191,7 @@ export function CustomerProfileForm({
           label="Birthday"
           error={getFieldError(fieldErrors, "dateOfBirth")}
           htmlFor="customer-birthday"
+          tone="themed"
         >
           <Input
             id="customer-birthday"
@@ -197,7 +200,7 @@ export function CustomerProfileForm({
             max={new Date().toISOString().slice(0, 10)}
             onChange={(event) => updateField("dateOfBirth", event.target.value)}
             disabled={isSaving}
-            className="h-11 bg-white"
+            className="h-11 bg-background"
           />
         </FormField>
 
@@ -206,6 +209,7 @@ export function CustomerProfileForm({
           error={getFieldError(fieldErrors, "gender")}
           htmlFor="customer-gender"
           className="sm:col-span-2"
+          tone="themed"
         >
           <Select
             value={profile.gender || "UNSPECIFIED"}
@@ -214,7 +218,7 @@ export function CustomerProfileForm({
             }
             disabled={isSaving}
           >
-            <SelectTrigger id="customer-gender" className="h-11 w-full bg-white">
+            <SelectTrigger id="customer-gender" className="h-11 w-full bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -242,7 +246,7 @@ export function CustomerProfileForm({
 
       <label
         htmlFor="customer-marketing"
-        className="flex items-start gap-3 border-t border-stone-200 pt-5 text-sm text-stone-700"
+        className="flex items-start gap-3 border-t border-border pt-5 text-sm text-foreground"
       >
         <Checkbox
           id="customer-marketing"
@@ -254,11 +258,11 @@ export function CustomerProfileForm({
         <span>Send me occasional offers and restaurant updates.</span>
       </label>
 
-      <p className="text-xs leading-5 text-stone-500">
+      <p className="text-xs leading-5 text-muted-foreground">
         See how profile details and marketing choices are used and retained in the{" "}
         <Link
           href={privacyHref}
-          className="font-medium text-stone-800 underline decoration-stone-300 underline-offset-4 hover:decoration-stone-700"
+          className="font-medium text-foreground underline decoration-border underline-offset-4 hover:decoration-foreground"
         >
           privacy notice
         </Link>

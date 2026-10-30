@@ -126,7 +126,7 @@ export function PlatformCompanyUsersPanel({
               <p className="mt-1 text-sm text-stone-500">
                 {user.username} - {user.email}
               </p>
-              <p className="mt-1 text-xs text-stone-400">
+              <p className="mt-1 text-xs text-stone-500">
                 {formatRole(user.role)}
                 {user.accessLabel ? ` - ${user.accessLabel}` : ""} - updated{" "}
                 {formatDate(user.updatedAt)}

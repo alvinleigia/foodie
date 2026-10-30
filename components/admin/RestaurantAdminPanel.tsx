@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  BriefcaseBusinessIcon,
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
@@ -13,8 +14,11 @@ import {
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
+import {
+  DashboardSectionSkeleton,
+  ListSectionSkeleton,
+} from "@/components/shared/SectionSkeletons";
 import { SummaryCards } from "@/components/admin/SummaryCards";
-import { Spinner } from "@/components/shared/Spinner";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -63,6 +67,8 @@ type TenantAdminSnapshot = {
     role: StaffRole | "PLATFORM_ADMIN";
     isActive: boolean;
     permissions: StaffPermission[];
+    primaryJobId: string | null;
+    primaryJobName: string | null;
     createdAt: string;
   }>;
 };
@@ -112,6 +118,10 @@ export function RestaurantAdminPanel({
     restaurantSlug,
     "staffInvite",
   );
+  const staffJobsHref = getRestaurantWorkspaceHref(
+    restaurantSlug,
+    "staffJobs",
+  );
   const staffReassignHref = getRestaurantWorkspaceHref(
     restaurantSlug,
     "staffReassign",
@@ -150,6 +160,19 @@ export function RestaurantAdminPanel({
 
     void loadTenantAdmin();
   }, [view]);
+
+  if (isLoading) {
+    return view === "dashboard" ? (
+      <DashboardSectionSkeleton
+        label="Loading restaurant dashboard"
+        showReports={false}
+        summaryCards={5}
+        tone="themed"
+      />
+    ) : (
+      <ListSectionSkeleton label="Loading restaurant staff" rows={4} />
+    );
+  }
 
   return (
     <div className="grid gap-6">
@@ -202,6 +225,13 @@ export function RestaurantAdminPanel({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button asChild variant="outline" className="rounded-lg">
+                    <Link href={staffJobsHref}>
+                      <ButtonLabel icon={BriefcaseBusinessIcon}>
+                        Manage jobs
+                      </ButtonLabel>
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="rounded-lg">
                     <Link href={staffReassignHref}>
                       <ButtonLabel icon={UserCheckIcon}>Assign existing staff</ButtonLabel>
                     </Link>
@@ -237,6 +267,9 @@ export function RestaurantAdminPanel({
                       </p>
                       <p className="mt-1 text-xs text-stone-400">
                         {staff.role.replaceAll("_", " ")} - {staff.status}
+                        {staff.primaryJobName
+                          ? ` - ${staff.primaryJobName}`
+                          : ""}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -297,12 +330,6 @@ export function RestaurantAdminPanel({
             </Card>
       ) : null}
 
-      {isLoading && !isMissingTenantAccess(error) ? (
-        <div className="flex items-center gap-2 text-sm text-stone-500">
-          <Spinner className="text-stone-500" />
-          Loading restaurant setup...
-        </div>
-      ) : null}
     </div>
   );
 }

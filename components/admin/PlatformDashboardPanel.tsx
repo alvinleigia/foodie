@@ -14,7 +14,7 @@ import {
   type ReportBreakdownRow,
 } from "@/components/admin/ReportBreakdown";
 import { SummaryCards } from "@/components/admin/SummaryCards";
-import { Spinner } from "@/components/shared/Spinner";
+import { DashboardSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -103,18 +103,19 @@ export function PlatformDashboardPanel() {
     }
   }
 
+  if (isLoading) {
+    return (
+      <DashboardSectionSkeleton
+        label="Loading platform dashboard"
+        summaryCards={10}
+        tone="themed"
+      />
+    );
+  }
+
   return (
     <div className="grid gap-6">
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
-
-      {isLoading ? (
-        <Card className="rounded-xl border-stone-200 bg-white">
-          <CardContent className="flex items-center gap-2 p-5 text-sm text-stone-500">
-            <Spinner className="text-stone-500" />
-            Loading platform dashboard...
-          </CardContent>
-        </Card>
-      ) : null}
 
       {summary ? (
         <SummaryCards
@@ -173,15 +174,15 @@ export function PlatformDashboardPanel() {
         />
       ) : null}
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card tone="themed" className="rounded-xl border-border bg-card">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3">
-            <BellRingIcon className="size-5 text-stone-600" />
+            <BellRingIcon className="size-5 text-muted-foreground" />
             <div>
-              <h2 className="text-base font-semibold text-stone-950">
+              <h2 className="text-base font-semibold text-card-foreground">
                 Operational alerts
               </h2>
-              <p className="text-sm text-stone-600">
+              <p className="text-sm text-muted-foreground">
                 {alertStatus?.configured
                   ? `Owner: ${alertStatus.owner}`
                   : alertStatus
@@ -189,7 +190,7 @@ export function PlatformDashboardPanel() {
                     : "Status unavailable"}
               </p>
               {alertStatus?.configured ? (
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-muted-foreground">
                   Stripe webhook failures and unhandled server errors
                 </p>
               ) : null}

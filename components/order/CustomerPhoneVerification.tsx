@@ -176,12 +176,12 @@ export function CustomerPhoneVerification({
   }
 
   return (
-    <div className={cn("grid gap-3 border-t border-stone-200 pt-4", className)}>
+    <div className={cn("grid gap-3 border-t border-border pt-4", className)}>
       <div>
-        <p className="text-sm font-semibold text-stone-900">
+        <p className="text-sm font-semibold text-foreground">
           {policy.required ? "Verify your phone number" : "Phone verification"}
         </p>
-        <p className="mt-1 text-sm text-stone-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           {!isSavedPhone
             ? "Save this phone number before requesting a code."
             : "We will send a one-time code by text message."}
@@ -201,7 +201,7 @@ export function CustomerPhoneVerification({
             inputMode="numeric"
             placeholder="Verification code"
             disabled={disabled || isChecking || isSending}
-            className="h-11 bg-white sm:max-w-56"
+            className="h-11 bg-background sm:max-w-56"
           />
           <Button
             type="button"

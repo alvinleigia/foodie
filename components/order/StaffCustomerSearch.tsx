@@ -63,7 +63,10 @@ export function StaffCustomerSearch({
 
   if (selectedCustomer) {
     return (
-      <div className="-mx-6 flex flex-wrap items-center justify-between gap-3 border-y border-stone-200 bg-sky-50 px-6 py-4">
+      <div
+        data-slot="staff-customer-search"
+        className="-mx-6 flex flex-wrap items-center justify-between gap-3 border-y border-stone-200 bg-sky-50 px-6 py-4 lg:mr-0"
+      >
         <div className="flex min-w-0 items-start gap-3">
           <UserRoundCheckIcon className="mt-0.5 size-5 shrink-0 text-sky-700" />
           <div className="min-w-0">
@@ -88,7 +91,10 @@ export function StaffCustomerSearch({
   }
 
   return (
-    <div className="-mx-6 grid gap-3 border-y border-stone-200 bg-stone-50 px-6 py-5">
+    <div
+      data-slot="staff-customer-search"
+      className="-mx-6 grid gap-3 border-y border-stone-200 bg-stone-50 px-6 py-5 lg:mr-0"
+    >
       <div>
         <p className="font-semibold text-stone-950">Link a customer (optional)</p>
         <p className="mt-1 text-sm text-stone-600">

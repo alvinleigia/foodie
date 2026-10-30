@@ -22,6 +22,7 @@ import {
 } from "@/lib/api-client";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { FormField } from "@/components/shared/FormField";
+import { TableSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { SectionHeader } from "@/components/shared/SectionHeader";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
@@ -264,7 +265,7 @@ export function InventoryManager() {
           title="Track product stock"
           description="Manage stock levels for this restaurant. Inventory records are linked to menu products."
           meta={
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-400">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-600">
               Restaurant stock control
             </p>
           }
@@ -275,10 +276,7 @@ export function InventoryManager() {
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
         {isLoading ? (
-          <div className="flex items-center gap-2 text-sm text-stone-500">
-            <Spinner className="text-stone-500" />
-            Loading inventory...
-          </div>
+          <TableSectionSkeleton label="Loading inventory" rows={6} />
         ) : inventory.length === 0 ? (
           <EmptyState
             title="No menu products yet"

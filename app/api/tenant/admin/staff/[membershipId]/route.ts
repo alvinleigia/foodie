@@ -48,6 +48,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Staff membership not found." }, { status: 404 });
     }
 
+    const snapshot = await getTenantAdminSnapshot(tenantContext);
+    const updatedStaff = snapshot.staff.find(
+      (staff) => staff.membershipId === membership.id,
+    );
+
     await writeAuditLog({
       actor: session.user,
       organizationId: tenantContext.organizationId,
@@ -58,14 +63,16 @@ export async function PATCH(
         userId: membership.userId,
         role: membership.role,
         isActive: membership.isActive,
-        permissions: resolveStaffPermissions(
-          membership.role,
-          membership.permissionOverrides,
-        ),
+        permissions:
+          updatedStaff?.permissions ??
+          resolveStaffPermissions(
+            membership.role,
+            membership.permissionOverrides,
+          ),
       },
     });
 
-    return NextResponse.json(await getTenantAdminSnapshot(tenantContext));
+    return NextResponse.json(snapshot);
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.flatten() }, { status: 400 });

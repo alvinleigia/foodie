@@ -29,6 +29,7 @@ import {
   type StaffOrderItem,
 } from "@/components/staff/OrderCard";
 import { SectionHeader } from "@/components/shared/SectionHeader";
+import { OrderCardsSkeleton } from "@/components/shared/SectionSkeletons";
 import { Spinner } from "@/components/shared/Spinner";
 import {
   AlertDialog,
@@ -70,7 +71,6 @@ import {
   CardContent,
   CardHeader,
 } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { OrderItemStatus, OrderStatus } from "@/lib/constants";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
@@ -1475,27 +1475,7 @@ export function StaffOrderBoard({
       </div>
 
       {!loadedTabs[activeTab] && isRefreshing ? (
-        <div className="grid gap-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Card key={index} className="rounded-xl border-stone-200 bg-white shadow-none">
-              <CardContent className="space-y-4 px-5 py-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-7 w-32" />
-                    <Skeleton className="h-4 w-40" />
-                  </div>
-                  <Skeleton className="h-7 w-20 rounded-lg" />
-                </div>
-                <Skeleton className="h-4 w-28" />
-                <div className="flex gap-3">
-                  <Skeleton className="h-9 w-32 rounded-lg" />
-                  <Skeleton className="h-9 w-24 rounded-lg" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <OrderCardsSkeleton count={4} label="Loading staff orders" />
       ) : visibleOrders.length === 0 ? (
         <EmptyState
           title={

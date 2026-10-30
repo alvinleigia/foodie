@@ -27,6 +27,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
   const {
     customer,
     customerAuthProviders,
+    chargeSettings,
     checkoutPolicies,
     customerCheckoutEnabled,
     customerOrderingEnabled,
@@ -51,6 +52,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
         <CustomerOrderPage
           customer={customer}
           customerAuthProviders={customerAuthProviders}
+          chargeSettings={chargeSettings}
           checkoutPolicies={checkoutPolicies}
           orderingPointQrSlug={orderingPointQrSlug}
           routeSlug={routeSlug}

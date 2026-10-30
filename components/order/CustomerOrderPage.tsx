@@ -2,7 +2,10 @@
 
 import type { CustomerAuthProviders } from "@/components/order/CustomerLoginForm";
 import { MembershipSwitcher } from "@/components/admin/MembershipSwitcher";
-import { OrderForm } from "@/components/order/OrderForm";
+import {
+  OrderForm,
+  type OrderFormMenuData,
+} from "@/components/order/OrderForm";
 import { AppHeader } from "@/components/shared/AppHeader";
 import {
   getCustomerLoginHref,
@@ -15,6 +18,7 @@ import { getStaffNavigationItemsForRestaurant } from "@/lib/staff-navigation";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { StaffPermission } from "@/lib/staff-permissions";
 import type { RestaurantCheckoutPolicy } from "@/lib/checkout-policy";
+import type { RestaurantChargeSettings } from "@/lib/restaurant-charge-settings";
 
 type CustomerOrderPageProps = {
   customer?: {
@@ -24,7 +28,9 @@ type CustomerOrderPageProps = {
     phoneVerifiedAt?: string | null;
   } | null;
   customerAuthProviders: CustomerAuthProviders;
+  chargeSettings: RestaurantChargeSettings;
   checkoutPolicies: RestaurantCheckoutPolicy[];
+  initialMenuData?: OrderFormMenuData;
   orderingPointQrSlug?: string;
   inventoryEnabled?: boolean;
   openDineInOrder?: {
@@ -49,7 +55,9 @@ type CustomerOrderPageProps = {
 export function CustomerOrderPage({
   customer,
   customerAuthProviders,
+  chargeSettings,
   checkoutPolicies,
+  initialMenuData,
   orderingPointQrSlug,
   inventoryEnabled = true,
   openDineInOrder,
@@ -117,7 +125,9 @@ export function CustomerOrderPage({
       <OrderForm
         customer={customer}
         customerAuthProviders={customerAuthProviders}
+        chargeSettings={chargeSettings}
         checkoutPolicies={checkoutPolicies}
+        initialMenuData={initialMenuData}
         isStaffOrder={Boolean(user)}
         openDineInOrder={openDineInOrder}
         orderingPointQrSlug={orderingPointQrSlug}

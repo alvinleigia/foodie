@@ -222,10 +222,10 @@ export function OAuthIntegrationForm({
   }
 
   return (
-    <div className="grid gap-6 border-t border-stone-200 pt-8">
+    <div className="grid gap-6 border-t border-border pt-8">
       <div className="flex items-center gap-2">
-        <KeyRoundIcon className="size-5 text-stone-700" />
-        <h2 className="text-xl font-semibold text-stone-950">Customer social login</h2>
+        <KeyRoundIcon className="size-5 text-muted-foreground" />
+        <h2 className="text-xl font-semibold text-foreground">Customer social login</h2>
       </div>
 
       <Tabs
@@ -250,7 +250,7 @@ export function OAuthIntegrationForm({
               <EffectiveStatus snapshot={snapshots[provider.provider]} />
 
               <fieldset className="grid gap-3">
-                <legend className="text-sm font-semibold text-stone-900">Login mode</legend>
+                <legend className="text-sm font-semibold text-foreground">Login mode</legend>
                 <div
                   className="grid gap-2 sm:grid-cols-3"
                   role="radiogroup"
@@ -270,8 +270,8 @@ export function OAuthIntegrationForm({
                         className={cn(
                           "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
                           isSelected
-                            ? "border-stone-950 bg-stone-950 text-white"
-                            : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-foreground hover:bg-muted",
                         )}
                       >
                         <Icon className="size-4" />
@@ -283,10 +283,11 @@ export function OAuthIntegrationForm({
               </fieldset>
 
               {draft.mode === "CUSTOM" ? (
-                <div className="grid gap-4 border-t border-stone-200 pt-5">
+                <div className="grid gap-4 border-t border-border pt-5">
                   <div className="grid gap-4 md:grid-cols-2">
                     <FormField
                       label={providerDetails.clientIdLabel}
+                      tone="themed"
                       error={validation.getError("clientId")}
                       errorId="oauth-client-id-error"
                     >
@@ -300,6 +301,7 @@ export function OAuthIntegrationForm({
                     </FormField>
                     <FormField
                       label={providerDetails.clientSecretLabel}
+                      tone="themed"
                       description={
                         snapshot.settings.hasClientSecret
                           ? `Saved securely (${snapshot.settings.clientSecretHint ?? "secret available"}). Leave blank to keep it.`
@@ -323,7 +325,7 @@ export function OAuthIntegrationForm({
                     </FormField>
                   </div>
 
-                  <FormField label="Callback URL">
+                  <FormField label="Callback URL" tone="themed">
                     <div className="flex gap-2">
                       <Input readOnly value={callbackUrl} className="font-mono text-xs" />
                       <Button
@@ -341,7 +343,7 @@ export function OAuthIntegrationForm({
                 </div>
               ) : null}
 
-              <div className="flex flex-wrap gap-3 border-t border-stone-200 pt-5">
+              <div className="flex flex-wrap gap-3 border-t border-border pt-5">
                 <Button type="button" onClick={() => void save()} disabled={isSaving}>
                   <ButtonLabel icon={SaveIcon}>
                     {isSaving ? "Saving..." : `Save ${provider.label}`}

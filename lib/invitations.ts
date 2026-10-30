@@ -14,6 +14,7 @@ import {
 } from "@/lib/billing";
 import { hashPassword } from "@/lib/passwords";
 import type { MembershipRole } from "@/lib/staff-auth";
+import { sendStaffInvitationEmail } from "@/lib/staff-invitation-email";
 import { TenantContext } from "@/lib/tenant-context";
 import {
   acceptStaffInvitationSchema,
@@ -176,9 +177,20 @@ async function createScopedStaffInvitation({
     return { user, membership, invitation };
   });
 
+  const inviteUrl = `${origin.replace(/\/$/, "")}/invite?token=${token}`;
+  const emailDelivery = await sendStaffInvitationEmail({
+    email: result.user.email,
+    expiresAt,
+    inviteUrl,
+    name: result.user.name,
+    organizationId,
+    role: result.membership.role,
+  });
+
   return {
     ...result,
-    inviteUrl: `${origin.replace(/\/$/, "")}/invite?token=${token}`,
+    emailDelivery,
+    inviteUrl,
   };
 }
 

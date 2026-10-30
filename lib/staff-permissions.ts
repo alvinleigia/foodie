@@ -19,6 +19,10 @@ export const staffPermissions = [
   "reports.view",
   "audit.view",
   "staff.manage",
+  "time_clock.use",
+  "time_clock.manage",
+  "staff_schedule.view",
+  "staff_schedule.manage",
   "restaurant.settings",
   "integrations.manage",
   "ordering_point.manage",
@@ -30,7 +34,7 @@ export type StaffPermissionOverrides = Partial<Record<StaffPermission, boolean>>
 
 export type StaffPermissionDefinition = {
   description: string;
-  group: "Administration" | "Customers" | "Orders" | "Payments";
+  group: "Administration" | "Customers" | "Orders" | "Payments" | "Workforce";
   label: string;
   permission: StaffPermission;
 };
@@ -145,6 +149,30 @@ export const staffPermissionDefinitions: StaffPermissionDefinition[] = [
     description: "Invite staff and change their access or permissions.",
   },
   {
+    permission: "time_clock.use",
+    group: "Workforce",
+    label: "Use time clock",
+    description: "Clock in and out and record personal breaks.",
+  },
+  {
+    permission: "time_clock.manage",
+    group: "Workforce",
+    label: "View staff shifts",
+    description: "Review active and completed staff shift records.",
+  },
+  {
+    permission: "staff_schedule.view",
+    group: "Workforce",
+    label: "View own schedule",
+    description: "View upcoming shifts assigned to the staff member.",
+  },
+  {
+    permission: "staff_schedule.manage",
+    group: "Workforce",
+    label: "Manage staff schedule",
+    description: "Create, edit and cancel restaurant staff shifts.",
+  },
+  {
     permission: "restaurant.settings",
     group: "Administration",
     label: "Manage restaurant settings",
@@ -176,6 +204,8 @@ const orderOperatorDefaults = new Set<StaffPermission>([
   "payments.refund",
   "cash_drawer.open",
   "customers.search",
+  "time_clock.use",
+  "staff_schedule.view",
 ]);
 
 export function isStaffPermission(value: string): value is StaffPermission {
@@ -216,32 +246,41 @@ export function hasStaffPermission(
   role: MembershipRole,
   permissionOverrides: unknown,
   permission: StaffPermission,
+  basePermissions?: readonly StaffPermission[] | null,
 ) {
   const overrides = normalizeStaffPermissionOverrides(permissionOverrides);
+  const enabledByDefault = basePermissions
+    ? basePermissions.includes(permission)
+    : isPermissionEnabledByRole(role, permission);
 
-  return overrides[permission] ?? isPermissionEnabledByRole(role, permission);
+  return overrides[permission] ?? enabledByDefault;
 }
 
 export function resolveStaffPermissions(
   role: MembershipRole,
   permissionOverrides: unknown,
+  basePermissions?: readonly StaffPermission[] | null,
 ) {
   return staffPermissions.filter((permission) =>
-    hasStaffPermission(role, permissionOverrides, permission),
+    hasStaffPermission(role, permissionOverrides, permission, basePermissions),
   );
 }
 
 export function buildStaffPermissionOverrides(
   role: MembershipRole,
   permissions: readonly StaffPermission[],
+  basePermissions?: readonly StaffPermission[] | null,
 ) {
   const enabledPermissions = new Set(permissions);
 
   return staffPermissions.reduce<StaffPermissionOverrides>(
     (overrides, permission) => {
       const enabled = enabledPermissions.has(permission);
+      const enabledByDefault = basePermissions
+        ? basePermissions.includes(permission)
+        : isPermissionEnabledByRole(role, permission);
 
-      if (enabled !== isPermissionEnabledByRole(role, permission)) {
+      if (enabled !== enabledByDefault) {
         overrides[permission] = enabled;
       }
 

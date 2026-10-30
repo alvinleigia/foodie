@@ -8,7 +8,7 @@ import { fetchJson, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { NativeSelect } from "@/components/shared/NativeSelect";
-import { Spinner } from "@/components/shared/Spinner";
+import { TableSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -188,9 +188,7 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
         </CardHeader>
         <CardContent className="px-5 pb-5">
           {isLoading ? (
-            <div className="flex items-center gap-2 py-5 text-sm text-stone-500">
-              <Spinner /> Loading taxes...
-            </div>
+            <TableSectionSkeleton label="Loading tax rates" rows={4} />
           ) : error ? (
             <p className="py-4 text-sm text-rose-600">{error}</p>
           ) : configuration?.definitions.length ? (

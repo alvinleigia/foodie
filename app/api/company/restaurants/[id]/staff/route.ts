@@ -46,6 +46,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
 
     return NextResponse.json({
       restaurants: await listCompanyRestaurants(session.user.organizationId),
+      emailDelivery: invitation.emailDelivery,
       inviteUrl: invitation.inviteUrl,
     });
   } catch (error) {

@@ -5,6 +5,7 @@ import { CustomerOrderUnavailable } from "@/components/order/CustomerOrderUnavai
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
 import { SectionHeader } from "@/components/shared/SectionHeader";
+import { ThemeSelector } from "@/components/shared/ThemeSelector";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { requireCustomerSession } from "@/lib/auth";
 import { getCustomerProfile } from "@/lib/customer-account";
@@ -79,13 +80,14 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
         }}
       />
 
-      <Card className="rounded-xl border-white/60 bg-white/95">
+      <Card tone="themed" className="rounded-xl border-border bg-card/95">
         <CardHeader className="px-6 pt-6">
           <SectionHeader
             eyebrow="Account"
             title="Your profile"
-            meta={<p className="text-sm text-stone-600">Keep your contact details current for order fulfilment.</p>}
+            meta={<p className="text-sm text-muted-foreground">Keep your contact details current for order fulfilment.</p>}
             className="mb-0"
+            tone="themed"
           />
         </CardHeader>
         <CardContent className="px-6 pb-6">
@@ -103,6 +105,25 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
             phoneVerificationPolicy={phoneVerificationPolicy}
             routeSlug={routeSlug}
           />
+        </CardContent>
+      </Card>
+
+      <Card tone="themed" className="rounded-xl border-border bg-card/95">
+        <CardHeader className="px-6 pt-6">
+          <SectionHeader
+            eyebrow="Appearance"
+            title="Theme"
+            meta={
+              <p className="text-sm text-muted-foreground">
+                Choose how Foodie looks on this device.
+              </p>
+            }
+            className="mb-0"
+            tone="themed"
+          />
+        </CardHeader>
+        <CardContent className="px-6 pb-6">
+          <ThemeSelector />
         </CardContent>
       </Card>
     </AppShell>

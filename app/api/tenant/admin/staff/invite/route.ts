@@ -43,6 +43,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ...(await getTenantAdminSnapshot(tenantContext)),
+      emailDelivery: invitation.emailDelivery,
       inviteUrl: invitation.inviteUrl,
     });
   } catch (error) {

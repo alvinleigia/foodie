@@ -555,7 +555,7 @@ export function CustomerLoginForm({
           ) : null}
         </div>
       ) : !providers.email && !providers.phone ? (
-        <p className="text-sm font-medium text-amber-700">
+        <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
           Customer login is temporarily unavailable.
         </p>
       ) : null}
@@ -566,7 +566,7 @@ export function CustomerLoginForm({
         </p>
       ) : null}
 
-      <p className="text-xs leading-5 text-stone-500">
+      <p className="text-xs leading-5 text-stone-600">
         Before signing in, read how your account and order information is handled in
         the{" "}
         <Link

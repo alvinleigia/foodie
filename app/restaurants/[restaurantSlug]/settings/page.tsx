@@ -4,6 +4,8 @@ import { RestaurantTaxProfileForm } from "@/components/admin/RestaurantTaxProfil
 import { RestaurantTaxesManager } from "@/components/admin/RestaurantTaxesManager";
 import { RestaurantWorkingHoursForm } from "@/components/admin/RestaurantWorkingHoursForm";
 import { RestaurantCheckoutPoliciesForm } from "@/components/admin/RestaurantCheckoutPoliciesForm";
+import { RestaurantReceiptSettingsForm } from "@/components/admin/RestaurantReceiptSettingsForm";
+import { RestaurantChargeSettingsForm } from "@/components/admin/RestaurantChargeSettingsForm";
 import {
   TenantOrderingPointSettingsForm,
   TenantRestaurantSettingsForm,
@@ -11,6 +13,8 @@ import {
 import { getRestaurantTaxProfile } from "@/lib/restaurant-tax-profile";
 import { getRestaurantWorkingHours } from "@/lib/restaurant-working-hours";
 import { getRestaurantCheckoutPolicies } from "@/lib/restaurant-checkout-policies";
+import { getRestaurantReceiptSettings } from "@/lib/restaurant-receipt-settings";
+import { getRestaurantChargeSettings } from "@/lib/restaurant-charge-settings";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { getCustomerPhoneVerificationPolicy } from "@/lib/phone-verification-policy";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
@@ -47,6 +51,8 @@ export default async function RestaurantSettingsPage({
     customerOrdering,
     checkoutPolicies,
     paymentIntegration,
+    receiptSettings,
+    chargeSettings,
   ] = await Promise.all([
     getRestaurantTaxProfile(access.restaurant.id),
     getRestaurantWorkingHours(access.restaurant.id),
@@ -55,10 +61,12 @@ export default async function RestaurantSettingsPage({
       : Promise.resolve(null),
     getRestaurantCheckoutPolicies(access.restaurant.id),
     resolveOrganizationPaymentIntegration(access.restaurant.id).catch(() => null),
+    getRestaurantReceiptSettings(access.restaurant.id),
+    getRestaurantChargeSettings(access.restaurant.id),
   ]);
 
-  if (!workingHours) {
-    throw new Error("Restaurant working hours could not be loaded.");
+  if (!workingHours || !receiptSettings) {
+    throw new Error("Restaurant settings could not be loaded.");
   }
 
   return (
@@ -104,6 +112,14 @@ export default async function RestaurantSettingsPage({
           initialPolicies={checkoutPolicies}
           smsOtpAvailable={getCustomerPhoneVerificationPolicy().available}
           stripeConfigured={paymentIntegration?.status === "CONFIGURED"}
+        />
+        <RestaurantReceiptSettingsForm
+          apiPath="/api/tenant/admin/receipt-settings"
+          initialSettings={receiptSettings}
+        />
+        <RestaurantChargeSettingsForm
+          apiPath="/api/tenant/admin/charge-settings"
+          initialSettings={chargeSettings}
         />
         <RestaurantTaxProfileForm
           apiPath="/api/tenant/admin/tax-profile"

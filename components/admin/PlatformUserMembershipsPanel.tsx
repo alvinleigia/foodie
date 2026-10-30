@@ -90,7 +90,7 @@ export function PlatformUserMembershipsPanel({
                   {user.username} - {user.email}
                 </p>
               </div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                 {user.memberships.length} membership
                 {user.memberships.length === 1 ? "" : "s"}
               </p>
@@ -113,7 +113,7 @@ export function PlatformUserMembershipsPanel({
                         {getScopeLabel(membership)}
                       </p>
                       {membership.role === "PLATFORM_ADMIN" ? (
-                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-stone-400">
+                        <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-stone-500">
                           Bootstrapped from environment
                         </p>
                       ) : null}
@@ -141,7 +141,7 @@ export function PlatformUserMembershipsPanel({
                       </Button>
                     </div>
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-400">
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-500">
                     <span>
                       {membership.organizationType === "PLATFORM"
                         ? "platform system"

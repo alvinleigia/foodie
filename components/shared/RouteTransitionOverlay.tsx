@@ -117,14 +117,14 @@ export function RouteTransitionOverlay() {
       aria-busy="true"
       className="fixed inset-0 z-[9998] grid cursor-wait place-items-center bg-stone-950/45 backdrop-blur-sm"
     >
-      <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-stone-50/40">
-        <div className="h-full w-1/2 animate-pulse bg-stone-950" />
+      <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-muted/50">
+        <div className="h-full w-1/2 animate-pulse bg-primary" />
       </div>
-      <div className="grid min-w-52 place-items-center gap-4 rounded-xl border border-white/30 bg-white/95 px-8 py-7 text-center shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
-        <Spinner className="size-8 text-stone-950" />
+      <div className="grid min-w-52 place-items-center gap-4 rounded-xl border border-border bg-popover/95 px-8 py-7 text-center text-popover-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+        <Spinner className="size-8 text-foreground" />
         <div>
-          <p className="text-base font-semibold text-stone-950">Loading</p>
-          <p className="mt-1 text-sm text-stone-500">Please wait...</p>
+          <p className="text-base font-semibold text-foreground">Loading</p>
+          <p className="mt-1 text-sm text-muted-foreground">Please wait...</p>
         </div>
       </div>
     </div>

@@ -9,6 +9,10 @@ import {
   InventoryReservationError,
   reserveInventoryForOrderItem,
 } from "@/lib/inventory";
+import {
+  IngredientInventoryReservationError,
+  reserveIngredientsForOrderItem,
+} from "@/lib/ingredient-inventory";
 import { canCorrectOrderItemStatus } from "@/lib/order-corrections";
 import {
   OrderTransitionConflictError,
@@ -283,14 +287,23 @@ export async function POST(
         lockedItem.status === "CANCELLED" &&
         nextStatus === "PENDING"
       ) {
-        const wasReserved = await reserveInventoryForOrderItem(
+        const productInventoryReserved = await reserveInventoryForOrderItem(
+          tx,
+          tenantContext,
+          lockedItem,
+        );
+        const ingredientInventoryReserved = await reserveIngredientsForOrderItem(
           tx,
           tenantContext,
           lockedItem,
         );
 
-        if (wasReserved) {
+        if (productInventoryReserved) {
           Object.assign(itemPatch, { inventoryReservedAt: now });
+        }
+
+        if (ingredientInventoryReserved) {
+          Object.assign(itemPatch, { ingredientInventoryReservedAt: now });
         }
       }
 
@@ -368,6 +381,7 @@ export async function POST(
   } catch (error) {
     if (
       error instanceof InventoryReservationError ||
+      error instanceof IngredientInventoryReservationError ||
       error instanceof OrderTransitionConflictError
     ) {
       return NextResponse.json({ error: error.message }, { status: 409 });

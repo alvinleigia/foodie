@@ -165,10 +165,10 @@ export function StripeIntegrationForm({
   }
 
   return (
-    <div className="grid gap-6 border-t border-stone-200 pt-8">
+    <div className="grid gap-6 border-t border-border pt-8">
       <div className="flex items-center gap-2">
-        <CreditCardIcon className="size-5 text-stone-700" />
-        <h2 className="text-xl font-semibold text-stone-950">Stripe payments</h2>
+        <CreditCardIcon className="size-5 text-muted-foreground" />
+        <h2 className="text-xl font-semibold text-foreground">Stripe payments</h2>
       </div>
       <EffectiveStatus snapshot={snapshot} />
       {!enabled ? (
@@ -181,7 +181,7 @@ export function StripeIntegrationForm({
       ) : null}
 
       <fieldset className="grid gap-3">
-        <legend className="text-sm font-semibold text-stone-900">Payment mode</legend>
+        <legend className="text-sm font-semibold text-foreground">Payment mode</legend>
         <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Payment mode">
           {modeOptions.map((option) => {
             const Icon = option.icon;
@@ -201,8 +201,8 @@ export function StripeIntegrationForm({
                 className={cn(
                   "flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition-colors",
                   isSelected
-                    ? "border-stone-950 bg-stone-950 text-white"
-                    : "border-stone-200 bg-white text-stone-700 hover:border-stone-400",
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-foreground hover:bg-muted",
                   !enabled && option.value !== "DISABLED"
                     ? "cursor-not-allowed opacity-50"
                     : undefined,
@@ -217,35 +217,35 @@ export function StripeIntegrationForm({
       </fieldset>
 
       {mode === "CUSTOM" ? (
-        <div className="grid gap-3 border-l-2 border-stone-200 pl-4 text-sm text-stone-700">
+        <div className="grid gap-3 border-l-2 border-border pl-4 text-sm text-muted-foreground">
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
             <span>Connected account</span>
-            <span className="font-mono text-xs text-stone-950">
+            <span className="font-mono text-xs text-foreground">
               {snapshot.settings.stripeAccountId ?? "Not connected"}
             </span>
           </div>
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
             <span>Onboarding</span>
-            <span className="font-semibold text-stone-950">
+            <span className="font-semibold text-foreground">
               {snapshot.settings.onboardingStatus.replaceAll("_", " ")}
             </span>
           </div>
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
             <span>Charges</span>
-            <span className="font-semibold text-stone-950">
+            <span className="font-semibold text-foreground">
               {snapshot.settings.chargesEnabled ? "Enabled" : "Not enabled"}
             </span>
           </div>
           <div className="grid gap-1 sm:grid-cols-2 sm:gap-4">
             <span>Payouts</span>
-            <span className="font-semibold text-stone-950">
+            <span className="font-semibold text-foreground">
               {snapshot.settings.payoutsEnabled ? "Enabled" : "Not enabled"}
             </span>
           </div>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-3 border-t border-stone-200 pt-5">
+      <div className="flex flex-wrap gap-3 border-t border-border pt-5">
         <Button
           type="button"
           onClick={() => void save()}

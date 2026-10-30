@@ -1,7 +1,13 @@
 import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { memberships, organizations, users } from "@/db/schema";
+import {
+  memberships,
+  organizations,
+  restaurantJobs,
+  staffJobAssignments,
+  users,
+} from "@/db/schema";
 
 type StaffSessionIdentity = {
   membershipId: string;
@@ -30,12 +36,29 @@ export async function validateStaffSessionAccess({
       membershipId: memberships.id,
       organizationId: memberships.organizationId,
       permissionOverrides: memberships.permissionOverrides,
+      primaryJobPermissions: restaurantJobs.permissions,
       role: memberships.role,
       sessionVersion: users.sessionVersion,
     })
     .from(memberships)
     .innerJoin(users, eq(users.id, memberships.userId))
     .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
+    .leftJoin(
+      staffJobAssignments,
+      and(
+        eq(staffJobAssignments.membershipId, memberships.id),
+        eq(staffJobAssignments.organizationId, memberships.organizationId),
+        eq(staffJobAssignments.isPrimary, true),
+      ),
+    )
+    .leftJoin(
+      restaurantJobs,
+      and(
+        eq(restaurantJobs.id, staffJobAssignments.jobId),
+        eq(restaurantJobs.organizationId, memberships.organizationId),
+        eq(restaurantJobs.isActive, true),
+      ),
+    )
     .where(
       and(
         eq(memberships.id, membershipId),

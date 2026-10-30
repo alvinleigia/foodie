@@ -3,20 +3,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircleIcon,
+  CircleDotIcon,
   ClockIcon,
   CookingPotIcon,
+  CupSodaIcon,
+  LayoutGridIcon,
   PlayIcon,
   RefreshCwIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { OrderCardsSkeleton } from "@/components/shared/SectionSkeletons";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import type { KdsBoardPayload, KdsTicketItem } from "@/lib/kds-types";
+import type {
+  KdsBoardPayload,
+  KdsStation,
+  KdsTicketItem,
+} from "@/lib/kds-types";
 import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from "@/lib/locale-defaults";
 import { getOrderFulfilmentLabel } from "@/lib/order-fulfilment";
 
@@ -24,6 +33,12 @@ const emptyBoard: KdsBoardPayload = {
   canUpdateStatus: false,
   orders: [],
   stations: [],
+};
+
+const stationTypeIcons: Record<KdsStation["type"], LucideIcon> = {
+  BAR: CupSodaIcon,
+  KITCHEN: CookingPotIcon,
+  OTHER: CircleDotIcon,
 };
 
 function formatElapsedTime(createdAt: string, now: number) {
@@ -305,12 +320,7 @@ export function KdsBoard() {
   }
 
   if (isLoading && !hasLoaded) {
-    return (
-      <div className="flex min-h-72 items-center justify-center rounded-lg bg-white">
-        <Spinner />
-        <span className="sr-only">Loading preparation tickets</span>
-      </div>
-    );
+    return <OrderCardsSkeleton count={4} label="Loading preparation tickets" />;
   }
 
   return (
@@ -404,33 +414,70 @@ export function KdsBoard() {
       >
         <Button
           type="button"
-          variant={selectedStation === "all" ? "default" : "outline"}
+          variant="outline"
+          aria-pressed={selectedStation === "all"}
           onClick={() => setSelectedStation("all")}
-          className="justify-between"
+          className={`relative h-auto min-h-24 flex-col items-stretch justify-between rounded-lg p-4 text-left whitespace-normal ${
+            selectedStation === "all"
+              ? "border-stone-400 bg-stone-100 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+              : "border-border bg-card text-card-foreground hover:bg-muted"
+          }`}
         >
-          <span>All stations</span>
-          <span>
-            {board.orders.reduce(
-              (total, order) =>
-                order.status === "ASSEMBLING"
-                  ? total
-                  : total + order.items.length,
-              0,
-            )}
+          <span className="flex w-full items-center justify-between gap-3">
+            <LayoutGridIcon className="size-4" aria-hidden="true" />
+            <span className="text-base font-semibold tabular-nums">
+              {board.orders.reduce(
+                (total, order) =>
+                  order.status === "ASSEMBLING"
+                    ? total
+                    : total + order.items.length,
+                0,
+              )}
+            </span>
           </span>
+          <span className="w-full pb-2 text-sm font-semibold">All stations</span>
+          {selectedStation === "all" ? (
+            <span
+              data-slot="station-filter-indicator"
+              className="absolute inset-x-4 bottom-3 h-0.5 rounded-full bg-current opacity-80"
+              aria-hidden="true"
+            />
+          ) : null}
         </Button>
-        {board.stations.map((station) => (
-          <Button
-            key={station.id}
-            type="button"
-            variant={selectedStation === station.id ? "default" : "outline"}
-            onClick={() => setSelectedStation(station.id)}
-            className="justify-between"
-          >
-            <span>{station.name}</span>
-            <span>{stationCounts.get(station.id) ?? 0}</span>
-          </Button>
-        ))}
+        {board.stations.map((station) => {
+          const StationIcon = stationTypeIcons[station.type];
+          const isSelected = selectedStation === station.id;
+
+          return (
+            <Button
+              key={station.id}
+              type="button"
+              variant="outline"
+              aria-pressed={isSelected}
+              onClick={() => setSelectedStation(station.id)}
+              className={`relative h-auto min-h-24 flex-col items-stretch justify-between rounded-lg p-4 text-left whitespace-normal ${
+                isSelected
+                  ? "border-stone-400 bg-stone-100 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                  : "border-border bg-card text-card-foreground hover:bg-muted"
+              }`}
+            >
+              <span className="flex w-full items-center justify-between gap-3">
+                <StationIcon className="size-4" aria-hidden="true" />
+                <span className="text-base font-semibold tabular-nums">
+                  {stationCounts.get(station.id) ?? 0}
+                </span>
+              </span>
+              <span className="w-full pb-2 text-sm font-semibold">{station.name}</span>
+              {isSelected ? (
+                <span
+                  data-slot="station-filter-indicator"
+                  className="absolute inset-x-4 bottom-3 h-0.5 rounded-full bg-current opacity-80"
+                  aria-hidden="true"
+                />
+              ) : null}
+            </Button>
+          );
+        })}
       </div>
 
       {error ? (

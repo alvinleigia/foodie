@@ -6,9 +6,9 @@ import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
 
-type DropdownTone = "light" | "dark";
+type DropdownTone = "themed" | "dark";
 
-const DropdownMenuToneContext = React.createContext<DropdownTone>("light");
+const DropdownMenuToneContext = React.createContext<DropdownTone>("themed");
 
 function DropdownMenu({
   ...props
@@ -31,7 +31,7 @@ function DropdownMenuTrigger({
 function DropdownMenuContent({
   className,
   sideOffset = 8,
-  tone = "light",
+  tone = "themed",
   children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content> & {
@@ -47,7 +47,7 @@ function DropdownMenuContent({
             "z-50 min-w-56 overflow-hidden rounded-lg p-1.5 text-sm data-[side=bottom]:animate-in data-[side=bottom]:slide-in-from-top-1 data-[side=top]:animate-in data-[side=top]:slide-in-from-bottom-1",
             tone === "dark"
               ? "border border-white/10 bg-stone-950 text-stone-100 shadow-xl shadow-black/30"
-              : "border border-stone-200 bg-white text-stone-950 shadow-xl shadow-stone-950/12",
+              : "border border-border bg-popover text-popover-foreground shadow-xl shadow-black/15",
             className,
           )}
           {...props}
@@ -85,7 +85,7 @@ function DropdownMenuItem({
         "relative flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset=true]:pl-8 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
         tone === "dark"
           ? "focus:bg-white/10 focus:text-white"
-          : "focus:bg-stone-100 focus:text-stone-700",
+          : "focus:bg-accent focus:text-accent-foreground",
         variant === "destructive" &&
           (tone === "dark"
             ? "text-rose-300 focus:bg-rose-500/15 focus:text-rose-100"
@@ -112,7 +112,7 @@ function DropdownMenuCheckboxItem({
         "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         tone === "dark"
           ? "focus:bg-white/10 focus:text-white"
-          : "focus:bg-stone-100 focus:text-stone-700",
+          : "focus:bg-accent focus:text-accent-foreground",
         className,
       )}
       checked={checked}
@@ -150,7 +150,7 @@ function DropdownMenuRadioItem({
         "relative flex cursor-default select-none items-center gap-2 rounded-md py-2 pr-2.5 pl-8 outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         tone === "dark"
           ? "focus:bg-white/10 focus:text-white"
-          : "focus:bg-stone-100 focus:text-stone-700",
+          : "focus:bg-accent focus:text-accent-foreground",
         className,
       )}
       {...props}
@@ -235,7 +235,7 @@ function DropdownMenuSubTrigger({
         "flex cursor-default select-none items-center gap-2 rounded-md px-2.5 py-2 outline-none transition-colors data-[inset=true]:pl-8",
         tone === "dark"
           ? "focus:bg-white/10 focus:text-white"
-          : "focus:bg-stone-100 focus:text-stone-700",
+          : "focus:bg-accent focus:text-accent-foreground",
         className,
       )}
       {...props}

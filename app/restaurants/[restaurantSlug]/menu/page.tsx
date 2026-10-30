@@ -1,5 +1,6 @@
 import { SaasAdminShell } from "@/components/admin/SaasAdminShell";
 import { MenuManager } from "@/components/staff/MenuManager";
+import { MenuAvailabilityManager } from "@/components/staff/MenuAvailabilityManager";
 import { requireRestaurantWorkspaceAccess } from "@/lib/restaurant-workspace-access";
 import {
   getRestaurantWorkspaceHref,
@@ -31,6 +32,7 @@ export default async function RestaurantMenuPage({
       }}
     >
       <MenuManager />
+      <MenuAvailabilityManager />
     </SaasAdminShell>
   );
 }

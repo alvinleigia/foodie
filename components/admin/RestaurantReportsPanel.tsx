@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { OperationalReports } from "@/components/admin/OperationalReports";
-import { Spinner } from "@/components/shared/Spinner";
+import { ReportsSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import type { OperationalReport, ReportRange } from "@/lib/saas-reports";
 
@@ -61,12 +61,7 @@ export function RestaurantReportsPanel() {
   }, []);
 
   if (isLoading && !report) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-stone-500">
-        <Spinner className="text-stone-500" />
-        Loading reports...
-      </div>
-    );
+    return <ReportsSectionSkeleton label="Loading restaurant reports" />;
   }
 
   if (error && !report) {

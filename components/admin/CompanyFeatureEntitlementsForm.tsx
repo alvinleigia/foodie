@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
-import { Spinner } from "@/components/shared/Spinner";
+import { ListSectionSkeleton } from "@/components/shared/SectionSkeletons";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -241,9 +241,7 @@ export function CompanyFeatureEntitlementsForm({
         </FormField>
 
         {isLoading ? (
-          <div className="flex min-h-32 items-center justify-center text-stone-500">
-            <Spinner />
-          </div>
+          <ListSectionSkeleton label="Loading feature access" rows={5} />
         ) : (
           <div className="border-y border-stone-200">
             {entitlements.map((entitlement) => {
@@ -267,7 +265,7 @@ export function CompanyFeatureEntitlementsForm({
                     <p className="mt-1 text-sm text-stone-500">
                       {entitlement.description}
                     </p>
-                    <p className="mt-2 text-xs font-medium uppercase text-stone-400">
+                    <p className="mt-2 text-xs font-medium uppercase text-stone-500">
                       Effective from {sourceLabels[entitlement.source]}
                     </p>
                   </div>

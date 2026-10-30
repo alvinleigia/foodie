@@ -28,6 +28,18 @@ test.describe("restaurant staff permissions", () => {
     expect(hasStaffPermission("ORDER_OPERATOR", {}, "cash_drawer.close")).toBe(
       false,
     );
+    expect(hasStaffPermission("ORDER_OPERATOR", {}, "time_clock.use")).toBe(
+      true,
+    );
+    expect(hasStaffPermission("ORDER_OPERATOR", {}, "time_clock.manage")).toBe(
+      false,
+    );
+    expect(hasStaffPermission("ORDER_OPERATOR", {}, "staff_schedule.view")).toBe(
+      true,
+    );
+    expect(
+      hasStaffPermission("ORDER_OPERATOR", {}, "staff_schedule.manage"),
+    ).toBe(false);
   });
 
   test("supports explicit grants and denials over role defaults", () => {
@@ -62,6 +74,33 @@ test.describe("restaurant staff permissions", () => {
         ),
       ),
     ).toEqual({ "payments.refund": false });
+  });
+
+  test("uses a primary job as the permission baseline", () => {
+    const cashierPermissions = [
+      "orders.view",
+      "orders.create",
+      "payments.collect",
+    ] as const;
+
+    expect(
+      resolveStaffPermissions("ORDER_OPERATOR", {}, cashierPermissions),
+    ).toEqual(cashierPermissions);
+    expect(
+      hasStaffPermission(
+        "ORDER_OPERATOR",
+        { "payments.refund": true },
+        "payments.refund",
+        cashierPermissions,
+      ),
+    ).toBe(true);
+    expect(
+      buildStaffPermissionOverrides(
+        "ORDER_OPERATOR",
+        [...cashierPermissions, "cash_drawer.open"],
+        cashierPermissions,
+      ),
+    ).toEqual({ "cash_drawer.open": true });
   });
 
   test("ignores unknown or malformed stored overrides", () => {
@@ -178,9 +217,7 @@ test.describe("restaurant staff permissions", () => {
       "utf8",
     );
 
-    expect(snapshotSource).toContain(
-      "permissions: resolveStaffPermissions(item.role, item.permissionOverrides)",
-    );
+    expect(snapshotSource).toContain("item.primaryJobPermissions");
     expect(staffFormSource).toContain("staffPermissionDefinitions");
     expect(staffFormSource).toContain("permissions: staff.permissions");
     expect(validationSource).toContain(".array(z.enum(staffPermissions))");

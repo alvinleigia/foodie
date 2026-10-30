@@ -161,6 +161,7 @@ These changes should be designed before real tenants build transaction history.
 - [x] Keep staff-created dine-in checks open for additional items and final settlement.
 - [x] Add basic discount and comp actions with reason codes.
 - [x] Add granular staff permissions instead of role-only action access.
+- [x] Add reusable restaurant jobs with permission templates, primary-job access baselines and staff assignments.
 - [x] Add manager approval or PIN for refunds, voids, discounts and sensitive overrides.
 - [x] Add cash drawer sessions with opening float.
 - [x] Add cash paid-in and paid-out movements with reasons.
@@ -175,10 +176,10 @@ These changes should be designed before real tenants build transaction history.
 Each item needs an explicit product decision before Foodie is sold as a POS.
 
 - [ ] Integrate a card-present terminal provider, or describe the first release as cash plus QR/online payment only.
-- [ ] Implement offline order continuity, or document the pilot as online-only with a manual outage procedure.
-- [ ] Decide whether tips and service charges are part of the first quick-service release.
+- [x] Add staff-order offline continuity with a device-local queue, automatic reconnect sync and server-side idempotency. Open dine-in amendments and customer online checkout remain online-only.
+- [x] Include configurable per-fulfilment service charges and optional customer-checkout tip presets in the first quick-service release.
 - [ ] Decide whether one order always maps to one bill in the quick-service release.
-- [ ] Decide which receipt formats are mandatory at launch.
+- [x] Support configurable 80mm thermal and full-page receipt formats, with a restaurant receipt footer.
 
 ## Now: Production Readiness
 
@@ -222,7 +223,7 @@ Each item needs an explicit product decision before Foodie is sold as a POS.
 - [ ] Avoid storing secrets or unnecessary personal data in audit metadata.
 - [ ] Decide whether customer phone verification is required at launch.
 - [ ] Configure Twilio Verify only when SMS verification is enabled.
-- [ ] Add real email delivery for staff invitations.
+- [x] Add real SMTP2GO email delivery for staff invitations while retaining the manual invitation-link fallback.
 
 ## Conditional: Full-Service Restaurant Module
 
@@ -246,13 +247,13 @@ one final settlement. It does not yet model a table session, seats, courses or s
 
 ## Next: Operational Expansion
 
-- [ ] Add ingredient and recipe inventory.
-- [ ] Add ingredient depletion from product sales.
-- [ ] Add stock adjustments, waste and variance tracking.
-- [ ] Add suppliers and purchase orders.
-- [ ] Add stock transfers between restaurants.
-- [ ] Add menu availability schedules and time-based menus.
-- [ ] Add allergen and dietary information.
+- [x] Add restaurant-scoped ingredient stock and per-product recipe quantities without replacing existing finished-product inventory.
+- [x] Add atomic ingredient depletion from product sales with immutable order-item snapshots, insufficient-stock safeguards and cancellation restoration.
+- [x] Add an immutable ingredient movement ledger for receipts, waste, signed adjustments, physical stock-count variance, order consumption and cancellation restoration.
+- [x] Add restaurant-scoped suppliers and sequential purchase orders with draft editing, lifecycle controls, partial receipts, receipt idempotency and linked ingredient stock movements.
+- [x] Add company-scoped stock transfers between active sibling restaurants with draft editing, atomic dispatch, destination receipt, variance visibility and linked transfer movements.
+- [x] Add named restaurant-timezone menu availability schedules with weekly and overnight periods, category and product assignments, public-menu filtering, stale-order revalidation and manager controls.
+- [x] Add structured dietary labels and the 14 regulated UK allergens with per-product Contains/May contain declarations, legacy-warning backfill and customer-facing written disclosure.
 - [ ] Add customer-facing and kitchen printer configuration.
 - [ ] Add accounting export or accounting-provider integrations.
 - [ ] Add jurisdiction-specific tax filing and accounting mappings.
@@ -272,7 +273,16 @@ one final settlement. It does not yet model a table session, seats, courses or s
 - [ ] Birthday and visit-history offers.
 - [ ] Reservations and waitlists.
 - [ ] Delivery marketplace integrations.
-- [ ] Staff time clock, scheduling and payroll integrations.
+- [x] Add staff time clock, breaks and shift records using assigned restaurant jobs.
+- [x] Add staff scheduling with assigned jobs, overlap safeguards and planned-to-worked shift links.
+- [x] Add manager-approved timesheets and payroll-ready CSV export.
+- [x] Add staff time-off requests, manager review and approved-leave schedule safeguards.
+- [x] Add recurring weekly staff availability with recorded manager scheduling overrides.
+- [x] Add unassigned open shifts, employee cover requests, qualified volunteer claims and manager approval.
+- [x] Add per-job hourly pay rates, immutable shift pay snapshots and gross-pay CSV fields.
+- [x] Add payroll employee references and validated, audited generic payroll CSV exports.
+- [x] Add immutable payroll export runs, re-download history and duplicate-shift safeguards.
+- [ ] Add payroll-provider integrations.
 - [ ] Advanced inventory forecasting and recipe costing.
 - [ ] Advanced multi-restaurant menu synchronisation.
 - [ ] PDF and scheduled reports.

@@ -61,6 +61,15 @@ export const menuItemSchema = z
     sortOrder: z.coerce.number().int().min(0).default(0),
     isActive: z.boolean().default(true),
     tagIds: z.array(z.string().uuid("Choose a valid tag")).default([]),
+    allergens: z
+      .array(
+        z.object({
+          allergenId: z.string().uuid("Choose a valid allergen"),
+          declaration: z.enum(["CONTAINS", "MAY_CONTAIN"]),
+        }),
+      )
+      .max(14, "Only one declaration is allowed per regulated allergen")
+      .default([]),
     modifierGroupIds: z.array(z.string().uuid("Choose a valid add-on group")).default([]),
     taxAssignmentMode: z.enum(["DEFAULT", "CUSTOM"]).default("DEFAULT"),
     taxDefinitionIds: z.array(z.string().uuid("Choose a valid tax")).default([]),
@@ -80,6 +89,19 @@ export const menuItemSchema = z
       .default([]),
   })
   .superRefine((item, context) => {
+    const allergenIds = new Set<string>();
+
+    for (const [index, allergen] of item.allergens.entries()) {
+      if (allergenIds.has(allergen.allergenId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Only one declaration is allowed per allergen",
+          path: ["allergens", index, "allergenId"],
+        });
+      }
+      allergenIds.add(allergen.allergenId);
+    }
+
     if (item.taxAssignmentMode === "CUSTOM" && item.taxDefinitionIds.length === 0) {
       context.addIssue({
         code: "custom",

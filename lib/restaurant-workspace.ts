@@ -13,7 +13,12 @@ export type RestaurantWorkspaceDestination =
   | "settings"
   | "staff"
   | "staffInvite"
-  | "staffReassign";
+  | "staffJobs"
+  | "staffReassign"
+  | "staffSchedule"
+  | "staffShifts"
+  | "schedule"
+  | "timeClock";
 
 export type RestaurantWorkspacePageProps = {
   params: Promise<{ restaurantSlug: string }>;
@@ -34,7 +39,12 @@ const destinationPaths: Record<RestaurantWorkspaceDestination, string> = {
   settings: "settings",
   staff: "staff",
   staffInvite: "staff/invite",
+  staffJobs: "staff/jobs",
   staffReassign: "staff/reassign",
+  staffSchedule: "staff/schedule",
+  staffShifts: "staff/shifts",
+  schedule: "schedule",
+  timeClock: "time-clock",
 };
 
 export function getRestaurantWorkspaceBaseHref(restaurantSlug: string) {

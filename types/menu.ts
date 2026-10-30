@@ -32,6 +32,7 @@ export type MenuItemRecord = {
   inventoryQuantity?: string | null;
   isUnavailableDueToStock?: boolean;
   tags?: MenuTagRecord[];
+  allergens?: MenuAllergenDeclarationRecord[];
   modifierGroups?: MenuModifierGroupRecord[];
   taxAssignmentMode?: "DEFAULT" | "CUSTOM";
   taxDefinitionIds?: string[];
@@ -55,9 +56,26 @@ export type MenuTagRecord = {
   name: string;
   description: string | null;
   color: string;
+  kind: "DIETARY" | "ATTRIBUTE";
   sortOrder: number;
   isActive: boolean;
 };
+
+export type MenuAllergenDeclaration = "CONTAINS" | "MAY_CONTAIN";
+
+export type MenuAllergenDefinitionRecord = {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+};
+
+export type MenuAllergenDeclarationRecord =
+  MenuAllergenDefinitionRecord & {
+    declaration: MenuAllergenDeclaration;
+  };
 
 export type MenuModifierOptionRecord = {
   id: string;

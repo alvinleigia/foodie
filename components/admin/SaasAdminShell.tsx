@@ -132,12 +132,13 @@ export async function SaasAdminShell({
       {contentMode === "plain" ? (
         content
       ) : (
-        <section className="rounded-xl border border-white/10 bg-white/90 p-6 text-stone-950 shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
+        <section className="rounded-xl border border-border bg-card/95 p-6 text-card-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
           <SectionHeader
             eyebrow={eyebrow}
             title={title}
             description={description}
             className="mb-6"
+            tone="themed"
           />
           {content}
         </section>

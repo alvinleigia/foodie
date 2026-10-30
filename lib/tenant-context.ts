@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { and, asc, eq } from "drizzle-orm";
+import type { Session } from "next-auth";
 
 import { getDb } from "@/db";
 import { orderingPoints, organizations } from "@/db/schema";
@@ -67,8 +68,10 @@ async function getRestaurantContext(organizationId: string): Promise<TenantConte
   };
 }
 
-export async function getCurrentStaffRestaurantAccess() {
-  const session = await auth();
+export async function getCurrentStaffRestaurantAccess(
+  existingSession?: Session | null,
+) {
+  const session = existingSession === undefined ? await auth() : existingSession;
 
   if (
     session?.user.kind !== "staff" ||
@@ -78,24 +81,37 @@ export async function getCurrentStaffRestaurantAccess() {
     return null;
   }
 
-  await assertTenantSubscriptionAccess(session.user.organizationId);
-
   const db = getDb();
-  const [restaurant] = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      slug: organizations.slug,
-    })
-    .from(organizations)
-    .where(
-      and(
-        eq(organizations.id, session.user.organizationId),
-        eq(organizations.type, "RESTAURANT"),
-        eq(organizations.isActive, true),
-      ),
-    )
-    .limit(1);
+  const [, [restaurant], [orderingPoint]] = await Promise.all([
+    assertTenantSubscriptionAccess(session.user.organizationId),
+    db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        slug: organizations.slug,
+      })
+      .from(organizations)
+      .where(
+        and(
+          eq(organizations.id, session.user.organizationId),
+          eq(organizations.type, "RESTAURANT"),
+          eq(organizations.isActive, true),
+        ),
+      )
+      .limit(1),
+    db
+      .select({ id: orderingPoints.id })
+      .from(orderingPoints)
+      .where(
+        and(
+          eq(orderingPoints.organizationId, session.user.organizationId),
+          eq(orderingPoints.isDefault, true),
+          eq(orderingPoints.isActive, true),
+        ),
+      )
+      .orderBy(asc(orderingPoints.createdAt), asc(orderingPoints.id))
+      .limit(1),
+  ]);
 
   if (!restaurant) {
     return null;
@@ -104,7 +120,10 @@ export async function getCurrentStaffRestaurantAccess() {
   return {
     restaurant,
     role: session.user.role,
-    tenantContext: await getRestaurantContext(restaurant.id),
+    tenantContext: {
+      organizationId: restaurant.id,
+      orderingPointId: orderingPoint?.id ?? null,
+    },
     user: {
       id: session.user.id,
       name: session.user.name,

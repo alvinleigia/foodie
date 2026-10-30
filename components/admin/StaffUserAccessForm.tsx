@@ -93,7 +93,7 @@ export function StaffUserAccessForm({
           {user.name} - {user.username} - {user.email}
         </p>
         {user.accessLabel ? (
-          <p className="text-xs uppercase tracking-[0.16em] text-stone-400">
+          <p className="text-xs uppercase tracking-[0.16em] text-stone-500">
             {user.accessLabel}
           </p>
         ) : null}
@@ -174,7 +174,7 @@ export function StaffUserAccessForm({
             ) : null}
           </div>
 
-          <p className="text-xs uppercase tracking-[0.16em] text-stone-400">
+          <p className="text-xs uppercase tracking-[0.16em] text-stone-500">
             Current account status: {user.userStatus}
           </p>
 
