@@ -30,7 +30,10 @@ import {
   type OrderFulfilmentType,
 } from "@/lib/order-fulfilment";
 import { getDefaultTenantContext, TenantContext } from "@/lib/tenant-context";
-import { getActivePrepStation } from "@/lib/prep-stations";
+import {
+  getActivePrepStation,
+  getDefaultPrepStation,
+} from "@/lib/prep-stations";
 import { MenuCategoryRecord } from "@/types/menu";
 import type {
   MenuItemFulfilmentTaxOverride,
@@ -102,6 +105,27 @@ async function ensureUniqueSlug(
   }
 }
 
+async function resolveMenuItemPrepStation(
+  input: { prepStationId?: string | null; isActive: boolean },
+  context: TenantContext,
+) {
+  const prepStation = input.prepStationId
+    ? await getActivePrepStation(input.prepStationId, context)
+    : input.isActive
+      ? await getDefaultPrepStation(context)
+      : null;
+
+  if (input.prepStationId && !prepStation) {
+    throw new Error("Preparation station not found.");
+  }
+
+  if (input.isActive && !prepStation) {
+    throw new Error("Choose an active preparation station before activating this product.");
+  }
+
+  return prepStation;
+}
+
 export async function seedStarterMenu(context: TenantContext = getDefaultTenantContext()) {
   const db = getDb();
   const [existingCategory] = await db
@@ -124,6 +148,11 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
 
   let createdCategories = 0;
   let createdItems = 0;
+  const defaultPrepStation = await getDefaultPrepStation(context);
+
+  if (!defaultPrepStation) {
+    throw new Error("An active Kitchen preparation station is required.");
+  }
 
   for (const category of defaultMenuSeed) {
     const categorySlug = await ensureUniqueSlug(
@@ -156,6 +185,7 @@ export async function seedStarterMenu(context: TenantContext = getDefaultTenantC
         seededItems.push({
           organizationId: context.organizationId,
           categoryId: createdCategory.id,
+          prepStationId: defaultPrepStation.id,
           slug: await ensureUniqueSlug(
             menuItems,
             item.slug,
@@ -1337,11 +1367,7 @@ export async function createMenuItem(input: {
     ]),
     context,
   );
-  const prepStation = await getActivePrepStation(input.prepStationId, context);
-
-  if (input.prepStationId && !prepStation) {
-    throw new Error("Preparation station not found.");
-  }
+  const prepStation = await resolveMenuItemPrepStation(input, context);
 
   const createdItem = await db.transaction(async (tx) => {
     const [item] = await tx
@@ -1495,11 +1521,7 @@ export async function updateMenuItem(
     ]),
     context,
   );
-  const prepStation = await getActivePrepStation(input.prepStationId, context);
-
-  if (input.prepStationId && !prepStation) {
-    throw new Error("Preparation station not found.");
-  }
+  const prepStation = await resolveMenuItemPrepStation(input, context);
 
   const updatedItem = await db.transaction(async (tx) => {
     const [item] = await tx
