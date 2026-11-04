@@ -89,6 +89,14 @@ export const menuItemSchema = z
       .default([]),
   })
   .superRefine((item, context) => {
+    if (item.isActive && !item.prepStationId) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose a preparation station before activating this product",
+        path: ["prepStationId"],
+      });
+    }
+
     const allergenIds = new Set<string>();
 
     for (const [index, allergen] of item.allergens.entries()) {

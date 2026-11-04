@@ -75,6 +75,24 @@ export async function getActivePrepStation(
   return station ?? null;
 }
 
+export async function getDefaultPrepStation(
+  context: TenantContext = getDefaultTenantContext(),
+) {
+  const [station] = await getDb()
+    .select()
+    .from(prepStations)
+    .where(
+      and(
+        eq(prepStations.organizationId, context.organizationId),
+        eq(prepStations.slug, "kitchen"),
+        eq(prepStations.isActive, true),
+      ),
+    )
+    .limit(1);
+
+  return station ?? null;
+}
+
 export async function getPrepStationConfiguration(
   context: TenantContext = getDefaultTenantContext(),
 ) {

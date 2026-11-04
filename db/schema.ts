@@ -2146,6 +2146,10 @@ export const menuItems = pgTable("menu_items", {
     foreignColumns: [prepStations.id, prepStations.organizationId],
     name: "menu_items_prep_station_organization_fk",
   }).onDelete("restrict"),
+  check(
+    "menu_items_active_prep_station_check",
+    sql`NOT ${table.isActive} OR ${table.prepStationId} IS NOT NULL`,
+  ),
   uniqueIndex("menu_items_org_slug_unique").on(
     table.organizationId,
     table.slug,

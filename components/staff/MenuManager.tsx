@@ -157,6 +157,10 @@ const emptyItemDraft: ItemDraft = {
   fulfilmentTaxOverrides: [],
 };
 
+function getDefaultPrepStationId(stations: PrepStationRecord[]) {
+  return stations.find((station) => station.slug === "kitchen")?.id ?? "";
+}
+
 const emptyModifierGroupDraft: ModifierGroupDraft = {
   name: "",
   description: "",
@@ -282,6 +286,7 @@ export function MenuManager() {
     setItemDraft({
       ...emptyItemDraft,
       categoryId: categoryId ?? sortedCategories[0]?.id ?? "",
+      prepStationId: getDefaultPrepStationId(prepStations),
     });
     setItemFieldErrors({});
     setItemFormError(null);
@@ -1455,7 +1460,9 @@ export function MenuManager() {
                   }));
                 }}
               >
-                <option value="">Unassigned</option>
+                <option value="" disabled={itemDraft.isActive}>
+                  Unassigned (inactive products only)
+                </option>
                 {prepStations.map((station) => (
                   <option key={station.id} value={station.id}>
                     {station.name}
@@ -1903,7 +1910,20 @@ export function MenuManager() {
                 checked={itemDraft.isActive}
                 onCheckedChange={(checked) => {
                   clearItemFieldError("isActive");
-                  setItemDraft((current) => ({ ...current, isActive: checked === true }));
+                  const isActive = checked === true;
+
+                  if (isActive) {
+                    clearItemFieldError("prepStationId");
+                  }
+
+                  setItemDraft((current) => ({
+                    ...current,
+                    isActive,
+                    prepStationId:
+                      isActive && !current.prepStationId
+                        ? getDefaultPrepStationId(prepStations)
+                        : current.prepStationId,
+                  }));
                 }}
               />
               Show this product to customers

@@ -56,17 +56,35 @@ test.describe("prep station foundation", () => {
   test("assigns products only to active stations in the same restaurant", () => {
     const menuSource = readFileSync("lib/menu.ts", "utf8");
     const validationSource = readFileSync("lib/validations/menu.ts", "utf8");
+    const migrationSource = readFileSync(
+      "drizzle/0086_active_menu_item_prep_stations.sql",
+      "utf8",
+    );
     const adminApiSource = readFileSync("app/api/menu/admin/route.ts", "utf8");
     const managerSource = readFileSync("components/staff/MenuManager.tsx", "utf8");
 
     expect(validationSource).toContain("prepStationId: z");
+    expect(validationSource).toContain(
+      "Choose a preparation station before activating this product",
+    );
     expect(menuSource).toContain(
       "getActivePrepStation(input.prepStationId, context)",
     );
+    expect(menuSource).toContain("getDefaultPrepStation(context)");
     expect(menuSource).toContain('throw new Error("Preparation station not found.")');
+    expect(menuSource).toContain(
+      'throw new Error("Choose an active preparation station before activating this product.")',
+    );
+    expect(migrationSource).toContain(
+      'ADD CONSTRAINT "menu_items_active_prep_station_check"',
+    );
+    expect(migrationSource).toContain(
+      'AND "item"."prep_station_id" IS NULL',
+    );
     expect(adminApiSource).toContain("getPrepStations(tenantContext)");
     expect(managerSource).toContain('label="Preparation station"');
-    expect(managerSource).toContain('<option value="">Unassigned</option>');
+    expect(managerSource).toContain("getDefaultPrepStationId(prepStations)");
+    expect(managerSource).toContain("Unassigned (inactive products only)");
     expect(managerSource).toContain("prepStationId: itemDraft.prepStationId");
   });
 
