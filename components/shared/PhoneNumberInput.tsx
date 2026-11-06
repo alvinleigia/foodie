@@ -44,7 +44,7 @@ export function PhoneNumberInput({
     controlSize === "lg" || controlSize === "xl" ? controlSize : "default";
 
   return (
-    <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-2">
+    <div className="grid grid-cols-[6.25rem_minmax(0,1fr)] gap-2">
       <Select
         value={countryCode}
         disabled={disabled}
