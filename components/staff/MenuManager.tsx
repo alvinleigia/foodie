@@ -970,6 +970,9 @@ export function MenuManager() {
             <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-500">
               Required columns: category_name, item_name
             </p>
+            <p className="mt-2 text-xs uppercase tracking-[0.2em] text-stone-500">
+              Product images: item_image_url
+            </p>
           </div>
 
           {isLoading ? (

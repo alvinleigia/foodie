@@ -1956,7 +1956,10 @@ export async function importMenuCsv(
     const itemSlug = normalizeText(values[itemSlugIndex]) ?? slugify(itemName);
     const itemDescription = normalizeText(values[itemDescriptionIndex]);
     const itemPrice = normalizePrice(values[itemPriceIndex]);
-    const itemImageUrl = normalizeText(values[itemImageUrlIndex]);
+    const hasItemImageUrl = itemImageUrlIndex >= 0;
+    const itemImageUrl = hasItemImageUrl
+      ? normalizeText(values[itemImageUrlIndex])
+      : null;
     const itemSortOrder = normalizeInteger(values[itemSortOrderIndex], 0);
     const itemActive = normalizeBoolean(values[itemActiveIndex], true);
     const itemSoldOut = normalizeBoolean(values[itemSoldOutIndex], false);
@@ -1990,7 +1993,7 @@ export async function importMenuCsv(
           name: itemName,
           description: itemDescription,
           price: itemPrice,
-          imageUrl: itemImageUrl,
+          ...(hasItemImageUrl ? { imageUrl: itemImageUrl } : {}),
           sortOrder: itemSortOrder,
           isActive: itemActive,
           isSoldOut: itemSoldOut,
