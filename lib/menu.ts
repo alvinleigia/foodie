@@ -22,7 +22,6 @@ import {
 import { formatPrice } from "@/lib/formatters";
 import { getDefaultCountryCodeForCurrency } from "@/lib/countries";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
-import { findMenuImageUrlColumn } from "@/lib/menu-csv";
 import {
   getMenuAvailabilityState,
   isMenuCategoryAvailable,
@@ -1892,7 +1891,7 @@ export async function importMenuCsv(
   const itemNameIndex = headers.indexOf("item_name");
   const itemDescriptionIndex = headers.indexOf("item_description");
   const itemPriceIndex = headers.indexOf("item_price");
-  const itemImageUrlIndex = findMenuImageUrlColumn(headers);
+  const itemImageUrlIndex = headers.indexOf("image_url");
   const itemSortOrderIndex = headers.indexOf("item_sort_order");
   const itemActiveIndex = headers.indexOf("item_active");
   const itemSoldOutIndex = headers.indexOf("item_sold_out");
