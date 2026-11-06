@@ -82,7 +82,7 @@ type CompanyRestaurantsPanelProps = {
 
 function CompanySetupRequired() {
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <SectionHeader
           eyebrow="Company"
@@ -277,7 +277,7 @@ export function CompanyRestaurantsPanel({
 
       {view === "management" ? (
         <>
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
           <div>
             <h3 className="text-xl font-semibold text-stone-950">Restaurants</h3>
@@ -286,12 +286,12 @@ export function CompanyRestaurantsPanel({
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button asChild variant="outline" className="rounded-lg">
+            <Button asChild variant="outline">
               <Link href={getCompanyWorkspaceHref(companySlug, "users")}>
                 <ButtonLabel icon={UsersIcon}>Manage users</ButtonLabel>
               </Link>
             </Button>
-            <Button asChild className="rounded-lg">
+            <Button asChild>
               <Link href={getCompanyWorkspaceHref(companySlug, "restaurantNew")}>
                 <ButtonLabel icon={PlusIcon}>Add restaurant</ButtonLabel>
               </Link>
@@ -300,7 +300,7 @@ export function CompanyRestaurantsPanel({
         </CardHeader>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-xl font-semibold text-stone-950">Child restaurants</h3>
         </CardHeader>
@@ -357,13 +357,12 @@ export function CompanyRestaurantsPanel({
                         variant="outline"
                         size="icon"
                         disabled={Boolean(pendingAction)}
-                        className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
                         aria-label={`Open actions for ${restaurant.name}`}
                       >
                         <MoreHorizontalIcon className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white text-stone-950">
+                    <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Restaurant actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
                         <Link

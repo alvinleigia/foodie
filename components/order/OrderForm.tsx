@@ -1473,8 +1473,8 @@ export function OrderForm({
                     <Button
                       type="button"
                       variant="outline"
+                      size="lg"
                       onClick={() => setFocusedCartDrinkId(null)}
-                      className="h-9 rounded-lg bg-white"
                     >
                       <ShoppingCartIcon className="size-4" />
                       Full cart
@@ -1591,8 +1591,8 @@ export function OrderForm({
                             <Button
                               type="button"
                               variant="outline"
+                              size="lg"
                               onClick={() => openCustomizerForItem(item)}
-                              className="h-9 rounded-lg bg-white"
                             >
                               <ButtonLabel icon={TagsIcon}>Edit</ButtonLabel>
                             </Button>
@@ -1657,7 +1657,7 @@ export function OrderForm({
                 type="button"
                 onClick={goToReview}
                 disabled={isSubmitting || isLoadingMenu || Boolean(menuError) || cartItems.length === 0}
-                className="min-h-12 rounded-lg bg-stone-950 px-5 py-3 text-white hover:bg-stone-800"
+                size="2xl"
               >
                 Review Order
               </Button>
@@ -1782,18 +1782,18 @@ export function OrderForm({
                 <Button
                   type="button"
                   variant="outline"
+                  size="xl"
                   onClick={() => {
                     setCustomizer(null);
                     setCustomizerError(null);
                   }}
-                  className="min-h-11 rounded-lg"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
+                  size="xl"
                   onClick={saveCustomization}
-                  className="min-h-11 rounded-lg bg-stone-950 text-white hover:bg-stone-800"
                 >
                   <ButtonLabel icon={customizer.mode === "edit" ? TagsIcon : PlusIcon}>
                     {customizer.mode === "edit" ? "Save Customization" : "Add to Cart"}
@@ -2096,7 +2096,7 @@ export function OrderForm({
                       min={toLocalDateTimeInputValue(new Date())}
                       value={draft.scheduledFulfilmentAt}
                       disabled={isSubmitting}
-                      className="h-12 border-stone-300 bg-white px-4 shadow-sm hover:border-stone-400 focus-visible:border-stone-600 focus-visible:ring-stone-400/20"
+                      controlSize="xl"
                       onChange={(event) => {
                         updateDraft("scheduledFulfilmentAt", event.target.value);
                         setError(null);
@@ -2321,7 +2321,7 @@ export function OrderForm({
                   disabled={isSubmitting}
                   aria-invalid={Boolean(customerNameError)}
                   aria-describedby={customerNameError ? "review-customer-name-error" : undefined}
-                  className="h-12 rounded-lg border-stone-200 bg-white px-4 text-base aria-invalid:border-rose-500 aria-invalid:ring-2 aria-invalid:ring-rose-100"
+                  controlSize="xl"
                 />
                 {customerNameError ? (
                   <p id="review-customer-name-error" className="text-sm text-rose-600">
@@ -2535,20 +2535,20 @@ export function OrderForm({
               <Button
                 type="button"
                 variant="outline"
+                size="xl"
                 onClick={() => {
                   setError(null);
                   setScreen("menu");
                 }}
                 disabled={isSubmitting}
-                className="min-h-12 rounded-lg py-3"
               >
                 <ButtonLabel icon={ArrowLeftIcon}>Back to Menu</ButtonLabel>
               </Button>
               <Button
                 type="button"
+                size="xl"
                 onClick={confirmOrder}
                 disabled={isSubmitting || cartItems.length === 0 || !canPlaceOrder}
-                className="min-h-12 rounded-lg bg-stone-950 py-3 text-white hover:bg-stone-800"
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
@@ -2862,11 +2862,11 @@ export function OrderForm({
                                         <Button
                                           type="button"
                                           variant="outline"
+                                          size="lg"
                                           onClick={() => addToCart(category, drink)}
                                           disabled={
                                             isSubmitting || isUnavailable || hasReachedStockLimit
                                           }
-                                          className="h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                         >
                                           {!isUnavailable && !hasReachedStockLimit ? (
                                             <PlusIcon className="size-4" />
@@ -2880,8 +2880,8 @@ export function OrderForm({
                                         <Button
                                           type="button"
                                           variant="outline"
+                                          size="lg"
                                           onClick={() => openCartForDrink(drink.id)}
-                                          className="h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                         >
                                           <TagsIcon className="size-4" />
                                           Manage variants
@@ -3018,9 +3018,10 @@ export function OrderForm({
             </div>
             <Button
               type="button"
+              size="xl"
               onClick={openCart}
               disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
-              className="h-12 shrink-0 rounded-lg bg-stone-950 px-5 text-white hover:bg-stone-800"
+              className="shrink-0"
             >
               <ShoppingCartIcon className="size-4" />
               View Cart

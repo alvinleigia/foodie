@@ -135,7 +135,7 @@ export function RestaurantTaxProfileForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Tax profile</h3>
         <p className="text-sm text-stone-500">
@@ -178,7 +178,7 @@ export function RestaurantTaxProfileForm({
                   }));
                 }}
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -203,7 +203,7 @@ export function RestaurantTaxProfileForm({
                   updateField("pricingMode", value as TaxPricingMode)
                 }
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -231,7 +231,7 @@ export function RestaurantTaxProfileForm({
                   )
                 }
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -385,7 +385,6 @@ export function RestaurantTaxProfileForm({
             <Button
               type="submit"
               disabled={isSaving}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={SaveIcon}>
                 {isSaving ? "Saving..." : "Save tax profile"}

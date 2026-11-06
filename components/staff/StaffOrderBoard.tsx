@@ -1328,7 +1328,8 @@ export function StaffOrderBoard({
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search order, customer, email or phone"
-              className="h-10 bg-white pl-9"
+              controlSize="compact"
+              className="pl-9"
               disabled={Boolean(pendingAction)}
             />
           </label>
@@ -1338,7 +1339,7 @@ export function StaffOrderBoard({
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 bg-white"
+                size="lg"
                 aria-label={
                   activeFilterCount > 0
                     ? `Filters, ${activeFilterCount} applied`
@@ -1378,7 +1379,7 @@ export function StaffOrderBoard({
                     }}
                     disabled={Boolean(pendingAction)}
                   >
-                    <SelectTrigger className="h-10 w-full bg-white">
+                    <SelectTrigger size="compact" className="w-full">
                       <SelectValue placeholder="All statuses" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1402,7 +1403,7 @@ export function StaffOrderBoard({
                     }}
                     disabled={Boolean(pendingAction)}
                   >
-                    <SelectTrigger className="h-10 w-full bg-white">
+                    <SelectTrigger size="compact" className="w-full">
                       <SelectValue placeholder="All types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1435,7 +1436,7 @@ export function StaffOrderBoard({
                         setFromDate(event.target.value);
                         setCurrentPage(1);
                       }}
-                      className="h-10 bg-white px-2"
+                      controlSize="compact"
                       disabled={Boolean(pendingAction)}
                     />
                   </label>
@@ -1449,7 +1450,7 @@ export function StaffOrderBoard({
                         setToDate(event.target.value);
                         setCurrentPage(1);
                       }}
-                      className="h-10 bg-white px-2"
+                      controlSize="compact"
                       disabled={Boolean(pendingAction)}
                     />
                   </label>
@@ -1682,7 +1683,7 @@ export function StaffOrderBoard({
                   setAdjustmentReasonCode(value as StaffOrderAdjustmentReasonCode)
                 }
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1983,7 +1984,8 @@ export function StaffOrderBoard({
                     </div>
                     <Button
                       type="button"
-                      className="mt-4 w-full bg-stone-950 text-white hover:bg-stone-800"
+                      size="xl"
+                      className="mt-4 w-full"
                       disabled={
                         Boolean(pendingAction) ||
                         !settlementBalance ||
@@ -2115,7 +2117,7 @@ export function StaffOrderBoard({
                         </div>
                       </div>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        <Button asChild className="flex-1 bg-stone-950 text-white">
+                        <Button asChild size="xl" className="flex-1">
                           <a
                             href={checkoutUrl}
                             target="_blank"
@@ -2466,11 +2468,6 @@ export function StaffOrderBoard({
                       variant={correctionStatus === status ? "default" : "outline"}
                       disabled={Boolean(pendingAction)}
                       onClick={() => setCorrectionStatus(status)}
-                      className={
-                        correctionStatus === status
-                          ? "rounded-lg bg-stone-950 text-white hover:bg-stone-800"
-                          : "rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
-                      }
                     >
                       {statusCorrectionLabels[status]}
                     </Button>

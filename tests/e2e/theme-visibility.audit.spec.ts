@@ -143,6 +143,7 @@ async function loadAuditFixtures(): Promise<AuditFixtures> {
       { path: "/platform/audit-logs", role: "PLATFORM_ADMIN" },
       { path: "/platform/users/memberships", role: "PLATFORM_ADMIN" },
       { path: "/platform/users/reassign", role: "PLATFORM_ADMIN" },
+      { path: "/platform/uat-reset", role: "PLATFORM_ADMIN" },
       { path: `/platform/companies/${companyRecord.id}`, role: "PLATFORM_ADMIN" },
       { path: `/platform/companies/${companyRecord.id}/domains`, role: "PLATFORM_ADMIN" },
       { path: `/platform/companies/${companyRecord.id}/subscription`, role: "PLATFORM_ADMIN" },
@@ -188,6 +189,10 @@ async function loadAuditFixtures(): Promise<AuditFixtures> {
       { path: `/restaurants/${restaurantSlug}/menu`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/orders`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/order`, role: "RESTAURANT_MANAGER" },
+      {
+        path: `/restaurants/${restaurantSlug}/ordering-point`,
+        role: "RESTAURANT_MANAGER",
+      },
       { path: `/restaurants/${restaurantSlug}/kds`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/cash-drawer`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/inventory`, role: "RESTAURANT_MANAGER" },
@@ -202,6 +207,17 @@ async function loadAuditFixtures(): Promise<AuditFixtures> {
       { path: `/restaurants/${restaurantSlug}/staff/invite`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/staff/new`, role: "RESTAURANT_MANAGER" },
       { path: `/restaurants/${restaurantSlug}/staff/reassign`, role: "RESTAURANT_MANAGER" },
+      { path: `/restaurants/${restaurantSlug}/staff/jobs`, role: "RESTAURANT_MANAGER" },
+      { path: `/restaurants/${restaurantSlug}/schedule`, role: "RESTAURANT_MANAGER" },
+      {
+        path: `/restaurants/${restaurantSlug}/staff/schedule`,
+        role: "RESTAURANT_MANAGER",
+      },
+      {
+        path: `/restaurants/${restaurantSlug}/staff/shifts`,
+        role: "RESTAURANT_MANAGER",
+      },
+      { path: `/restaurants/${restaurantSlug}/time-clock`, role: "RESTAURANT_MANAGER" },
       {
         path: `/restaurants/${restaurantSlug}/staff/${restaurantMembership.id}`,
         role: "RESTAURANT_MANAGER",
@@ -692,6 +708,45 @@ test.describe("theme visibility audit", () => {
     await page.getByRole("button", { name: "Light", exact: true }).click();
     await expect(page.locator("html")).toHaveClass(/light/);
     await expect(page.locator("html")).not.toHaveClass(/dark/);
+  });
+
+  test("user action lists hydrate without client replacement", async ({
+    context,
+    page,
+  }) => {
+    const hydrationErrors: string[] = [];
+    page.on("console", (message) => {
+      if (
+        message.type() === "error" &&
+        message.text().includes("Hydration failed")
+      ) {
+        hydrationErrors.push(message.text());
+      }
+    });
+
+    const company = fixtures.identities.COMPANY_OWNER;
+    const restaurant = fixtures.identities.RESTAURANT_MANAGER;
+    const routes: AuditRoute[] = [
+      {
+        path: `/companies/${company.organizationSlug}/users`,
+        role: "COMPANY_OWNER",
+      },
+      {
+        path: `/restaurants/${restaurant.organizationSlug}/staff`,
+        role: "RESTAURANT_MANAGER",
+      },
+    ];
+
+    for (const route of routes) {
+      await setStaffSession(context, fixtures.identities[route.role!]);
+      await page.goto(route.path, {
+        timeout: 60_000,
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForTimeout(500);
+    }
+
+    expect(hydrationErrors, hydrationErrors.join("\n\n")).toEqual([]);
   });
 
   test("application header remains dark in both themes", async ({ context, page }) => {

@@ -111,7 +111,7 @@ export function StaffTimeClockPanel({
 
   return (
     <div className="grid gap-6">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -271,7 +271,7 @@ export function StaffTimeClockPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <div className="flex items-center gap-3">
             <TimerIcon className="size-5 text-stone-500" />

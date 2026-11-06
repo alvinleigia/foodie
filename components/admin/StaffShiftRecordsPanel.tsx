@@ -19,6 +19,7 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import { fetchJson, requestJson } from "@/lib/api-client";
 import type { StaffPayrollExportRun } from "@/types/staff-payroll";
@@ -312,11 +313,12 @@ export function StaffShiftRecordsPanel({
             <label className="relative">
               <span className="sr-only">Search staff or job</span>
               <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
                 type="search"
                 value={draftFilters.query}
                 placeholder="Search staff or job"
-                className="h-9 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                controlSize="compact"
+                className="pl-9"
                 onChange={(event) =>
                   setDraftFilters((current) => ({
                     ...current,
@@ -327,6 +329,7 @@ export function StaffShiftRecordsPanel({
             </label>
             <NativeSelect
               aria-label="Approval status"
+              density="compact"
               value={draftFilters.status}
               onChange={(event) =>
                 setDraftFilters((current) => ({
@@ -340,11 +343,11 @@ export function StaffShiftRecordsPanel({
               <option value="PENDING">Pending approval</option>
               <option value="APPROVED">Approved</option>
             </NativeSelect>
-            <input
+            <Input
               type="date"
               aria-label="From date"
               value={draftFilters.from}
-              className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              controlSize="compact"
               onChange={(event) =>
                 setDraftFilters((current) => ({
                   ...current,
@@ -352,11 +355,11 @@ export function StaffShiftRecordsPanel({
                 }))
               }
             />
-            <input
+            <Input
               type="date"
               aria-label="To date"
               value={draftFilters.to}
-              className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              controlSize="compact"
               onChange={(event) =>
                 setDraftFilters((current) => ({
                   ...current,

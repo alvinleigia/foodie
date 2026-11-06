@@ -33,7 +33,7 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
 
   if (!token || !reset) {
     return (
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-6 pt-6">
           <h1 className="text-3xl font-semibold text-stone-950">
             Invalid reset link
@@ -48,7 +48,7 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
 
   if (isComplete) {
     return (
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-6 pt-6">
           <h1 className="text-3xl font-semibold text-stone-950">
             Password updated
@@ -58,7 +58,7 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
           <p className="text-sm text-stone-600">
             Your password has been reset. You can now sign in with the new password.
           </p>
-          <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
+          <Button asChild>
             <Link href="/staff/login">
               <ButtonLabel icon={LogInIcon}>Go to login</ButtonLabel>
             </Link>
@@ -69,7 +69,7 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-6 pt-6">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[rgb(199,76,0)]">
           Password Reset
@@ -162,7 +162,6 @@ export function PasswordResetForm({ reset, token }: PasswordResetFormProps) {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
             <ButtonLabel icon={KeyRoundIcon}>
               {isSubmitting ? "Resetting..." : "Reset Password"}

@@ -55,7 +55,7 @@ export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Add restaurant</h3>
         <p className="text-sm text-stone-500">
@@ -122,13 +122,12 @@ export function CreateRestaurantForm({ backHref }: CreateRestaurantFormProps) {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={PlusIcon}>
                 {isSubmitting ? "Creating..." : "Create restaurant"}
               </ButtonLabel>
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

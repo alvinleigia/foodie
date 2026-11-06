@@ -119,7 +119,7 @@ export function StaffInviteForm({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-2xl font-semibold text-stone-950">{title}</h3>
           <p className="text-sm text-stone-500">{description}</p>
@@ -220,7 +220,7 @@ export function StaffInviteForm({
                   setDraft((current) => ({ ...current, role }));
                 }}
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -236,13 +236,12 @@ export function StaffInviteForm({
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
                 <ButtonLabel icon={UserPlusIcon}>
                   {isSubmitting ? "Sending..." : "Send invitation"}
                 </ButtonLabel>
               </Button>
-              <Button asChild type="button" variant="outline" className="rounded-lg">
+              <Button asChild type="button" variant="outline">
                 <Link href={backHref}>
                   <ButtonLabel icon={XIcon}>{backLabel}</ButtonLabel>
                 </Link>
@@ -252,7 +251,7 @@ export function StaffInviteForm({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-xl font-semibold text-stone-950">Invitation link</h3>
         </CardHeader>

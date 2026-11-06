@@ -82,7 +82,7 @@ export function AuditLogPanel() {
             Recent scoped admin and operational changes.
           </p>
         </div>
-        <Button asChild variant="outline" className="rounded-lg">
+        <Button asChild variant="outline">
           <a href="/api/audit-logs/export?limit=250">
             <ButtonLabel icon={DownloadIcon}>Export CSV</ButtonLabel>
           </a>

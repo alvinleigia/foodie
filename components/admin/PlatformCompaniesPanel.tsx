@@ -93,7 +93,7 @@ export function PlatformCompaniesPanel() {
     <div className="grid gap-6">
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <h3 className="text-xl font-semibold text-stone-950">Parent companies</h3>
@@ -104,7 +104,6 @@ export function PlatformCompaniesPanel() {
           <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
             <Button
               asChild
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <Link href="/platform/companies/new">
                 <ButtonLabel icon={PlusIcon}>Add Company</ButtonLabel>
@@ -173,13 +172,12 @@ export function PlatformCompaniesPanel() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
                         aria-label={`Open actions for ${company.name}`}
                       >
                         <MoreHorizontalIcon className="size-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white text-stone-950">
+                    <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Company actions</DropdownMenuLabel>
                       <DropdownMenuItem asChild>
                         <Link

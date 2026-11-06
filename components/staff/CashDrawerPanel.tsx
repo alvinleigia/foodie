@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -414,9 +415,9 @@ export function CashDrawerPanel({
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="movement-amount">
+                    <Label htmlFor="movement-amount">
                       Amount ({session.currency})
-                    </label>
+                    </Label>
                     <Input
                       id="movement-amount"
                       inputMode="decimal"
@@ -455,9 +456,9 @@ export function CashDrawerPanel({
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="movement-note">
+                  <Label htmlFor="movement-note">
                     Note <span className="text-muted-foreground">(optional)</span>
-                  </label>
+                  </Label>
                   <Textarea
                     className="min-h-20"
                     id="movement-note"
@@ -610,9 +611,9 @@ export function CashDrawerPanel({
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="counted-cash">
+                  <Label htmlFor="counted-cash">
                     Counted cash ({session.currency})
-                  </label>
+                  </Label>
                   <Input
                     id="counted-cash"
                     inputMode="decimal"
@@ -636,12 +637,12 @@ export function CashDrawerPanel({
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="closing-note">
+                <Label htmlFor="closing-note">
                   Closing note{" "}
                   <span className="text-muted-foreground">
                     {closingNoteRequired ? "(required for variance)" : "(optional)"}
                   </span>
-                </label>
+                </Label>
                 <Textarea
                   className="min-h-20"
                   id="closing-note"
@@ -723,9 +724,9 @@ export function CashDrawerPanel({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="max-w-xs space-y-2">
-          <label className="text-sm font-medium" htmlFor="opening-float">
+          <Label htmlFor="opening-float">
             Opening float ({currency})
-          </label>
+          </Label>
           <Input
             id="opening-float"
             inputMode="decimal"

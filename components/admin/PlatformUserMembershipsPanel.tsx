@@ -47,7 +47,7 @@ export function PlatformUserMembershipsPanel({
   users,
 }: PlatformUserMembershipsPanelProps) {
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-xl font-semibold text-stone-950">User memberships</h3>
@@ -57,7 +57,6 @@ export function PlatformUserMembershipsPanel({
         </div>
         <Button
           asChild
-          className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
         >
           <Link href="/platform/users/reassign?returnTo=/platform/users/memberships">
             <ButtonLabel icon={UserCheckIcon}>Reassign Existing User</ButtonLabel>
@@ -125,14 +124,14 @@ export function PlatformUserMembershipsPanel({
                         {membership.isActive ? "Access active" : "Access disabled"}
                       </StatusPill>
                       <StatusPill>{formatRole(membership.role)}</StatusPill>
-                      <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
+                      <Button asChild variant="outline" size="sm">
                         <Link
                           href={`/users/${membership.membershipId}/account?returnTo=${encodeURIComponent("/platform/users/memberships")}`}
                         >
                           <ButtonLabel icon={UserPenIcon}>Account</ButtonLabel>
                         </Link>
                       </Button>
-                      <Button asChild variant="outline" className="h-7 rounded-lg px-2 text-xs">
+                      <Button asChild variant="outline" size="sm">
                         <Link
                           href={`/users/${membership.membershipId}/reset-password?returnTo=${encodeURIComponent("/platform/users/memberships")}`}
                         >

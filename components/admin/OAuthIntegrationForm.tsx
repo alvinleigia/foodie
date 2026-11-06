@@ -20,6 +20,7 @@ import {
   IntegrationStatus,
 } from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { FormActions } from "@/components/shared/FormActions";
 import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
@@ -257,7 +258,7 @@ export function OAuthIntegrationForm({
       >
         <div className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] sm:items-center">
           <p className="text-sm font-semibold text-foreground">Social provider</p>
-          <TabsList className="gap-2" aria-label="Social login provider">
+          <TabsList aria-label="Social login provider">
             {providers.map((provider) => {
               const Icon = provider.icon;
 
@@ -265,7 +266,6 @@ export function OAuthIntegrationForm({
                 <TabsTrigger
                   key={provider.provider}
                   value={provider.provider}
-                  className="gap-2 data-[state=active]:border-amber-500 data-[state=active]:bg-amber-500/10 data-[state=active]:text-foreground"
                 >
                   <Icon className="size-4" />
                   {provider.label}
@@ -348,13 +348,18 @@ export function OAuthIntegrationForm({
                 </div>
               ) : null}
 
-              <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-                <Button type="button" onClick={() => void save()} disabled={isSaving}>
+              <FormActions>
+                <Button
+                  type="button"
+                  size="xl"
+                  onClick={() => void save()}
+                  disabled={isSaving}
+                >
                   <ButtonLabel icon={SaveIcon}>
                     {isSaving ? "Saving..." : `Save ${provider.label}`}
                   </ButtonLabel>
                 </Button>
-              </div>
+              </FormActions>
             </div>
           </TabsContent>
         ))}

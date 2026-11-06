@@ -171,7 +171,7 @@ export function CompanyDomainsPanel({
 
   return (
     <div className="grid gap-6">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-2xl font-semibold text-stone-950">Add domain</h3>
           <p className="text-sm text-stone-500">
@@ -234,7 +234,7 @@ export function CompanyDomainsPanel({
                 }}
                 disabled={isSubmitting}
               >
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -279,7 +279,6 @@ export function CompanyDomainsPanel({
               <Button
                 type="submit"
                 disabled={isSubmitting || !targetCustomDomainsEnabled}
-                className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
@@ -290,7 +289,7 @@ export function CompanyDomainsPanel({
                   <ButtonLabel icon={GlobeIcon}>Add Domain</ButtonLabel>
                 )}
               </Button>
-              <Button asChild type="button" variant="outline" className="rounded-lg">
+              <Button asChild type="button" variant="outline">
                 <Link href={backHref}>
                   <ButtonLabel icon={ArrowLeftIcon}>Back</ButtonLabel>
                 </Link>
@@ -300,7 +299,7 @@ export function CompanyDomainsPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-2xl font-semibold text-stone-950">Linked domains</h3>
           <p className="text-sm text-stone-500">

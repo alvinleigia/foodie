@@ -228,7 +228,7 @@ export function RestaurantAdminPanel({
       ) : null}
 
       {view === "staff" && snapshot ? (
-            <Card className="rounded-xl border-stone-200 bg-white">
+            <Card>
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
                 <div>
                   <h3 className="text-xl font-semibold text-stone-950">Staff users</h3>
@@ -237,19 +237,19 @@ export function RestaurantAdminPanel({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline" className="rounded-lg">
+                  <Button asChild variant="outline">
                     <Link href={staffJobsHref}>
                       <ButtonLabel icon={BriefcaseBusinessIcon}>
                         Manage jobs
                       </ButtonLabel>
                     </Link>
                   </Button>
-                  <Button asChild variant="outline" className="rounded-lg">
+                  <Button asChild variant="outline">
                     <Link href={staffReassignHref}>
                       <ButtonLabel icon={UserCheckIcon}>Assign existing staff</ButtonLabel>
                     </Link>
                   </Button>
-                  <Button asChild className="rounded-lg">
+                  <Button asChild>
                     <Link href={staffInviteHref}>
                       <ButtonLabel icon={UserPlusIcon}>Invite staff</ButtonLabel>
                     </Link>
@@ -300,13 +300,12 @@ export function RestaurantAdminPanel({
                             type="button"
                             variant="outline"
                             size="icon"
-                            className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
                             aria-label={`Open actions for ${staff.name}`}
                           >
                             <MoreHorizontalIcon className="size-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-white text-stone-950">
+                        <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
                             <Link

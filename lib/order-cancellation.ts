@@ -28,6 +28,10 @@ import {
 import type { MembershipRole } from "@/lib/staff-auth";
 import { getStripe } from "@/lib/stripe";
 import { getStripeApplicationFeeRefundParams } from "@/lib/stripe-refund-policy";
+import {
+  queueOrderCancellationEmail,
+  queueOrderRefundEmail,
+} from "@/lib/order-customer-emails";
 
 type CancellationActorUser = {
   id: string;
@@ -339,6 +343,14 @@ export async function syncOrderRefundFromStripe(
     .from(orders)
     .where(eq(orders.id, operation.order.id))
     .limit(1);
+
+  if (nextRefundStatus === "SUCCEEDED") {
+    await queueOrderRefundEmail(
+      operation.refund.id,
+      operation.order.id,
+      operation.order.organizationId,
+    );
+  }
 
   return updatedOrder ?? operation.order;
 }
@@ -990,6 +1002,12 @@ export async function cancelOrder(input: CancelOrderInput) {
     },
   });
 
+  await queueOrderCancellationEmail(
+    prepared.order.id,
+    prepared.order.organizationId,
+    prepared.cancellation.id,
+  );
+
   for (const refund of prepared.refunds.filter(
     (current) => current.provider === "CASH",
   )) {
@@ -1008,6 +1026,11 @@ export async function cancelOrder(input: CancelOrderInput) {
         provider: refund.provider,
       },
     });
+    await queueOrderRefundEmail(
+      refund.id,
+      prepared.order.id,
+      prepared.order.organizationId,
+    );
   }
 
   const stripeRefunds = prepared.refunds.filter(

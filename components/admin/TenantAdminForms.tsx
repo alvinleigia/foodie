@@ -8,13 +8,16 @@ import { toast } from "sonner";
 
 import { getApiError, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { FormActions as FormActionRow } from "@/components/shared/FormActions";
 import { FormField } from "@/components/shared/FormField";
 import { CurrencySelect, TimezoneSelect } from "@/components/shared/LocaleSelects";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { StaffInviteForm } from "@/components/admin/StaffInviteForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -89,7 +92,7 @@ function StaffRoleSelect({
 }) {
   return (
     <Select value={value} onValueChange={(role) => onChange(role as StaffRole)}>
-      <SelectTrigger className="bg-white">
+      <SelectTrigger>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -115,20 +118,19 @@ function FormActions({
   submitLabel: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-3 pt-2">
+    <FormActionRow className="border-t-0 pt-2">
       <Button
         type="submit"
         disabled={isSaving || isDisabled}
-        className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
       >
         <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : submitLabel}</ButtonLabel>
       </Button>
-      <Button asChild type="button" variant="outline" className="rounded-lg">
+      <Button asChild type="button" variant="outline">
         <Link href={backHref}>
           <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
         </Link>
       </Button>
-    </div>
+    </FormActionRow>
   );
 }
 
@@ -169,7 +171,7 @@ export function TenantRestaurantSettingsForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Edit restaurant</h3>
         <p className="text-sm text-stone-500">
@@ -402,7 +404,7 @@ export function TenantOrderingPointSettingsForm({
           : "Used in the public customer link, for example /order?qr=main-lobby.";
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">
           Customer ordering settings
@@ -494,20 +496,22 @@ export function TenantOrderingPointSettingsForm({
               </p>
             </FormField>
           </div>
-          <label className="flex items-center gap-2 text-sm text-stone-700">
-            <input
-              type="checkbox"
+          <Label
+            htmlFor="ordering-point-active"
+            className="gap-2 text-sm text-stone-700"
+          >
+            <Checkbox
+              id="ordering-point-active"
               checked={draft.isActive}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 setDraft((current) => ({
                   ...current,
-                  isActive: event.target.checked,
+                  isActive: checked === true,
                 }))
               }
-              className="size-4 rounded border-stone-300"
             />
             Ordering point is active
-          </label>
+          </Label>
           <FormActions
             backHref={backHref}
             isDisabled={qrSlugStatus.isChecking || qrSlugStatus.available === false}
@@ -585,7 +589,7 @@ export function TenantStaffAccessForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Edit staff access</h3>
         <p className="text-sm text-stone-500">{staff.name}</p>
@@ -639,20 +643,21 @@ export function TenantStaffAccessForm({
                   {staffPermissionDefinitions
                     .filter((definition) => definition.group === group)
                     .map((definition) => (
-                      <label
+                      <Label
                         key={definition.permission}
-                        className="flex min-w-0 items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3"
+                        htmlFor={`staff-permission-${definition.permission}`}
+                        className="min-w-0 items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          id={`staff-permission-${definition.permission}`}
                           checked={draft.permissions.includes(
                             definition.permission,
                           )}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             validation.clearFieldError("permissions");
                             setDraft((current) => ({
                               ...current,
-                              permissions: event.target.checked
+                              permissions: checked === true
                                 ? [
                                     ...current.permissions,
                                     definition.permission,
@@ -663,7 +668,7 @@ export function TenantStaffAccessForm({
                                   ),
                             }));
                           }}
-                          className="mt-0.5 size-4 shrink-0 rounded border-stone-300"
+                          className="mt-0.5"
                         />
                         <span className="min-w-0">
                           <span className="block text-sm font-medium text-stone-900">
@@ -673,7 +678,7 @@ export function TenantStaffAccessForm({
                             {definition.description}
                           </span>
                         </span>
-                      </label>
+                      </Label>
                     ))}
                 </div>
               </fieldset>
@@ -685,21 +690,23 @@ export function TenantStaffAccessForm({
             ) : null}
           </div>
           <div className="grid gap-2">
-            <label className="flex items-center gap-2 text-sm text-stone-700">
-              <input
-                type="checkbox"
+            <Label
+              htmlFor="staff-access-active"
+              className="gap-2 text-sm text-stone-700"
+            >
+              <Checkbox
+                id="staff-access-active"
                 checked={draft.isActive}
-                onChange={(event) => {
+                onCheckedChange={(checked) => {
                   validation.clearFieldError("isActive");
                   setDraft((current) => ({
                     ...current,
-                    isActive: event.target.checked,
+                    isActive: checked === true,
                   }));
                 }}
-                className="size-4 rounded border-stone-300"
               />
               Staff access is active
-            </label>
+            </Label>
             {validation.getError("isActive") ? (
               <p className="text-sm text-rose-600">{validation.getError("isActive")}</p>
             ) : null}

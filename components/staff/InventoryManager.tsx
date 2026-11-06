@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { InventoryRecord, InventoryStatus } from "@/types/inventory";
 
@@ -432,7 +433,7 @@ export function InventoryManager() {
                               />
                             </FormField>
                             <div className="md:mt-6">
-                              <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-700">
+                              <Label className="rounded-lg border border-border bg-background px-3 py-2 text-muted-foreground">
                                 <Checkbox
                                   checked={draft.isTracked}
                                   disabled={!isEditing || isSaving}
@@ -443,7 +444,7 @@ export function InventoryManager() {
                                   }
                                 />
                                 Track stock
-                              </label>
+                              </Label>
                               {getFieldError(fieldErrors, "isTracked") ? (
                                 <p className="mt-2 text-sm text-rose-600">
                                   {getFieldError(fieldErrors, "isTracked")}
@@ -484,7 +485,7 @@ export function InventoryManager() {
                                   variant="outline"
                                   onClick={() => cancelEditing(record)}
                                   disabled={isSaving}
-                                  className="min-h-10 rounded-lg"
+                                  size="xl"
                                 >
                                   <XIcon className="size-4" />
                                   Cancel
@@ -493,10 +494,10 @@ export function InventoryManager() {
                                   type="button"
                                   onClick={() => void saveInventory(record)}
                                   disabled={isSaving}
-                                  className="min-h-10 rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+                                  size="xl"
                                 >
                                   {isSaving ? (
-                                    <Spinner className="text-white" />
+                                    <Spinner />
                                   ) : (
                                     <SaveIcon className="size-4" />
                                   )}
@@ -509,7 +510,7 @@ export function InventoryManager() {
                                 variant="outline"
                                 onClick={() => startEditing(record)}
                                 disabled={Boolean(pendingAction) || isAnotherItemEditing}
-                                className="min-h-10 rounded-lg"
+                                size="xl"
                               >
                                 <PencilLineIcon className="size-4" />
                                 Edit inventory

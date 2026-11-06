@@ -20,6 +20,7 @@ import {
   IntegrationStatus,
 } from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { FormActions } from "@/components/shared/FormActions";
 import { Button } from "@/components/ui/button";
 import { requestJson } from "@/lib/api-client";
 import type {
@@ -231,9 +232,10 @@ export function StripeIntegrationForm({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-3 border-t border-border pt-5">
+        <FormActions>
           <Button
             type="button"
+            size="xl"
             onClick={() => void save()}
             disabled={
               isSaving ||
@@ -249,6 +251,7 @@ export function StripeIntegrationForm({
           {mode === "CUSTOM" ? (
             <Button
               type="button"
+              size="xl"
               variant="outline"
               onClick={() => void connectStripe()}
               disabled={!enabled || isDirty || isSaving || isConnecting || isSyncing}
@@ -267,6 +270,7 @@ export function StripeIntegrationForm({
           {mode === "CUSTOM" && snapshot.settings.stripeAccountId ? (
             <Button
               type="button"
+              size="xl"
               variant="outline"
               onClick={() => void syncStripe()}
               disabled={isDirty || isSaving || isConnecting || isSyncing}
@@ -276,12 +280,12 @@ export function StripeIntegrationForm({
               </ButtonLabel>
             </Button>
           ) : null}
-          <Button asChild type="button" variant="ghost">
+          <Button asChild type="button" size="xl" variant="ghost">
             <Link href={backHref}>
               <ButtonLabel icon={XIcon}>Back</ButtonLabel>
             </Link>
           </Button>
-        </div>
+        </FormActions>
       </div>
     </IntegrationPanel>
   );

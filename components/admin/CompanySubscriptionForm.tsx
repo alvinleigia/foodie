@@ -81,7 +81,7 @@ export function CompanySubscriptionForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">
           Update subscription
@@ -113,7 +113,7 @@ export function CompanySubscriptionForm({
                 setPlanSlug(nextPlanSlug);
               }}
             >
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Choose a plan" />
               </SelectTrigger>
               <SelectContent>
@@ -138,7 +138,7 @@ export function CompanySubscriptionForm({
                 setStatus(nextStatus as SubscriptionStatus);
               }}
             >
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -154,13 +154,12 @@ export function CompanySubscriptionForm({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={SaveIcon}>
                 {isSubmitting ? "Saving..." : "Save subscription"}
               </ButtonLabel>
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

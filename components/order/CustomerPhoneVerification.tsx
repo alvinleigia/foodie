@@ -201,13 +201,14 @@ export function CustomerPhoneVerification({
             inputMode="numeric"
             placeholder="Verification code"
             disabled={disabled || isChecking || isSending}
-            className="h-11 bg-background sm:max-w-56"
+            controlSize="lg"
+            className="sm:max-w-56"
           />
           <Button
             type="button"
             onClick={checkCode}
             disabled={disabled || isChecking || isSending || !code.trim()}
-            className="min-h-11"
+            size="xl"
           >
             {isChecking ? (
               <span className="inline-flex items-center gap-2">
@@ -223,7 +224,7 @@ export function CustomerPhoneVerification({
             variant="outline"
             onClick={sendCode}
             disabled={disabled || isChecking || isSending}
-            className="min-h-11"
+            size="xl"
           >
             {isSending ? "Sending..." : "Resend code"}
           </Button>
@@ -234,7 +235,8 @@ export function CustomerPhoneVerification({
           variant="outline"
           onClick={sendCode}
           disabled={disabled || isSending || !isSavedPhone}
-          className="min-h-11 w-fit"
+          size="xl"
+          className="w-fit"
         >
           {isSending ? (
             <span className="inline-flex items-center gap-2">

@@ -89,7 +89,7 @@ export function OrganizationEditPanel({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -203,13 +203,12 @@ export function OrganizationEditPanel({
               <Button
                 type="submit"
                 disabled={isSaving}
-                className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
               >
                 <ButtonLabel icon={SaveIcon}>
                   {isSaving ? "Saving..." : "Save changes"}
                 </ButtonLabel>
               </Button>
-              <Button asChild type="button" variant="outline" className="rounded-lg">
+              <Button asChild type="button" variant="outline">
                 <Link href={backHref}>
                   <ButtonLabel icon={ArrowLeftIcon}>Back</ButtonLabel>
                 </Link>
@@ -219,7 +218,7 @@ export function OrganizationEditPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-5 pt-5">
           <h3 className="text-xl font-semibold text-stone-950">Actions</h3>
         </CardHeader>
@@ -232,7 +231,6 @@ export function OrganizationEditPanel({
             type="button"
             variant={draft.isActive ? "destructive" : "outline"}
             disabled={isSaving}
-            className="rounded-lg"
             onClick={() => {
               const nextDraft = { ...draft, isActive: !draft.isActive };
               void submitUpdate(nextDraft);
