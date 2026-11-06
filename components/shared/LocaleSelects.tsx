@@ -47,7 +47,7 @@ function LocaleSelect({
 }) {
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className={cn("h-10 w-full bg-background", className)}>
+      <SelectTrigger size="lg" className={cn("w-full", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-80 min-w-[18rem]" position="popper">

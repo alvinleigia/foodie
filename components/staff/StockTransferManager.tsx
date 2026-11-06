@@ -552,7 +552,8 @@ export function StockTransferManager() {
                         </td>
                         <td className="px-4 py-3">
                           <NativeSelect
-                            className="h-10 w-full text-sm"
+                            density="compact"
+                            className="w-full"
                             aria-label={`${ingredient.name} destination ingredient`}
                             disabled={!line?.enabled}
                             value={line?.destinationIngredientId ?? ""}

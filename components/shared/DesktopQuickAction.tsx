@@ -2,12 +2,6 @@ import type { ComponentType } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 
 type QuickActionIcon = ComponentType<{ className?: string }>;
 
@@ -36,7 +30,7 @@ export function DesktopQuickAction({
       size="icon"
       className={quickActionClassName}
     >
-      <Link href={href} aria-label={label}>
+      <Link href={href} aria-label={label} title={label}>
         <Icon className="size-4" />
       </Link>
     </Button>
@@ -48,18 +42,12 @@ export function DesktopQuickAction({
       disabled={disabled}
       className={quickActionClassName}
       aria-label={label}
+      title={label}
       onClick={onClick}
     >
       <Icon className="size-4" />
     </Button>
   );
 
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
+  return trigger;
 }

@@ -367,10 +367,11 @@ export function OrderCard({
         <Button
           type="button"
           variant="outline"
+          size="xl"
           disabled={disabled}
           onClick={() => onRetryRefund(order)}
           data-slot="order-primary-action"
-          className="h-10 w-full border-amber-300 bg-background text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto dark:text-amber-300 dark:hover:bg-amber-400/10"
+          className="w-full border-amber-300 bg-background text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto dark:text-amber-300 dark:hover:bg-amber-400/10"
         >
           {pendingAction === `refund-order:${order.orderId}` ? (
             <span className="inline-flex items-center gap-2">
@@ -386,7 +387,7 @@ export function OrderCard({
 
     if (openDineInCheck && canAddItems) {
       return (
-        <Button asChild variant="outline" data-slot="order-primary-action" className="h-10 w-full sm:w-auto">
+        <Button asChild variant="outline" size="xl" data-slot="order-primary-action" className="w-full sm:w-auto">
           <Link
             href={getStaffRestaurantAddItemsHref(
               restaurantSlug,
@@ -440,7 +441,8 @@ export function OrderCard({
           disabled={disabled || !order.paymentAmount}
           data-slot="order-primary-action"
           onClick={() => onSettleOrder(order)}
-          className="h-10 w-full bg-stone-950 text-white hover:bg-stone-800 sm:w-auto"
+          size="xl"
+          className="w-full sm:w-auto"
         >
           <ButtonLabel icon={BanknoteIcon}>
             {order.paymentStatus === "PARTIALLY_PAID"
@@ -474,11 +476,10 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onOrderAction(order.orderId, "start")}
-              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
             >
               {pendingAction === `start-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-stone-700" />
+                  <Spinner />
                   Starting...
                 </span>
               ) : (
@@ -530,11 +531,10 @@ export function OrderCard({
                 variant="outline"
                 disabled={disabled}
                 onClick={() => onOrderAnnounce(order.orderId, order.customerName)}
-                className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
               >
                 {pendingAction === `announce-order:${order.orderId}` ? (
                   <span className="inline-flex items-center gap-2">
-                    <Spinner className="text-stone-700" />
+                    <Spinner />
                     Playing...
                   </span>
                 ) : (
@@ -594,7 +594,6 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onSetPromisedTime(order)}
-              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
             >
               <ButtonLabel icon={ClockIcon}>
                 {order.promisedFulfilmentAt ? "Change promised time" : "Set promised time"}
@@ -608,11 +607,10 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onCorrectOrder(order)}
-              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
             >
               {pendingAction === `correct-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-stone-700" />
+                  <Spinner />
                   Correcting...
                 </span>
               ) : (
@@ -627,7 +625,6 @@ export function OrderCard({
               variant="outline"
               disabled={disabled}
               onClick={() => onAdjustOrder(order)}
-              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
             >
               <ButtonLabel icon={BadgePercentIcon}>
                 {order.adjustment ? "Edit discount / comp" : "Discount / comp"}
@@ -704,11 +701,10 @@ export function OrderCard({
                   item.drinkName,
                 )
               }
-              className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
             >
               {pendingAction === `announce-item:${item.id}` ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-stone-700" />
+                  <Spinner />
                   Playing...
                 </span>
               ) : (
@@ -760,11 +756,10 @@ export function OrderCard({
             variant="outline"
             disabled={disabled}
             onClick={() => onCorrectItem(order, item)}
-            className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
           >
             {pendingAction === `correct-item:${item.id}` ? (
               <span className="inline-flex items-center gap-2">
-                <Spinner className="text-stone-700" />
+                <Spinner />
                 Correcting...
               </span>
             ) : (
@@ -870,7 +865,7 @@ export function OrderCard({
               </p>
             </div>
             {canAddItems ? (
-              <Button asChild className="bg-stone-950 text-white hover:bg-stone-800">
+              <Button asChild size="xl">
                 <Link
                   href={getStaffRestaurantAddItemsHref(
                     restaurantSlug,
@@ -982,7 +977,7 @@ export function OrderCard({
               >
                 {pendingAction === `email-receipt:${order.orderId}` ? (
                   <span className="inline-flex items-center gap-2">
-                    <Spinner className="text-stone-700" />
+                    <Spinner />
                     Sending...
                   </span>
                 ) : (
@@ -1083,7 +1078,7 @@ export function OrderCard({
                 type="button"
                 disabled={disabled || !order.paymentAmount}
                 onClick={() => onSettleOrder(order)}
-                className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+                size="xl"
               >
                 {order.paymentStatus === "PARTIALLY_PAID"
                   ? "Collect balance"
@@ -1109,7 +1104,7 @@ export function OrderCard({
                 >
                   {pendingAction === `cancel-payment:${order.orderId}` ? (
                     <span className="inline-flex items-center gap-2">
-                      <Spinner className="text-stone-700" />
+                      <Spinner />
                       Cancelling...
                     </span>
                   ) : (

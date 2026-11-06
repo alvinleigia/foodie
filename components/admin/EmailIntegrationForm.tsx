@@ -19,6 +19,7 @@ import {
   IntegrationStatus,
 } from "@/components/admin/IntegrationPanel";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { FormActions } from "@/components/shared/FormActions";
 import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
@@ -275,12 +276,13 @@ export function EmailIntegrationForm({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-          <Button type="submit" disabled={isSaving || isTesting}>
+        <FormActions>
+          <Button type="submit" size="xl" disabled={isSaving || isTesting}>
             <ButtonLabel icon={SaveIcon}>{isSaving ? "Saving..." : "Save changes"}</ButtonLabel>
           </Button>
           <Button
             type="button"
+            size="xl"
             variant="outline"
             disabled={isDirty || isSaving || isTesting || draft.mode === "DISABLED"}
             onClick={() => void sendTest()}
@@ -288,13 +290,13 @@ export function EmailIntegrationForm({
             <ButtonLabel icon={SendIcon}>{isTesting ? "Sending..." : "Send test email"}</ButtonLabel>
           </Button>
           {backHref ? (
-            <Button asChild type="button" variant="ghost">
+            <Button asChild type="button" size="xl" variant="ghost">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Back</ButtonLabel>
               </Link>
             </Button>
           ) : null}
-        </div>
+        </FormActions>
       </form>
     </IntegrationPanel>
   );

@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { requestJson } from "@/lib/api-client";
 import {
@@ -147,7 +148,7 @@ export function StaffJobManager({
 
   return (
     <>
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
           <div>
             <h3 className="text-2xl font-semibold text-stone-950">Staff jobs</h3>
@@ -317,7 +318,7 @@ export function StaffJobManager({
             </div>
 
             {draft.id ? (
-              <label className="flex items-center gap-3 rounded-lg border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Label className="rounded-lg border border-border px-4 py-3 text-muted-foreground">
                 <Checkbox
                   checked={draft.isActive}
                   onCheckedChange={(checked) =>
@@ -325,7 +326,7 @@ export function StaffJobManager({
                   }
                 />
                 Active and available for staff assignment
-              </label>
+              </Label>
             ) : null}
 
             {validation.formError ? (

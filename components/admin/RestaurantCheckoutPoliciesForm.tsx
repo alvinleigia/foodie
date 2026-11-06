@@ -104,7 +104,7 @@ export function RestaurantCheckoutPoliciesForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <div className="flex items-start gap-3">
           <CreditCardIcon className="mt-1 size-5 text-amber-700" />
@@ -273,7 +273,7 @@ export function RestaurantCheckoutPoliciesForm({
                       }))
                     }
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -297,7 +297,7 @@ export function RestaurantCheckoutPoliciesForm({
                       }))
                     }
                   >
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

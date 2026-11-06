@@ -73,7 +73,7 @@ export function UserAccountDetailsForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">
           Edit account details
@@ -169,13 +169,12 @@ export function UserAccountDetailsForm({
             <Button
               type="submit"
               disabled={isSaving}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={SaveIcon}>
                 {isSaving ? "Saving..." : "Save account"}
               </ButtonLabel>
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

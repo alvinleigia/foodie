@@ -88,10 +88,10 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
           <div className="flex flex-wrap gap-3 pt-2">
             <Button
               type="submit"
+              variant="destructive"
               disabled={
                 isSubmitting || confirmationText.trim().toLowerCase() !== "reset"
               }
-              className="rounded-lg bg-rose-600 text-white hover:bg-rose-700"
             >
               {isSubmitting ? (
                 <>
@@ -102,7 +102,7 @@ export function UatDatabaseResetForm({ backHref }: { backHref: string }) {
                 <ButtonLabel icon={RotateCcwIcon}>Reset UAT Database</ButtonLabel>
               )}
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

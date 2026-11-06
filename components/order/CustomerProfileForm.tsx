@@ -13,6 +13,7 @@ import { CustomerPhoneVerification } from "@/components/order/CustomerPhoneVerif
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -153,7 +154,7 @@ export function CustomerProfileForm({
             value={profile.name}
             onChange={(event) => updateField("name", event.target.value)}
             disabled={isSaving}
-            className="h-11 bg-background"
+            controlSize="lg"
           />
         </FormField>
 
@@ -164,7 +165,8 @@ export function CustomerProfileForm({
             value={customer.email ?? ""}
             placeholder="Not added"
             readOnly
-            className="h-11 bg-muted text-muted-foreground"
+            controlSize="lg"
+            className="bg-muted text-muted-foreground"
           />
         </FormField>
 
@@ -183,7 +185,7 @@ export function CustomerProfileForm({
             placeholder="+91 98765 43210"
             autoComplete="tel"
             disabled={isSaving}
-            className="h-11 bg-background"
+            controlSize="lg"
           />
         </FormField>
 
@@ -200,7 +202,7 @@ export function CustomerProfileForm({
             max={new Date().toISOString().slice(0, 10)}
             onChange={(event) => updateField("dateOfBirth", event.target.value)}
             disabled={isSaving}
-            className="h-11 bg-background"
+            controlSize="lg"
           />
         </FormField>
 
@@ -218,7 +220,7 @@ export function CustomerProfileForm({
             }
             disabled={isSaving}
           >
-            <SelectTrigger id="customer-gender" className="h-11 w-full bg-background">
+            <SelectTrigger id="customer-gender" size="lg" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -244,9 +246,9 @@ export function CustomerProfileForm({
         savedPhone={savedPhone}
       />
 
-      <label
+      <Label
         htmlFor="customer-marketing"
-        className="flex items-start gap-3 border-t border-border pt-5 text-sm text-foreground"
+        className="items-start gap-3 border-t border-border pt-5 text-sm text-foreground"
       >
         <Checkbox
           id="customer-marketing"
@@ -256,7 +258,7 @@ export function CustomerProfileForm({
           className="mt-0.5"
         />
         <span>Send me occasional offers and restaurant updates.</span>
-      </label>
+      </Label>
 
       <p className="text-xs leading-5 text-muted-foreground">
         See how profile details and marketing choices are used and retained in the{" "}
@@ -272,7 +274,7 @@ export function CustomerProfileForm({
       {formError ? <p className="text-sm text-rose-600">{formError}</p> : null}
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={isSaving} className="min-h-11 px-5">
+        <Button type="submit" size="xl" disabled={isSaving}>
           {isSaving ? (
             <span className="inline-flex items-center gap-2">
               <Spinner className="text-white" />

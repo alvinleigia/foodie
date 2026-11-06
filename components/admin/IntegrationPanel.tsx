@@ -110,8 +110,8 @@ export function IntegrationModeSelector({
   value,
 }: IntegrationModeSelectorProps) {
   return (
-    <fieldset className="grid gap-3">
-      <legend className="text-sm font-semibold text-foreground">{label}</legend>
+    <div className="grid gap-3">
+      <p className="text-sm font-semibold text-foreground">{label}</p>
       <div className="grid gap-3 md:grid-cols-3" role="radiogroup" aria-label={ariaLabel}>
         {options.map((option) => {
           const Icon = option.icon;
@@ -164,6 +164,6 @@ export function IntegrationModeSelector({
           );
         })}
       </div>
-    </fieldset>
+    </div>
   );
 }

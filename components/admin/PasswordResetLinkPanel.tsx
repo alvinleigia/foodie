@@ -77,7 +77,7 @@ export function PasswordResetLinkPanel({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-6 pt-6">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[rgb(199,76,0)]">
           User Security
@@ -126,14 +126,13 @@ export function PasswordResetLinkPanel({
           <Button
             type="button"
             disabled={isCreating}
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             onClick={() => void createLink()}
           >
             <ButtonLabel icon={KeyRoundIcon}>
               {isCreating ? "Creating..." : "Create Reset Link"}
             </ButtonLabel>
           </Button>
-          <Button asChild variant="outline" className="rounded-lg">
+          <Button asChild variant="outline">
             <Link href={backHref}>
               <ButtonLabel icon={ArrowLeftIcon}>Back</ButtonLabel>
             </Link>

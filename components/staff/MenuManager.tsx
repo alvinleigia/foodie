@@ -61,6 +61,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/shared/NativeSelect";
 import {
@@ -866,6 +867,7 @@ export function MenuManager() {
               variant="outline"
               onClick={() => void seedStarterMenu()}
               disabled={pendingAction === "seed" || sortedCategories.length > 0}
+              size="xl"
               className="rounded-lg border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200 dark:hover:bg-amber-400/15 dark:disabled:opacity-100"
             >
               {pendingAction === "seed" ? (
@@ -880,12 +882,12 @@ export function MenuManager() {
               variant="destructive"
               onClick={() => setIsClearMenuDialogOpen(true)}
               disabled={pendingAction === "clear-menu" || sortedCategories.length === 0}
-              className="rounded-lg"
+              size="xl"
             >
               <Trash2Icon className="size-4" />
               Clear Current Menu
             </Button>
-            <Button type="button" onClick={openCreateCategoryDialog} className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
+            <Button type="button" onClick={openCreateCategoryDialog} size="xl">
               <PlusIcon className="size-4" />
               Add Category
             </Button>
@@ -893,7 +895,7 @@ export function MenuManager() {
               type="button"
               variant="outline"
               onClick={() => openCreateItemDialog()}
-              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              size="xl"
               disabled={sortedCategories.length === 0}
             >
               <PlusIcon className="size-4" />
@@ -903,7 +905,7 @@ export function MenuManager() {
               type="button"
               variant="outline"
               onClick={openCreateModifierGroupDialog}
-              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              size="xl"
             >
               <TagsIcon className="size-4" />
               Add Add-on Group
@@ -912,7 +914,7 @@ export function MenuManager() {
               type="button"
               variant="outline"
               onClick={() => openCreateModifierOptionDialog()}
-              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
+              size="xl"
               disabled={modifierGroups.length === 0}
             >
               <PlusIcon className="size-4" />
@@ -1264,7 +1266,7 @@ export function MenuManager() {
                     ? "menu-category-name-error"
                     : undefined
                 }
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                controlSize="xl"
               />
             </FormField>
             <FormField
@@ -1312,11 +1314,11 @@ export function MenuManager() {
                     ? "menu-category-sort-order-error"
                     : undefined
                 }
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                controlSize="xl"
               />
             </FormField>
             {categoryFormError ? <p className="text-sm text-rose-600">{categoryFormError}</p> : null}
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={categoryDraft.isActive}
                 onCheckedChange={(checked) => {
@@ -1325,21 +1327,21 @@ export function MenuManager() {
                 }}
               />
               Show this category to customers
-            </label>
+            </Label>
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
-            <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)} className="rounded-lg">
+            <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)} size="xl">
               <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
             <Button
               type="button"
               onClick={() => void submitCategory()}
               disabled={pendingAction === "category"}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+              size="xl"
             >
               {pendingAction === "category" ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-white" />
+                  <Spinner />
                   Saving...
                 </span>
               ) : categoryDraft.id ? (
@@ -1487,7 +1489,7 @@ export function MenuManager() {
                   aria-describedby={
                     getFieldError(itemFieldErrors, "name") ? "menu-item-name-error" : undefined
                   }
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
               <FormField
@@ -1510,7 +1512,7 @@ export function MenuManager() {
                     getFieldError(itemFieldErrors, "price") ? "menu-item-price-error" : undefined
                   }
                   placeholder="9.99"
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
             </div>
@@ -1861,7 +1863,7 @@ export function MenuManager() {
                     : undefined
                 }
                 placeholder="https://..."
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                controlSize="xl"
               />
             </FormField>
 
@@ -1885,7 +1887,7 @@ export function MenuManager() {
                       ? "menu-item-sort-order-error"
                       : undefined
                   }
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
               <div className="rounded-xl border border-dashed border-stone-200 bg-stone-50 p-4">
@@ -1905,7 +1907,7 @@ export function MenuManager() {
             </div>
             {itemFormError ? <p className="text-sm text-rose-600">{itemFormError}</p> : null}
 
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={itemDraft.isActive}
                 onCheckedChange={(checked) => {
@@ -1927,8 +1929,8 @@ export function MenuManager() {
                 }}
               />
               Show this product to customers
-            </label>
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            </Label>
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={itemDraft.isSoldOut}
                 onCheckedChange={(checked) => {
@@ -1937,21 +1939,21 @@ export function MenuManager() {
                 }}
               />
               Mark this product as sold out
-            </label>
+            </Label>
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
-            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} className="rounded-lg">
+            <Button type="button" variant="outline" onClick={() => setIsItemDialogOpen(false)} size="xl">
               <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
             <Button
               type="button"
               onClick={() => void submitItem()}
               disabled={pendingAction === "item"}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+              size="xl"
             >
               {pendingAction === "item" ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-white" />
+                  <Spinner />
                   Saving...
                 </span>
               ) : itemDraft.id ? (
@@ -1989,7 +1991,7 @@ export function MenuManager() {
                 aria-invalid={Boolean(getFieldError(modifierGroupFieldErrors, "name"))}
                 aria-describedby={getFieldError(modifierGroupFieldErrors, "name") ? "modifier-group-name-error" : undefined}
                 placeholder="Extra toppings"
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                controlSize="xl"
               />
             </FormField>
             <FormField
@@ -2059,7 +2061,7 @@ export function MenuManager() {
                   aria-describedby={
                     getFieldError(modifierGroupFieldErrors, "sortOrder") ? "modifier-group-sort-order-error" : undefined
                   }
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
             </div>
@@ -2088,7 +2090,7 @@ export function MenuManager() {
                       ? "modifier-group-min-selections-error"
                       : undefined
                   }
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
               <FormField
@@ -2116,12 +2118,12 @@ export function MenuManager() {
                       : undefined
                   }
                   placeholder="No limit"
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
             </div>
             {modifierGroupFormError ? <p className="text-sm text-rose-600">{modifierGroupFormError}</p> : null}
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={modifierGroupDraft.isRequired}
                 onCheckedChange={(checked) =>
@@ -2132,14 +2134,14 @@ export function MenuManager() {
                 }
               />
               Require customers to choose from this group
-            </label>
+            </Label>
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsModifierGroupDialogOpen(false)}
-              className="rounded-lg"
+              size="xl"
             >
               <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
@@ -2147,11 +2149,11 @@ export function MenuManager() {
               type="button"
               onClick={() => void submitModifierGroup()}
               disabled={pendingAction === "modifier-group"}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+              size="xl"
             >
               {pendingAction === "modifier-group" ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-white" />
+                  <Spinner />
                   Saving...
                 </span>
               ) : (
@@ -2212,7 +2214,7 @@ export function MenuManager() {
                   aria-invalid={Boolean(getFieldError(modifierOptionFieldErrors, "name"))}
                   aria-describedby={getFieldError(modifierOptionFieldErrors, "name") ? "modifier-option-name-error" : undefined}
                   placeholder="Extra patty"
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
               <FormField
@@ -2238,7 +2240,7 @@ export function MenuManager() {
                     getFieldError(modifierOptionFieldErrors, "priceDelta") ? "modifier-option-price-error" : undefined
                   }
                   placeholder="0.00"
-                  className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                  controlSize="xl"
                 />
               </FormField>
             </div>
@@ -2262,11 +2264,11 @@ export function MenuManager() {
                 aria-describedby={
                   getFieldError(modifierOptionFieldErrors, "sortOrder") ? "modifier-option-sort-order-error" : undefined
                 }
-                className="h-12 rounded-xl border-stone-200 bg-white px-4 text-base"
+                controlSize="xl"
               />
             </FormField>
             {modifierOptionFormError ? <p className="text-sm text-rose-600">{modifierOptionFormError}</p> : null}
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={modifierOptionDraft.isActive}
                 onCheckedChange={(checked) =>
@@ -2277,8 +2279,8 @@ export function MenuManager() {
                 }
               />
               Show this add-on to customers
-            </label>
-            <label className="flex items-center gap-3 rounded-xl border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            </Label>
+            <Label className="rounded-xl border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={modifierOptionDraft.isSoldOut}
                 onCheckedChange={(checked) =>
@@ -2289,14 +2291,14 @@ export function MenuManager() {
                 }
               />
               Mark this add-on as sold out
-            </label>
+            </Label>
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
             <Button
               type="button"
               variant="outline"
               onClick={() => setIsModifierOptionDialogOpen(false)}
-              className="rounded-lg"
+              size="xl"
             >
               <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
             </Button>
@@ -2304,11 +2306,11 @@ export function MenuManager() {
               type="button"
               onClick={() => void submitModifierOption()}
               disabled={pendingAction === "modifier-option"}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
+              size="xl"
             >
               {pendingAction === "modifier-option" ? (
                 <span className="inline-flex items-center gap-2">
-                  <Spinner className="text-white" />
+                  <Spinner />
                   Saving...
                 </span>
               ) : (

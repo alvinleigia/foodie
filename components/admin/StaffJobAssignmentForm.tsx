@@ -10,6 +10,7 @@ import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { requestJson } from "@/lib/api-client";
 import type { StaffJobAssignment, StaffJobRecord } from "@/types/staff-jobs";
 
@@ -102,12 +103,12 @@ export function StaffJobAssignmentForm({
       <CardContent className="grid gap-4 px-5 pb-5">
         <label className="grid max-w-md gap-1.5 text-sm font-medium">
           Payroll employee reference
-          <input
+          <Input
             type="text"
             maxLength={80}
             value={assignment.payrollEmployeeReference ?? ""}
             placeholder="For example, EMP-001"
-            className="h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+            controlSize="lg"
             onChange={(event) =>
               setAssignment((current) => ({
                 ...current,
@@ -166,7 +167,7 @@ export function StaffJobAssignmentForm({
                       </label>
                       <label className="grid gap-1.5 text-sm font-medium">
                         Hourly pay ({assignment.currency})
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           max="10000"
@@ -184,7 +185,7 @@ export function StaffJobAssignmentForm({
                                 ).toFixed(2)
                           }
                           placeholder="Not set"
-                          className="h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                          controlSize="compact"
                           onChange={(event) =>
                             setPayRate(job.id, event.target.value)
                           }

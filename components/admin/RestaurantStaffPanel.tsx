@@ -56,7 +56,7 @@ export function RestaurantStaffPanel({
 }: RestaurantStaffPanelProps) {
   return (
     <div className="grid gap-6">
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-xl font-semibold text-stone-950">
@@ -68,12 +68,12 @@ export function RestaurantStaffPanel({
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-3">
-            <Button asChild variant="outline" className="rounded-lg">
+            <Button asChild variant="outline">
               <Link href={assignHref}>
                 <ButtonLabel icon={UserCheckIcon}>Assign Existing Staff</ButtonLabel>
               </Link>
             </Button>
-            <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
+            <Button asChild>
               <Link href={inviteHref}>
                 <ButtonLabel icon={UserPlusIcon}>Invite Staff</ButtonLabel>
               </Link>
@@ -125,13 +125,12 @@ export function RestaurantStaffPanel({
                       type="button"
                       variant="outline"
                       size="icon"
-                      className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
                       aria-label={`Open actions for ${user.name}`}
                     >
                       <MoreHorizontalIcon className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white text-stone-950">
+                  <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Staff actions</DropdownMenuLabel>
                     <DropdownMenuItem asChild>
                       <Link
@@ -162,7 +161,7 @@ export function RestaurantStaffPanel({
         </CardContent>
       </Card>
 
-      <Button asChild variant="outline" className="w-fit rounded-lg">
+      <Button asChild variant="outline" className="w-fit">
         <Link href={backHref}>
           <ButtonLabel icon={ArrowLeftIcon}>Back to restaurant</ButtonLabel>
         </Link>

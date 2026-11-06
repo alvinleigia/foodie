@@ -203,7 +203,7 @@ export function CompanyFeatureEntitlementsForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <div className="flex items-center gap-2">
           <Settings2Icon className="size-5 text-stone-700" />
@@ -227,7 +227,7 @@ export function CompanyFeatureEntitlementsForm({
             disabled={isDirty || isLoading || isSaving}
             onValueChange={(value) => void changeScope(value)}
           >
-            <SelectTrigger className="max-w-xl bg-white">
+            <SelectTrigger className="max-w-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -350,7 +350,6 @@ export function CompanyFeatureEntitlementsForm({
             type="button"
             disabled={!isDirty || isSaving || !selectedScope}
             onClick={() => void save()}
-            className="bg-stone-950 text-white hover:bg-stone-800"
           >
             <ButtonLabel icon={SaveIcon}>
               {isSaving ? "Saving..." : "Save feature access"}

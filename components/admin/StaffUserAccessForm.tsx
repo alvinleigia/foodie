@@ -12,6 +12,8 @@ import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -86,7 +88,7 @@ export function StaffUserAccessForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">Edit staff access</h3>
         <p className="text-sm text-stone-500">
@@ -124,7 +126,7 @@ export function StaffUserAccessForm({
                 }));
               }}
             >
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -138,9 +140,12 @@ export function StaffUserAccessForm({
           </FormField>
 
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
-            <label className="flex items-start gap-3 text-sm text-stone-700">
-              <input
-                type="checkbox"
+            <Label
+              htmlFor="staff-user-active"
+              className="items-start gap-3 text-sm text-stone-700"
+            >
+              <Checkbox
+                id="staff-user-active"
                 checked={draft.isActive}
                 aria-describedby={
                   validation.getError("isActive")
@@ -148,14 +153,14 @@ export function StaffUserAccessForm({
                     : undefined
                 }
                 aria-invalid={Boolean(validation.getError("isActive"))}
-                onChange={(event) => {
+                onCheckedChange={(checked) => {
                   validation.clearFieldError("isActive");
                   setDraft((current) => ({
                     ...current,
-                    isActive: event.target.checked,
+                    isActive: checked === true,
                   }));
                 }}
-                className="mt-1 size-4 rounded border-stone-300"
+                className="mt-1"
               />
               <span>
                 <span className="block font-medium text-stone-950">
@@ -166,7 +171,7 @@ export function StaffUserAccessForm({
                   Any pending invite link for this membership will be expired.
                 </span>
               </span>
-            </label>
+            </Label>
             {validation.getError("isActive") ? (
               <p id="staff-user-active-error" className="mt-2 text-sm text-rose-600">
                 {validation.getError("isActive")}
@@ -182,13 +187,12 @@ export function StaffUserAccessForm({
             <Button
               type="submit"
               disabled={isSaving}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={SaveIcon}>
                 {isSaving ? "Saving..." : "Save changes"}
               </ButtonLabel>
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

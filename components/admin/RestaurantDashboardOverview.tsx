@@ -258,7 +258,7 @@ export function RestaurantDashboardOverview({
             title="Live operations"
             description={`${summary.activeOrders} order(s) currently need operational attention.`}
             action={
-              <Button asChild size="sm" variant="outline" className="rounded-lg">
+              <Button asChild size="sm" variant="outline">
                 <Link href={ordersHref}>View orders</Link>
               </Button>
             }

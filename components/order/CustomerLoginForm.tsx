@@ -319,14 +319,14 @@ export function CustomerLoginForm({
                 placeholder="you@example.com"
                 autoComplete="email"
                 disabled={isRequestingCode}
-                className="h-11 bg-white"
+                controlSize="lg"
               />
             </FormField>
             <Button
               type="button"
               onClick={requestCode}
               disabled={isRequestingCode}
-              className="min-h-11 px-4"
+              size="xl"
             >
               {isRequestingCode ? (
                 <span className="inline-flex items-center gap-2">
@@ -377,14 +377,14 @@ export function CustomerLoginForm({
                   maxLength={6}
                   autoComplete="one-time-code"
                   disabled={isVerifyingCode}
-                  className="h-11 bg-white text-base"
+                  controlSize="lg"
                 />
               </FormField>
               <Button
                 type="button"
                 onClick={verifyCode}
                 disabled={isVerifyingCode}
-                className="min-h-11 px-4"
+                size="xl"
               >
                 {isVerifyingCode ? (
                   <span className="inline-flex items-center gap-2">
@@ -424,14 +424,14 @@ export function CustomerLoginForm({
                 placeholder="+44 7700 900123"
                 autoComplete="tel"
                 disabled={isRequestingCode}
-                className="h-11 bg-white"
+                controlSize="lg"
               />
             </FormField>
             <Button
               type="button"
               onClick={requestPhoneCode}
               disabled={isRequestingCode}
-              className="min-h-11 px-4"
+              size="xl"
             >
               {isRequestingCode ? (
                 <Spinner className="text-white" />
@@ -471,14 +471,14 @@ export function CustomerLoginForm({
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   disabled={isVerifyingCode}
-                  className="h-11 bg-white text-base"
+                  controlSize="lg"
                 />
               </FormField>
               <Button
                 type="button"
                 onClick={verifyPhoneCode}
                 disabled={isVerifyingCode}
-                className="min-h-11 px-4"
+                size="xl"
               >
                 {isVerifyingCode ? (
                   <Spinner className="text-white" />
@@ -514,9 +514,9 @@ export function CustomerLoginForm({
             <Button
               type="button"
               variant="outline"
+              size="xl"
               onClick={() => startSocialLogin("google", "Google")}
               disabled={startingProvider !== null}
-              className="min-h-11 rounded-lg border-stone-300 bg-white px-4"
             >
               {startingProvider === "google" ? (
                 <Spinner />
@@ -528,9 +528,9 @@ export function CustomerLoginForm({
           {providers.apple ? (
             <Button
               type="button"
+              size="xl"
               onClick={() => startSocialLogin("apple", "Apple")}
               disabled={startingProvider !== null}
-              className="min-h-11 rounded-lg bg-stone-950 px-4 text-white hover:bg-stone-800"
             >
               {startingProvider === "apple" ? (
                 <Spinner className="text-white" />
@@ -542,9 +542,10 @@ export function CustomerLoginForm({
           {providers.facebook ? (
             <Button
               type="button"
+              size="xl"
               onClick={() => startSocialLogin("facebook", "Facebook")}
               disabled={startingProvider !== null}
-              className="min-h-11 rounded-lg bg-[#1877f2] px-4 text-white hover:bg-[#166ad8]"
+              className="bg-[#1877f2] text-white hover:bg-[#166ad8]"
             >
               {startingProvider === "facebook" ? (
                 <Spinner className="text-white" />

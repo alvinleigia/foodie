@@ -111,9 +111,9 @@ export function StaffCustomerSearch({
           placeholder="Search customers"
           aria-label="Search customers"
           disabled={isSearching}
-          className="h-11 bg-white"
+          controlSize="lg"
         />
-        <Button type="submit" disabled={isSearching} className="h-11 px-4">
+        <Button type="submit" size="icon-xl" disabled={isSearching}>
           {isSearching ? <Spinner className="text-white" /> : <SearchIcon />}
           <span className="sr-only">Search</span>
         </Button>

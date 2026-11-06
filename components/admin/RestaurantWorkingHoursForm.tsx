@@ -138,7 +138,7 @@ export function RestaurantWorkingHoursForm({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="gap-4 px-5 pt-5 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -297,7 +297,6 @@ export function RestaurantWorkingHoursForm({
             type="button"
             disabled={isSaving}
             onClick={() => void save()}
-            className="bg-stone-950 text-white hover:bg-stone-800"
           >
             <ButtonLabel icon={SaveIcon}>
               {isSaving ? "Saving..." : "Save working hours"}

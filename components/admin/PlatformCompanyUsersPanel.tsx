@@ -73,7 +73,7 @@ export function PlatformCompanyUsersPanel({
   users,
 }: PlatformCompanyUsersPanelProps) {
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-xl font-semibold text-stone-950">{title}</h3>
@@ -81,7 +81,7 @@ export function PlatformCompanyUsersPanel({
         </div>
         <div className="flex flex-wrap justify-end gap-3">
           {assignHref ? (
-            <Button asChild variant="outline" className="rounded-lg">
+            <Button asChild variant="outline">
               <Link href={assignHref}>
                 <ButtonLabel icon={UserCheckIcon}>Assign Existing User</ButtonLabel>
               </Link>
@@ -90,7 +90,6 @@ export function PlatformCompanyUsersPanel({
           {inviteHref ? (
             <Button
               asChild
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <Link href={inviteHref}>
                 <ButtonLabel icon={UserPlusIcon}>{inviteLabel}</ButtonLabel>
@@ -144,13 +143,12 @@ export function PlatformCompanyUsersPanel({
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="rounded-lg border-stone-300 bg-white text-stone-900 hover:bg-stone-100"
                     aria-label={`Open actions for ${user.name}`}
                   >
                     <MoreHorizontalIcon className="size-4" />
                   </Button>
                 </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="bg-white text-stone-950">
+              <DropdownMenuContent align="end">
                   <DropdownMenuLabel>User actions</DropdownMenuLabel>
                   <DropdownMenuItem asChild>
                     <Link href={`${editHrefBase}/${user.membershipId}`}>Edit access</Link>

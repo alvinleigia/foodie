@@ -29,6 +29,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
 import type {
   CashDrawerCloseReport,
@@ -181,9 +182,9 @@ export function CashDrawerCloseReportsPanel({
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="space-y-1">
-              <label className="text-xs font-medium" htmlFor="business-date">
+              <Label className="text-xs" htmlFor="business-date">
                 Business date
-              </label>
+              </Label>
               <Input
                 className="w-40"
                 id="business-date"

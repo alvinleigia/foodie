@@ -17,6 +17,7 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type CustomerOrderLinkPanelProps = {
   customerOrderUrl: string | null;
@@ -66,7 +67,7 @@ export function CustomerOrderLinkPanel({
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
         <div>
           <div className="flex items-center gap-2">
@@ -87,12 +88,12 @@ export function CustomerOrderLinkPanel({
         {customerOrderUrl ? (
           <div className="grid items-center gap-5 lg:grid-cols-[minmax(0,1fr)_auto]">
             <div className="min-w-0">
-              <label
+              <Label
                 htmlFor="customer-order-url"
-                className="mb-2 block text-sm font-medium text-stone-700"
+                className="mb-2 text-muted-foreground"
               >
                 Public menu link
-              </label>
+              </Label>
               <Input
                 id="customer-order-url"
                 readOnly

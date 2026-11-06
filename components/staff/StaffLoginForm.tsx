@@ -41,7 +41,7 @@ export function StaffLoginForm() {
               type="text"
               required
               disabled={isPending}
-              className="h-12 rounded-xl border-input bg-background px-4 text-base"
+              controlSize="xl"
             />
           </FormField>
 
@@ -52,7 +52,7 @@ export function StaffLoginForm() {
               type="password"
               required
               disabled={isPending}
-              className="h-12 rounded-xl border-input bg-background px-4 text-base"
+              controlSize="xl"
             />
           </FormField>
 
@@ -61,8 +61,8 @@ export function StaffLoginForm() {
           <Button
             type="submit"
             disabled={isPending}
-            size="lg"
-            className="mt-1 h-12 rounded-lg text-sm font-semibold"
+            size="2xl"
+            className="mt-1"
           >
             <ButtonLabel icon={LogInIcon}>{isPending ? "Signing in..." : "Sign In"}</ButtonLabel>
           </Button>

@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -222,7 +224,7 @@ export function ReassignExistingUserForm({
       : Boolean(activeRestaurantId));
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-5 pt-5">
         <h3 className="text-2xl font-semibold text-stone-950">
           Reassign existing user
@@ -322,7 +324,7 @@ export function ReassignExistingUserForm({
                 setRole(value as ReassignRole);
               }}
             >
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -341,7 +343,7 @@ export function ReassignExistingUserForm({
             errorId="reassign-company-error"
           >
             <Select value={activeCompanyId} onValueChange={changeCompany}>
-              <SelectTrigger className="bg-white">
+              <SelectTrigger>
                 <SelectValue placeholder="Choose company" />
               </SelectTrigger>
               <SelectContent>
@@ -361,7 +363,7 @@ export function ReassignExistingUserForm({
               errorId="reassign-restaurant-error"
             >
               <Select value={activeRestaurantId} onValueChange={changeRestaurant}>
-                <SelectTrigger className="bg-white">
+                <SelectTrigger>
                   <SelectValue placeholder="Choose restaurant" />
                 </SelectTrigger>
                 <SelectContent>
@@ -376,9 +378,12 @@ export function ReassignExistingUserForm({
           ) : null}
 
           <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
-            <label className="flex items-start gap-3 text-sm text-stone-700">
-              <input
-                type="checkbox"
+            <Label
+              htmlFor="reassign-deactivate-existing"
+              className="items-start gap-3 text-sm text-stone-700"
+            >
+              <Checkbox
+                id="reassign-deactivate-existing"
                 checked={deactivateExisting}
                 aria-describedby={
                   validation.getError("deactivateExisting")
@@ -386,11 +391,11 @@ export function ReassignExistingUserForm({
                     : undefined
                 }
                 aria-invalid={Boolean(validation.getError("deactivateExisting"))}
-                onChange={(event) => {
+                onCheckedChange={(checked) => {
                   validation.clearFieldError("deactivateExisting");
-                  setDeactivateExisting(event.target.checked);
+                  setDeactivateExisting(checked === true);
                 }}
-                className="mt-1 size-4 rounded border-stone-300"
+                className="mt-1"
               />
               <span>
                 <span className="block font-medium text-stone-950">
@@ -401,7 +406,7 @@ export function ReassignExistingUserForm({
                   restaurant to another. Their old history remains unchanged.
                 </span>
               </span>
-            </label>
+            </Label>
             {validation.getError("deactivateExisting") ? (
               <p id="reassign-deactivate-error" className="mt-2 text-sm text-rose-600">
                 {validation.getError("deactivateExisting")}
@@ -413,13 +418,12 @@ export function ReassignExistingUserForm({
             <Button
               type="submit"
               disabled={isSubmitting || !canSubmit}
-              className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={UserCheckIcon}>
                 {isSubmitting ? "Reassigning..." : "Reassign User"}
               </ButtonLabel>
             </Button>
-            <Button asChild type="button" variant="outline" className="rounded-lg">
+            <Button asChild type="button" variant="outline">
               <Link href={backHref}>
                 <ButtonLabel icon={XIcon}>Cancel</ButtonLabel>
               </Link>

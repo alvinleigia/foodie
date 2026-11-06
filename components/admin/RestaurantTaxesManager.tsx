@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { RestaurantTaxDefinitionRecord, TaxTreatment } from "@/types/tax";
 
 type TaxConfiguration = {
@@ -169,7 +170,7 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
 
   return (
     <>
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
           <div>
             <h3 className="text-2xl font-semibold text-stone-950">Tax rates</h3>
@@ -181,7 +182,6 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
             type="button"
             onClick={openCreateDialog}
             disabled={isLoading}
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
             <ButtonLabel icon={PlusIcon}>Add tax</ButtonLabel>
           </Button>
@@ -364,7 +364,7 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
               <p className="text-sm text-rose-600">{validation.formError}</p>
             ) : null}
 
-            <label className="flex items-center gap-3 rounded-lg border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            <Label className="rounded-lg border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={draft.isDefault}
                 onCheckedChange={(checked) =>
@@ -372,8 +372,8 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
                 }
               />
               Apply this tax to menu items that inherit restaurant defaults
-            </label>
-            <label className="flex items-center gap-3 rounded-lg border border-stone-200 px-4 py-3 text-sm text-stone-700">
+            </Label>
+            <Label className="rounded-lg border border-border px-4 py-3 text-muted-foreground">
               <Checkbox
                 checked={draft.isCompound}
                 onCheckedChange={(checked) =>
@@ -381,9 +381,9 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
                 }
               />
               Calculate this tax after earlier tax components
-            </label>
+            </Label>
             {draft.id ? (
-              <label className="flex items-center gap-3 rounded-lg border border-stone-200 px-4 py-3 text-sm text-stone-700">
+              <Label className="rounded-lg border border-border px-4 py-3 text-muted-foreground">
                 <Checkbox
                   checked={draft.isActive}
                   onCheckedChange={(checked) =>
@@ -391,7 +391,7 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
                   }
                 />
                 Active and available for new orders
-              </label>
+              </Label>
             ) : null}
           </div>
           <DialogFooter className="border-stone-200 bg-stone-50/80">
@@ -406,7 +406,6 @@ export function RestaurantTaxesManager({ apiPath }: { apiPath: string }) {
               type="button"
               disabled={isSaving}
               onClick={() => void save()}
-              className="bg-stone-950 text-white hover:bg-stone-800"
             >
               <ButtonLabel icon={SaveIcon}>
                 {isSaving ? "Saving..." : "Save tax"}

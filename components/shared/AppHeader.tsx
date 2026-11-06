@@ -433,7 +433,7 @@ export function AppHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <Button asChild className="rounded-lg">
+        <Button asChild>
           <Link href="/staff/login">
             <ButtonLabel icon={LogInIcon}>Login</ButtonLabel>
           </Link>

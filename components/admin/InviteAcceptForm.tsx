@@ -33,7 +33,7 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
 
   if (!token || !invitation) {
     return (
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-6 pt-6">
           <h1 className="text-3xl font-semibold text-stone-950">Invalid invitation</h1>
         </CardHeader>
@@ -46,7 +46,7 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
 
   if (isAccepted) {
     return (
-      <Card className="rounded-xl border-stone-200 bg-white">
+      <Card>
         <CardHeader className="px-6 pt-6">
           <h1 className="text-3xl font-semibold text-stone-950">Account ready</h1>
         </CardHeader>
@@ -54,7 +54,7 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
           <p className="text-sm text-stone-600">
             Your access is ready. You can now sign in to Staff Operations.
           </p>
-          <Button asChild className="rounded-lg bg-stone-950 text-white hover:bg-stone-800">
+          <Button asChild>
             <Link href="/staff/login">
               <ButtonLabel icon={LogInIcon}>Go to login</ButtonLabel>
             </Link>
@@ -65,7 +65,7 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
   }
 
   return (
-    <Card className="rounded-xl border-stone-200 bg-white">
+    <Card>
       <CardHeader className="px-6 pt-6">
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-amber-700">
           Staff Invitation
@@ -168,7 +168,6 @@ export function InviteAcceptForm({ invitation, token }: InviteAcceptFormProps) {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="rounded-lg bg-stone-950 text-white hover:bg-stone-800"
           >
             <ButtonLabel icon={UserCheckIcon}>
               {isSubmitting
