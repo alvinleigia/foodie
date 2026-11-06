@@ -63,6 +63,7 @@ import {
 } from "@/lib/order-payments";
 import { getStripe } from "@/lib/stripe";
 import { logError } from "@/lib/logger";
+import { queueOrderConfirmationEmail } from "@/lib/order-customer-emails";
 import { resolveOrganizationPaymentIntegration } from "@/lib/organization-integrations";
 import { withPublicCustomerContext } from "@/lib/customer-navigation";
 import { isPlatformAdministrationRequest } from "@/lib/deployment-domain";
@@ -1147,6 +1148,11 @@ export async function POST(request: NextRequest) {
           ...item,
           ...orderLineTaxSnapshots[itemIndex],
         }));
+
+    await queueOrderConfirmationEmail(
+      createdOrder.id,
+      createdOrder.organizationId,
+    );
 
     return NextResponse.json({
       ...serializeOrder(

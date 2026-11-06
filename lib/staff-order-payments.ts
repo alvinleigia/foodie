@@ -43,6 +43,7 @@ import {
 } from "@/lib/order-financial-snapshots";
 import { calculateDiscountedOrderFinancials } from "@/lib/order-adjustments";
 import { getActiveStaffOrderAdjustment } from "@/lib/staff-order-adjustments";
+import { queueOrderPaymentReceiptEmail } from "@/lib/order-customer-emails";
 
 type StaffPaymentActor = {
   id: string;
@@ -487,6 +488,14 @@ export async function collectStaffCashPayment(input: {
       tenderedAmount: result.payment.tenderedAmount,
     },
   });
+
+  if (result.order.paymentStatus === "PAID") {
+    await queueOrderPaymentReceiptEmail(
+      result.order.id,
+      result.order.organizationId,
+      result.order.orderingPointId,
+    );
+  }
 
   return result;
 }

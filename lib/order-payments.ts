@@ -15,6 +15,7 @@ import {
 import { calculatePaymentBalance } from "@/lib/order-payment-financials";
 import { emptyOrderFinancialSnapshot } from "@/lib/order-financial-snapshots";
 import { getFinancialDocumentNumberUpdate } from "@/lib/financial-document-numbers";
+import { queueOrderPaymentReceiptEmail } from "@/lib/order-customer-emails";
 import {
   calculateMultiTaxPricing,
   calculateTaxPricing,
@@ -464,6 +465,14 @@ export async function markOrderPaymentPaid(
 
     return nextOrder;
   });
+
+  if (updatedOrder?.paymentStatus === "PAID") {
+    await queueOrderPaymentReceiptEmail(
+      updatedOrder.id,
+      updatedOrder.organizationId,
+      updatedOrder.orderingPointId,
+    );
+  }
 
   return updatedOrder ?? null;
 }
