@@ -7,7 +7,7 @@ import {
   FeatureEntitlementError,
   getOrganizationFeatureEntitlement,
 } from "@/lib/feature-entitlements";
-import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
+import { getPublicMenu, getTenantMenuLocalization } from "@/lib/menu";
 import { getRestaurantBusinessDate } from "@/lib/order-number";
 import { getResolvedRestaurantTaxes } from "@/lib/restaurant-taxes";
 import {
@@ -29,12 +29,12 @@ export async function GET(request: Request) {
       );
     }
 
-    const [inventoryEntitlement, currency, businessDate] = await Promise.all([
+    const [inventoryEntitlement, localization, businessDate] = await Promise.all([
       getOrganizationFeatureEntitlement(
         tenantContext.organizationId,
         "operations.inventory",
       ),
-      getTenantMenuCurrency(tenantContext),
+      getTenantMenuLocalization(tenantContext),
       getRestaurantBusinessDate(getDb(), tenantContext),
     ]);
     const categories = await getPublicMenu(tenantContext, {
@@ -59,7 +59,12 @@ export async function GET(request: Request) {
       ),
     };
 
-    return NextResponse.json({ categories, currency, taxPricing });
+    return NextResponse.json({
+      categories,
+      countryCode: localization.countryCode,
+      currency: localization.currency,
+      taxPricing,
+    });
   } catch (error) {
     if (error instanceof FeatureEntitlementError) {
       return NextResponse.json({ error: error.message }, { status: 403 });

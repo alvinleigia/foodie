@@ -5,7 +5,7 @@ import { normalizeCustomerPhone } from "@/lib/validations/customer";
 export const customerPhoneOtpRequestSchema = z.object({
   phone: z
     .string()
-    .transform(normalizeCustomerPhone)
+    .transform((value) => normalizeCustomerPhone(value))
     .refine(
       (value) => /^\+[1-9]\d{7,14}$/.test(value),
       "Enter a valid mobile number with country code",

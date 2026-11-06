@@ -6,7 +6,7 @@ import { AppShell } from "@/components/shared/AppShell";
 import { getDb } from "@/db";
 import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
 import { getOrganizationFeatureEntitlement } from "@/lib/feature-entitlements";
-import { getPublicMenu, getTenantMenuCurrency } from "@/lib/menu";
+import { getPublicMenu, getTenantMenuLocalization } from "@/lib/menu";
 import { getRestaurantBusinessDate } from "@/lib/order-number";
 import { getAppendableDineInOrder } from "@/lib/orders";
 import { getResolvedRestaurantTaxes } from "@/lib/restaurant-taxes";
@@ -29,9 +29,9 @@ async function loadInitialMenuData(
   tenantContext: TenantContext,
   includeInventory: boolean,
 ): Promise<OrderFormMenuData> {
-  const [categories, currency, businessDate] = await Promise.all([
+  const [categories, localization, businessDate] = await Promise.all([
     getPublicMenu(tenantContext, { includeInventory }),
-    getTenantMenuCurrency(tenantContext),
+    getTenantMenuLocalization(tenantContext),
     getRestaurantBusinessDate(getDb(), tenantContext),
   ]);
   const resolvedTaxes = await getResolvedRestaurantTaxes(
@@ -42,7 +42,8 @@ async function loadInitialMenuData(
 
   return {
     categories,
-    currency,
+    countryCode: localization.countryCode,
+    currency: localization.currency,
     taxPricing: {
       pricingMode: resolvedTaxes.pricingMode,
       taxRateBps: 0,

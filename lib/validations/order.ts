@@ -14,8 +14,11 @@ const optionalContactEmailSchema = z
 
 const optionalContactPhoneSchema = z
   .string()
-  .transform(normalizeCustomerPhone)
-  .refine(isValidCustomerPhone, "Enter a valid mobile number with country code")
+  .transform((value) => normalizeCustomerPhone(value))
+  .refine(
+    (value) => isValidCustomerPhone(value),
+    "Enter a valid mobile number with country code",
+  )
   .nullable();
 
 export const createOrderSchema = z
