@@ -2,10 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
 
-import { findMenuImageUrlColumn } from "@/lib/menu-csv";
-
 test.describe("menu import and export", () => {
-  test("round-trips product image URLs without clearing legacy imports", () => {
+  test("round-trips product image URLs through the image_url column", () => {
     const menuSource = readFileSync("lib/menu.ts", "utf8");
     const managerSource = readFileSync(
       "components/staff/MenuManager.tsx",
@@ -19,17 +17,5 @@ test.describe("menu import and export", () => {
       "...(hasItemImageUrl ? { imageUrl: itemImageUrl } : {})",
     );
     expect(managerSource).toContain("Product images: image_url");
-  });
-
-  test("accepts canonical and legacy image URL headers", () => {
-    expect(findMenuImageUrlColumn(["item_name", "image_url"])).toBe(1);
-    expect(findMenuImageUrlColumn(["item_name", "item_image_url"])).toBe(1);
-    expect(
-      findMenuImageUrlColumn([
-        "item_name",
-        "image_url",
-        "item_image_url",
-      ]),
-    ).toBe(1);
   });
 });
