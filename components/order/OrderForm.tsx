@@ -19,6 +19,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { CountryCode } from "libphonenumber-js";
 
 import { LocalCustomerOrder } from "@/lib/constants";
 import {
@@ -48,9 +49,11 @@ import {
 } from "@/lib/offline-staff-orders";
 import {
   isValidCustomerPhone,
+  getCustomerPhoneCountryCode,
   normalizeCustomerPhone,
 } from "@/lib/validations/customer";
 import { FormField } from "@/components/shared/FormField";
+import { PhoneNumberInput } from "@/components/shared/PhoneNumberInput";
 import {
   StaffCustomerSearch,
   type StaffCustomerSummary,
@@ -108,6 +111,10 @@ import {
   type RestaurantCheckoutPolicy,
 } from "@/lib/checkout-policy";
 import type { RestaurantChargeSettings } from "@/lib/restaurant-charge-settings";
+import {
+  DEFAULT_COUNTRY_CODE,
+  isSupportedCountryCode,
+} from "@/lib/countries";
 import { toLocalDateTimeInputValue } from "@/lib/order-fulfilment-time";
 import {
   MenuCategoryRecord,
@@ -199,6 +206,7 @@ export type RestaurantTaxPricing = {
 
 export type OrderFormMenuData = {
   categories: MenuCategoryRecord[];
+  countryCode: string;
   currency: string;
   taxPricing: RestaurantTaxPricing;
 };
@@ -445,6 +453,17 @@ export function OrderForm({
   const [currency, setCurrency] = useState(
     initialMenuData?.currency ?? DEFAULT_CURRENCY,
   );
+  const configuredCountryCode = initialMenuData?.countryCode ?? "";
+  const initialOperatingCountryCode: CountryCode = isSupportedCountryCode(
+    configuredCountryCode,
+  )
+    ? configuredCountryCode
+    : DEFAULT_COUNTRY_CODE;
+  const [operatingCountryCode, setOperatingCountryCode] =
+    useState<CountryCode>(initialOperatingCountryCode);
+  const [phoneCountryCode, setPhoneCountryCode] = useState<CountryCode>(
+    getCustomerPhoneCountryCode(customer?.phone) ?? initialOperatingCountryCode,
+  );
   const [taxPricing, setTaxPricing] = useState(
     initialMenuData?.taxPricing ?? defaultTaxPricing,
   );
@@ -462,7 +481,7 @@ export function OrderForm({
     deliveryCity: "",
     deliveryRegion: "",
     deliveryPostalCode: "",
-    deliveryCountryCode: "GB",
+    deliveryCountryCode: initialOperatingCountryCode,
     deliveryInstructions: "",
     fulfilmentTiming: "ASAP",
     scheduledFulfilmentAt: "",
@@ -526,11 +545,15 @@ export function OrderForm({
     checkoutPolicy?.guestCheckoutEnabled && stripePaymentsEnabled,
   );
   const normalizedContactEmail = draft.customerEmail.trim().toLowerCase();
-  const normalizedContactPhone = normalizeCustomerPhone(draft.customerPhone);
+  const normalizedContactPhone = normalizeCustomerPhone(
+    draft.customerPhone,
+    phoneCountryCode,
+  );
   const hasValidContactEmail =
     !normalizedContactEmail || /^\S+@\S+\.\S+$/.test(normalizedContactEmail);
   const hasValidContactPhone =
-    !normalizedContactPhone || isValidCustomerPhone(normalizedContactPhone);
+    !normalizedContactPhone ||
+    isValidCustomerPhone(draft.customerPhone, phoneCountryCode);
   const hasRequiredContact = Boolean(
     checkoutPolicy &&
       isCheckoutContactValid(checkoutPolicy.contactRequirement, {
@@ -643,6 +666,14 @@ export function OrderForm({
       if (isMounted) {
         setMenuCategories(payload.categories ?? []);
         setCurrency(payload.currency ?? DEFAULT_CURRENCY);
+        if (isSupportedCountryCode(payload.countryCode ?? "")) {
+          setOperatingCountryCode(payload.countryCode);
+          setPhoneCountryCode(payload.countryCode);
+          setDraft((current) => ({
+            ...current,
+            deliveryCountryCode: payload.countryCode,
+          }));
+        }
         setTaxPricing(payload.taxPricing ?? defaultTaxPricing);
         setMenuError(null);
         setIsLoadingMenu(false);
@@ -1407,7 +1438,7 @@ export function OrderForm({
       deliveryCity: "",
       deliveryRegion: "",
       deliveryPostalCode: "",
-      deliveryCountryCode: "GB",
+      deliveryCountryCode: operatingCountryCode,
       deliveryInstructions: "",
       fulfilmentTiming: "ASAP",
       scheduledFulfilmentAt: "",
@@ -2157,6 +2188,7 @@ export function OrderForm({
                 {!customer && effectiveCheckoutMode === "ACCOUNT" ? (
                   hasCustomerLoginProvider ? (
                     <CustomerLoginForm
+                      defaultPhoneCountryCode={operatingCountryCode}
                       providers={availableCustomerAuthProviders}
                       orderingPointQrSlug={orderingPointQrSlug}
                       routeSlug={routeSlug}
@@ -2211,7 +2243,7 @@ export function OrderForm({
                       {contactRequirement
                         ? checkoutContactRequirementLabels[contactRequirement]
                         : "Email or mobile required"}
-                      . Include the country code with mobile numbers.
+                      . Enter mobile numbers in the selected country format.
                     </p>
                     <FormField label="Full name" htmlFor="review-contact-name">
                       <Input
@@ -2246,15 +2278,14 @@ export function OrderForm({
                         label={`Mobile number${isPhoneRequired ? " (required)" : ""}`}
                         htmlFor="review-contact-phone"
                       >
-                        <Input
+                        <PhoneNumberInput
                           id="review-contact-phone"
-                          type="tel"
-                          autoComplete="tel"
-                          placeholder="+44 7700 900123"
                           value={draft.customerPhone}
+                          countryCode={phoneCountryCode}
+                          onCountryCodeChange={setPhoneCountryCode}
                           disabled={isSubmitting}
-                          onChange={(event) => {
-                            updateDraft("customerPhone", event.target.value);
+                          onValueChange={(value) => {
+                            updateDraft("customerPhone", value);
                             setError(null);
                           }}
                         />

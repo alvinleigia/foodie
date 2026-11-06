@@ -16,10 +16,13 @@ import {
   modifierGroups,
   modifierOptions,
   organizationTaxDefinitions,
+  organizationTaxProfiles,
   organizations,
 } from "@/db/schema";
 import { formatPrice } from "@/lib/formatters";
+import { getDefaultCountryCodeForCurrency } from "@/lib/countries";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
+import { findMenuImageUrlColumn } from "@/lib/menu-csv";
 import {
   getMenuAvailabilityState,
   isMenuCategoryAvailable,
@@ -1013,13 +1016,33 @@ export async function getAdminMenu(context: TenantContext = getDefaultTenantCont
 export async function getTenantMenuCurrency(
   context: TenantContext = getDefaultTenantContext(),
 ) {
+  return (await getTenantMenuLocalization(context)).currency;
+}
+
+export async function getTenantMenuLocalization(
+  context: TenantContext = getDefaultTenantContext(),
+) {
   const [organization] = await getDb()
-    .select({ currency: organizations.currency })
+    .select({
+      countryCode: organizationTaxProfiles.countryCode,
+      currency: organizations.currency,
+    })
     .from(organizations)
+    .leftJoin(
+      organizationTaxProfiles,
+      eq(organizationTaxProfiles.organizationId, organizations.id),
+    )
     .where(eq(organizations.id, context.organizationId))
     .limit(1);
 
-  return organization?.currency ?? DEFAULT_CURRENCY;
+  return {
+    countryCode:
+      organization?.countryCode ??
+      getDefaultCountryCodeForCurrency(
+        organization?.currency ?? DEFAULT_CURRENCY,
+      ),
+    currency: organization?.currency ?? DEFAULT_CURRENCY,
+  };
 }
 
 export async function getMenuSelectionSnapshot(
@@ -1767,7 +1790,7 @@ export async function exportMenuCsv(context: TenantContext = getDefaultTenantCon
     "item_name",
     "item_description",
     "item_price",
-    "item_image_url",
+    "image_url",
     "item_sort_order",
     "item_active",
     "item_sold_out",
@@ -1869,7 +1892,7 @@ export async function importMenuCsv(
   const itemNameIndex = headers.indexOf("item_name");
   const itemDescriptionIndex = headers.indexOf("item_description");
   const itemPriceIndex = headers.indexOf("item_price");
-  const itemImageUrlIndex = headers.indexOf("item_image_url");
+  const itemImageUrlIndex = findMenuImageUrlColumn(headers);
   const itemSortOrderIndex = headers.indexOf("item_sort_order");
   const itemActiveIndex = headers.indexOf("item_active");
   const itemSoldOutIndex = headers.indexOf("item_sold_out");

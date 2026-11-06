@@ -1,19 +1,69 @@
 import { z } from "zod";
+import {
+  parsePhoneNumberFromString,
+  type CountryCode,
+} from "libphonenumber-js";
 
 const earliestBirthDate = "1900-01-01";
 
-export function normalizeCustomerPhone(value: string) {
-  return value.trim().replace(/[\s()-]/g, "");
+export function normalizeCustomerPhone(
+  value: string,
+  defaultCountryCode?: CountryCode,
+) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return (
+      parsePhoneNumberFromString(trimmed, defaultCountryCode)?.number ??
+      trimmed.replace(/[\s()-]/g, "")
+    );
+  } catch {
+    return trimmed.replace(/[\s()-]/g, "");
+  }
 }
 
-export function isValidCustomerPhone(value: string | null | undefined) {
-  return Boolean(value && /^\+[1-9]\d{7,14}$/.test(normalizeCustomerPhone(value)));
+export function isValidCustomerPhone(
+  value: string | null | undefined,
+  defaultCountryCode?: CountryCode,
+) {
+  if (!value) {
+    return false;
+  }
+
+  try {
+    return Boolean(
+      parsePhoneNumberFromString(value.trim(), defaultCountryCode)?.isValid(),
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getCustomerPhoneCountryCode(
+  value: string | null | undefined,
+) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return parsePhoneNumberFromString(value.trim())?.country ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const phoneSchema = z
   .string()
-  .transform(normalizeCustomerPhone)
-  .refine(isValidCustomerPhone, "Enter a valid phone number with country code");
+  .transform((value) => normalizeCustomerPhone(value))
+  .refine(
+    (value) => isValidCustomerPhone(value),
+    "Enter a valid phone number with country code",
+  );
 
 const dateOfBirthSchema = z
   .string()

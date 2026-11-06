@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { KeyRoundIcon, LogInIcon, MailIcon, SmartphoneIcon } from "lucide-react";
+import type { CountryCode } from "libphonenumber-js";
 import { toast } from "sonner";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
+import { PhoneNumberInput } from "@/components/shared/PhoneNumberInput";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +20,11 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { cn } from "@/lib/utils";
+import { DEFAULT_COUNTRY_CODE } from "@/lib/countries";
+import {
+  isValidCustomerPhone,
+  normalizeCustomerPhone,
+} from "@/lib/validations/customer";
 
 export type CustomerAuthProviders = {
   apple: boolean;
@@ -29,6 +36,7 @@ export type CustomerAuthProviders = {
 
 type CustomerLoginFormProps = {
   className?: string;
+  defaultPhoneCountryCode?: CountryCode;
   description?: string;
   orderingPointQrSlug?: string;
   routeSlug?: string;
@@ -40,6 +48,7 @@ type CustomerLoginFormProps = {
 
 export function CustomerLoginForm({
   className,
+  defaultPhoneCountryCode = DEFAULT_COUNTRY_CODE,
   description = "Your orders will be saved to your account for easy tracking and reordering.",
   orderingPointQrSlug,
   routeSlug,
@@ -63,6 +72,9 @@ export function CustomerLoginForm({
     providers.email ? "email" : "phone",
   );
   const [phone, setPhone] = useState("");
+  const [phoneCountryCode, setPhoneCountryCode] = useState<CountryCode>(
+    defaultPhoneCountryCode,
+  );
   const [phoneCode, setPhoneCode] = useState("");
   const [phoneStep, setPhoneStep] = useState<"phone" | "code">("phone");
   const hasSocialProvider = providers.google || providers.apple || providers.facebook;
@@ -191,10 +203,10 @@ export function CustomerLoginForm({
   }
 
   async function requestPhoneCode() {
-    const normalizedPhone = phone.trim().replace(/[\s()-]/g, "");
+    const normalizedPhone = normalizeCustomerPhone(phone, phoneCountryCode);
 
-    if (!/^\+[1-9]\d{7,14}$/.test(normalizedPhone)) {
-      setError("Enter a valid mobile number with country code.");
+    if (!isValidCustomerPhone(phone, phoneCountryCode)) {
+      setError("Enter a valid mobile number.");
       return;
     }
 
@@ -413,15 +425,15 @@ export function CustomerLoginForm({
         phoneStep === "phone" ? (
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <FormField label="Mobile number" htmlFor="customer-login-phone">
-              <Input
+              <PhoneNumberInput
                 id="customer-login-phone"
-                type="tel"
                 value={phone}
-                onChange={(event) => {
-                  setPhone(event.target.value);
+                countryCode={phoneCountryCode}
+                onCountryCodeChange={setPhoneCountryCode}
+                onValueChange={(value) => {
+                  setPhone(value);
                   setError(null);
                 }}
-                placeholder="+44 7700 900123"
                 autoComplete="tel"
                 disabled={isRequestingCode}
                 controlSize="lg"
