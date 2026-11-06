@@ -42,6 +42,7 @@ export async function getOrderReceipt(
       currency: orders.financialSnapshotCurrency,
       customerEmail: customers.email,
       customerEmailVerifiedAt: customers.emailVerifiedAt,
+      orderCustomerEmail: orders.customerEmail,
       customerName: orders.customerName,
       discountAmount: orders.discountAmountSnapshot,
       finalTotalAmount: orders.finalTotalAmountSnapshot,
@@ -260,9 +261,9 @@ export async function getOrderReceipt(
     cancellationFeeAmount: record.cancellationFeeAmount ?? null,
     chargeAmount: record.chargeAmount,
     currency: record.currency,
-    customerEmail: record.customerEmailVerifiedAt
-      ? record.customerEmail
-      : null,
+    customerEmail:
+      (record.customerEmailVerifiedAt ? record.customerEmail : null) ??
+      record.orderCustomerEmail,
     discountAmount: record.discountAmount,
     finalTotalAmount: record.finalTotalAmount,
     items: receiptItems,

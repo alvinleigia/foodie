@@ -233,6 +233,16 @@ export const integrationVerificationStatusEnum = pgEnum(
   ["NOT_CONFIGURED", "PENDING", "VERIFIED", "FAILED"],
 );
 
+export const orderCustomerEmailTypeEnum = pgEnum(
+  "order_customer_email_type",
+  ["ORDER_CONFIRMATION", "PAYMENT_RECEIPT", "CANCELLATION", "REFUND"],
+);
+
+export const orderCustomerEmailStatusEnum = pgEnum(
+  "order_customer_email_status",
+  ["PENDING", "PROCESSING", "SENT", "FAILED"],
+);
+
 export const paymentProviderEnum = pgEnum("payment_provider", [
   "STRIPE",
   "CASH",
@@ -3628,6 +3638,52 @@ export const orderRefunds = pgTable(
       .on(table.cancellationId, table.orderPaymentId)
       .where(sql`${table.status} = 'PENDING'`),
     check("order_refunds_amount_check", sql`${table.amount} > 0`),
+  ],
+);
+
+export const orderCustomerEmailDeliveries = pgTable(
+  "order_customer_email_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .references(() => organizations.id, { onDelete: "cascade" })
+      .notNull(),
+    orderId: uuid("order_id")
+      .references(() => orders.id, { onDelete: "cascade" })
+      .notNull(),
+    type: orderCustomerEmailTypeEnum("type").notNull(),
+    eventKey: text("event_key").notNull(),
+    recipientEmail: text("recipient_email").notNull(),
+    subject: text("subject").notNull(),
+    textBody: text("text_body").notNull(),
+    htmlBody: text("html_body").notNull(),
+    status: orderCustomerEmailStatusEnum("status")
+      .default("PENDING")
+      .notNull(),
+    attemptCount: integer("attempt_count").default(0).notNull(),
+    lastAttemptAt: timestamp("last_attempt_at"),
+    lastError: text("last_error"),
+    sentAt: timestamp("sent_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("order_customer_email_deliveries_event_unique").on(
+      table.organizationId,
+      table.eventKey,
+    ),
+    index("order_customer_email_deliveries_order_idx").on(
+      table.orderId,
+      table.createdAt,
+    ),
+    index("order_customer_email_deliveries_status_idx").on(
+      table.status,
+      table.updatedAt,
+    ),
+    check(
+      "order_customer_email_deliveries_attempt_count_check",
+      sql`${table.attemptCount} >= 0`,
+    ),
   ],
 );
 
