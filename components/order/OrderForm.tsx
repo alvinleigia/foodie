@@ -512,6 +512,8 @@ export function OrderForm({
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const [showCheckoutErrors, setShowCheckoutErrors] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
+  const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const categoryBarRef = useRef<HTMLDivElement | null>(null);
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -750,39 +752,46 @@ export function OrderForm({
   }, [initialMenuData, orderingPointQrSlug, routeSlug, staffRestaurantSlug]);
 
   useEffect(() => {
-    if (visibleMenuCategories.length === 0) {
+    if (screen !== "menu" || visibleMenuCategories.length === 0) {
       return;
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleEntry = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
+    let animationFrame: number | null = null;
 
-        if (visibleEntry?.target.id) {
-          setActiveCategoryId(visibleEntry.target.id.replace("menu-category-", ""));
+    function updateActiveCategory() {
+      animationFrame = null;
+      const activationLine = (categoryBarRef.current?.getBoundingClientRect().bottom ?? 0) + 64;
+      let nextCategoryId = visibleMenuCategories[0]?.id;
+
+      // Track headings rather than visible percentages: categories can be much
+      // taller than the viewport, especially on phones.
+      for (const category of visibleMenuCategories) {
+        const element = categoryRefs.current[category.id];
+
+        if (element && element.getBoundingClientRect().top <= activationLine) {
+          nextCategoryId = category.id;
         }
-      },
-      {
-        root: null,
-        rootMargin: "-160px 0px -55% 0px",
-        threshold: [0.12, 0.35, 0.6],
-      },
-    );
-
-    for (const category of visibleMenuCategories) {
-      const element = categoryRefs.current[category.id];
-
-      if (element) {
-        observer.observe(element);
       }
+
+      setActiveCategoryId(nextCategoryId);
     }
 
+    function scheduleUpdate() {
+      animationFrame ??= window.requestAnimationFrame(updateActiveCategory);
+    }
+
+    updateActiveCategory();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+
     return () => {
-      observer.disconnect();
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
     };
-  }, [visibleMenuCategories]);
+  }, [screen, visibleMenuCategories]);
 
   useEffect(() => {
     const sentinel = categoryBarSentinelRef.current;
@@ -805,7 +814,7 @@ export function OrderForm({
       window.removeEventListener("scroll", updateStickyState);
       window.removeEventListener("resize", updateStickyState);
     };
-  }, [menuCategories.length]);
+  }, [menuCategories.length, screen]);
 
   const totalProducts = useMemo(
     () => visibleMenuCategories.reduce((count, category) => count + category.items.length, 0),
@@ -817,6 +826,35 @@ export function OrderForm({
   )
     ? activeCategoryId
     : visibleMenuCategories[0]?.id;
+
+  useEffect(() => {
+    const bar = categoryBarRef.current;
+    const button = currentActiveCategoryId
+      ? categoryButtonRefs.current[currentActiveCategoryId]
+      : null;
+
+    if (screen !== "menu" || !bar || !button) {
+      return;
+    }
+
+    const barBounds = bar.getBoundingClientRect();
+    const buttonBounds = button.getBoundingClientRect();
+    const inset = 12;
+    const offset = buttonBounds.left < barBounds.left + inset
+      ? buttonBounds.left - barBounds.left - inset
+      : buttonBounds.right > barBounds.right - inset
+        ? buttonBounds.right - barBounds.right + inset
+        : 0;
+
+    if (offset !== 0) {
+      bar.scrollBy({
+        left: offset,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+    }
+  }, [currentActiveCategoryId, screen]);
 
   const totalQuantity = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -2880,7 +2918,7 @@ export function OrderForm({
               {!isLoadingMenu ? (
                 <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
-                  <p>Tell restaurant staff about any food allergy before ordering.</p>
+                  <p>Food allergy? Contact the restaurant before placing your order.</p>
                 </div>
               ) : null}
 
@@ -2892,6 +2930,9 @@ export function OrderForm({
                     <>
                     <div ref={categoryBarSentinelRef} className="h-px" />
                     <div
+                      ref={categoryBarRef}
+                      role="navigation"
+                      aria-label="Menu categories"
                       className={`sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                         isCategoryBarStuck
                           ? "-mx-6 bg-white/95 px-6 shadow-md"
@@ -2902,7 +2943,11 @@ export function OrderForm({
                         {visibleMenuCategories.map((category) => (
                           <Button
                             key={category.id}
+                            ref={(element) => {
+                              categoryButtonRefs.current[category.id] = element;
+                            }}
                             type="button"
+                            aria-pressed={currentActiveCategoryId === category.id}
                             variant={currentActiveCategoryId === category.id ? "default" : "outline"}
                             onClick={() => scrollToCategory(category.id)}
                             className={
