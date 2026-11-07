@@ -9,6 +9,7 @@ import {
 
 import { AppHeader } from "@/components/shared/AppHeader";
 import { AppShell } from "@/components/shared/AppShell";
+import { CustomerReceiptActions } from "@/components/order/CustomerReceiptActions";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,10 +83,19 @@ export default async function OrderPaymentSuccessPage(
       })
     : ordersHref;
   const Icon = isPaid ? CheckCircle2Icon : hasFailed ? XCircleIcon : Clock3Icon;
+  const baseReceiptHref = withPublicCustomerContext(
+    `/order/receipt/${encodeURIComponent(order.orderId)}`,
+    customerContext,
+  );
+  const receiptHref = shouldOfferGuestSignIn
+    ? `${baseReceiptHref}${baseReceiptHref.includes("?") ? "&" : "?"}session_id=${encodeURIComponent(sessionId)}`
+    : baseReceiptHref;
 
   return (
-    <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-3xl space-y-6 pb-8">
+    <AppShell topSpacing="compact" variant="customer" contentClassName="max-w-3xl space-y-6 pb-8">
+      <div data-customer-storefront>
       <AppHeader
+        tone="customer"
         customerMenu={{
           accountHref: session?.user.kind === "customer" ? accountHref : undefined,
           customerName: order.customerName,
@@ -95,7 +105,7 @@ export default async function OrderPaymentSuccessPage(
         }}
       />
 
-      <Card className="rounded-xl border-white/60 bg-white/95">
+      <Card className="rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.10)]">
         <CardContent className="grid justify-items-center gap-5 px-6 py-10 text-center">
           <span
             className={`grid size-14 place-items-center rounded-lg ${
@@ -143,8 +153,10 @@ export default async function OrderPaymentSuccessPage(
               <Link href={orderHref}>Back to menu</Link>
             </Button>
           </div>
+          {isPaid ? <CustomerReceiptActions receiptHref={receiptHref} /> : null}
         </CardContent>
       </Card>
+      </div>
     </AppShell>
   );
 }

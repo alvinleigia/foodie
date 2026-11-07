@@ -74,7 +74,10 @@ export function CustomerOrderPage({
   const ordersHref = getCustomerOrderHref("/order/status", customerContext);
 
   return (
-    <>
+    <div
+      data-customer-storefront={user ? undefined : ""}
+      className={user ? undefined : "text-stone-950"}
+    >
       {user ? (
         <>
           <AppHeader
@@ -104,6 +107,7 @@ export function CustomerOrderPage({
       ) : (
         <AppHeader
           activePath="/order"
+          tone="customer"
           customerMenu={{
             accountHref: customer
               ? withPublicCustomerContext("/account", customerContext)
@@ -135,6 +139,6 @@ export function CustomerOrderPage({
         stripePaymentsEnabled={stripePaymentsEnabled}
         staffRestaurantSlug={staffRestaurant?.slug}
       />
-    </>
+    </div>
   );
 }

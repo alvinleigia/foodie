@@ -61,6 +61,7 @@ type AppHeaderProps = {
   };
   navigationItems?: StaffNavigationItem[];
   staffOrderHref?: string;
+  tone?: "default" | "customer";
   user?: AppHeaderUser | null;
 };
 
@@ -96,17 +97,35 @@ function getActiveNavigationHref(
   }, undefined);
 }
 
-function BrandLogo({ href }: { href: string }) {
+function BrandLogo({
+  href,
+  tone = "default",
+}: {
+  href: string;
+  tone?: "default" | "customer";
+}) {
   return (
     <Link href={href} className="group inline-flex items-center gap-3">
       <span data-theme-static className="grid size-10 place-items-center rounded-lg border border-white/15 bg-white text-sm font-black tracking-tight text-stone-950 shadow-sm">
         F
       </span>
       <span>
-        <span className="block text-base font-semibold leading-none text-white">
+        <span
+          className={cn(
+            "block text-base font-semibold leading-none",
+            tone === "customer" ? "text-stone-950" : "text-white",
+          )}
+        >
           Foodie POS
         </span>
-        <span className="mt-1 block text-xs font-medium uppercase tracking-[0.18em] text-stone-400 group-hover:text-stone-300">
+        <span
+          className={cn(
+            "mt-1 block text-xs font-medium uppercase tracking-[0.18em]",
+            tone === "customer"
+              ? "text-teal-700 group-hover:text-teal-800"
+              : "text-stone-400 group-hover:text-stone-300",
+          )}
+        >
           AGO
         </span>
       </span>
@@ -122,6 +141,7 @@ export function AppHeader({
   customerMenu,
   navigationItems = staffNavigationItems,
   staffOrderHref,
+  tone = "default",
   user,
 }: AppHeaderProps) {
   const visibleNavigationItems = user
@@ -169,11 +189,14 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "mb-8 flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-stone-950 px-4 py-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.18)]",
+        "mb-8 flex items-center justify-between gap-4 rounded-xl border px-4 py-3 shadow-sm",
+        tone === "customer"
+          ? "border-stone-200 bg-white text-stone-950"
+          : "border-white/10 bg-stone-950 text-white shadow-[0_18px_60px_rgba(0,0,0,0.18)]",
         className,
       )}
     >
-      <BrandLogo href={brandHref} />
+      <BrandLogo href={brandHref} tone={tone} />
 
       {user ? (
         <DropdownMenu>
@@ -321,7 +344,10 @@ export function AppHeader({
               type="button"
               variant="outline"
               className={cn(
-                "rounded-lg border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white",
+                "rounded-lg",
+                tone === "customer"
+                  ? "border-stone-200 bg-stone-50 text-stone-900 hover:bg-teal-50 hover:text-teal-950"
+                  : "border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white",
                 customerMenu.accountHref && "h-auto px-3 py-2 text-left",
               )}
             >
@@ -331,14 +357,24 @@ export function AppHeader({
                     <span className="block text-sm font-semibold leading-none">
                       {customerMenu.customerName ?? "Account"}
                     </span>
-                    <span className="mt-1 block text-xs text-stone-400">
+                    <span
+                      className={cn(
+                        "mt-1 block text-xs",
+                        tone === "customer" ? "text-stone-500" : "text-stone-400",
+                      )}
+                    >
                       Customer
                     </span>
                   </span>
                   <span data-theme-static className="grid size-9 place-items-center rounded-lg bg-white text-sm font-semibold text-stone-950">
                     {(customerMenu.customerName ?? "C").trim().slice(0, 1).toUpperCase()}
                   </span>
-                  <ChevronDownIcon className="size-4 text-stone-400" />
+                  <ChevronDownIcon
+                    className={cn(
+                      "size-4",
+                      tone === "customer" ? "text-stone-500" : "text-stone-400",
+                    )}
+                  />
                 </span>
               ) : (
                 <>

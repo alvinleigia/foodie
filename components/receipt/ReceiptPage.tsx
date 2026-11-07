@@ -11,29 +11,37 @@ import type { OrderReceipt } from "@/lib/order-receipt-format";
 
 export function ReceiptPage({
   backHref,
+  autoPrint = false,
   canIssueVatInvoice = false,
   receipt,
+  tone = "default",
 }: {
   backHref: string;
+  autoPrint?: boolean;
   canIssueVatInvoice?: boolean;
   receipt: OrderReceipt;
+  tone?: "customer" | "default";
 }) {
+  const isCustomerReceipt = tone === "customer";
+
   return (
     <AppShell
-      variant="neutral"
+      variant={isCustomerReceipt ? "customer" : "neutral"}
       contentClassName="max-w-3xl"
       className="print:bg-white print:px-0 print:py-0"
     >
-      <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
-        <Button asChild variant="outline">
-          <Link href={backHref}>
-            <ButtonLabel icon={ArrowLeftIcon}>Back to orders</ButtonLabel>
-          </Link>
-        </Button>
-        <PrintReceiptButton />
+      <div data-customer-storefront={isCustomerReceipt ? "" : undefined}>
+        <div className="mb-4 flex items-center justify-between gap-3 print:hidden">
+          <Button asChild variant="outline">
+            <Link href={backHref}>
+              <ButtonLabel icon={ArrowLeftIcon}>Back to orders</ButtonLabel>
+            </Link>
+          </Button>
+          <PrintReceiptButton autoPrint={autoPrint} />
+        </div>
+        {canIssueVatInvoice ? <VatInvoicePanel receipt={receipt} /> : null}
+        <OrderReceiptDocument receipt={receipt} />
       </div>
-      {canIssueVatInvoice ? <VatInvoicePanel receipt={receipt} /> : null}
-      <OrderReceiptDocument receipt={receipt} />
     </AppShell>
   );
 }

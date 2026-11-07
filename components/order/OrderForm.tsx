@@ -17,6 +17,7 @@ import {
   TagsIcon,
   TimerIcon,
   Trash2Icon,
+  UtensilsCrossedIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CountryCode } from "libphonenumber-js";
@@ -509,6 +510,7 @@ export function OrderForm({
   );
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
+  const [showCheckoutErrors, setShowCheckoutErrors] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -581,6 +583,65 @@ export function OrderForm({
     contactRequirement === "EMAIL" || contactRequirement === "EMAIL_AND_PHONE";
   const isPhoneRequired =
     contactRequirement === "PHONE" || contactRequirement === "EMAIL_AND_PHONE";
+  const contactNameError =
+    draft.customerName.trim().length < 2
+      ? "Enter your full name."
+      : null;
+  const contactEmailError =
+    isEmailRequired && !normalizedContactEmail
+      ? "Enter your email address."
+      : normalizedContactEmail && !hasValidContactEmail
+        ? "Enter a valid email address, such as name@example.com."
+        : contactRequirement === "EMAIL_OR_PHONE" &&
+            !normalizedContactEmail &&
+            !normalizedContactPhone
+          ? "Enter an email address or mobile number."
+          : null;
+  const contactPhoneError =
+    isPhoneRequired && !normalizedContactPhone
+      ? "Enter your mobile number."
+      : normalizedContactPhone && !hasValidContactPhone
+        ? "Enter a valid mobile number for the selected country."
+        : contactRequirement === "EMAIL_OR_PHONE" &&
+            !normalizedContactEmail &&
+            !normalizedContactPhone
+          ? "Enter an email address or mobile number."
+          : null;
+  const deliveryAddressLine1Error =
+    draft.fulfilmentType === "DELIVERY" && !draft.deliveryAddressLine1.trim()
+      ? "Enter the delivery address."
+      : null;
+  const deliveryCityError =
+    draft.fulfilmentType === "DELIVERY" && !draft.deliveryCity.trim()
+      ? "Enter the town or city."
+      : null;
+  const deliveryPostalCodeError =
+    draft.fulfilmentType === "DELIVERY" && !draft.deliveryPostalCode.trim()
+      ? "Enter the postcode."
+      : null;
+  const deliveryCountryCodeError =
+    draft.fulfilmentType === "DELIVERY" &&
+    draft.deliveryCountryCode.trim().length !== 2
+      ? "Enter a two-letter country code."
+      : null;
+  const scheduledFulfilmentError =
+    supportsScheduledFulfilment(draft.fulfilmentType) &&
+    draft.fulfilmentTiming === "SCHEDULED" &&
+    (!draft.scheduledFulfilmentAt ||
+      Number.isNaN(new Date(draft.scheduledFulfilmentAt).getTime()) ||
+      new Date(draft.scheduledFulfilmentAt).getTime() <= Date.now())
+      ? "Choose a future date and time."
+      : null;
+  const hasCheckoutFieldErrors = Boolean(
+    contactNameError ||
+      contactEmailError ||
+      contactPhoneError ||
+      deliveryAddressLine1Error ||
+      deliveryCityError ||
+      deliveryPostalCodeError ||
+      deliveryCountryCodeError ||
+      scheduledFulfilmentError,
+  );
   const canPlaceOrder =
     isStaffOrder ||
     Boolean(
@@ -1244,6 +1305,13 @@ export function OrderForm({
   }
 
   async function confirmOrder() {
+    setShowCheckoutErrors(true);
+
+    if (!isStaffOrder && hasCheckoutFieldErrors) {
+      setError("Check the highlighted details before continuing.");
+      return;
+    }
+
     if (!canPlaceOrder) {
       setError("Complete the required contact and payment details before placing your order.");
       return;
@@ -1464,9 +1532,16 @@ export function OrderForm({
   }
 
   return (
-    <>
+    <div
+      data-theme-static={isStaffOrder ? undefined : ""}
+      className={isStaffOrder ? undefined : "customer-order-storefront text-stone-950"}
+    >
       <Sheet open={isCartOpen} onOpenChange={handleCartOpenChange}>
-        <SheetContent side="right">
+        <SheetContent
+          side="right"
+          data-customer-storefront={isStaffOrder ? undefined : ""}
+          data-theme-static={isStaffOrder ? undefined : ""}
+        >
           <SheetHeader>
             <SheetTitle>
               {isCartProductFocused
@@ -1706,7 +1781,11 @@ export function OrderForm({
           }
         }}
       >
-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl p-0 sm:max-w-xl">
+        <DialogContent
+          data-customer-storefront={isStaffOrder ? undefined : ""}
+          data-theme-static={isStaffOrder ? undefined : ""}
+          className="max-h-[calc(100vh-2rem)] overflow-y-auto rounded-xl p-0 sm:max-w-xl"
+        >
           {customizer ? (
             <>
               <DialogHeader className="px-6 pt-6">
@@ -1844,7 +1923,11 @@ export function OrderForm({
           }
         }}
       >
-        <AlertDialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] rounded-xl sm:w-fit sm:min-w-[38rem] sm:max-w-[44rem]">
+        <AlertDialogContent
+          data-customer-storefront={isStaffOrder ? undefined : ""}
+          data-theme-static={isStaffOrder ? undefined : ""}
+          className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] rounded-xl sm:w-fit sm:min-w-[38rem] sm:max-w-[44rem]"
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>
               Add another {quantityPromptItem?.drinkName ?? "item"}?
@@ -1887,7 +1970,7 @@ export function OrderForm({
       </AlertDialog>
 
       {screen === "review" ? (
-        <Card className="overflow-hidden rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+        <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.08)]">
           <CardHeader className="px-6 pt-6">
             <SectionHeader
               eyebrow="Review order"
@@ -1944,6 +2027,7 @@ export function OrderForm({
               <FulfilmentTypeSelector
                 allowedTypes={allowedFulfilmentTypes}
                 disabled={isSubmitting}
+                tone={isStaffOrder ? "default" : "customer"}
                 value={draft.fulfilmentType}
                 onChange={(fulfilmentType) => {
                   const nextPolicy = checkoutPolicies.find(
@@ -1989,11 +2073,21 @@ export function OrderForm({
                 >
                   Delivery address
                 </h3>
-                <FormField label="Address line 1">
+                <FormField
+                  label="Address line 1"
+                  error={showCheckoutErrors ? deliveryAddressLine1Error : null}
+                  errorId="delivery-address-line-1-error"
+                >
                   <Input
                     autoComplete="address-line1"
                     value={draft.deliveryAddressLine1}
                     disabled={isSubmitting}
+                    aria-invalid={showCheckoutErrors && Boolean(deliveryAddressLine1Error)}
+                    aria-describedby={
+                      showCheckoutErrors && deliveryAddressLine1Error
+                        ? "delivery-address-line-1-error"
+                        : undefined
+                    }
                     onChange={(event) => {
                       updateDraft("deliveryAddressLine1", event.target.value);
                       setError(null);
@@ -2011,11 +2105,21 @@ export function OrderForm({
                   />
                 </FormField>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField label="Town or city">
+                  <FormField
+                    label="Town or city"
+                    error={showCheckoutErrors ? deliveryCityError : null}
+                    errorId="delivery-city-error"
+                  >
                     <Input
                       autoComplete="address-level2"
                       value={draft.deliveryCity}
                       disabled={isSubmitting}
+                      aria-invalid={showCheckoutErrors && Boolean(deliveryCityError)}
+                      aria-describedby={
+                        showCheckoutErrors && deliveryCityError
+                          ? "delivery-city-error"
+                          : undefined
+                      }
                       onChange={(event) => {
                         updateDraft("deliveryCity", event.target.value);
                         setError(null);
@@ -2032,24 +2136,44 @@ export function OrderForm({
                       }
                     />
                   </FormField>
-                  <FormField label="Postcode">
+                  <FormField
+                    label="Postcode"
+                    error={showCheckoutErrors ? deliveryPostalCodeError : null}
+                    errorId="delivery-postcode-error"
+                  >
                     <Input
                       autoComplete="postal-code"
                       value={draft.deliveryPostalCode}
                       disabled={isSubmitting}
+                      aria-invalid={showCheckoutErrors && Boolean(deliveryPostalCodeError)}
+                      aria-describedby={
+                        showCheckoutErrors && deliveryPostalCodeError
+                          ? "delivery-postcode-error"
+                          : undefined
+                      }
                       onChange={(event) => {
                         updateDraft("deliveryPostalCode", event.target.value);
                         setError(null);
                       }}
                     />
                   </FormField>
-                  <FormField label="Country code">
+                  <FormField
+                    label="Country code"
+                    error={showCheckoutErrors ? deliveryCountryCodeError : null}
+                    errorId="delivery-country-error"
+                  >
                     <Input
                       autoComplete="country"
                       value={draft.deliveryCountryCode}
                       disabled={isSubmitting}
                       maxLength={2}
                       placeholder="GB"
+                      aria-invalid={showCheckoutErrors && Boolean(deliveryCountryCodeError)}
+                      aria-describedby={
+                        showCheckoutErrors && deliveryCountryCodeError
+                          ? "delivery-country-error"
+                          : undefined
+                      }
                       onChange={(event) => {
                         updateDraft(
                           "deliveryCountryCode",
@@ -2108,7 +2232,9 @@ export function OrderForm({
                         }}
                         className={`flex min-h-12 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
                           selected
-                            ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                            ? isStaffOrder
+                              ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                              : "border-teal-500 bg-teal-50 text-teal-950 shadow-sm ring-1 ring-teal-200"
                             : "border-border bg-background text-foreground hover:bg-muted"
                         }`}
                       >
@@ -2121,6 +2247,8 @@ export function OrderForm({
                 {draft.fulfilmentTiming === "SCHEDULED" ? (
                   <FormField
                     label={isStaffOrder ? "Promised time" : "Requested time"}
+                    error={showCheckoutErrors ? scheduledFulfilmentError : null}
+                    errorId="scheduled-fulfilment-error"
                   >
                     <Input
                       type="datetime-local"
@@ -2128,6 +2256,12 @@ export function OrderForm({
                       value={draft.scheduledFulfilmentAt}
                       disabled={isSubmitting}
                       controlSize="xl"
+                      aria-invalid={showCheckoutErrors && Boolean(scheduledFulfilmentError)}
+                      aria-describedby={
+                        showCheckoutErrors && scheduledFulfilmentError
+                          ? "scheduled-fulfilment-error"
+                          : undefined
+                      }
                       onChange={(event) => {
                         updateDraft("scheduledFulfilmentAt", event.target.value);
                         setError(null);
@@ -2245,12 +2379,23 @@ export function OrderForm({
                         : "Email or mobile required"}
                       . Enter mobile numbers in the selected country format.
                     </p>
-                    <FormField label="Full name" htmlFor="review-contact-name">
+                    <FormField
+                      label="Full name"
+                      htmlFor="review-contact-name"
+                      error={showCheckoutErrors ? contactNameError : null}
+                      errorId="review-contact-name-error"
+                    >
                       <Input
                         id="review-contact-name"
                         autoComplete="name"
                         value={draft.customerName}
                         disabled={isSubmitting}
+                        aria-invalid={showCheckoutErrors && Boolean(contactNameError)}
+                        aria-describedby={
+                          showCheckoutErrors && contactNameError
+                            ? "review-contact-name-error"
+                            : undefined
+                        }
                         onChange={(event) => {
                           updateDraft("customerName", event.target.value);
                           setError(null);
@@ -2261,6 +2406,8 @@ export function OrderForm({
                       <FormField
                         label={`Email address${isEmailRequired ? " (required)" : ""}`}
                         htmlFor="review-contact-email"
+                        error={showCheckoutErrors ? contactEmailError : null}
+                        errorId="review-contact-email-error"
                       >
                         <Input
                           id="review-contact-email"
@@ -2268,6 +2415,12 @@ export function OrderForm({
                           autoComplete="email"
                           value={draft.customerEmail}
                           disabled={isSubmitting}
+                          aria-invalid={showCheckoutErrors && Boolean(contactEmailError)}
+                          aria-describedby={
+                            showCheckoutErrors && contactEmailError
+                              ? "review-contact-email-error"
+                              : undefined
+                          }
                           onChange={(event) => {
                             updateDraft("customerEmail", event.target.value);
                             setError(null);
@@ -2277,6 +2430,8 @@ export function OrderForm({
                       <FormField
                         label={`Mobile number${isPhoneRequired ? " (required)" : ""}`}
                         htmlFor="review-contact-phone"
+                        error={showCheckoutErrors ? contactPhoneError : null}
+                        errorId="review-contact-phone-error"
                       >
                         <PhoneNumberInput
                           id="review-contact-phone"
@@ -2284,6 +2439,12 @@ export function OrderForm({
                           countryCode={phoneCountryCode}
                           onCountryCodeChange={setPhoneCountryCode}
                           disabled={isSubmitting}
+                          ariaInvalid={showCheckoutErrors && Boolean(contactPhoneError)}
+                          ariaDescribedBy={
+                            showCheckoutErrors && contactPhoneError
+                              ? "review-contact-phone-error"
+                              : undefined
+                          }
                           onValueChange={(value) => {
                             updateDraft("customerPhone", value);
                             setError(null);
@@ -2569,6 +2730,7 @@ export function OrderForm({
                 size="xl"
                 onClick={() => {
                   setError(null);
+                  setShowCheckoutErrors(false);
                   setScreen("menu");
                 }}
                 disabled={isSubmitting}
@@ -2579,7 +2741,7 @@ export function OrderForm({
                 type="button"
                 size="xl"
                 onClick={confirmOrder}
-                disabled={isSubmitting || cartItems.length === 0 || !canPlaceOrder}
+                disabled={isSubmitting || cartItems.length === 0}
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
@@ -2614,21 +2776,36 @@ export function OrderForm({
           </CardContent>
         </Card>
       ) : (
-      <Card className="overflow-visible rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+      <Card
+        className={
+          isStaffOrder
+            ? "overflow-visible rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]"
+            : "overflow-visible rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.08)]"
+        }
+      >
         <CardHeader className="px-6 pt-6">
           <SectionHeader
-            eyebrow={openDineInOrder ? "Open dine-in check" : "Place an order"}
+            eyebrow={openDineInOrder ? "Open dine-in check" : isStaffOrder ? "Place an order" : "Order online"}
             title={
               openDineInOrder
                 ? `Add items to check #${openDineInOrder.orderNo}`
-                : "What Are You Having Today?"
+                : isStaffOrder
+                  ? "What Are You Having Today?"
+                  : "Menu"
             }
             meta={
-              <p className="text-sm text-stone-600">
-                {openDineInOrder
-                  ? `Select additional items for ${openDineInOrder.customerName}.`
-                  : "Build the order from the menu, then review everything in the cart drawer."}
-              </p>
+              openDineInOrder || isStaffOrder ? (
+                <p className="text-sm text-stone-600">
+                  {openDineInOrder
+                    ? `Select additional items for ${openDineInOrder.customerName}.`
+                    : "Build the order from the menu, then review everything in the cart drawer."}
+                </p>
+              ) : (
+                <p className="inline-flex items-center gap-2 text-sm font-medium text-teal-800">
+                  <UtensilsCrossedIcon className="size-4" />
+                  {menuCategories.length} categories · {totalProducts} items
+                </p>
+              )
             }
             className="mb-0"
           />
@@ -2644,14 +2821,22 @@ export function OrderForm({
             <div className="grid gap-3">
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-stone-950">Choose your drinks</p>
-                  <p className="mt-1 text-sm text-stone-500">
-                    Tap add on any card, then adjust quantity and notes in the cart.
-                  </p>
+                  {isStaffOrder ? (
+                    <>
+                      <p className="text-sm font-semibold text-stone-950">Choose your drinks</p>
+                      <p className="mt-1 text-sm text-stone-500">
+                        Tap add on any card, then adjust quantity and notes in the cart.
+                      </p>
+                    </>
+                  ) : null}
                 </div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-400">
-                  {isLoadingMenu ? "Loading menu..." : `${menuCategories.length} categories - ${totalProducts} products`}
-                </p>
+                {isStaffOrder || isLoadingMenu ? (
+                  <p className="text-xs font-medium uppercase tracking-[0.18em] text-stone-500">
+                    {isLoadingMenu
+                      ? "Loading menu..."
+                      : `${menuCategories.length} categories - ${totalProducts} products`}
+                  </p>
+                ) : null}
               </div>
 
               {!isLoadingMenu && availableTags.length > 0 ? (
@@ -2668,7 +2853,7 @@ export function OrderForm({
                       className={
                         selectedTagId
                           ? "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
-                          : "h-9 shrink-0 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
+                          : "h-9 shrink-0 rounded-lg bg-teal-600 px-4 text-sm text-white hover:bg-teal-700"
                       }
                     >
                       All
@@ -2681,7 +2866,7 @@ export function OrderForm({
                         onClick={() => setSelectedTagId(tag.id)}
                         className={
                           selectedTagId === tag.id
-                            ? "h-9 shrink-0 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
+                            ? "h-9 shrink-0 rounded-lg bg-teal-600 px-4 text-sm text-white hover:bg-teal-700"
                             : "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
                         }
                       >
@@ -2693,7 +2878,7 @@ export function OrderForm({
               ) : null}
 
               {!isLoadingMenu ? (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                   <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
                   <p>Tell restaurant staff about any food allergy before ordering.</p>
                 </div>
@@ -2709,8 +2894,8 @@ export function OrderForm({
                     <div
                       className={`sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                         isCategoryBarStuck
-                          ? "-mx-6 bg-white/70 px-6"
-                          : "bg-white/95"
+                          ? "-mx-6 bg-white/95 px-6 shadow-md"
+                          : "bg-white"
                       }`}
                     >
                       <div className="flex min-w-max gap-2">
@@ -2722,8 +2907,8 @@ export function OrderForm({
                             onClick={() => scrollToCategory(category.id)}
                             className={
                               currentActiveCategoryId === category.id
-                                ? "h-9 rounded-lg bg-stone-950 px-4 text-sm text-white hover:bg-stone-800"
-                                : "h-9 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
+                                ? "h-9 rounded-lg border-teal-600 bg-teal-600 px-4 text-sm text-white shadow-sm hover:bg-teal-700"
+                                : "h-9 rounded-lg border-stone-200 bg-white px-4 text-sm text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900"
                             }
                           >
                             {category.name}
@@ -2743,18 +2928,26 @@ export function OrderForm({
                     </div>
                   ) : null}
 
-                  {visibleMenuCategories.map((category) => (
+                  {visibleMenuCategories.map((category, categoryIndex) => (
                     <section
                       key={category.id}
                       id={`menu-category-${category.id}`}
                       ref={(element) => {
                         categoryRefs.current[category.id] = element;
                       }}
-                      className="scroll-mt-28 rounded-xl border border-stone-200 bg-white p-4"
+                      className="scroll-mt-28 overflow-hidden rounded-xl border border-stone-200 bg-white"
                     >
-                      <div className="mb-4">
+                      <div
+                        className={`border-b px-4 py-4 ${
+                          categoryIndex % 3 === 0
+                            ? "border-amber-200 bg-amber-50"
+                            : categoryIndex % 3 === 1
+                              ? "border-teal-200 bg-teal-50"
+                              : "border-sky-200 bg-sky-50"
+                        }`}
+                      >
                         <p className="text-xl font-semibold text-stone-950">{category.name}</p>
-                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-stone-500">
+                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-stone-600">
                           {category.items.length} options
                         </p>
                         {category.description ? (
@@ -2763,9 +2956,9 @@ export function OrderForm({
                       </div>
 
                       {category.items.length === 0 ? (
-                        <p className="text-sm text-stone-500">No drinks in this category yet.</p>
+                        <p className="p-4 text-sm text-stone-500">No items in this category yet.</p>
                       ) : (
-                        <div className="grid gap-4">
+                        <div className="grid gap-4 p-4">
                           {category.items.map((drink) => {
                             const selectedCartItems = cartItems.filter(
                               (item) => item.drinkId === drink.id,
@@ -2797,7 +2990,7 @@ export function OrderForm({
                                 data-slot="menu-item-row"
                                 className={`grid grid-cols-[80px_minmax(0,1fr)] items-start gap-3 border-b border-stone-100 pb-4 last:border-b-0 sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center sm:gap-4 ${
                                   hasSelectedItem
-                                    ? "rounded-lg bg-emerald-50/70 p-3 ring-1 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-800"
+                                    ? "rounded-lg border-l-4 border-teal-500 bg-teal-50 p-3 shadow-sm ring-1 ring-teal-200"
                                     : ""
                                 }`}
                               >
@@ -2822,9 +3015,9 @@ export function OrderForm({
                                       {drink.name}
                                     </p>
                                     {hasSelectedItem ? (
-                                      <span className="inline-flex items-center gap-1 rounded-md bg-stone-950 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white">
+                                      <span className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-sm">
                                         <CheckIcon className="size-3" />
-                                        x{selectedQuantity}
+                                        In cart · {selectedQuantity}
                                       </span>
                                     ) : null}
                                     {unavailableLabel ? (
@@ -3034,7 +3227,7 @@ export function OrderForm({
       )}
 
       {screen === "menu" && cartItems.length > 0 ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 px-4 py-3 shadow-[0_-10px_30px_rgba(40,26,20,0.08)] backdrop-blur">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-teal-200 bg-white/95 px-4 py-3 shadow-[0_-12px_34px_rgba(15,118,110,0.16)] backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-3">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-stone-950">
@@ -3052,7 +3245,7 @@ export function OrderForm({
               size="xl"
               onClick={openCart}
               disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
-              className="shrink-0"
+              className="shrink-0 bg-teal-600 text-white hover:bg-teal-700"
             >
               <ShoppingCartIcon className="size-4" />
               View Cart
@@ -3060,6 +3253,6 @@ export function OrderForm({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

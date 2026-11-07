@@ -41,7 +41,11 @@ export default async function OrderPage(props: PageProps<"/order">) {
   } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
 
   return (
-    <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
+    <AppShell
+      topSpacing="compact"
+      variant={user ? "dark" : "customer"}
+      contentClassName="max-w-6xl space-y-6 pb-8"
+    >
       {!user && restaurantWorkingHours ? (
         <RestaurantWorkingHoursWatcher workingHours={restaurantWorkingHours} />
       ) : null}
