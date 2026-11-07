@@ -23,7 +23,7 @@ function customerOrder(overrides: Record<string, unknown> = {}) {
     customerContact: {
       email: "guest@example.com",
       name: "Guest Customer",
-      phone: "+447700900123",
+      phone: "+447123456789",
     },
     fulfilmentType: "DELIVERY",
     paymentTiming: "ONLINE",

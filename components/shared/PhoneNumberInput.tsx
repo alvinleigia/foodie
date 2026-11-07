@@ -20,6 +20,8 @@ import {
 } from "@/lib/countries";
 
 type PhoneNumberInputProps = {
+  ariaDescribedBy?: string;
+  ariaInvalid?: boolean;
   autoComplete?: string;
   controlSize?: "compact" | "default" | "lg" | "xl";
   countryCode: CountryCode;
@@ -31,6 +33,8 @@ type PhoneNumberInputProps = {
 };
 
 export function PhoneNumberInput({
+  ariaDescribedBy,
+  ariaInvalid,
   autoComplete = "tel",
   controlSize = "default",
   countryCode,
@@ -77,6 +81,8 @@ export function PhoneNumberInput({
         placeholder={countryCode === "GB" ? "07123 456789" : "Phone number"}
         value={value}
         disabled={disabled}
+        aria-invalid={ariaInvalid}
+        aria-describedby={ariaDescribedBy}
         controlSize={controlSize}
         onChange={(event) => {
           const nextValue = event.target.value;

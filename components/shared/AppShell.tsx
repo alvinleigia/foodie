@@ -5,7 +5,7 @@ type AppShellProps = {
   className?: string;
   contentClassName?: string;
   topSpacing?: "default" | "compact" | "none";
-  variant?: "warm" | "neutral" | "dark";
+  variant?: "warm" | "neutral" | "dark" | "customer";
 };
 
 const shellVariants = {
@@ -15,6 +15,8 @@ const shellVariants = {
     "min-h-screen bg-[linear-gradient(180deg,_#f7f7f6_0%,_#eeeeec_52%,_#e7e5e4_100%)] text-stone-900 dark:bg-[linear-gradient(180deg,_#1c1917_0%,_#292524_45%,_#44403c_100%)] dark:text-stone-50",
   dark:
     "min-h-screen bg-[linear-gradient(180deg,_#f7f7f6_0%,_#eeeeec_52%,_#e7e5e4_100%)] text-stone-900 dark:bg-[linear-gradient(180deg,_#1c1917_0%,_#292524_45%,_#44403c_100%)] dark:text-stone-50",
+  customer:
+    "min-h-screen bg-[#f7faf8] text-stone-950",
 } as const;
 
 export function AppShell({

@@ -8,6 +8,7 @@ import {
   withPublicCustomerContext,
 } from "@/lib/customer-navigation";
 import { getOrderReceipt } from "@/lib/order-receipts";
+import { getGuestPaymentResult } from "@/lib/order-payments";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 
 type CustomerReceiptPageProps = {
@@ -24,6 +25,8 @@ export default async function CustomerReceiptPage({
   const routeValue = query.route;
   const orderingPointQrSlug = typeof qrValue === "string" ? qrValue : undefined;
   const routeSlug = typeof routeValue === "string" ? routeValue : undefined;
+  const checkoutSessionId =
+    typeof query.session_id === "string" ? query.session_id : undefined;
   const publicContext = await getPublicOrderRouteContext({
     orderingPointQrSlug,
     routeSlug,
@@ -42,9 +45,16 @@ export default async function CustomerReceiptPage({
     `/order/receipt/${encodeURIComponent(orderId)}`,
     customerContext,
   );
-  const session = await requireCustomerSession();
+  const guestOrder = checkoutSessionId
+    ? await getGuestPaymentResult(
+        checkoutSessionId,
+        publicContext.tenantContext,
+      )
+    : null;
+  const isGuestReceipt = guestOrder?.orderId === orderId;
+  const session = isGuestReceipt ? null : await requireCustomerSession();
 
-  if (!session) {
+  if (!isGuestReceipt && !session) {
     redirect(
       getCustomerLoginHref({
         ...customerContext,
@@ -53,19 +63,21 @@ export default async function CustomerReceiptPage({
     );
   }
 
-  const profile = await getCustomerProfile(
-    session.user.id,
-    publicContext.tenantContext,
-  );
+  const profile = session
+    ? await getCustomerProfile(
+        session.user.id,
+        publicContext.tenantContext,
+      )
+    : null;
 
-  if (!profile) {
+  if (!isGuestReceipt && !profile) {
     notFound();
   }
 
   const receipt = await getOrderReceipt(
     orderId,
     publicContext.tenantContext,
-    profile.id,
+    profile?.id,
   );
 
   if (!receipt) {
@@ -74,8 +86,10 @@ export default async function CustomerReceiptPage({
 
   return (
     <ReceiptPage
+      autoPrint={query.print === "1"}
       backHref={withPublicCustomerContext("/order/status", customerContext)}
       receipt={receipt}
+      tone="customer"
     />
   );
 }

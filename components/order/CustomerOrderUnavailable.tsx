@@ -58,6 +58,7 @@ export function CustomerOrderUnavailable({
     <>
       <AppHeader
         activePath="/order"
+        tone={user ? "default" : "customer"}
         user={user}
         customerMenu={
           user
@@ -71,15 +72,22 @@ export function CustomerOrderUnavailable({
               }
         }
       />
-      <Card tone="themed" className="rounded-xl border-border bg-card/95 shadow-[0_20px_60px_rgba(40,26,20,0.08)]">
+      <Card
+        tone="themed"
+        className={
+          user
+            ? "rounded-xl border-border bg-card/95 shadow-[0_20px_60px_rgba(40,26,20,0.08)]"
+            : "rounded-xl border-stone-200 bg-white text-stone-950 shadow-[0_20px_60px_rgba(40,26,20,0.08)]"
+        }
+      >
         <CardContent className="px-8 py-10">
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-800 dark:text-amber-400">
             {eyebrow}
           </p>
-          <h1 className="mt-4 text-4xl font-bold tracking-tight text-foreground">
+          <h1 className={`mt-4 text-4xl font-bold tracking-tight ${user ? "text-foreground" : "text-stone-950"}`}>
             {title}
           </h1>
-          <p className="mt-4 max-w-2xl text-base text-muted-foreground">
+          <p className={`mt-4 max-w-2xl text-base ${user ? "text-muted-foreground" : "text-stone-600"}`}>
             {description}
           </p>
         </CardContent>

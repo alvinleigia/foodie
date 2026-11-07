@@ -23,11 +23,13 @@ export function FulfilmentTypeSelector({
   allowedTypes = orderFulfilmentTypes,
   disabled = false,
   onChange,
+  tone = "default",
   value,
 }: {
   allowedTypes?: readonly OrderFulfilmentType[];
   disabled?: boolean;
   onChange: (value: OrderFulfilmentType) => void;
+  tone?: "customer" | "default";
   value: OrderFulfilmentType;
 }) {
   return (
@@ -47,7 +49,9 @@ export function FulfilmentTypeSelector({
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
               } ${
                 selected
-                  ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
+                  ? tone === "customer"
+                    ? "border-teal-500 bg-teal-50 text-teal-950 shadow-sm ring-1 ring-teal-200"
+                    : "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
                   : "border-border bg-background text-foreground hover:bg-muted"
               }`}
             >
