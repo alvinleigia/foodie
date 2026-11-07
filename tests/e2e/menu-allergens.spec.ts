@@ -10,7 +10,7 @@ const milkId = "8e3b9db9-9ce5-4b9e-9cd5-c965c5dbd91c";
 function validMenuItem() {
   return {
     categoryId,
-    prepStationId: "",
+    prepStationId: "11111111-1111-4111-8111-111111111111",
     name: "Allergen test item",
     description: "",
     price: "9.99",
@@ -93,7 +93,8 @@ test.describe("structured menu allergens", () => {
     );
     expect(managerSource).toContain('label="Allergens"');
     expect(managerSource).toContain("setItemDraftAllergen");
-    expect(orderSource).toContain("Tell restaurant staff about any food allergy");
+    expect(orderSource).not.toContain("Tell restaurant staff about any food allergy");
+    expect(orderSource).not.toContain("Food allergy? Contact the restaurant");
     expect(orderSource).toContain("allergens={drink.allergens}");
     expect(summarySource).toContain("Contains:");
     expect(summarySource).toContain("May contain:");

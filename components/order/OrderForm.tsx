@@ -12,12 +12,12 @@ import {
   MinusIcon,
   PlusIcon,
   SendIcon,
-  ShieldAlertIcon,
+  SearchIcon,
   ShoppingCartIcon,
   TagsIcon,
   TimerIcon,
   Trash2Icon,
-  UtensilsCrossedIcon,
+  XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { CountryCode } from "libphonenumber-js";
@@ -29,6 +29,7 @@ import {
   writeStoredCustomerOrders,
 } from "@/lib/customer-orders";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { filterMenuCategories } from "@/lib/menu-search";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import {
@@ -64,6 +65,7 @@ import {
   type CustomerAuthProviders,
 } from "@/components/order/CustomerLoginForm";
 import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
+import { CustomerRestaurantHeader } from "@/components/order/CustomerRestaurantHeader";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { AllergenSummary } from "@/components/shared/AllergenSummary";
 import { MenuSectionSkeleton } from "@/components/shared/SectionSkeletons";
@@ -122,6 +124,7 @@ import {
   MenuItemRecord,
   MenuModifierGroupRecord,
   MenuModifierOptionRecord,
+  CustomerRestaurantIdentity,
 } from "@/types/menu";
 
 type OrderFormProps = {
@@ -135,6 +138,7 @@ type OrderFormProps = {
   chargeSettings: RestaurantChargeSettings;
   checkoutPolicies: RestaurantCheckoutPolicy[];
   initialMenuData?: OrderFormMenuData;
+  restaurant?: CustomerRestaurantIdentity | null;
   isStaffOrder?: boolean;
   openDineInOrder?: {
     customerName: string;
@@ -393,6 +397,7 @@ export function OrderForm({
   chargeSettings,
   checkoutPolicies,
   initialMenuData,
+  restaurant,
   isStaffOrder = false,
   openDineInOrder,
   orderingPointQrSlug,
@@ -509,6 +514,7 @@ export function OrderForm({
     initialMenuData?.categories[0]?.id,
   );
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [menuSearch, setMenuSearch] = useState("");
   const [isCategoryBarStuck, setIsCategoryBarStuck] = useState(false);
   const [showCheckoutErrors, setShowCheckoutErrors] = useState(false);
   const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
@@ -684,20 +690,10 @@ export function OrderForm({
     });
   }, [menuCategories]);
 
-  const visibleMenuCategories = useMemo(() => {
-    if (!selectedTagId) {
-      return menuCategories;
-    }
-
-    return menuCategories
-      .map((category) => ({
-        ...category,
-        items: category.items.filter((item) =>
-          item.tags?.some((tag) => tag.id === selectedTagId),
-        ),
-      }))
-      .filter((category) => category.items.length > 0);
-  }, [menuCategories, selectedTagId]);
+  const visibleMenuCategories = useMemo(
+    () => filterMenuCategories(menuCategories, menuSearch, selectedTagId),
+    [menuCategories, menuSearch, selectedTagId],
+  );
 
   useEffect(() => {
     if (initialMenuData) {
@@ -814,7 +810,7 @@ export function OrderForm({
       window.removeEventListener("scroll", updateStickyState);
       window.removeEventListener("resize", updateStickyState);
     };
-  }, [menuCategories.length, screen]);
+  }, [screen, visibleMenuCategories]);
 
   const totalProducts = useMemo(
     () => visibleMenuCategories.reduce((count, category) => count + category.items.length, 0),
@@ -2818,35 +2814,48 @@ export function OrderForm({
         className={
           isStaffOrder
             ? "overflow-visible rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]"
-            : "overflow-visible rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.08)]"
+            : "overflow-visible rounded-xl border-stone-200 bg-white pt-0 shadow-[0_20px_60px_rgba(15,118,110,0.08)]"
         }
       >
-        <CardHeader className="px-6 pt-6">
-          <SectionHeader
-            eyebrow={openDineInOrder ? "Open dine-in check" : isStaffOrder ? "Place an order" : "Order online"}
-            title={
-              openDineInOrder
+        <CardHeader className={isStaffOrder ? "px-6 pt-6" : "gap-0 overflow-hidden p-0"}>
+          {isStaffOrder ? (
+            <SectionHeader
+              eyebrow={openDineInOrder ? "Open dine-in check" : "Place an order"}
+              title={openDineInOrder
                 ? `Add items to check #${openDineInOrder.orderNo}`
-                : isStaffOrder
-                  ? "What Are You Having Today?"
-                  : "Menu"
-            }
-            meta={
-              openDineInOrder || isStaffOrder ? (
+                : "What Are You Having Today?"}
+              meta={
                 <p className="text-sm text-stone-600">
                   {openDineInOrder
                     ? `Select additional items for ${openDineInOrder.customerName}.`
                     : "Build the order from the menu, then review everything in the cart drawer."}
                 </p>
-              ) : (
-                <p className="inline-flex items-center gap-2 text-sm font-medium text-teal-800">
-                  <UtensilsCrossedIcon className="size-4" />
-                  {menuCategories.length} categories · {totalProducts} items
-                </p>
-              )
-            }
-            className="mb-0"
-          />
+              }
+              className="mb-0"
+            />
+          ) : (
+            <>
+              <CustomerRestaurantHeader
+                restaurant={restaurant}
+                fulfilmentTypes={allowedFulfilmentTypes}
+              />
+              <label className="relative mx-6 mb-2 block">
+                <span className="sr-only">Search menu</span>
+                <SearchIcon
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-stone-400"
+                />
+                <Input
+                  type="search"
+                  controlSize="lg"
+                  placeholder="Search by item name"
+                  value={menuSearch}
+                  onChange={(event) => setMenuSearch(event.target.value)}
+                  className="pl-9"
+                />
+              </label>
+            </>
+          )}
           {isStaffOrder && offlineOrderCount > 0 ? (
             <p className="mt-3 w-fit rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-900">
               {offlineOrderCount} offline {offlineOrderCount === 1 ? "order" : "orders"} waiting to sync
@@ -2857,6 +2866,7 @@ export function OrderForm({
         <CardContent className="px-6 pb-6">
           <div className="grid gap-5">
             <div className="grid gap-3">
+              {isStaffOrder || isLoadingMenu ? (
               <div className="flex flex-wrap items-end justify-between gap-2">
                 <div>
                   {isStaffOrder ? (
@@ -2876,6 +2886,7 @@ export function OrderForm({
                   </p>
                 ) : null}
               </div>
+              ) : null}
 
               {!isLoadingMenu && availableTags.length > 0 ? (
                 <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
@@ -2915,20 +2926,13 @@ export function OrderForm({
                 </div>
               ) : null}
 
-              {!isLoadingMenu ? (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  <ShieldAlertIcon className="mt-0.5 size-3.5 shrink-0" />
-                  <p>Food allergy? Contact the restaurant before placing your order.</p>
-                </div>
-              ) : null}
-
               {isLoadingMenu ? (
                 <MenuSectionSkeleton label="Loading order menu" />
               ) : (
-                <div className="grid gap-6">
+                <div className="relative grid gap-6">
                   {visibleMenuCategories.length > 0 ? (
                     <>
-                    <div ref={categoryBarSentinelRef} className="h-px" />
+                    <div ref={categoryBarSentinelRef} className="pointer-events-none absolute top-0 h-px" />
                     <div
                       ref={categoryBarRef}
                       role="navigation"
@@ -2968,8 +2972,19 @@ export function OrderForm({
                     <div className="rounded-xl border border-dashed border-stone-200 bg-white px-4 py-8 text-center">
                       <p className="text-sm font-semibold text-stone-950">No matching menu items</p>
                       <p className="mt-2 text-sm text-stone-500">
-                        Choose another tag or clear the filter to see the full menu.
+                        Try another item name or clear your filters.
                       </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-4"
+                        onClick={() => {
+                          setMenuSearch("");
+                          setSelectedTagId(null);
+                        }}
+                      >
+                        <ButtonLabel icon={XIcon}>Clear filters</ButtonLabel>
+                      </Button>
                     </div>
                   ) : null}
 
@@ -3094,6 +3109,7 @@ export function OrderForm({
                                   <AllergenSummary
                                     allergens={drink.allergens}
                                     className="mt-2"
+                                    tone={isStaffOrder ? "default" : "light"}
                                   />
                                   {drink.modifierGroups && drink.modifierGroups.length > 0 ? (
                                     <div className="mt-2">

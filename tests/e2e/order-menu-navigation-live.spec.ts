@@ -19,10 +19,7 @@ test.describe("customer menu category navigation", () => {
       await expect(navigation).toBeVisible();
       const categoryCount = await categories.count();
       expect(categoryCount).toBeGreaterThan(2);
-      await expect(page.getByText(
-        "Food allergy? Contact the restaurant before placing your order.",
-        { exact: true },
-      )).toBeVisible();
+      await expect(page.getByText(/Food allergy\? Contact the restaurant/)).toHaveCount(0);
 
       // Jump into a long late category without touching the tab strip.
       await categories.last().evaluate((section) => {
@@ -61,6 +58,45 @@ test.describe("customer menu category navigation", () => {
         const section = await categories.nth(1).boundingBox();
         return section?.y;
       }).toBeLessThan(140);
+    });
+
+    test(`searches items without losing the cart at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto(menuUrl!);
+      const search = page.getByRole("searchbox", { name: "Search menu" });
+      const rows = page.locator('[data-slot="menu-item-row"]');
+      await expect(rows.first()).toBeVisible();
+      const initialCount = await rows.count();
+      const heading = page.getByRole("heading", { level: 1 });
+      await expect(heading).not.toHaveText("Menu");
+      const banner = page.locator('img[src*="customer-restaurant-banner"]');
+      await expect(banner).toBeVisible();
+      await expect.poll(() => banner.evaluate((image) =>
+        image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
+      )).toBe(true);
+      await page.screenshot({ path: test.info().outputPath("restaurant-header.png") });
+
+      const item = rows.filter({
+        has: page.getByRole("button", { name: "Add", exact: true }),
+      }).first();
+      const itemName = (await item.locator("p").first().innerText()).trim();
+      await item.getByRole("button", { name: "Add", exact: true }).click();
+      await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
+
+      await search.fill(`  ${itemName.toUpperCase()}  `);
+      await expect(rows.first()).toContainText(itemName);
+      await expect.poll(() => rows.count()).toBeLessThan(initialCount);
+      await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
+
+      await search.fill("no-such-item-924781");
+      await expect(page.getByText("No matching menu items", { exact: true })).toBeVisible();
+      await expect(rows).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
+      await page.getByRole("button", { name: "Clear filters" }).click();
+      await expect(search).toHaveValue("");
+      await expect(rows).toHaveCount(initialCount);
+      await expect(page.getByRole("navigation", { name: "Menu categories" })).toBeVisible();
+      await expect(rows.filter({ hasText: itemName }).first()).toContainText("In cart");
     });
   }
 });

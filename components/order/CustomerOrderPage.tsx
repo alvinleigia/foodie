@@ -19,6 +19,7 @@ import type { MembershipRole } from "@/lib/staff-auth";
 import type { StaffPermission } from "@/lib/staff-permissions";
 import type { RestaurantCheckoutPolicy } from "@/lib/checkout-policy";
 import type { RestaurantChargeSettings } from "@/lib/restaurant-charge-settings";
+import type { CustomerRestaurantIdentity } from "@/types/menu";
 
 type CustomerOrderPageProps = {
   customer?: {
@@ -39,6 +40,7 @@ type CustomerOrderPageProps = {
     orderNo: number;
   } | null;
   routeSlug?: string;
+  restaurant?: CustomerRestaurantIdentity | null;
   stripePaymentsEnabled?: boolean;
   staffRestaurant?: {
     id: string;
@@ -62,6 +64,7 @@ export function CustomerOrderPage({
   inventoryEnabled = true,
   openDineInOrder,
   routeSlug,
+  restaurant,
   stripePaymentsEnabled = true,
   staffRestaurant,
   user,
@@ -136,6 +139,7 @@ export function CustomerOrderPage({
         openDineInOrder={openDineInOrder}
         orderingPointQrSlug={orderingPointQrSlug}
         routeSlug={routeSlug}
+        restaurant={restaurant}
         stripePaymentsEnabled={stripePaymentsEnabled}
         staffRestaurantSlug={staffRestaurant?.slug}
       />

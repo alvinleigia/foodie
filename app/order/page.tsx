@@ -6,6 +6,7 @@ import { RestaurantWorkingHoursWatcher } from "@/components/order/RestaurantWork
 import { RestaurantPicker } from "@/components/order/RestaurantPicker";
 import { AppShell } from "@/components/shared/AppShell";
 import { isCurrentRequestPlatformAdministrationDomain } from "@/lib/domain-session";
+import { getCustomerRestaurantIdentity } from "@/lib/menu";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
@@ -36,9 +37,13 @@ export default async function OrderPage(props: PageProps<"/order">) {
     restaurantChoices,
     restaurantWorkingHours,
     stripePaymentsEnabled,
+    tenantContext,
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
+  const restaurant = !user && tenantContext && customerOrderingEnabled && customerOrderingOpen
+    ? await getCustomerRestaurantIdentity(tenantContext)
+    : null;
 
   return (
     <AppShell
@@ -59,6 +64,7 @@ export default async function OrderPage(props: PageProps<"/order">) {
           chargeSettings={chargeSettings}
           checkoutPolicies={checkoutPolicies}
           orderingPointQrSlug={orderingPointQrSlug}
+          restaurant={restaurant}
           routeSlug={routeSlug}
           stripePaymentsEnabled={stripePaymentsEnabled}
           user={user}
