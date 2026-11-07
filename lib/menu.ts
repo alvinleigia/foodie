@@ -15,6 +15,7 @@ import {
   menuTags,
   modifierGroups,
   modifierOptions,
+  orderingPoints,
   organizationTaxDefinitions,
   organizationTaxProfiles,
   organizations,
@@ -46,6 +47,7 @@ import type {
   MenuModifierGroupRecord,
   MenuModifierOptionRecord,
   MenuTagRecord,
+  CustomerRestaurantIdentity,
 } from "@/types/menu";
 
 const defaultMenuSeed = drinkCategories.map((category, categoryIndex) => ({
@@ -1016,6 +1018,36 @@ export async function getTenantMenuCurrency(
   context: TenantContext = getDefaultTenantContext(),
 ) {
   return (await getTenantMenuLocalization(context)).currency;
+}
+
+export async function getCustomerRestaurantIdentity(
+  context: TenantContext,
+): Promise<CustomerRestaurantIdentity | null> {
+  const [restaurant] = await getDb()
+    .select({
+      name: organizations.name,
+      logoUrl: organizations.logoUrl,
+      orderingPointLabel: orderingPoints.label,
+    })
+    .from(organizations)
+    .leftJoin(
+      orderingPoints,
+      and(
+        eq(orderingPoints.organizationId, organizations.id),
+        context.orderingPointId
+          ? eq(orderingPoints.id, context.orderingPointId)
+          : eq(orderingPoints.isDefault, true),
+        eq(orderingPoints.isActive, true),
+      ),
+    )
+    .where(and(
+      eq(organizations.id, context.organizationId),
+      eq(organizations.type, "RESTAURANT"),
+      eq(organizations.isActive, true),
+    ))
+    .limit(1);
+
+  return restaurant ?? null;
 }
 
 export async function getTenantMenuLocalization(

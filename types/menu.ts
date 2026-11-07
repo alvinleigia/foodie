@@ -1,5 +1,11 @@
 import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 
+export type CustomerRestaurantIdentity = {
+  name: string;
+  logoUrl: string | null;
+  orderingPointLabel: string | null;
+};
+
 export type MenuItemFulfilmentTaxOverride = {
   fulfilmentType: OrderFulfilmentType;
   taxDefinitionIds: string[];
