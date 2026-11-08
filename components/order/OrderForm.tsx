@@ -2949,6 +2949,14 @@ export function OrderForm({
                     <>
                     <div ref={categoryBarSentinelRef} className="pointer-events-none absolute top-0 h-px" />
                     <div
+                      data-slot="category-navigation-container"
+                      className={isStaffOrder
+                        ? "contents"
+                        : `sticky top-0 z-20 -mx-4 min-w-0 border-b border-stone-200 bg-white px-4 transition-shadow ${
+                            isCategoryBarStuck ? "shadow-sm" : ""
+                          }`}
+                    >
+                    <div
                       ref={categoryBarRef}
                       role="navigation"
                       aria-label="Menu categories"
@@ -2956,9 +2964,7 @@ export function OrderForm({
                         ? `sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                             isCategoryBarStuck ? "-mx-6 bg-white/95 px-6 shadow-md" : "bg-white"
                           }`
-                        : `customer-category-navigation sticky top-0 z-20 overflow-x-auto border-b border-stone-200 bg-white px-1 pt-1 pb-3 transition-shadow ${
-                            isCategoryBarStuck ? "shadow-sm" : ""
-                          }`}
+                        : "customer-category-navigation overflow-x-auto px-1 pt-1 pb-3"}
                     >
                       <div className="flex min-w-max gap-2">
                         {visibleMenuCategories.map((category) => (
@@ -2984,6 +2990,7 @@ export function OrderForm({
                           </Button>
                         ))}
                       </div>
+                    </div>
                     </div>
                     </>
                   ) : null}

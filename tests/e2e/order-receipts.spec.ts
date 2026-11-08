@@ -7,9 +7,11 @@ import {
   aggregateReceiptTaxComponents,
   buildOrderReceiptEmail,
   getReceiptItemTotal,
+  getVatNetUnitPrice,
   type OrderReceipt,
 } from "@/lib/order-receipt-format";
 import { vatInvoiceRequestSchema } from "@/lib/validations/vat-invoice";
+import { buildOrderReceiptPdf } from "@/lib/order-receipt-pdf";
 
 const root = process.cwd();
 
@@ -94,10 +96,73 @@ function receiptFixture(): OrderReceipt {
 }
 
 test.describe("order receipts", () => {
+  test("generates a downloadable PDF using the receipt snapshots", async ({}, testInfo) => {
+    const pdf = await buildOrderReceiptPdf(receiptFixture());
+    expect(pdf.subarray(0, 8).toString()).toBe("%PDF-1.3");
+    expect(pdf.toString("latin1")).toContain("Receipt R-000007");
+    expect(pdf.toString("latin1").match(/\/Type \/Page\b/g)).toHaveLength(1);
+    fs.writeFileSync(testInfo.outputPath("receipt.pdf"), pdf);
+  });
+
+  test("paginates long orders without dropping the final totals", async ({}, testInfo) => {
+    const receipt = receiptFixture();
+    receipt.items = Array.from({ length: 70 }, (_, index) => ({
+      ...receipt.items[0],
+      drinkName: `Menu item ${index + 1} with a long descriptive name that wraps onto another line`,
+    }));
+    receipt.subtotalAmount = receipt.finalTotalAmount = "525.00";
+    receipt.payments[0].amount = "525.00";
+    const pdf = await buildOrderReceiptPdf(receipt);
+    expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
+    fs.writeFileSync(testInfo.outputPath("long-receipt.pdf"), pdf);
+  });
+
+  test("embeds fonts for accented names and non-GBP currency symbols", async ({}, testInfo) => {
+    const receipt = receiptFixture();
+    receipt.currency = "INR";
+    receipt.restaurantName = "Caf\u00e9 S\u00e3o";
+    receipt.customerName = "Jos\u00e9";
+    const pdf = await buildOrderReceiptPdf(receipt);
+    expect(pdf.toString("latin1")).toContain("/FontFile2");
+    fs.writeFileSync(testInfo.outputPath("international-receipt.pdf"), pdf);
+  });
+
+  test("includes full VAT invoice details in downloaded PDFs", async ({}, testInfo) => {
+    const receipt = receiptFixture();
+    Object.assign(receipt, {
+      invoiceNumber: 4,
+      invoiceIssuedAt: receipt.receiptIssuedAt,
+      invoiceTaxPointAt: receipt.receiptIssuedAt,
+      invoiceSupplierName: "Cafe Limited",
+      invoiceSupplierAddressLine1: "1 High Street",
+      invoiceSupplierCity: "London",
+      invoiceSupplierPostalCode: "SW1A 1AA",
+      invoiceSupplierVatNumber: "GB123456789",
+      invoiceCustomerName: "Customer Limited",
+      invoiceCustomerAddressLine1: "2 Market Road",
+      invoiceCustomerCity: "London",
+      invoiceCustomerPostalCode: "SW1A 2AA",
+      vatInvoiceType: "FULL",
+      taxAmount: "1.25",
+      subtotalAmount: "6.25",
+    });
+    receipt.items[0].taxableAmount = "6.25";
+    receipt.items[0].taxAmount = "1.25";
+    const pdf = await buildOrderReceiptPdf(receipt);
+    expect(pdf.toString("latin1")).toContain("Full VAT invoice INV-000004");
+    fs.writeFileSync(testInfo.outputPath("vat-invoice.pdf"), pdf);
+  });
+
   test("calculates line totals with modifier snapshots", () => {
     const receipt = receiptFixture();
 
     expect(getReceiptItemTotal(receipt.items[0], receipt.currency)).toBe("7.50");
+  });
+
+  test("rounds displayed VAT net unit prices without changing stored line totals", () => {
+    const item = { ...receiptFixture().items[0], taxableAmount: "6.25" };
+    expect(getVatNetUnitPrice(item, "GBP")).toBe("3.13");
+    expect(item.taxableAmount).toBe("6.25");
   });
 
   test("builds escaped receipt email content from financial snapshots", () => {
@@ -265,14 +330,32 @@ test.describe("order receipts", () => {
       "app/restaurants/[restaurantSlug]/orders/[orderId]/receipt/page.tsx",
     );
     const customerPage = source("app/order/receipt/[orderId]/page.tsx");
+    const customerAccess = source("lib/customer-receipts.ts");
+    const downloadRoute = source("app/order/receipt/[orderId]/pdf/route.ts");
 
     expect(loader).toContain("eq(orders.organizationId, context.organizationId)");
     expect(loader).toContain("eq(orders.organizationCustomerId, organizationCustomerId)");
     expect(loader).toContain("orderItemTaxComponents.taxCodeSnapshot");
     expect(loader).toContain("aggregateReceiptTaxComponents");
     expect(staffPage).toContain("requireRestaurantWorkspaceAccess");
-    expect(customerPage).toContain("requireCustomerSession");
-    expect(customerPage).toContain("profile.id");
+    expect(customerPage).toContain("getCustomerReceipt");
+    expect(downloadRoute).toContain("getCustomerReceipt");
+    expect(customerAccess).toContain("requireCustomerSession");
+    expect(customerAccess).toContain("profile?.id");
+    expect(customerAccess).toContain("guestOrder?.orderId === orderId");
+  });
+
+  test("keeps customer receipt downloads separate from staff printing", () => {
+    const receiptPage = source("components/receipt/ReceiptPage.tsx");
+    const customerPage = source("app/order/receipt/[orderId]/page.tsx");
+    const customerHistory = source("components/order/CustomerOrderStatus.tsx");
+
+    expect(receiptPage).toContain('tone === "customer" ? (');
+    expect(receiptPage).toContain("<DownloadReceiptButton receiptHref={receiptHref} />");
+    expect(receiptPage).toContain("<PrintReceiptButton autoPrint={autoPrint} />");
+    expect(customerPage).not.toContain("autoPrint=");
+    expect(customerPage).toContain('receiptUrl.searchParams.set("session_id", query.session_id)');
+    expect(customerHistory).toContain("<DownloadReceiptButton receiptHref={receiptHref} />");
   });
 
   test("emails only the linked verified customer through tenant delivery", () => {

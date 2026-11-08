@@ -28,6 +28,21 @@ test.describe("customer menu category navigation", () => {
       const searchBounds = await page.getByRole("searchbox", { name: "Search menu" }).boundingBox();
       expect(navigationBounds!.x).toBeGreaterThanOrEqual(searchBounds!.x);
       expect(navigationBounds!.x + navigationBounds!.width).toBeLessThanOrEqual(searchBounds!.x + searchBounds!.width + 1);
+      const container = page.locator('[data-slot="category-navigation-container"]');
+      async function expectPaddedNavigation() {
+        const outer = await container.boundingBox();
+        const inner = await navigation.boundingBox();
+        expect(outer).not.toBeNull();
+        expect(inner).not.toBeNull();
+        expect(Math.round(inner!.x - outer!.x)).toBe(16);
+        expect(Math.round(outer!.x + outer!.width - inner!.x - inner!.width)).toBe(16);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        if (viewport.width < 640) {
+          expect(Math.round(outer!.x)).toBe(0);
+          expect(Math.round(outer!.width)).toBe(viewport.width);
+        }
+      }
+      await expectPaddedNavigation();
       const categoryCount = await categories.count();
       expect(categoryCount).toBeGreaterThan(2);
       await expect(page.getByText(/Food allergy\? Contact the restaurant/)).toHaveCount(0);
@@ -37,6 +52,8 @@ test.describe("customer menu category navigation", () => {
         window.scrollTo(0, section.getBoundingClientRect().top + window.scrollY - 100);
       });
       await expect(buttons.last()).toHaveAttribute("aria-pressed", "true");
+      await expectPaddedNavigation();
+      await expect.poll(async () => Math.round((await container.boundingBox())!.y)).toBe(0);
       await expect.poll(async () => {
         const bar = await navigation.boundingBox();
         const button = await buttons.last().boundingBox();

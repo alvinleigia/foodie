@@ -30,6 +30,7 @@ import {
 } from "@/lib/order-fulfilment-time";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { DownloadReceiptButton } from "@/components/receipt/DownloadReceiptButton";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { OrderLineItemRow } from "@/components/shared/OrderLineItemRow";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
@@ -491,6 +492,10 @@ export function CustomerOrderStatus({
           {visibleOrders.map((order) => {
             const orderDisplay = formatOrderDisplay(order);
             const fulfilmentTime = getEffectiveFulfilmentTime(order);
+            const receiptHref = withPublicContext(
+              `/order/receipt/${encodeURIComponent(order.orderId)}`,
+              { orderingPointQrSlug, routeSlug },
+            );
 
             return (
             <Card
@@ -600,16 +605,14 @@ export function CustomerOrderStatus({
               </p>
 
               {order.receiptNumber ? (
-                <Button asChild variant="outline" className="mt-4">
-                  <Link
-                    href={withPublicContext(
-                      `/order/receipt/${encodeURIComponent(order.orderId)}`,
-                      { orderingPointQrSlug, routeSlug },
-                    )}
-                  >
-                    <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
-                  </Link>
-                </Button>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button asChild variant="outline">
+                    <Link href={receiptHref}>
+                      <ButtonLabel icon={ReceiptTextIcon}>View receipt</ButtonLabel>
+                    </Link>
+                  </Button>
+                  <DownloadReceiptButton receiptHref={receiptHref} />
+                </div>
               ) : null}
 
               {order.status === "PENDING" && order.paymentStatus === "PAID" ? (
