@@ -173,6 +173,32 @@ button:active {
   color: var(--foreground);
 }
 
+.customer-category-navigation {
+  scrollbar-width: thin;
+  scrollbar-color: #b8c9c5 transparent;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .customer-category-navigation {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+
+  .customer-category-navigation::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .customer-category-navigation::-webkit-scrollbar-track {
+    margin-inline: 4px;
+    background: transparent;
+  }
+
+  .customer-category-navigation::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: #b8c9c5;
+  }
+}
+
 .light-surface.text-stone-500,
 .light-surface .text-stone-500 {
   color: var(--color-stone-600);
