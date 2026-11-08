@@ -74,6 +74,17 @@ test.describe("customer menu category navigation", () => {
       await expect.poll(() => banner.evaluate((image) =>
         image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
       )).toBe(true);
+      const header = page.locator("header").first();
+      expect(await header.evaluate((element) => getComputedStyle(element).boxShadow)).toBe("none");
+      expect(await header.evaluate((element) => getComputedStyle(element).borderBottomWidth)).toBe("0px");
+      const bannerBounds = await banner.boundingBox();
+      const searchBounds = await search.boundingBox();
+      expect(bannerBounds).not.toBeNull();
+      expect(searchBounds).not.toBeNull();
+      expect(Math.abs(bannerBounds!.x - searchBounds!.x)).toBeLessThan(2);
+      expect(await page.evaluate(() =>
+        document.documentElement.scrollWidth <= window.innerWidth,
+      )).toBe(true);
       await page.screenshot({ path: test.info().outputPath("restaurant-header.png") });
 
       const item = rows.filter({
