@@ -1872,18 +1872,6 @@ export function OrderForm({
           {customizer ? (
             <>
               <DialogHeader className="px-6 pt-6">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mb-2 w-fit"
-                  onClick={() => {
-                    setCustomizer(null);
-                    setCustomizerError(null);
-                  }}
-                >
-                  <ButtonLabel icon={ArrowLeftIcon}>{isCartOpen ? "Back to cart" : "Back to menu"}</ButtonLabel>
-                </Button>
                 <DialogTitle>
                   {customizer.mode === "edit" ? "Edit customization" : "Customize item"}
                 </DialogTitle>
