@@ -13,7 +13,7 @@ export function RestaurantPicker({ restaurants }: RestaurantPickerProps) {
   return (
     <section className="overflow-hidden rounded-lg bg-stone-100 text-stone-950 shadow-xl">
       <div className="border-b border-stone-200 px-6 py-6 sm:px-8">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-700">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-teal-700">
           Restaurants
         </p>
         <h1 className="mt-2 text-3xl font-semibold">Choose a restaurant</h1>

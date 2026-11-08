@@ -407,6 +407,7 @@ export function CustomerOrderStatus({
       <CardHeader className="px-6 pt-6">
         <SectionHeader
           eyebrow="Order status"
+          tone="customer"
           title="Your orders"
           description="Track orders in progress or review completed orders."
           className="mb-0"

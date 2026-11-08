@@ -6,7 +6,7 @@ type SectionHeaderProps = {
   description?: string;
   meta?: React.ReactNode;
   className?: string;
-  tone?: "light" | "themed";
+  tone?: "light" | "themed" | "customer";
 };
 
 export function SectionHeader({
@@ -22,7 +22,11 @@ export function SectionHeader({
       <p
         className={cn(
           "text-sm font-semibold uppercase tracking-[0.3em]",
-          tone === "themed" ? "text-amber-700 dark:text-amber-400" : "text-amber-800",
+          tone === "customer"
+            ? "text-teal-700"
+            : tone === "themed"
+              ? "text-amber-700 dark:text-amber-400"
+              : "text-amber-800",
         )}
       >
         {eyebrow}
@@ -30,7 +34,7 @@ export function SectionHeader({
       <h2
         className={cn(
           "mt-2 text-3xl font-semibold",
-          tone === "themed" ? "text-foreground" : "text-stone-900",
+          tone === "light" ? "text-stone-900" : "text-foreground",
         )}
       >
         {title}
@@ -39,7 +43,7 @@ export function SectionHeader({
         <p
           className={cn(
             "mt-3 text-sm",
-            tone === "themed" ? "text-muted-foreground" : "text-stone-600",
+            tone === "light" ? "text-stone-600" : "text-muted-foreground",
           )}
         >
           {description}

@@ -39,6 +39,7 @@ export function PrivacyNotice({ notice }: PrivacyNoticeProps) {
       <CardHeader className="px-6 pt-6 sm:px-8 sm:pt-8">
         <SectionHeader
           eyebrow="Data protection"
+          tone="customer"
           title="Privacy notice"
           description={`How ${orderingBusiness} and Foodie handle customer information.`}
           className="mb-0"

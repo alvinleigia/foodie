@@ -68,6 +68,7 @@ export default async function CustomerLoginPage({
             <CardHeader className="px-6 pt-6">
               <SectionHeader
                 eyebrow="Customer account"
+                tone="customer"
                 title="Sign in"
                 description="Use a one-time email code or a connected account. No password is required."
                 className="mb-0"

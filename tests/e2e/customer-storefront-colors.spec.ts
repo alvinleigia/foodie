@@ -2,6 +2,7 @@ import { expect, test, type Locator } from "@playwright/test";
 
 const menuUrl = process.env.E2E_ORDER_MENU_URL;
 const fixtureUrl = process.env.E2E_CUSTOMER_THEME_FIXTURE_URL;
+const accentsFixtureUrl = process.env.E2E_CUSTOMER_ACCENTS_FIXTURE_URL;
 
 async function backgroundPixel(locator: Locator) {
   return locator.evaluate((element) => {
@@ -27,8 +28,40 @@ async function expectWhite(locator: Locator) {
   await expect.poll(() => backgroundPixel(locator)).toEqual([255, 255, 255, 255]);
 }
 
+async function expectTeal(locator: Locator, property: "color" | "borderColor" | "ring" = "color") {
+  await expect(locator).toBeVisible();
+  await expect.poll(() => locator.evaluate((element, key) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext("2d")!;
+    const style = getComputedStyle(element);
+    context.fillStyle = key === "ring" ? style.getPropertyValue("--tw-ring-color") : style[key];
+    context.fillRect(0, 0, 1, 1);
+    const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
+    return green > red + 30 && blue > red + 30;
+  }, property)).toBe(true);
+}
+
 for (const theme of ["light", "dark"]) {
   for (const width of [440, 1440]) {
+    test(`customer headings and shared focus controls stay teal in ${theme} at ${width}px`, async ({ page }) => {
+      test.skip(!accentsFixtureUrl, "Set E2E_CUSTOMER_ACCENTS_FIXTURE_URL for isolated heading and focus checks.");
+      await page.setViewportSize({ width, height: 956 });
+      await page.addInitScript((value) => localStorage.setItem("foodie-theme", value), theme);
+      await page.route("**/api/orders/status**", (route) => route.fulfill({ json: { currency: "GBP", orders: [] } }));
+      await page.goto(accentsFixtureUrl!);
+      for (const label of ["Customer account", "Account", "Data protection", "Order status", "Order link required", "Restaurants"]) {
+        await expectTeal(page.getByText(label, { exact: true }));
+      }
+      const select = page.getByRole("combobox", { name: "Example selection" });
+      await select.focus();
+      await expectTeal(select, "borderColor");
+      const themeOption = page.getByRole("button", { name: "Light", exact: true });
+      await themeOption.focus();
+      await expectTeal(themeOption, "ring");
+      await page.screenshot({ path: test.info().outputPath("customer-accents.png"), fullPage: true });
+    });
+
     test(`customer cart and checkout stay green in ${theme} at ${width}px`, async ({ page }) => {
       test.skip(!menuUrl, "Set E2E_ORDER_MENU_URL to a public restaurant menu.");
       await page.setViewportSize({ width, height: 956 });
@@ -49,9 +82,17 @@ for (const theme of ["light", "dark"]) {
       await page.getByRole("button", { name: "View Cart", exact: true }).click();
       const cart = page.getByRole("dialog");
       await expectWhite(cart);
+      await expect(cart.getByRole("button", { name: "Back to menu", exact: true })).toHaveCount(0);
+      await expect(cart.getByRole("button", { name: "Close", exact: true })).toBeVisible();
+      const notes = cart.getByRole("textbox", { name: "Notes for this item" });
+      await notes.focus();
+      await expectTeal(notes, "borderColor");
       await expectGreen(cart.getByRole("button", { name: "Review Order", exact: true }));
       await page.screenshot({ path: test.info().outputPath("cart.png"), animations: "disabled" });
       await cart.getByRole("button", { name: "Review Order", exact: true }).click();
+
+      await expectTeal(page.getByText("Review order", { exact: true }));
+      await expect(page.getByRole("button", { name: "Back to cart", exact: true })).toBeVisible();
 
       await expectGreen(page.getByRole("button", { name: "Guest checkout", exact: true }));
       await expectGreen(page.getByRole("button", { name: "Proceed to Payment", exact: true }));
@@ -84,6 +125,10 @@ for (const theme of ["light", "dark"]) {
       await expectWhite(dialog);
       await dialog.getByRole("checkbox").first().click();
       await expectGreen(dialog.getByRole("checkbox").first());
+      await page.keyboard.press("Tab");
+      await dialog.getByRole("checkbox").first().focus();
+      await expectTeal(dialog.getByRole("checkbox").first(), "borderColor");
+      await expectTeal(dialog.getByRole("checkbox").first(), "ring");
       await expectGreen(dialog.getByRole("button", { name: "Add to Cart", exact: true }));
       await page.screenshot({ path: test.info().outputPath("customization.png"), animations: "disabled" });
     });
