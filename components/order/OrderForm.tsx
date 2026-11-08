@@ -2814,7 +2814,7 @@ export function OrderForm({
         className={
           isStaffOrder
             ? "overflow-visible rounded-xl border-white/60 bg-white/88 shadow-[0_20px_60px_rgba(40,26,20,0.08)]"
-            : "overflow-visible rounded-xl border-stone-200 bg-white pt-0 shadow-[0_20px_60px_rgba(15,118,110,0.08)]"
+            : "overflow-visible rounded-none bg-white py-0 shadow-none ring-0"
         }
       >
         <CardHeader className={isStaffOrder ? "px-6 pt-6" : "gap-0 overflow-hidden p-0"}>
@@ -2839,7 +2839,7 @@ export function OrderForm({
                 restaurant={restaurant}
                 fulfilmentTypes={allowedFulfilmentTypes}
               />
-              <label className="relative mx-6 mb-2 block">
+              <label className="relative mt-5 block">
                 <span className="sr-only">Search menu</span>
                 <SearchIcon
                   aria-hidden="true"
@@ -2851,7 +2851,7 @@ export function OrderForm({
                   placeholder="Search by item name"
                   value={menuSearch}
                   onChange={(event) => setMenuSearch(event.target.value)}
-                  className="pl-9"
+                  className="border-stone-200 bg-stone-50 pl-9"
                 />
               </label>
             </>
@@ -2863,7 +2863,7 @@ export function OrderForm({
           ) : null}
         </CardHeader>
 
-        <CardContent className="px-6 pb-6">
+        <CardContent className={isStaffOrder ? "px-6 pb-6" : "p-0"}>
           <div className="grid gap-5">
             <div className="grid gap-3">
               {isStaffOrder || isLoadingMenu ? (
@@ -2937,11 +2937,13 @@ export function OrderForm({
                       ref={categoryBarRef}
                       role="navigation"
                       aria-label="Menu categories"
-                      className={`sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
-                        isCategoryBarStuck
-                          ? "-mx-6 bg-white/95 px-6 shadow-md"
-                          : "bg-white"
-                      }`}
+                      className={isStaffOrder
+                        ? `sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
+                            isCategoryBarStuck ? "-mx-6 bg-white/95 px-6 shadow-md" : "bg-white"
+                          }`
+                        : `sticky top-0 z-20 overflow-x-auto bg-white py-1 transition-shadow ${
+                            isCategoryBarStuck ? "-mx-4 px-4 shadow-sm" : ""
+                          }`}
                     >
                       <div className="flex min-w-max gap-2">
                         {visibleMenuCategories.map((category) => (
@@ -2954,11 +2956,13 @@ export function OrderForm({
                             aria-pressed={currentActiveCategoryId === category.id}
                             variant={currentActiveCategoryId === category.id ? "default" : "outline"}
                             onClick={() => scrollToCategory(category.id)}
-                            className={
+                            className={`${isStaffOrder ? "h-9 text-sm" : "h-10 text-xs sm:text-sm"} rounded-lg px-4 ${
                               currentActiveCategoryId === category.id
-                                ? "h-9 rounded-lg border-teal-600 bg-teal-600 px-4 text-sm text-white shadow-sm hover:bg-teal-700"
-                                : "h-9 rounded-lg border-stone-200 bg-white px-4 text-sm text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900"
-                            }
+                                ? isStaffOrder
+                                  ? "border-teal-600 bg-teal-600 text-white shadow-sm hover:bg-teal-700"
+                                  : "border-teal-700 bg-teal-700 text-white shadow-sm hover:bg-teal-800"
+                                : "border-stone-200 bg-white text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900"
+                            }`}
                           >
                             {category.name}
                           </Button>

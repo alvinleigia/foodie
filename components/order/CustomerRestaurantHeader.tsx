@@ -15,7 +15,7 @@ export function CustomerRestaurantHeader({
 
   return (
     <div>
-      <div className="relative h-36 overflow-hidden rounded-t-xl bg-stone-100 sm:h-52 lg:h-60">
+      <div className="relative h-36 overflow-hidden rounded-xl bg-stone-100 sm:h-52">
         <Image
           src="/images/customer-restaurant-banner.jpg"
           alt=""
@@ -26,8 +26,8 @@ export function CustomerRestaurantHeader({
           className="object-cover"
         />
       </div>
-      <div className="flex items-start gap-3 px-6 pb-4 pt-5">
-        <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
+      <div className="flex items-start gap-3 pt-5">
+        <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
           {restaurant?.logoUrl ? (
             <Image
               src={restaurant.logoUrl}
@@ -39,24 +39,24 @@ export function CustomerRestaurantHeader({
             />
           ) : <StoreIcon className="size-6" aria-hidden="true" />}
         </span>
-        <div className="min-w-0 space-y-2">
+        <div className="min-w-0 space-y-1.5">
           <h1 className="break-words text-2xl font-bold text-stone-950 sm:text-3xl">
             {restaurant?.name ?? "Menu"}
           </h1>
           {label && label.toLocaleLowerCase() !== restaurant?.name.trim().toLocaleLowerCase() ? (
-            <p className="flex items-center gap-1.5 text-sm text-stone-600">
+            <p className="flex items-center gap-1.5 text-xs text-stone-500 sm:text-sm">
               <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
               <span>{label}</span>
             </p>
           ) : null}
-          {fulfilmentTypes.length > 0 ? (
-            <p className="flex items-start gap-1.5 text-xs font-medium text-teal-800 sm:text-sm">
-              <UtensilsCrossedIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-              <span>{fulfilmentTypes.map(getOrderFulfilmentLabel).join(" · ")}</span>
-            </p>
-          ) : null}
         </div>
       </div>
+      {fulfilmentTypes.length > 0 ? (
+        <p className="mt-4 flex items-start gap-2 text-xs text-stone-500 sm:text-sm">
+          <UtensilsCrossedIcon className="mt-0.5 size-3.5 shrink-0 text-teal-700" aria-hidden="true" />
+          <span>{fulfilmentTypes.map(getOrderFulfilmentLabel).join(" · ")}</span>
+        </p>
+      ) : null}
     </div>
   );
 }

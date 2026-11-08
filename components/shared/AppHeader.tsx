@@ -105,25 +105,30 @@ function BrandLogo({
   tone?: "default" | "customer";
 }) {
   return (
-    <Link href={href} className="group inline-flex items-center gap-3">
-      <span data-theme-static className="grid size-10 place-items-center rounded-lg border border-white/15 bg-white text-sm font-black tracking-tight text-stone-950 shadow-sm">
+    <Link href={href} className={cn("group inline-flex items-center", tone === "customer" ? "gap-2.5" : "gap-3")}>
+      <span data-theme-static className={cn(
+        "grid place-items-center rounded-lg text-sm font-black",
+        tone === "customer"
+          ? "size-9 bg-teal-700 text-white"
+          : "size-10 border border-white/15 bg-white tracking-tight text-stone-950 shadow-sm",
+      )}>
         F
       </span>
       <span>
         <span
           className={cn(
-            "block text-base font-semibold leading-none",
-            tone === "customer" ? "text-stone-950" : "text-white",
+            "block font-semibold leading-none",
+            tone === "customer" ? "text-sm text-stone-950" : "text-base text-white",
           )}
         >
           Foodie POS
         </span>
         <span
           className={cn(
-            "mt-1 block text-xs font-medium uppercase tracking-[0.18em]",
+            "mt-1 block font-medium uppercase tracking-[0.18em]",
             tone === "customer"
-              ? "text-teal-700 group-hover:text-teal-800"
-              : "text-stone-400 group-hover:text-stone-300",
+              ? "text-[9px] text-teal-700 group-hover:text-teal-800"
+              : "text-xs text-stone-400 group-hover:text-stone-300",
           )}
         >
           AGO
@@ -189,10 +194,10 @@ export function AppHeader({
   return (
     <header
       className={cn(
-        "mb-8 flex items-center justify-between gap-4 rounded-xl border px-4 py-3 shadow-sm",
+        "flex items-center justify-between gap-4",
         tone === "customer"
-          ? "border-stone-200 bg-white text-stone-950"
-          : "border-white/10 bg-stone-950 text-white shadow-[0_18px_60px_rgba(0,0,0,0.18)]",
+          ? "mb-4 bg-white text-stone-950"
+          : "mb-8 rounded-xl border border-white/10 bg-stone-950 px-4 py-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.18)]",
         className,
       )}
     >
@@ -343,10 +348,11 @@ export function AppHeader({
             <Button
               type="button"
               variant="outline"
+              size={tone === "customer" ? "lg" : "default"}
               className={cn(
                 "rounded-lg",
                 tone === "customer"
-                  ? "border-stone-200 bg-stone-50 text-stone-900 hover:bg-teal-50 hover:text-teal-950"
+                  ? "border-stone-200 bg-white text-stone-900 hover:bg-teal-50 hover:text-teal-950"
                   : "border-white/10 bg-white/5 text-white hover:bg-white/10 hover:text-white",
                 customerMenu.accountHref && "h-auto px-3 py-2 text-left",
               )}
