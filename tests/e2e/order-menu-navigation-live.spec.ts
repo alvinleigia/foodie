@@ -66,6 +66,7 @@ test.describe("customer menu category navigation", () => {
       const search = page.getByRole("searchbox", { name: "Search menu" });
       const rows = page.locator('[data-slot="menu-item-row"]');
       await expect(rows.first()).toBeVisible();
+      await expect(page.getByText("Filter by tag", { exact: true })).toHaveCount(0);
       const initialCount = await rows.count();
       const heading = page.getByRole("heading", { level: 1 });
       await expect(heading).not.toHaveText("Menu");
@@ -82,6 +83,9 @@ test.describe("customer menu category navigation", () => {
       expect(bannerBounds).not.toBeNull();
       expect(searchBounds).not.toBeNull();
       expect(Math.abs(bannerBounds!.x - searchBounds!.x)).toBeLessThan(2);
+      const navigationBounds = await page.getByRole("navigation", { name: "Menu categories" }).boundingBox();
+      expect(navigationBounds).not.toBeNull();
+      expect(navigationBounds!.y - searchBounds!.y - searchBounds!.height).toBeLessThan(32);
       expect(await page.evaluate(() =>
         document.documentElement.scrollWidth <= window.innerWidth,
       )).toBe(true);
@@ -103,7 +107,7 @@ test.describe("customer menu category navigation", () => {
       await expect(page.getByText("No matching menu items", { exact: true })).toBeVisible();
       await expect(rows).toHaveCount(0);
       await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
-      await page.getByRole("button", { name: "Clear filters" }).click();
+      await page.getByRole("button", { name: "Clear search" }).click();
       await expect(search).toHaveValue("");
       await expect(rows).toHaveCount(initialCount);
       await expect(page.getByRole("navigation", { name: "Menu categories" })).toBeVisible();

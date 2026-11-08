@@ -2888,7 +2888,7 @@ export function OrderForm({
               </div>
               ) : null}
 
-              {!isLoadingMenu && availableTags.length > 0 ? (
+              {isStaffOrder && !isLoadingMenu && availableTags.length > 0 ? (
                 <div className="rounded-xl border border-stone-200 bg-white/80 p-3">
                   <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                     <TagsIcon className="size-3.5" />
@@ -2976,7 +2976,9 @@ export function OrderForm({
                     <div className="rounded-xl border border-dashed border-stone-200 bg-white px-4 py-8 text-center">
                       <p className="text-sm font-semibold text-stone-950">No matching menu items</p>
                       <p className="mt-2 text-sm text-stone-500">
-                        Try another item name or clear your filters.
+                        {isStaffOrder
+                          ? "Try another item name or clear your filters."
+                          : "Try another item name or clear your search."}
                       </p>
                       <Button
                         type="button"
@@ -2987,7 +2989,9 @@ export function OrderForm({
                           setSelectedTagId(null);
                         }}
                       >
-                        <ButtonLabel icon={XIcon}>Clear filters</ButtonLabel>
+                        <ButtonLabel icon={XIcon}>
+                          {isStaffOrder ? "Clear filters" : "Clear search"}
+                        </ButtonLabel>
                       </Button>
                     </div>
                   ) : null}
