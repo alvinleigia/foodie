@@ -13,6 +13,7 @@ import {
   PlusIcon,
   SendIcon,
   SearchIcon,
+  SlidersHorizontalIcon,
   ShoppingCartIcon,
   TagsIcon,
   TimerIcon,
@@ -66,6 +67,7 @@ import {
 } from "@/components/order/CustomerLoginForm";
 import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { CustomerRestaurantHeader } from "@/components/order/CustomerRestaurantHeader";
+import { MenuItemDescription } from "@/components/order/MenuItemDescription";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { AllergenSummary } from "@/components/shared/AllergenSummary";
 import { MenuSectionSkeleton } from "@/components/shared/SectionSkeletons";
@@ -222,6 +224,19 @@ const defaultTaxPricing: RestaurantTaxPricing = {
   taxesByMenuItemId: {},
   taxOverridesByFulfilmentType: {},
 };
+
+const customerTagColors: Record<string, string> = {
+  red: "border-rose-200 bg-rose-50 text-rose-800",
+  rose: "border-rose-200 bg-rose-50 text-rose-800",
+  amber: "border-amber-200 bg-amber-50 text-amber-800",
+  orange: "border-orange-200 bg-orange-50 text-orange-800",
+  green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  emerald: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  blue: "border-sky-200 bg-sky-50 text-sky-800",
+  sky: "border-sky-200 bg-sky-50 text-sky-800",
+  violet: "border-violet-200 bg-violet-50 text-violet-800",
+};
+const customerItemActionClassName = "min-w-24 border-teal-200 bg-teal-50/70 font-semibold text-teal-800 hover:bg-teal-100 dark:border-teal-200 dark:bg-teal-50/70 dark:text-teal-800 dark:hover:bg-teal-100";
 
 function getMenuItemTaxes(
   taxPricing: RestaurantTaxPricing,
@@ -2941,8 +2956,8 @@ export function OrderForm({
                         ? `sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                             isCategoryBarStuck ? "-mx-6 bg-white/95 px-6 shadow-md" : "bg-white"
                           }`
-                        : `sticky top-0 z-20 overflow-x-auto bg-white py-1 transition-shadow ${
-                            isCategoryBarStuck ? "-mx-4 px-4 shadow-sm" : ""
+                        : `sticky top-0 z-20 -mx-4 overflow-x-auto border-b border-stone-200 bg-white px-4 pb-4 transition-shadow ${
+                            isCategoryBarStuck ? "shadow-sm" : ""
                           }`}
                     >
                       <div className="flex min-w-max gap-2">
@@ -2953,15 +2968,16 @@ export function OrderForm({
                               categoryButtonRefs.current[category.id] = element;
                             }}
                             type="button"
+                            size={isStaffOrder ? "default" : "xl"}
                             aria-pressed={currentActiveCategoryId === category.id}
                             variant={currentActiveCategoryId === category.id ? "default" : "outline"}
                             onClick={() => scrollToCategory(category.id)}
-                            className={`${isStaffOrder ? "h-9 text-sm" : "h-10 text-xs sm:text-sm"} rounded-lg px-4 ${
+                            className={`${isStaffOrder ? "h-9 px-4 text-sm" : "px-5 font-semibold sm:px-6"} rounded-lg ${
                               currentActiveCategoryId === category.id
                                 ? isStaffOrder
                                   ? "border-teal-600 bg-teal-600 text-white shadow-sm hover:bg-teal-700"
                                   : "border-teal-700 bg-teal-700 text-white shadow-sm hover:bg-teal-800"
-                                : "border-stone-200 bg-white text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900"
+                                : `border-stone-200 bg-white text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 ${isStaffOrder ? "" : "dark:border-stone-200 dark:bg-white dark:text-stone-700 dark:hover:bg-teal-50"}`
                             }`}
                           >
                             {category.name}
@@ -3003,30 +3019,41 @@ export function OrderForm({
                       ref={(element) => {
                         categoryRefs.current[category.id] = element;
                       }}
-                      className="scroll-mt-28 overflow-hidden rounded-xl border border-stone-200 bg-white"
+                      className={isStaffOrder
+                        ? "scroll-mt-28 overflow-hidden rounded-xl border border-stone-200 bg-white"
+                        : "scroll-mt-28 border-b border-stone-200 bg-white"}
                     >
                       <div
-                        className={`border-b px-4 py-4 ${
+                        className={isStaffOrder ? `border-b px-4 py-4 ${
                           categoryIndex % 3 === 0
                             ? "border-amber-200 bg-amber-50"
                             : categoryIndex % 3 === 1
                               ? "border-teal-200 bg-teal-50"
                               : "border-sky-200 bg-sky-50"
-                        }`}
+                        }` : "flex items-start justify-between gap-4 pb-3 pt-4"}
                       >
-                        <p className="text-xl font-semibold text-stone-950">{category.name}</p>
-                        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-stone-600">
-                          {category.items.length} options
-                        </p>
-                        {category.description ? (
-                          <p className="mt-2 text-sm text-stone-600">{category.description}</p>
+                        <div className="min-w-0">
+                          <h2 className="text-xl font-semibold text-stone-950">{category.name}</h2>
+                          {isStaffOrder ? (
+                            <p className="mt-1 text-xs font-semibold uppercase tracking-[0.16em] text-stone-600">
+                              {category.items.length} options
+                            </p>
+                          ) : null}
+                          {category.description ? (
+                            <p className="mt-2 text-sm text-stone-600">{category.description}</p>
+                          ) : null}
+                        </div>
+                        {!isStaffOrder ? (
+                          <span className="shrink-0 rounded-md bg-stone-100 px-2.5 py-1 text-xs text-stone-500">
+                            {category.items.length} options
+                          </span>
                         ) : null}
                       </div>
 
                       {category.items.length === 0 ? (
                         <p className="p-4 text-sm text-stone-500">No items in this category yet.</p>
                       ) : (
-                        <div className="grid gap-4 p-4">
+                        <div className={isStaffOrder ? "grid gap-4 p-4" : "grid"}>
                           {category.items.map((drink) => {
                             const selectedCartItems = cartItems.filter(
                               (item) => item.drinkId === drink.id,
@@ -3051,18 +3078,24 @@ export function OrderForm({
                               : drink.isUnavailableDueToStock
                                 ? "Out of stock"
                                 : null;
+                            const formattedItemPrice = formatPrice(drink.price ?? null, { currency });
+                            const hasFormattedAmount = formattedItemPrice.startsWith(`${currency} `);
 
                             return (
                               <div
                                 key={drink.id}
                                 data-slot="menu-item-row"
-                                className={`grid grid-cols-[80px_minmax(0,1fr)] items-start gap-3 border-b border-stone-100 pb-4 last:border-b-0 sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center sm:gap-4 ${
+                                className={`grid items-start border-b border-stone-100 last:border-b-0 ${
+                                  isStaffOrder
+                                    ? "grid-cols-[80px_minmax(0,1fr)] gap-3 pb-4 sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
+                                    : "grid-cols-[72px_minmax(0,1fr)] gap-x-4 gap-y-3 py-6 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-x-6"
+                                } ${
                                   hasSelectedItem
                                     ? "rounded-lg border-l-4 border-teal-500 bg-teal-50 p-3 shadow-sm ring-1 ring-teal-200"
                                     : ""
                                 }`}
                               >
-                                <div className="relative aspect-square overflow-hidden rounded-lg bg-stone-100">
+                                <div className={`relative aspect-square overflow-hidden rounded-lg bg-stone-100 ${isStaffOrder ? "" : "row-span-2 self-start"}`}>
                                   {drink.imageUrl ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -3099,15 +3132,19 @@ export function OrderForm({
                                       </span>
                                     ) : null}
                                   </div>
-                                  <p className="mt-1 line-clamp-2 text-sm text-stone-500">
-                                    {drink.description || ""}
-                                  </p>
+                                  {isStaffOrder ? (
+                                    <p className="mt-1 line-clamp-2 text-sm text-stone-500">{drink.description || ""}</p>
+                                  ) : drink.description?.trim() ? (
+                                    <MenuItemDescription text={drink.description} itemName={drink.name} />
+                                  ) : null}
                                   {drink.tags && drink.tags.length > 0 ? (
                                     <div className="mt-2 flex flex-wrap gap-1.5">
                                       {drink.tags.map((tag) => (
                                         <span
                                           key={tag.id}
-                                          className="rounded-md border border-stone-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-600"
+                                          className={isStaffOrder
+                                            ? "rounded-md border border-stone-200 bg-white/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-stone-600"
+                                            : `rounded-md border px-2 py-1 text-xs ${customerTagColors[tag.color] ?? "border-stone-200 bg-stone-50 text-stone-600"}`}
                                         >
                                           {tag.name}
                                         </span>
@@ -3118,6 +3155,7 @@ export function OrderForm({
                                     allergens={drink.allergens}
                                     className="mt-2"
                                     tone={isStaffOrder ? "default" : "light"}
+                                    layout={isStaffOrder ? "stacked" : "inline"}
                                   />
                                   {drink.modifierGroups && drink.modifierGroups.length > 0 ? (
                                     <div className="mt-2">
@@ -3126,9 +3164,9 @@ export function OrderForm({
                                       </span>
                                     </div>
                                   ) : null}
-                                  <p className="mt-3 text-sm font-semibold text-stone-950">
-                                    {formatPrice(drink.price ?? null, { currency })}
-                                  </p>
+                                  {isStaffOrder ? (
+                                    <p className="mt-3 text-sm font-semibold text-stone-950">{formattedItemPrice}</p>
+                                  ) : null}
                                   {hasModifiers && configurationCount === 1 && cartItem ? (
                                     <p
                                       data-slot="menu-item-customization-summary"
@@ -3141,8 +3179,17 @@ export function OrderForm({
 
                                 <div
                                   data-slot="menu-item-action"
-                                  className="col-span-2 flex min-h-9 items-center justify-end sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:min-w-28 sm:self-center"
+                                  className={isStaffOrder
+                                    ? "col-span-2 flex min-h-9 items-center justify-end sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:min-w-28 sm:self-center"
+                                    : "col-start-2 flex min-w-0 flex-wrap items-center justify-between gap-3"}
                                 >
+                                  {!isStaffOrder ? (
+                                    <p data-slot="menu-item-price" className="inline-flex items-baseline gap-2 text-base font-semibold text-stone-950">
+                                      {hasFormattedAmount ? <span className="text-xs font-normal text-stone-500">{currency}</span> : null}
+                                      {hasFormattedAmount ? formattedItemPrice.slice(currency.length + 1) : formattedItemPrice}
+                                    </p>
+                                  ) : null}
+                                  <div className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
                                   {hasModifiers && configurationCount > 1 ? (
                                     <div className="flex flex-col items-end gap-1.5">
                                       <span
@@ -3155,7 +3202,8 @@ export function OrderForm({
                                         <Button
                                           type="button"
                                           variant="outline"
-                                          size="lg"
+                                          size={isStaffOrder ? "lg" : "xl"}
+                                          className={isStaffOrder ? undefined : customerItemActionClassName}
                                           onClick={() => addToCart(category, drink)}
                                           disabled={
                                             isSubmitting || isUnavailable || hasReachedStockLimit
@@ -3173,7 +3221,8 @@ export function OrderForm({
                                         <Button
                                           type="button"
                                           variant="outline"
-                                          size="lg"
+                                          size={isStaffOrder ? "lg" : "xl"}
+                                          className={isStaffOrder ? undefined : customerItemActionClassName}
                                           onClick={() => openCartForDrink(drink.id)}
                                         >
                                           <TagsIcon className="size-4" />
@@ -3189,7 +3238,8 @@ export function OrderForm({
                                         onClick={() => decreaseCartItemQuantity(latestCartItem.lineId)}
                                         disabled={isSubmitting}
                                         aria-label={`Reduce ${drink.name} quantity`}
-                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
+                                        size={isStaffOrder ? "lg" : "xl"}
+                                        className="rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
                                       >
                                         <MinusIcon className="size-4" />
                                       </Button>
@@ -3202,7 +3252,8 @@ export function OrderForm({
                                         onClick={() => requestQuantityIncrease(latestCartItem)}
                                         disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                         aria-label={`Increase ${drink.name} quantity`}
-                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
+                                        size={isStaffOrder ? "lg" : "xl"}
+                                        className="rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
                                       >
                                         <PlusIcon className="size-4" />
                                       </Button>
@@ -3211,16 +3262,17 @@ export function OrderForm({
                                     <Button
                                       type="button"
                                       variant="outline"
+                                      size={isStaffOrder ? "default" : "xl"}
                                       onClick={() => addToCart(category, drink)}
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                       className={
-                                        isUnavailable || hasReachedStockLimit
+                                        !isStaffOrder ? customerItemActionClassName : isUnavailable || hasReachedStockLimit
                                           ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
                                           : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                       }
                                     >
                                       {!isUnavailable && !hasReachedStockLimit ? (
-                                        <TagsIcon className="size-4" />
+                                        isStaffOrder ? <TagsIcon className="size-4" /> : <SlidersHorizontalIcon className="size-4" />
                                       ) : null}
                                       {isUnavailable
                                         ? unavailableLabel
@@ -3236,7 +3288,8 @@ export function OrderForm({
                                         onClick={() => decreaseCartItemQuantity(cartItem.lineId)}
                                         disabled={isSubmitting}
                                         aria-label={`Reduce ${drink.name} quantity`}
-                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
+                                        size={isStaffOrder ? "lg" : "xl"}
+                                        className="rounded-none px-3 text-emerald-900 hover:bg-emerald-50"
                                       >
                                         <MinusIcon className="size-4" />
                                       </Button>
@@ -3249,7 +3302,8 @@ export function OrderForm({
                                         onClick={() => requestQuantityIncrease(cartItem)}
                                         disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                         aria-label={`Increase ${drink.name} quantity`}
-                                        className="h-9 rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
+                                        size={isStaffOrder ? "lg" : "xl"}
+                                        className="rounded-none px-3 text-emerald-900 hover:bg-emerald-50 disabled:text-stone-300"
                                       >
                                         <PlusIcon className="size-4" />
                                       </Button>
@@ -3258,10 +3312,11 @@ export function OrderForm({
                                     <Button
                                       type="button"
                                       variant="outline"
+                                      size={isStaffOrder ? "default" : "xl"}
                                       onClick={() => addToCart(category, drink)}
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
                                       className={
-                                        isUnavailable || hasReachedStockLimit
+                                        !isStaffOrder ? customerItemActionClassName : isUnavailable || hasReachedStockLimit
                                           ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
                                           : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
                                       }
@@ -3276,6 +3331,7 @@ export function OrderForm({
                                           : "Add"}
                                     </Button>
                                   )}
+                                  </div>
                                 </div>
                               </div>
                             );
