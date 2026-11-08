@@ -47,12 +47,13 @@ export default async function CustomerLoginPage({
   return (
     <AppShell
       topSpacing="compact"
-      variant="dark"
+      variant="customer"
       contentClassName="max-w-3xl space-y-6 pb-8"
     >
       {context.hasTenantContext && context.customerAccountsEnabled ? (
         <>
           <AppHeader
+            tone="customer"
             activePath="/customer/login"
             customerMenu={{
               orderHref,

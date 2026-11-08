@@ -228,9 +228,9 @@ export function DashboardSectionSkeleton({
   );
 }
 
-export function AppRouteSkeleton() {
+export function AppRouteSkeleton({ variant = "neutral" }: { variant?: "customer" | "neutral" }) {
   return (
-    <AppShell variant="neutral" contentClassName="max-w-7xl">
+    <AppShell variant={variant} contentClassName="max-w-7xl">
       <div aria-busy="true" aria-live="polite" className="grid gap-10" role="status">
         <LoadingStatus label="Loading page" />
         <Card tone="themed" className="rounded-xl border-border bg-card/95">

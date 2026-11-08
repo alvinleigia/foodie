@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *):not(:where([data-customer-storefront], [data-customer-storefront] *)));
 
 @theme inline {
   --color-background: var(--background);
@@ -145,8 +145,9 @@ button:active {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* The public ordering storefront is intentionally light and brand-led even
-   when the signed-in account prefers the dark operations theme. */
+/* Customer pages and portalled controls share one light storefront palette,
+   independently of the account's operations-theme preference. */
+[data-customer-storefront],
 .dark [data-customer-storefront] {
   color-scheme: light;
   --background: oklch(1 0 0);
@@ -155,17 +156,17 @@ button:active {
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --primary: var(--color-teal-700);
+  --primary-foreground: white;
+  --secondary: var(--color-teal-50);
+  --secondary-foreground: var(--color-teal-900);
+  --muted: var(--color-stone-50);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: var(--color-teal-50);
+  --accent-foreground: var(--color-teal-900);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: var(--color-teal-600);
 }
 
 .dark [data-customer-storefront] [data-slot="input"] {

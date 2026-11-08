@@ -39,10 +39,11 @@ export default async function PrivacyPage({ searchParams }: PrivacyPageProps) {
   return (
     <AppShell
       topSpacing="compact"
-      variant="dark"
+      variant="customer"
       contentClassName="max-w-4xl space-y-6 pb-8"
     >
       <AppHeader
+        tone="customer"
         activePath="/privacy"
         brandHref={context.hasTenantContext ? orderHref : "/"}
         customerMenu={{

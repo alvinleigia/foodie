@@ -391,23 +391,29 @@ export function AppHeader({
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64" tone="dark">
+          <DropdownMenuContent
+            align="end"
+            className="w-64"
+            tone={tone === "customer" ? "themed" : "dark"}
+            data-customer-storefront={tone === "customer" ? "" : undefined}
+            data-theme-static={tone === "customer" ? "" : undefined}
+          >
             <DropdownMenuLabel>
               <span className="block text-stone-500">
                 {customerMenu.accountHref ? "My Account" : "Customer"}
               </span>
-              <span className="mt-1 block text-sm font-semibold text-stone-100">
+              <span className={cn("mt-1 block text-sm font-semibold", tone === "customer" ? "text-foreground" : "text-stone-100")}>
                 {customerMenu.customerName ?? "Order menu"}
               </span>
               {customerMenu.accountHref ? (
-                <span className="mt-0.5 block text-xs text-stone-400">Customer</span>
+                <span className={cn("mt-0.5 block text-xs", tone === "customer" ? "text-muted-foreground" : "text-stone-400")}>Customer</span>
               ) : null}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link
                 href={customerMenu.orderHref ?? "/order"}
-                className={cn(activePath === "/order" && "bg-white/10 text-white")}
+                className={cn(activePath === "/order" && (tone === "customer" ? "bg-accent text-accent-foreground" : "bg-white/10 text-white"))}
               >
                 <UtensilsIcon />
                 Order menu
@@ -418,7 +424,7 @@ export function AppHeader({
                 <Link
                   href={customerMenu.ordersHref ?? "/order/status"}
                   className={cn(
-                    activePath === "/order/status" && "bg-white/10 text-white",
+                    activePath === "/order/status" && (tone === "customer" ? "bg-accent text-accent-foreground" : "bg-white/10 text-white"),
                   )}
                 >
                   <ClipboardListIcon />
@@ -438,7 +444,7 @@ export function AppHeader({
               <DropdownMenuItem asChild>
                 <Link
                   href={customerMenu.accountHref}
-                  className={cn(activePath === "/account" && "bg-white/10 text-white")}
+                  className={cn(activePath === "/account" && (tone === "customer" ? "bg-accent text-accent-foreground" : "bg-white/10 text-white"))}
                 >
                   <UserRoundIcon />
                   My account
@@ -449,7 +455,7 @@ export function AppHeader({
               <DropdownMenuItem asChild>
                 <Link
                   href={customerMenu.privacyHref}
-                  className={cn(activePath === "/privacy" && "bg-white/10 text-white")}
+                  className={cn(activePath === "/privacy" && (tone === "customer" ? "bg-accent text-accent-foreground" : "bg-white/10 text-white"))}
                 >
                   <ShieldCheckIcon />
                   Privacy notice

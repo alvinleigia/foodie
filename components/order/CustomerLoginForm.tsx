@@ -426,6 +426,7 @@ export function CustomerLoginForm({
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <FormField label="Mobile number" htmlFor="customer-login-phone">
               <PhoneNumberInput
+                tone="customer"
                 id="customer-login-phone"
                 value={phone}
                 countryCode={phoneCountryCode}

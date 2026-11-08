@@ -647,7 +647,7 @@ export function CustomerOrderStatus({
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent data-customer-storefront data-theme-static>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel this order?</AlertDialogTitle>
             <AlertDialogDescription>

@@ -1706,7 +1706,9 @@ export function OrderForm({
                       </div>
 
                       <div className="mt-4 flex flex-wrap items-center gap-3">
-                        <div className="inline-flex items-center overflow-hidden rounded-lg border border-stone-200">
+                        <div className={isStaffOrder
+                          ? "inline-flex items-center overflow-hidden rounded-lg border border-stone-200"
+                          : "inline-flex items-center overflow-hidden rounded-lg border border-emerald-300 bg-white text-emerald-900"}>
                           <Button
                             type="button"
                             variant="ghost"
@@ -2356,7 +2358,7 @@ export function OrderForm({
                           }}
                           className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             effectiveCheckoutMode === mode
-                              ? "bg-stone-950 text-white"
+                              ? "bg-primary text-primary-foreground"
                               : "text-stone-600 hover:bg-white hover:text-stone-950"
                           }`}
                         >
@@ -2482,6 +2484,7 @@ export function OrderForm({
                         errorId="review-contact-phone-error"
                       >
                         <PhoneNumberInput
+                          tone="customer"
                           id="review-contact-phone"
                           value={draft.customerPhone}
                           countryCode={phoneCountryCode}
@@ -2517,7 +2520,7 @@ export function OrderForm({
                           onClick={() => updateDraft("paymentTiming", "ONLINE")}
                           className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
                             draft.paymentTiming === "ONLINE"
-                              ? "bg-stone-950 text-white"
+                              ? "bg-primary text-primary-foreground"
                               : "text-stone-600 hover:bg-white"
                           }`}
                         >
@@ -2532,7 +2535,7 @@ export function OrderForm({
                           onClick={() => updateDraft("paymentTiming", "PAY_LATER")}
                           className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors ${
                             draft.paymentTiming === "PAY_LATER"
-                              ? "bg-stone-950 text-white"
+                              ? "bg-primary text-primary-foreground"
                               : "text-stone-600 hover:bg-white"
                           }`}
                         >
@@ -2663,7 +2666,7 @@ export function OrderForm({
                         aria-pressed={draft.tipRateBps === rateBps}
                         className={`min-h-10 rounded-lg border px-2 text-sm font-semibold transition-colors ${
                           draft.tipRateBps === rateBps
-                            ? "border-stone-500 bg-stone-200 text-stone-950"
+                            ? "border-teal-500 bg-teal-50 text-teal-950"
                             : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
                         }`}
                         onClick={() => updateDraft("tipRateBps", rateBps)}
@@ -3383,7 +3386,7 @@ export function OrderForm({
               size="xl"
               onClick={openCart}
               disabled={isSubmitting || isLoadingMenu || Boolean(menuError)}
-              className="shrink-0 bg-teal-600 text-white hover:bg-teal-700"
+              className={isStaffOrder ? "shrink-0 bg-teal-600 text-white hover:bg-teal-700" : "shrink-0"}
             >
               <ShoppingCartIcon className="size-4" />
               View Cart

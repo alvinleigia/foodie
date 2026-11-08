@@ -223,7 +223,7 @@ export function CustomerProfileForm({
             <SelectTrigger id="customer-gender" size="lg" className="w-full">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent data-customer-storefront data-theme-static>
               <SelectItem value="UNSPECIFIED">Not specified</SelectItem>
               <SelectItem value="WOMAN">Woman</SelectItem>
               <SelectItem value="MAN">Man</SelectItem>

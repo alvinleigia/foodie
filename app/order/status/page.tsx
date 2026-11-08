@@ -57,13 +57,14 @@ export default async function CustomerOrderStatusPage(props: CustomerOrderStatus
   }
 
   return (
-    <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-6xl space-y-6 pb-8">
+    <AppShell topSpacing="compact" variant={user ? "dark" : "customer"} contentClassName="max-w-6xl space-y-6 pb-8">
       {hasTenantContext && customerAccountsEnabled ? (
         <>
           {user ? (
             <AppHeader activePath="/order/status" user={user} />
           ) : (
             <AppHeader
+              tone="customer"
               activePath="/order/status"
               customerMenu={{
                 accountHref: customer
