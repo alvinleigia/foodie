@@ -28,6 +28,8 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <main
+      data-customer-storefront={variant === "customer" ? "" : undefined}
+      data-theme-static={variant === "customer" ? "" : undefined}
       className={cn(
         shellVariants[variant],
         "px-4 pb-10",

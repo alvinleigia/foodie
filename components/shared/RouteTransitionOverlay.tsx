@@ -39,6 +39,7 @@ export function RouteTransitionOverlay() {
   const searchParams = useSearchParams();
   const routeKey = `${pathname}?${searchParams.toString()}`;
   const [isNavigating, setIsNavigating] = useState(false);
+  const [isCustomerNavigation, setIsCustomerNavigation] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -57,7 +58,8 @@ export function RouteTransitionOverlay() {
   }, [routeKey]);
 
   useEffect(() => {
-    function startNavigation() {
+    function startNavigation(customer: boolean) {
+      setIsCustomerNavigation(customer);
       setIsNavigating(true);
 
       if (timeoutRef.current) {
@@ -86,12 +88,12 @@ export function RouteTransitionOverlay() {
       const anchor = event.target.closest("a");
 
       if (anchor instanceof HTMLAnchorElement && shouldShowForAnchor(anchor)) {
-        startNavigation();
+        startNavigation(Boolean(anchor.closest("[data-customer-storefront]")));
       }
     }
 
     function handlePopState() {
-      startNavigation();
+      startNavigation(Boolean(document.querySelector("main[data-customer-storefront]")));
     }
 
     document.addEventListener("click", handleClick, true);
@@ -113,15 +115,18 @@ export function RouteTransitionOverlay() {
 
   return (
     <div
+      data-slot="route-transition-overlay"
       aria-live="polite"
       aria-busy="true"
-      className="fixed inset-0 z-[9998] grid cursor-wait place-items-center bg-stone-950/45 backdrop-blur-sm"
+      data-customer-storefront={isCustomerNavigation ? "" : undefined}
+      data-theme-static={isCustomerNavigation ? "" : undefined}
+      className={`fixed inset-0 z-[9998] grid cursor-wait place-items-center backdrop-blur-sm ${isCustomerNavigation ? "bg-teal-950/10" : "bg-stone-950/45"}`}
     >
       <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-muted/50">
         <div className="h-full w-1/2 animate-pulse bg-primary" />
       </div>
       <div className="grid min-w-52 place-items-center gap-4 rounded-xl border border-border bg-popover/95 px-8 py-7 text-center text-popover-foreground shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
-        <Spinner className="size-8 text-foreground" />
+        <Spinner className={isCustomerNavigation ? "size-8 text-primary" : "size-8 text-foreground"} />
         <div>
           <p className="text-base font-semibold text-foreground">Loading</p>
           <p className="mt-1 text-sm text-muted-foreground">Please wait...</p>

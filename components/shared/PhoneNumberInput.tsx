@@ -29,6 +29,7 @@ type PhoneNumberInputProps = {
   id?: string;
   onCountryCodeChange: (countryCode: CountryCode) => void;
   onValueChange: (value: string) => void;
+  tone?: "customer" | "default";
   value: string;
 };
 
@@ -42,6 +43,7 @@ export function PhoneNumberInput({
   id,
   onCountryCodeChange,
   onValueChange,
+  tone = "default",
   value,
 }: PhoneNumberInputProps) {
   const selectSize =
@@ -65,7 +67,12 @@ export function PhoneNumberInput({
         >
           <SelectValue>{getCountryCallingCodeLabel(countryCode)}</SelectValue>
         </SelectTrigger>
-        <SelectContent className="max-h-80 min-w-[19rem]" position="popper">
+        <SelectContent
+          data-customer-storefront={tone === "customer" ? "" : undefined}
+          data-theme-static={tone === "customer" ? "" : undefined}
+          className="max-h-80 min-w-[19rem]"
+          position="popper"
+        >
           {countryOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}

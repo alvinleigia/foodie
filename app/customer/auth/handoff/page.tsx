@@ -19,7 +19,7 @@ export default async function CustomerAuthHandoffPage({
 
   return (
     <AppShell
-      variant="neutral"
+      variant="customer"
       contentClassName="flex min-h-[calc(100vh-5rem)] max-w-xl items-center"
     >
       <Card className="w-full rounded-xl border-stone-200 bg-white">

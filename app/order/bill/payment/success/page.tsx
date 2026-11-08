@@ -7,7 +7,7 @@ export default function StaffBillPaymentSuccessPage() {
   return (
     <AppShell
       topSpacing="compact"
-      variant="dark"
+      variant="customer"
       contentClassName="max-w-2xl pb-8"
     >
       <Card className="rounded-lg border-white/60 bg-white/95">

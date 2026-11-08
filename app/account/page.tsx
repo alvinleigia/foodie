@@ -31,7 +31,7 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
     return (
       <AppShell
         topSpacing="compact"
-        variant="dark"
+        variant="customer"
         contentClassName="max-w-3xl space-y-6 pb-8"
       >
         <CustomerOrderUnavailable reason="CUSTOMER_ACCOUNTS_DISABLED" />
@@ -68,8 +68,9 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
   const phoneVerificationPolicy = getCustomerPhoneVerificationPolicy();
 
   return (
-    <AppShell topSpacing="compact" variant="dark" contentClassName="max-w-3xl space-y-6 pb-8">
+    <AppShell topSpacing="compact" variant="customer" contentClassName="max-w-3xl space-y-6 pb-8">
       <AppHeader
+        tone="customer"
         activePath="/account"
         customerMenu={{
           accountHref,
