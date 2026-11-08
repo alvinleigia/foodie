@@ -1,6 +1,7 @@
 import {
   decimalToMinorUnits,
   minorUnitsToDecimal,
+  multiplyAndRoundMinorUnits,
 } from "@/lib/currency-money";
 import { formatFinancialDocumentNumber } from "@/lib/financial-document-numbers";
 import {
@@ -244,7 +245,10 @@ export function getVatNetUnitPrice(
     currency,
   );
 
-  return minorUnitsToDecimal(taxableAmountMinor / item.quantity, currency);
+  return minorUnitsToDecimal(
+    multiplyAndRoundMinorUnits(taxableAmountMinor, 1, item.quantity),
+    currency,
+  );
 }
 
 export function buildOrderReceiptEmail(receipt: OrderReceipt) {

@@ -119,7 +119,7 @@ for (const theme of ["light", "dark"]) {
     await cancellation.getByRole("button", { name: "Keep Order", exact: true }).click();
     await page.goto(`${fixtureUrl}?view=confirmation`);
     await expectGreen(page.getByRole("link", { name: "View your orders", exact: true }));
-    await expectWhite(page.getByRole("link", { name: "Download receipt", exact: true }));
+    await expectWhite(page.getByRole("button", { name: "Download receipt", exact: true }));
     await page.goto(`${fixtureUrl}?view=account-order`);
     await page.getByRole("button", { name: "Add", exact: true }).first().click();
     await page.getByRole("button", { name: "View Cart", exact: true }).click();
