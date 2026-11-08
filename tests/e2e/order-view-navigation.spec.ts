@@ -107,6 +107,11 @@ test.describe("ordering view navigation", () => {
       await page.goto(menuUrl!);
       await page.getByRole("button", { name: "Customize", exact: true }).first().click();
       const customization = page.getByRole("dialog", { name: "Customize item" });
+      await expect(customization.getByRole("button", { name: /Back to (menu|cart)/i })).toHaveCount(0);
+      await customization.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(customization).toHaveCount(0);
+      await expect(page.getByRole("navigation", { name: "Menu categories" })).toBeVisible();
+      await page.getByRole("button", { name: "Customize", exact: true }).first().click();
       await customization.getByRole("checkbox").first().check();
       await back(page);
       await expect(customization).toHaveCount(0);
@@ -116,7 +121,15 @@ test.describe("ordering view navigation", () => {
       await customization.getByRole("button", { name: "Add to Cart", exact: true }).click();
       await expect(customization).toHaveCount(0);
       await page.getByRole("button", { name: "View Cart", exact: true }).click();
-      await expect(page.getByRole("dialog", { name: "Your cart" })).toContainText("1 item(s)");
+      const cart = page.getByRole("dialog", { name: "Your cart" });
+      await expect(cart).toContainText("1 item(s)");
+      await cart.getByRole("button", { name: "Edit", exact: true }).click();
+      const edit = page.getByRole("dialog", { name: "Edit customization" });
+      await expect(edit.getByRole("button", { name: /Back to (menu|cart)/i })).toHaveCount(0);
+      await expect(edit.getByRole("checkbox").first()).toBeChecked();
+      await edit.getByRole("button", { name: "Close", exact: true }).click();
+      await expect(edit).toHaveCount(0);
+      await expect(cart).toContainText("1 item(s)");
       await expect(page.locator('[data-slot="route-transition-overlay"]')).toHaveCount(0);
     });
 
