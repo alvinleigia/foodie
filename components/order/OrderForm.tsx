@@ -2953,7 +2953,7 @@ export function OrderForm({
                         ? `sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                             isCategoryBarStuck ? "-mx-6 bg-white/95 px-6 shadow-md" : "bg-white"
                           }`
-                        : `sticky top-0 z-20 -mx-4 overflow-x-auto border-b border-stone-200 bg-white px-4 pb-4 transition-shadow ${
+                        : `customer-category-navigation sticky top-0 z-20 overflow-x-auto border-b border-stone-200 bg-white px-1 pt-1 pb-3 transition-shadow ${
                             isCategoryBarStuck ? "shadow-sm" : ""
                           }`}
                     >

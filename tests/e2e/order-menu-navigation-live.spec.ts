@@ -17,6 +17,17 @@ test.describe("customer menu category navigation", () => {
       const categories = page.locator('section[id^="menu-category-"]');
       const buttons = navigation.getByRole("button");
       await expect(navigation).toBeVisible();
+      const scrollbar = await navigation.evaluate((element) => {
+        const bar = getComputedStyle(element, "::-webkit-scrollbar");
+        const track = getComputedStyle(element, "::-webkit-scrollbar-track");
+        const thumb = getComputedStyle(element, "::-webkit-scrollbar-thumb");
+        return { height: bar.height, trackInset: track.marginInlineStart, radius: thumb.borderRadius };
+      });
+      expect(scrollbar).toEqual({ height: "4px", trackInset: "4px", radius: "999px" });
+      const navigationBounds = await navigation.boundingBox();
+      const searchBounds = await page.getByRole("searchbox", { name: "Search menu" }).boundingBox();
+      expect(navigationBounds!.x).toBeGreaterThanOrEqual(searchBounds!.x);
+      expect(navigationBounds!.x + navigationBounds!.width).toBeLessThanOrEqual(searchBounds!.x + searchBounds!.width + 1);
       const categoryCount = await categories.count();
       expect(categoryCount).toBeGreaterThan(2);
       await expect(page.getByText(/Food allergy\? Contact the restaurant/)).toHaveCount(0);
