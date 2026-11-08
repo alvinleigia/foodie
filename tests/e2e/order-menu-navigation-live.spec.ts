@@ -130,6 +130,15 @@ test.describe("customer menu category navigation", () => {
       const rows = page.locator('[data-slot="menu-item-row"]');
       await expect(rows.first()).toBeVisible();
       const moreButtons = page.getByRole("button", { name: /^More about / });
+      await page.evaluate(() => document.fonts.ready);
+      if (viewport.width >= 640 && await moreButtons.count() === 0) {
+        const descriptions = page.locator('[data-slot="menu-item-description"]');
+        await expect(descriptions.first()).toBeVisible();
+        expect(await descriptions.evaluateAll((elements) => elements.every((element) =>
+          element.getBoundingClientRect().height <= Number.parseFloat(getComputedStyle(element).lineHeight) + 1,
+        ))).toBe(true);
+        await page.setViewportSize({ width: 800, height: viewport.height });
+      }
       await expect(moreButtons.first()).toBeVisible();
       const itemName = (await moreButtons.first().getAttribute("aria-label"))!.slice("More about ".length);
       const row = rows.filter({ has: page.getByText(itemName, { exact: true }) });
