@@ -89,12 +89,22 @@ test.describe("customer menu category navigation", () => {
       expect(await page.evaluate(() =>
         document.documentElement.scrollWidth <= window.innerWidth,
       )).toBe(true);
+      const category = page.locator('section[id^="menu-category-"]').first();
+      expect(await category.evaluate((element) => getComputedStyle(element).borderRadius)).toBe("0px");
+      expect(await category.evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe("0px");
+      const categoryTitle = await category.getByRole("heading", { level: 2 }).boundingBox();
+      const categoryCount = await category.getByText(/^\d+ options$/).boundingBox();
+      expect(categoryCount!.x).toBeGreaterThan(categoryTitle!.x + categoryTitle!.width);
       await page.screenshot({ path: test.info().outputPath("restaurant-header.png") });
 
       const item = rows.filter({
         has: page.getByRole("button", { name: "Add", exact: true }),
       }).first();
       const itemName = (await item.locator("p").first().innerText()).trim();
+      const priceBounds = await item.locator('[data-slot="menu-item-price"]').boundingBox();
+      const actionBounds = await item.getByRole("button", { name: "Add", exact: true }).boundingBox();
+      expect(actionBounds!.x).toBeGreaterThan(priceBounds!.x + priceBounds!.width);
+      expect(Math.abs((actionBounds!.y + actionBounds!.height / 2) - (priceBounds!.y + priceBounds!.height / 2))).toBeLessThan(8);
       await item.getByRole("button", { name: "Add", exact: true }).click();
       await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
 
@@ -112,6 +122,82 @@ test.describe("customer menu category navigation", () => {
       await expect(rows).toHaveCount(initialCount);
       await expect(page.getByRole("navigation", { name: "Menu categories" })).toBeVisible();
       await expect(rows.filter({ hasText: itemName }).first()).toContainText("In cart");
+    });
+
+    test(`keeps More inline and expands descriptions at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto(menuUrl!);
+      const rows = page.locator('[data-slot="menu-item-row"]');
+      await expect(rows.first()).toBeVisible();
+      const moreButtons = page.getByRole("button", { name: /^More about / });
+      await expect(moreButtons.first()).toBeVisible();
+      const itemName = (await moreButtons.first().getAttribute("aria-label"))!.slice("More about ".length);
+      const row = rows.filter({ has: page.getByText(itemName, { exact: true }) });
+      const description = row.locator('[data-slot="menu-item-description"]');
+      const more = row.getByRole("button", { name: /^More about / });
+
+      async function checkInlinePosition() {
+        await expect(more).toHaveAttribute("aria-expanded", "false");
+        const metrics = await more.evaluate((button) => {
+          const suffix = button.parentElement!;
+          const ellipsis = document.createRange();
+          ellipsis.setStart(suffix.firstChild!, 0);
+          ellipsis.setEnd(suffix.firstChild!, 1);
+          const ellipsisBounds = ellipsis.getBoundingClientRect();
+          const buttonBounds = button.getBoundingClientRect();
+          const paragraph = suffix.parentElement!;
+          return {
+            gap: buttonBounds.left - ellipsisBounds.right,
+            lineDifference: Math.abs(buttonBounds.top - ellipsisBounds.top),
+            height: paragraph.getBoundingClientRect().height,
+            lineHeight: Number.parseFloat(getComputedStyle(paragraph).lineHeight),
+          };
+        });
+        expect(metrics.gap).toBeGreaterThanOrEqual(0);
+        expect(metrics.gap).toBeLessThan(12);
+        expect(metrics.lineDifference).toBeLessThan(6);
+        expect(metrics.height).toBeLessThanOrEqual(metrics.lineHeight * (page.viewportSize()!.width < 640 ? 2 : 1) + 1);
+      }
+
+      await checkInlinePosition();
+      const collapsedHeight = (await description.boundingBox())!.height;
+      await more.click();
+      const less = row.getByRole("button", { name: /^Less about / });
+      await expect(less).toHaveAttribute("aria-expanded", "true");
+      expect((await description.boundingBox())!.height).toBeGreaterThan(collapsedHeight);
+      await less.click();
+      await checkInlinePosition();
+      await page.setViewportSize({ width: viewport.width < 640 ? 320 : 800, height: viewport.height });
+      await expect.poll(async () => (await description.boundingBox())!.height).toBeLessThanOrEqual(49);
+      await checkInlinePosition();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await row.screenshot({ path: test.info().outputPath("item-description.png") });
+    });
+
+    test(`preserves separate customizations at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto(menuUrl!);
+      const rows = page.locator('[data-slot="menu-item-row"]');
+      await expect(rows.first()).toBeVisible();
+      const customizableRow = rows.filter({ has: page.getByRole("button", { name: "Customize", exact: true }) }).first();
+      await expect(customizableRow).toBeVisible();
+      const itemName = (await customizableRow.locator("p").first().innerText()).trim();
+      const row = rows.filter({ has: page.getByText(itemName, { exact: true }) });
+      await row.getByRole("button", { name: "Customize", exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("checkbox").first().click();
+      await dialog.getByRole("button", { name: "Add to Cart", exact: true }).click();
+      await row.getByRole("button", { name: `Increase ${itemName} quantity`, exact: true }).click();
+      await page.getByRole("button", { name: "Customize separately", exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("checkbox").nth(1).click();
+      await dialog.getByRole("button", { name: "Add to Cart", exact: true }).click();
+      await expect(row.locator('[data-slot="menu-item-variant-count"]')).toContainText("2 variants");
+      await expect(row.getByRole("button", { name: "Add another", exact: true })).toBeVisible();
+      await row.getByRole("button", { name: "Manage variants", exact: true }).click();
+      await expect(page.getByRole("button", { name: "Review Order", exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }
 });

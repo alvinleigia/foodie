@@ -1,4 +1,4 @@
-import { ShieldAlertIcon } from "lucide-react";
+import { CircleAlertIcon, ShieldAlertIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { MenuAllergenDeclarationRecord } from "@/types/menu";
@@ -7,12 +7,14 @@ type AllergenSummaryProps = {
   allergens?: MenuAllergenDeclarationRecord[];
   className?: string;
   tone?: "default" | "light";
+  layout?: "stacked" | "inline";
 };
 
 export function AllergenSummary({
   allergens = [],
   className,
   tone = "default",
+  layout = "stacked",
 }: AllergenSummaryProps) {
   const contains = allergens
     .filter((allergen) => allergen.declaration === "CONTAINS")
@@ -23,6 +25,25 @@ export function AllergenSummary({
 
   if (contains.length === 0 && mayContain.length === 0) {
     return null;
+  }
+
+  if (layout === "inline") {
+    return (
+      <div className={cn("flex flex-wrap gap-x-4 gap-y-1.5 text-xs sm:text-sm", className)}>
+        {contains.length > 0 ? (
+          <p className="flex items-start gap-1.5 text-rose-700">
+            <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>Contains: {contains.join(", ")}</span>
+          </p>
+        ) : null}
+        {mayContain.length > 0 ? (
+          <p className="flex items-start gap-1.5 text-amber-800">
+            <CircleAlertIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            <span>May contain: {mayContain.join(", ")}</span>
+          </p>
+        ) : null}
+      </div>
+    );
   }
 
   return (
