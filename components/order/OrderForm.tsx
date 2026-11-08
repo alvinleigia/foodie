@@ -537,6 +537,13 @@ export function OrderForm({
   const categoryButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const categoryBarRef = useRef<HTMLDivElement | null>(null);
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
+  const reviewHeaderRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (screen === "review") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, [screen]);
 
   useEffect(() => {
     if (!isStaffOrder) return;
@@ -1591,6 +1598,13 @@ export function OrderForm({
           side="right"
           data-customer-storefront={isStaffOrder ? undefined : ""}
           data-theme-static={isStaffOrder ? undefined : ""}
+          onCloseAutoFocus={(event) => {
+            if (screen !== "review") return;
+
+            event.preventDefault();
+            reviewHeaderRef.current?.focus({ preventScroll: true });
+            window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+          }}
         >
           <SheetHeader>
             <SheetTitle>
@@ -2021,7 +2035,7 @@ export function OrderForm({
 
       {screen === "review" ? (
         <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.08)]">
-          <CardHeader className="px-6 pt-6">
+          <CardHeader ref={reviewHeaderRef} tabIndex={-1} className="px-6 pt-6 outline-none">
             <SectionHeader
               eyebrow="Review order"
               title={
