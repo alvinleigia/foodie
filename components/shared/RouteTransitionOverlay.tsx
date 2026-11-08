@@ -41,8 +41,10 @@ export function RouteTransitionOverlay() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isCustomerNavigation, setIsCustomerNavigation] = useState(false);
   const timeoutRef = useRef<number | null>(null);
+  const routeKeyRef = useRef(routeKey);
 
   useEffect(() => {
+    routeKeyRef.current = routeKey;
     if (timeoutRef.current) {
       window.clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -93,6 +95,8 @@ export function RouteTransitionOverlay() {
     }
 
     function handlePopState() {
+      const nextRouteKey = `${window.location.pathname}?${new URLSearchParams(window.location.search).toString()}`;
+      if (nextRouteKey === routeKeyRef.current) return;
       startNavigation(Boolean(document.querySelector("main[data-customer-storefront]")));
     }
 

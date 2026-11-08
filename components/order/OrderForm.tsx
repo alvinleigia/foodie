@@ -68,6 +68,7 @@ import {
 import { FulfilmentTypeSelector } from "@/components/order/FulfilmentTypeSelector";
 import { CustomerRestaurantHeader } from "@/components/order/CustomerRestaurantHeader";
 import { MenuItemDescription } from "@/components/order/MenuItemDescription";
+import { useOrderViewHistory } from "@/components/order/useOrderViewHistory";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { AllergenSummary } from "@/components/shared/AllergenSummary";
 import { MenuSectionSkeleton } from "@/components/shared/SectionSkeletons";
@@ -538,6 +539,22 @@ export function OrderForm({
   const categoryBarRef = useRef<HTMLDivElement | null>(null);
   const categoryBarSentinelRef = useRef<HTMLDivElement | null>(null);
   const reviewHeaderRef = useRef<HTMLDivElement | null>(null);
+
+  useOrderViewHistory({
+    view: quantityPromptItem ? "quantity" : customizer ? "customize" : isCartOpen ? "cart" : screen,
+    snapshot: { screen, isCartOpen, focusedCartDrinkId, customizer, quantityPromptItem },
+    canRestore: (snapshot) => snapshot.screen !== "review" || cartItems.length > 0,
+    restore: (snapshot) => {
+      setScreen(snapshot.screen);
+      setIsCartOpen(snapshot.isCartOpen);
+      setFocusedCartDrinkId(snapshot.focusedCartDrinkId);
+      setCustomizer(snapshot.customizer);
+      setQuantityPromptItem(snapshot.quantityPromptItem);
+      setError(null);
+      setCustomizerError(null);
+      setShowCheckoutErrors(false);
+    },
+  });
 
   useEffect(() => {
     if (screen === "review") {
@@ -1607,6 +1624,9 @@ export function OrderForm({
           }}
         >
           <SheetHeader>
+            <Button type="button" variant="ghost" size="sm" className="mb-2 w-fit" onClick={() => handleCartOpenChange(false)}>
+              <ButtonLabel icon={ArrowLeftIcon}>Back to menu</ButtonLabel>
+            </Button>
             <SheetTitle>
               {isCartProductFocused
                 ? `Manage ${focusedCartItems[0].drinkName}`
@@ -1855,6 +1875,18 @@ export function OrderForm({
           {customizer ? (
             <>
               <DialogHeader className="px-6 pt-6">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mb-2 w-fit"
+                  onClick={() => {
+                    setCustomizer(null);
+                    setCustomizerError(null);
+                  }}
+                >
+                  <ButtonLabel icon={ArrowLeftIcon}>{isCartOpen ? "Back to cart" : "Back to menu"}</ButtonLabel>
+                </Button>
                 <DialogTitle>
                   {customizer.mode === "edit" ? "Edit customization" : "Customize item"}
                 </DialogTitle>
@@ -2036,6 +2068,21 @@ export function OrderForm({
       {screen === "review" ? (
         <Card className="overflow-hidden rounded-xl border-stone-200 bg-white shadow-[0_20px_60px_rgba(15,118,110,0.08)]">
           <CardHeader ref={reviewHeaderRef} tabIndex={-1} className="px-6 pt-6 outline-none">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mb-2 w-fit"
+              disabled={isSubmitting}
+              onClick={() => {
+                setError(null);
+                setShowCheckoutErrors(false);
+                setScreen("menu");
+                setIsCartOpen(true);
+              }}
+            >
+              <ButtonLabel icon={ArrowLeftIcon}>Back to cart</ButtonLabel>
+            </Button>
             <SectionHeader
               eyebrow="Review order"
               title={
