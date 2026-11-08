@@ -138,8 +138,35 @@ test.describe("customer menu category navigation", () => {
       await item.getByRole("button", { name: "Add", exact: true }).click();
       await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
 
+      const selectedItem = rows.filter({ has: page.getByText(itemName, { exact: true }) });
+      await expect(selectedItem).toHaveAttribute("data-selected", "true");
+      const selectedStyle = await selectedItem.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          borders: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+          colors: [style.borderTopColor, style.borderRightColor, style.borderBottomColor, style.borderLeftColor],
+          radius: style.borderRadius,
+          shadow: style.boxShadow,
+          background: style.backgroundColor,
+        };
+      });
+      expect(selectedStyle.borders).toEqual(["1px", "1px", "1px", "1px"]);
+      expect(new Set(selectedStyle.colors).size).toBe(1);
+      expect(selectedStyle.radius).toBe("8px");
+      expect(selectedStyle.shadow).toBe("none");
+      expect(selectedStyle.background).not.toBe("rgb(255, 255, 255)");
+      await expect(selectedItem.locator('[data-slot="menu-item-selected-badge"]')).toHaveClass(/bg-emerald-700/);
+      expect(await selectedItem.locator('[data-slot="menu-item-quantity"]').evaluate((element) =>
+        getComputedStyle(element).backgroundColor,
+      )).toBe("rgb(255, 255, 255)");
+      await selectedItem.screenshot({ path: test.info().outputPath("selected-item.png") });
+      await selectedItem.getByRole("button", { name: `Reduce ${itemName} quantity`, exact: true }).click();
+      await expect(selectedItem).not.toHaveAttribute("data-selected", "true");
+      await selectedItem.getByRole("button", { name: "Add", exact: true }).click();
+
       await search.fill(`  ${itemName.toUpperCase()}  `);
       await expect(rows.first()).toContainText(itemName);
+      await expect(selectedItem).toHaveCSS("border-bottom-width", "1px");
       await expect.poll(() => rows.count()).toBeLessThan(initialCount);
       await expect(page.getByRole("button", { name: "View Cart" })).toBeVisible();
 
