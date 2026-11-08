@@ -81,7 +81,7 @@ export function CustomerOrderUnavailable({
         }
       >
         <CardContent className="px-8 py-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-amber-800 dark:text-amber-400">
+          <p className={`text-sm font-semibold uppercase tracking-[0.28em] ${user ? "text-amber-800 dark:text-amber-400" : "text-teal-700"}`}>
             {eyebrow}
           </p>
           <h1 className={`mt-4 text-4xl font-bold tracking-tight ${user ? "text-foreground" : "text-stone-950"}`}>

@@ -1624,9 +1624,6 @@ export function OrderForm({
           }}
         >
           <SheetHeader>
-            <Button type="button" variant="ghost" size="sm" className="mb-2 w-fit" onClick={() => handleCartOpenChange(false)}>
-              <ButtonLabel icon={ArrowLeftIcon}>Back to menu</ButtonLabel>
-            </Button>
             <SheetTitle>
               {isCartProductFocused
                 ? `Manage ${focusedCartItems[0].drinkName}`
@@ -2085,6 +2082,7 @@ export function OrderForm({
             </Button>
             <SectionHeader
               eyebrow="Review order"
+              tone={isStaffOrder ? "themed" : "customer"}
               title={
                 openDineInOrder
                   ? `Add items to check #${openDineInOrder.orderNo}`

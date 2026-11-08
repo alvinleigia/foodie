@@ -71,7 +71,8 @@ test.describe("ordering view navigation", () => {
       await cart.getByRole("button", { name: "Review Order", exact: true }).click();
       await page.getByRole("button", { name: "Back to cart", exact: true }).click();
       await expect(cart).toBeVisible();
-      await cart.getByRole("button", { name: "Back to menu", exact: true }).click();
+      await expect(cart.getByRole("button", { name: "Back to menu", exact: true })).toHaveCount(0);
+      await cart.getByRole("button", { name: "Close", exact: true }).click();
       await expect(cart).toHaveCount(0);
       await forward(page);
       await expect(cart).toBeVisible();
@@ -91,7 +92,7 @@ test.describe("ordering view navigation", () => {
       const url = page.url();
       const cart = page.getByRole("dialog", { name: "Your cart" });
       await page.getByRole("button", { name: "View Cart", exact: true }).click();
-      await cart.getByRole("button", { name: "Back to menu", exact: true }).click();
+      await cart.getByRole("button", { name: "Close", exact: true }).click();
       await expect(cart).toHaveCount(0);
       await page.getByRole("button", { name: "View Cart", exact: true }).click();
       await expect(cart).toBeVisible();

@@ -88,7 +88,7 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
             title="Your profile"
             meta={<p className="text-sm text-muted-foreground">Keep your contact details current for order fulfilment.</p>}
             className="mb-0"
-            tone="themed"
+            tone="customer"
           />
         </CardHeader>
         <CardContent className="px-6 pb-6">
@@ -120,7 +120,7 @@ export default async function CustomerAccountPage(props: PageProps<"/account">) 
               </p>
             }
             className="mb-0"
-            tone="themed"
+            tone="customer"
           />
         </CardHeader>
         <CardContent className="px-6 pb-6">

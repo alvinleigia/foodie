@@ -46,7 +46,7 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
             key={option.value}
             aria-pressed={isSelected}
             className={cn(
-              "flex flex-col items-center justify-center rounded-md text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2",
+              "flex flex-col items-center justify-center rounded-md text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               compact ? "min-h-12 gap-1 px-2 py-1.5 focus-visible:ring-offset-stone-950" : "min-h-16 gap-1.5 px-3 py-2 focus-visible:ring-offset-background",
               compact && isSelected && "bg-white text-stone-950 shadow-sm",
               compact && !isSelected && "text-stone-400 hover:bg-white/10 hover:text-white",
