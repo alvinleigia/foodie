@@ -83,6 +83,23 @@ test.describe("customer menu category navigation", () => {
       expect(bannerBounds).not.toBeNull();
       expect(searchBounds).not.toBeNull();
       expect(Math.abs(bannerBounds!.x - searchBounds!.x)).toBeLessThan(2);
+      const location = page.locator('[data-slot="restaurant-location"]');
+      const fulfilment = page.locator('[data-slot="restaurant-fulfilment"]');
+      await expect(location).toBeVisible();
+      await expect(fulfilment).toBeVisible();
+      const locationBounds = await location.boundingBox();
+      const fulfilmentBounds = await fulfilment.boundingBox();
+      expect(Math.abs(locationBounds!.y - fulfilmentBounds!.y)).toBeLessThan(2);
+      const metadataStyles = await page.locator('[data-slot="restaurant-meta"]').evaluate((element) =>
+        [...element.querySelectorAll("p")].map((item) => ({
+          fontSize: getComputedStyle(item).fontSize,
+          color: getComputedStyle(item).color,
+          iconSize: item.querySelector("svg")!.getBoundingClientRect().width,
+        })),
+      );
+      expect(metadataStyles[0]).toEqual(metadataStyles[1]);
+      expect(metadataStyles[0].fontSize).toBe("14px");
+      expect(metadataStyles[0].iconSize).toBe(16);
       const navigationBounds = await page.getByRole("navigation", { name: "Menu categories" }).boundingBox();
       expect(navigationBounds).not.toBeNull();
       expect(navigationBounds!.y - searchBounds!.y - searchBounds!.height).toBeLessThan(32);
@@ -101,6 +118,8 @@ test.describe("customer menu category navigation", () => {
         has: page.getByRole("button", { name: "Add", exact: true }),
       }).first();
       const itemName = (await item.locator("p").first().innerText()).trim();
+      await expect(item.locator('[data-slot="menu-item-price"]')).not.toContainText("GBP");
+      await expect(item.locator('[data-slot="menu-item-price"]')).toContainText(/[^\d\s.,]/);
       const priceBounds = await item.locator('[data-slot="menu-item-price"]').boundingBox();
       const actionBounds = await item.getByRole("button", { name: "Add", exact: true }).boundingBox();
       expect(actionBounds!.x).toBeGreaterThan(priceBounds!.x + priceBounds!.width);

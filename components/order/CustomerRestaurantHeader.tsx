@@ -26,7 +26,7 @@ export function CustomerRestaurantHeader({
           className="object-cover"
         />
       </div>
-      <div className="flex items-start gap-3 pt-5">
+      <div className="flex items-center gap-3 pt-5">
         <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-lg border border-teal-100 bg-teal-50 text-teal-700">
           {restaurant?.logoUrl ? (
             <Image
@@ -39,24 +39,26 @@ export function CustomerRestaurantHeader({
             />
           ) : <StoreIcon className="size-6" aria-hidden="true" />}
         </span>
-        <div className="min-w-0 space-y-1.5">
+        <div className="min-w-0">
           <h1 className="break-words text-2xl font-bold text-stone-950 sm:text-3xl">
             {restaurant?.name ?? "Menu"}
           </h1>
-          {label && label.toLocaleLowerCase() !== restaurant?.name.trim().toLocaleLowerCase() ? (
-            <p className="flex items-center gap-1.5 text-xs text-stone-500 sm:text-sm">
-              <MapPinIcon className="size-3.5 shrink-0" aria-hidden="true" />
-              <span>{label}</span>
-            </p>
-          ) : null}
         </div>
       </div>
-      {fulfilmentTypes.length > 0 ? (
-        <p className="mt-4 flex items-start gap-2 text-xs text-stone-500 sm:text-sm">
-          <UtensilsCrossedIcon className="mt-0.5 size-3.5 shrink-0 text-teal-700" aria-hidden="true" />
-          <span>{fulfilmentTypes.map(getOrderFulfilmentLabel).join(" · ")}</span>
-        </p>
-      ) : null}
+      <div data-slot="restaurant-meta" className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-teal-700 [&_svg]:size-4 [&_svg]:shrink-0">
+        {label && label.toLocaleLowerCase() !== restaurant?.name.trim().toLocaleLowerCase() ? (
+          <p data-slot="restaurant-location" className="inline-flex items-center gap-1.5">
+            <MapPinIcon aria-hidden="true" />
+            <span>{label}</span>
+          </p>
+        ) : null}
+        {fulfilmentTypes.length > 0 ? (
+          <p data-slot="restaurant-fulfilment" className="inline-flex items-center gap-1.5">
+            <UtensilsCrossedIcon aria-hidden="true" />
+            <span>{fulfilmentTypes.map(getOrderFulfilmentLabel).join(" · ")}</span>
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

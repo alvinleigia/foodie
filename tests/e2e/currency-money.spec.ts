@@ -34,6 +34,17 @@ test.describe("currency monetary rounding", () => {
     expect(multiplyAndRoundMinorUnits(-5, 1, 10)).toBe(-1);
   });
 
+  test("formats the configured currency as a symbol without changing rounding", () => {
+    expect(formatPrice("10.005", { currency: "GBP", currencyDisplay: "symbol" })).toBe("\u00a310.01");
+    expect(formatPrice("6", { currency: "EUR", currencyDisplay: "symbol" })).toBe("\u20ac6.00");
+    expect(formatPrice("6", { currency: "INR", currencyDisplay: "symbol" })).toBe("\u20b96.00");
+    expect(formatPrice("500.5", { currency: "JPY", currencyDisplay: "symbol" })).toBe("JP\u00a5501");
+    expect(formatPrice("1.2345", { currency: "KWD", currencyDisplay: "symbol" })).toContain("1.235");
+    expect(formatPrice(null, { currency: "GBP", currencyDisplay: "symbol" })).toBe("Price on request");
+    expect(formatPrice("invalid", { currency: "GBP", currencyDisplay: "symbol" })).toBe("Price on request");
+    expect(formatPrice("6", { currency: "GBP" })).toBe("GBP 6.00");
+  });
+
   test("uses the shared rule for basis-point amounts", () => {
     expect(calculateBasisPointsAmount(5, 1_000)).toBe(1);
     expect(calculateBasisPointsAmount(999, 1_250)).toBe(125);

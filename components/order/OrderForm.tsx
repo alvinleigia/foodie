@@ -354,9 +354,9 @@ function getCartItemLineTotal(item: CartItem) {
   return unitTotal === null ? null : unitTotal * item.quantity;
 }
 
-function formatCartItemLineTotal(item: CartItem, currency: string) {
+function formatCartItemLineTotal(item: CartItem, options: Parameters<typeof formatPrice>[1]) {
   const lineTotal = getCartItemLineTotal(item);
-  return lineTotal === null ? "-" : formatPrice(lineTotal, { currency });
+  return lineTotal === null ? "-" : formatPrice(lineTotal, options);
 }
 
 function getModifierSelection(
@@ -474,6 +474,7 @@ export function OrderForm({
   const [currency, setCurrency] = useState(
     initialMenuData?.currency ?? DEFAULT_CURRENCY,
   );
+  const priceOptions = { currency, currencyDisplay: isStaffOrder ? "code" : "symbol" } as const;
   const configuredCountryCode = initialMenuData?.countryCode ?? "";
   const initialOperatingCountryCode: CountryCode = isSupportedCountryCode(
     configuredCountryCode,
@@ -1677,7 +1678,7 @@ export function OrderForm({
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-stone-500">Base item</span>
                           <span className="font-medium text-stone-900">
-                            {formatPrice(item.unitPrice, { currency })}
+                            {formatPrice(item.unitPrice, priceOptions)}
                           </span>
                         </div>
                         {item.modifierSelections.length > 0 ? (
@@ -1685,20 +1686,20 @@ export function OrderForm({
                             <span className="text-stone-500">Add-ons</span>
                             <span className="font-medium text-stone-900">
                               {modifierUnitTotal > 0
-                                ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                ? `+ ${formatPrice(modifierUnitTotal, priceOptions)}`
                                 : "Included"}
                             </span>
                           </div>
                         ) : null}
                         <div className="flex items-center justify-between gap-3 border-t border-stone-200 pt-2 font-semibold text-stone-950">
                           <span>Item total</span>
-                          <span>{formatPrice(itemUnitTotal, { currency })}</span>
+                          <span>{formatPrice(itemUnitTotal, priceOptions)}</span>
                         </div>
                         {item.quantity > 1 ? (
                           <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
                             <span>Line total for {item.quantity} item(s)</span>
                             <span className="font-semibold text-stone-900">
-                              {formatCartItemLineTotal(item, currency)}
+                              {formatCartItemLineTotal(item, priceOptions)}
                             </span>
                           </div>
                         ) : null}
@@ -1765,7 +1766,7 @@ export function OrderForm({
                                   </span>
                                   <span className="text-xs font-semibold text-stone-600">
                                     {Number(modifier.priceDelta) > 0
-                                      ? `+ ${formatPrice(modifier.priceDelta, { currency })}`
+                                      ? `+ ${formatPrice(modifier.priceDelta, priceOptions)}`
                                       : "Included"}
                                   </span>
                                 </div>
@@ -1805,7 +1806,7 @@ export function OrderForm({
                   {totalQuantity} item(s)
                 </p>
                 <p className="text-base font-semibold text-stone-950">
-                  {formatPrice(totalAmount, { currency })}
+                  {formatPrice(totalAmount, priceOptions)}
                 </p>
               </div>
               <Button
@@ -1860,7 +1861,7 @@ export function OrderForm({
                       <div className="flex items-center justify-between gap-3">
                         <span>Base item</span>
                         <span className="font-medium text-stone-900">
-                          {formatPrice(customizer.item.unitPrice, { currency })}
+                          {formatPrice(customizer.item.unitPrice, priceOptions)}
                         </span>
                       </div>
                       {customizer.item.modifierSelections.length > 0 ? (
@@ -1868,16 +1869,14 @@ export function OrderForm({
                           <span>Add-ons</span>
                           <span className="font-medium text-stone-900">
                             {getCartItemModifierUnitTotal(customizer.item) > 0
-                              ? `+ ${formatPrice(getCartItemModifierUnitTotal(customizer.item), {
-                                  currency,
-                                })}`
+                              ? `+ ${formatPrice(getCartItemModifierUnitTotal(customizer.item), priceOptions)}`
                               : "Included"}
                           </span>
                         </div>
                       ) : null}
                       <div className="mt-2 flex items-center justify-between gap-3 border-t border-stone-200 pt-2 text-sm font-semibold text-stone-950">
                         <span>Item total</span>
-                        <span>{formatPrice(getCartItemUnitTotal(customizer.item), { currency })}</span>
+                        <span>{formatPrice(getCartItemUnitTotal(customizer.item), priceOptions)}</span>
                       </div>
                     </div>
                   </div>
@@ -1922,7 +1921,7 @@ export function OrderForm({
                             </span>
                             <span className="text-xs font-semibold text-stone-600">
                               {Number(option.priceDelta) > 0
-                                ? `+ ${formatPrice(option.priceDelta, { currency })}`
+                                ? `+ ${formatPrice(option.priceDelta, priceOptions)}`
                                 : "Included"}
                             </span>
                           </label>
@@ -2603,7 +2602,7 @@ export function OrderForm({
                           <p>
                             Base item:{" "}
                             <span className="font-medium text-stone-700">
-                              {formatPrice(item.unitPrice, { currency })}
+                              {formatPrice(item.unitPrice, priceOptions)}
                             </span>
                           </p>
                           {item.modifierSelections.length > 0 ? (
@@ -2611,7 +2610,7 @@ export function OrderForm({
                               Add-ons:{" "}
                               <span className="font-medium text-stone-700">
                                 {modifierUnitTotal > 0
-                                  ? `+ ${formatPrice(modifierUnitTotal, { currency })}`
+                                  ? `+ ${formatPrice(modifierUnitTotal, priceOptions)}`
                                   : "Included"}
                               </span>
                             </p>
@@ -2619,7 +2618,7 @@ export function OrderForm({
                           <p>
                             Item total:{" "}
                             <span className="font-medium text-stone-700">
-                              {formatPrice(itemUnitTotal, { currency })}
+                              {formatPrice(itemUnitTotal, priceOptions)}
                             </span>{" "}
                             each
                           </p>
@@ -2633,7 +2632,7 @@ export function OrderForm({
                               >
                                 {modifier.groupName}: {modifier.modifierName}
                                 {Number(modifier.priceDelta) > 0
-                                  ? ` + ${formatPrice(modifier.priceDelta, { currency })}`
+                                  ? ` + ${formatPrice(modifier.priceDelta, priceOptions)}`
                                   : ""}
                               </p>
                             ))}
@@ -2644,7 +2643,7 @@ export function OrderForm({
                         ) : null}
                       </div>
                       <p className="font-medium text-stone-900">
-                        {formatCartItemLineTotal(item, currency)}
+                        {formatCartItemLineTotal(item, priceOptions)}
                       </p>
                     </div>
                   );
@@ -2692,7 +2691,7 @@ export function OrderForm({
                     {taxPricing.pricingMode === "EXCLUSIVE" ? (
                       <div className="flex items-center justify-between gap-4 text-stone-600">
                         <span>Subtotal</span>
-                        <span>{formatPrice(cartPricing.listedSubtotal, { currency })}</span>
+                        <span>{formatPrice(cartPricing.listedSubtotal, priceOptions)}</span>
                       </div>
                     ) : null}
                     {cartPricing.taxComponents.map((component) => (
@@ -2711,7 +2710,7 @@ export function OrderForm({
                             ? `Includes ${formatCartTaxLabel(component)}`
                             : formatCartTaxLabel(component)}
                         </span>
-                        <span>{formatPrice(component.taxAmount, { currency })}</span>
+                        <span>{formatPrice(component.taxAmount, priceOptions)}</span>
                       </div>
                     ))}
                   </>
@@ -2722,7 +2721,7 @@ export function OrderForm({
                     <span>
                       {formatPrice(
                         minorUnitsToDecimal(serviceChargeAmountMinor, currency),
-                        { currency },
+                        priceOptions,
                       )}
                     </span>
                   </div>
@@ -2731,15 +2730,13 @@ export function OrderForm({
                   <div className="flex items-center justify-between gap-4 text-stone-600">
                     <span>Tip</span>
                     <span>
-                      {formatPrice(minorUnitsToDecimal(tipAmountMinor, currency), {
-                        currency,
-                      })}
+                      {formatPrice(minorUnitsToDecimal(tipAmountMinor, currency), priceOptions)}
                     </span>
                   </div>
                 ) : null}
                 <div className="flex items-center justify-between gap-4 border-t border-stone-100 pt-3 font-semibold text-stone-950">
                   <span>To Pay</span>
-                  <span>{formatPrice(totalAmount, { currency })}</span>
+                  <span>{formatPrice(totalAmount, priceOptions)}</span>
                 </div>
               </div>
             </aside>
@@ -3078,8 +3075,7 @@ export function OrderForm({
                               : drink.isUnavailableDueToStock
                                 ? "Out of stock"
                                 : null;
-                            const formattedItemPrice = formatPrice(drink.price ?? null, { currency });
-                            const hasFormattedAmount = formattedItemPrice.startsWith(`${currency} `);
+                            const formattedItemPrice = formatPrice(drink.price ?? null, priceOptions);
 
                             return (
                               <div
@@ -3184,10 +3180,7 @@ export function OrderForm({
                                     : "col-start-2 flex min-w-0 flex-wrap items-center justify-between gap-3"}
                                 >
                                   {!isStaffOrder ? (
-                                    <p data-slot="menu-item-price" className="inline-flex items-baseline gap-2 text-base font-semibold text-stone-950">
-                                      {hasFormattedAmount ? <span className="text-xs font-normal text-stone-500">{currency}</span> : null}
-                                      {hasFormattedAmount ? formattedItemPrice.slice(currency.length + 1) : formattedItemPrice}
-                                    </p>
+                                    <p data-slot="menu-item-price" className="text-base font-semibold text-stone-950">{formattedItemPrice}</p>
                                   ) : null}
                                   <div className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
                                   {hasModifiers && configurationCount > 1 ? (
@@ -3362,7 +3355,7 @@ export function OrderForm({
                 {cartItems[0].drinkName}
                 {cartItems.length > 1 ? ` + ${cartItems.length - 1} more` : ""}
                 {" - "}
-                {formatPrice(totalAmount, { currency })}
+                {formatPrice(totalAmount, priceOptions)}
               </p>
             </div>
             <Button
