@@ -3081,12 +3081,17 @@ export function OrderForm({
                               <div
                                 key={drink.id}
                                 data-slot="menu-item-row"
-                                className={`grid items-start border-b border-stone-100 last:border-b-0 ${
+                                data-selected={hasSelectedItem ? "true" : undefined}
+                                className={`grid items-start ${
+                                  !isStaffOrder && hasSelectedItem
+                                    ? "rounded-lg border border-emerald-500 bg-emerald-50 px-3"
+                                    : "border-b border-stone-100 last:border-b-0"
+                                } ${
                                   isStaffOrder
                                     ? "grid-cols-[80px_minmax(0,1fr)] gap-3 pb-4 sm:grid-cols-[104px_minmax(0,1fr)_auto] sm:items-center sm:gap-4"
                                     : "grid-cols-[72px_minmax(0,1fr)] gap-x-4 gap-y-3 py-6 sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-x-6"
                                 } ${
-                                  hasSelectedItem
+                                  isStaffOrder && hasSelectedItem
                                     ? "rounded-lg border-l-4 border-teal-500 bg-teal-50 p-3 shadow-sm ring-1 ring-teal-200"
                                     : ""
                                 }`}
@@ -3112,7 +3117,12 @@ export function OrderForm({
                                       {drink.name}
                                     </p>
                                     {hasSelectedItem ? (
-                                      <span className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-sm">
+                                      <span
+                                        data-slot="menu-item-selected-badge"
+                                        className={isStaffOrder
+                                          ? "inline-flex items-center gap-1 rounded-md bg-teal-600 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white shadow-sm"
+                                          : "inline-flex items-center gap-1 rounded-md bg-emerald-700 px-2 py-1 text-[11px] font-semibold uppercase text-white"}
+                                      >
                                         <CheckIcon className="size-3" />
                                         In cart · {selectedQuantity}
                                       </span>
@@ -3224,7 +3234,12 @@ export function OrderForm({
                                       </div>
                                     </div>
                                   ) : hasModifiers && latestCartItem ? (
-                                    <div className="inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                                    <div
+                                      data-slot="menu-item-quantity"
+                                      className={isStaffOrder
+                                        ? "inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm"
+                                        : "inline-flex items-center overflow-hidden rounded-lg border border-emerald-300 bg-white"}
+                                    >
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -3274,7 +3289,12 @@ export function OrderForm({
                                           : "Customize"}
                                     </Button>
                                   ) : cartItem ? (
-                                    <div className="inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm">
+                                    <div
+                                      data-slot="menu-item-quantity"
+                                      className={isStaffOrder
+                                        ? "inline-flex items-center overflow-hidden rounded-lg border border-emerald-200 bg-white shadow-sm"
+                                        : "inline-flex items-center overflow-hidden rounded-lg border border-emerald-300 bg-white"}
+                                    >
                                       <Button
                                         type="button"
                                         variant="ghost"
