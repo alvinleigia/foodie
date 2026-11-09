@@ -1027,6 +1027,7 @@ export async function getCustomerRestaurantIdentity(
     .select({
       name: organizations.name,
       logoUrl: organizations.logoUrl,
+      featuredImageUrl: organizations.featuredImageUrl,
       orderingPointLabel: orderingPoints.label,
     })
     .from(organizations)

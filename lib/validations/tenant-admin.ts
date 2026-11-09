@@ -51,6 +51,16 @@ export const organizationSettingsSchema = z.object({
     .optional()
     .or(z.literal(""))
     .transform((value) => value || null),
+  featuredImageUrl: z
+    .string()
+    .trim()
+    .max(2048, "Featured image URL is too long")
+    .refine(
+      (value) => value === "" || z.url({ protocol: /^https?$/ }).safeParse(value).success,
+      "Featured image must be a valid HTTP or HTTPS URL",
+    )
+    .optional()
+    .transform((value) => value || null),
   timezone: timezoneSchema,
   currency: currencySchema,
   customerCancellationFeePercent: cancellationFeePercentSchema,

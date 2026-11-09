@@ -1,8 +1,13 @@
+"use client";
+
 import Image from "next/image";
+import { useState } from "react";
 import { MapPinIcon, StoreIcon, UtensilsCrossedIcon } from "lucide-react";
 
 import { getOrderFulfilmentLabel, type OrderFulfilmentType } from "@/lib/order-fulfilment";
 import type { CustomerRestaurantIdentity } from "@/types/menu";
+
+const defaultFeaturedImage = "/images/customer-restaurant-banner.jpg";
 
 export function CustomerRestaurantHeader({
   restaurant,
@@ -12,17 +17,24 @@ export function CustomerRestaurantHeader({
   fulfilmentTypes: OrderFulfilmentType[];
 }) {
   const label = restaurant?.orderingPointLabel?.trim();
+  const featuredImage = restaurant?.featuredImageUrl?.trim() || defaultFeaturedImage;
+  const [failedImage, setFailedImage] = useState<string | null>(null);
+  const imageSrc = failedImage === featuredImage ? defaultFeaturedImage : featuredImage;
 
   return (
     <div>
       <div className="relative h-36 overflow-hidden rounded-xl bg-stone-100 sm:h-52">
         <Image
-          src="/images/customer-restaurant-banner.jpg"
+          key={imageSrc}
+          data-slot="restaurant-featured-image"
+          src={imageSrc}
           alt=""
           fill
           sizes="(max-width: 1200px) 100vw, 1152px"
           loading="eager"
           fetchPriority="high"
+          unoptimized={imageSrc !== defaultFeaturedImage}
+          onError={() => setFailedImage(imageSrc)}
           className="object-cover"
         />
       </div>
