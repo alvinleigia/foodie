@@ -122,6 +122,7 @@ export async function updateOrganizationSettings(
         slug,
         name: parsed.name,
         logoUrl: parsed.logoUrl,
+        featuredImageUrl: parsed.featuredImageUrl,
         timezone: parsed.timezone,
         currency: parsed.currency.toUpperCase(),
         customerCancellationFeeBps: Math.round(

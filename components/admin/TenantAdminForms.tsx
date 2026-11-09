@@ -39,6 +39,7 @@ const staffRoles: StaffRole[] = ["RESTAURANT_MANAGER", "ORDER_OPERATOR"];
 type RestaurantSettings = {
   name: string;
   logoUrl: string | null;
+  featuredImageUrl: string | null;
   timezone: string;
   currency: string;
   customerCancellationFeeBps: number;
@@ -63,6 +64,7 @@ type TenantRestaurantField =
   | "currency"
   | "customerCancellationFeePercent"
   | "logoUrl"
+  | "featuredImageUrl"
   | "name"
   | "timezone";
 type TenantOrderingPointField = "isActive" | "label" | "name" | "qrSlug";
@@ -145,6 +147,7 @@ export function TenantRestaurantSettingsForm({
   const [draft, setDraft] = useState({
     name: organization.name,
     logoUrl: organization.logoUrl ?? "",
+    featuredImageUrl: organization.featuredImageUrl ?? "",
     timezone: organization.timezone,
     currency: organization.currency,
     customerCancellationFeePercent:
@@ -220,6 +223,25 @@ export function TenantRestaurantSettingsForm({
               onChange={(event) => {
                 validation.clearFieldError("logoUrl");
                 setDraft((current) => ({ ...current, logoUrl: event.target.value }));
+              }}
+            />
+          </FormField>
+          <FormField
+            label="Featured image URL"
+            description="Leave blank to use the default restaurant image."
+            error={validation.getError("featuredImageUrl")}
+            errorId="tenant-restaurant-featured-image-error"
+          >
+            <Input
+              type="url"
+              value={draft.featuredImageUrl}
+              aria-describedby={
+                validation.getError("featuredImageUrl") ? "tenant-restaurant-featured-image-error" : undefined
+              }
+              aria-invalid={Boolean(validation.getError("featuredImageUrl"))}
+              onChange={(event) => {
+                validation.clearFieldError("featuredImageUrl");
+                setDraft((current) => ({ ...current, featuredImageUrl: event.target.value }));
               }}
             />
           </FormField>

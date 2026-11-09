@@ -400,6 +400,7 @@ export const organizations = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     logoUrl: text("logo_url"),
+    featuredImageUrl: text("featured_image_url"),
     timezone: text("timezone").notNull(),
     currency: text("currency").notNull(),
     customerCancellationFeeBps: integer("customer_cancellation_fee_bps")

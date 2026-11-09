@@ -36,6 +36,7 @@ export async function PATCH(request: NextRequest) {
       metadata: {
         name: organization.name,
         logoUrl: organization.logoUrl,
+        featuredImageUrl: organization.featuredImageUrl,
         timezone: organization.timezone,
         currency: organization.currency,
         customerCancellationFeeBps:

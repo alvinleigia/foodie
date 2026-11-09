@@ -98,7 +98,7 @@ test.describe("customer menu category navigation", () => {
       const initialCount = await rows.count();
       const heading = page.getByRole("heading", { level: 1 });
       await expect(heading).not.toHaveText("Menu");
-      const banner = page.locator('img[src*="customer-restaurant-banner"]');
+      const banner = page.locator('[data-slot="restaurant-featured-image"]');
       await expect(banner).toBeVisible();
       await expect.poll(() => banner.evaluate((image) =>
         image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,

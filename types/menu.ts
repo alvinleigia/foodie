@@ -3,6 +3,7 @@ import type { OrderFulfilmentType } from "@/lib/order-fulfilment";
 export type CustomerRestaurantIdentity = {
   name: string;
   logoUrl: string | null;
+  featuredImageUrl: string | null;
   orderingPointLabel: string | null;
 };
 
