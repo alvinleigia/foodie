@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { KeyRoundIcon, UserCheckIcon, UserPenIcon } from "lucide-react";
+import { useState } from "react";
+import { KeyRoundIcon, Trash2Icon, UserCheckIcon, UserPenIcon } from "lucide-react";
+
+import { DeleteUserAccountDialog, type AccountDeletionTarget } from "@/components/admin/DeleteUserAccountDialog";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { StatusPill } from "@/components/shared/StatusPill";
@@ -30,6 +35,7 @@ type PlatformUserMembership = {
 };
 
 type PlatformUserMembershipsPanelProps = {
+  currentUserId: string;
   users: PlatformUserMembership[];
 };
 
@@ -44,8 +50,12 @@ function getScopeLabel(membership: UserMembership) {
 }
 
 export function PlatformUserMembershipsPanel({
+  currentUserId,
   users,
 }: PlatformUserMembershipsPanelProps) {
+  const [deleteTarget, setDeleteTarget] = useState<AccountDeletionTarget | null>(null);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const visibleUsers = users.filter((user) => !deletedIds.includes(user.userId));
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
@@ -64,13 +74,13 @@ export function PlatformUserMembershipsPanel({
         </Button>
       </CardHeader>
       <CardContent className="grid gap-4 px-5 pb-5">
-        {users.length === 0 ? (
+        {visibleUsers.length === 0 ? (
           <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
             No user memberships found yet.
           </p>
         ) : null}
 
-        {users.map((user) => (
+        {visibleUsers.map((user) => (
           <div
             key={user.userId}
             className="rounded-lg border border-stone-200 bg-stone-50 p-4"
@@ -89,10 +99,17 @@ export function PlatformUserMembershipsPanel({
                   {user.username} - {user.email}
                 </p>
               </div>
+              <div className="flex flex-wrap items-center gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
                 {user.memberships.length} membership
                 {user.memberships.length === 1 ? "" : "s"}
               </p>
+              <Button variant="outline" size="sm"
+                disabled={user.userId === currentUserId || !user.memberships.length || user.memberships.some((membership) => membership.role === "PLATFORM_ADMIN")}
+                onClick={() => setDeleteTarget({ ...user, membershipId: user.memberships[0].membershipId })}>
+                <ButtonLabel icon={Trash2Icon}>Delete account</ButtonLabel>
+              </Button>
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3">
@@ -155,6 +172,9 @@ export function PlatformUserMembershipsPanel({
           </div>
         ))}
       </CardContent>
+      {deleteTarget ? <DeleteUserAccountDialog target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(id) => setDeletedIds((current) => [...current, id])} /> : null}
     </Card>
   );
 }
