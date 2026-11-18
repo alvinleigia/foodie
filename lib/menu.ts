@@ -3,6 +3,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { drinkCategories } from "@/data/drinks";
 import { getDb } from "@/db";
 import {
+  auditLogs,
   inventoryItems,
   menuAllergens,
   menuCategories,
@@ -38,6 +39,7 @@ import {
   getDefaultPrepStation,
 } from "@/lib/prep-stations";
 import { MenuCategoryRecord } from "@/types/menu";
+import type { StaffPrincipal } from "@/lib/staff-auth";
 import type {
   MenuItemFulfilmentTaxOverride,
   MenuAllergenDeclaration,
@@ -1287,6 +1289,41 @@ export async function createMenuModifierOption(input: {
     .returning();
 
   return createdOption;
+}
+
+export class MenuCategoryNotEmptyError extends Error {
+  constructor() {
+    super("Move all products to another category before deleting this category. Hidden and sold-out products also count.");
+    this.name = "MenuCategoryNotEmptyError";
+  }
+}
+
+export async function deleteMenuCategory(
+  categoryId: string,
+  context: TenantContext,
+  actor: Pick<StaffPrincipal, "id" | "role"> & { username?: string },
+) {
+  return getDb().transaction(async (tx) => {
+    // Prevent concurrent product inserts or moves from being cascaded away.
+    const [category] = await tx.select().from(menuCategories)
+      .where(and(eq(menuCategories.id, categoryId), eq(menuCategories.organizationId, context.organizationId)))
+      .for("update");
+    if (!category) return null;
+    const [item] = await tx.select({ id: menuItems.id }).from(menuItems)
+      .where(eq(menuItems.categoryId, category.id)).limit(1);
+    if (item) throw new MenuCategoryNotEmptyError();
+
+    await tx.insert(auditLogs).values({
+      actorUserId: actor.id, actorUsername: actor.username ?? null, actorRole: actor.role,
+      organizationId: context.organizationId, action: "menu.category.delete",
+      entityType: "menu_category", entityId: category.id,
+      metadata: { name: category.name, slug: category.slug },
+    });
+    await tx.delete(menuCategories).where(and(
+      eq(menuCategories.id, category.id), eq(menuCategories.organizationId, context.organizationId),
+    ));
+    return category;
+  });
 }
 
 export async function createMenuCategory(input: {

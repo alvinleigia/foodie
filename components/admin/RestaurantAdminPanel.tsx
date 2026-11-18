@@ -259,7 +259,7 @@ export function RestaurantAdminPanel({
 
       {view === "staff" && snapshot ? (
             <Card>
-              <CardHeader className="flex flex-row items-start justify-between gap-4 px-5 pt-5">
+              <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-xl font-semibold text-stone-950">Staff users</h3>
                   <p className="mt-1 text-sm text-stone-500">
@@ -276,7 +276,7 @@ export function RestaurantAdminPanel({
                   </Button>
                   <Button asChild variant="outline">
                     <Link href={staffReassignHref}>
-                      <ButtonLabel icon={UserCheckIcon}>Assign existing staff</ButtonLabel>
+                      <ButtonLabel icon={UserCheckIcon}>Reactivate or update staff access</ButtonLabel>
                     </Link>
                   </Button>
                   <Button asChild>

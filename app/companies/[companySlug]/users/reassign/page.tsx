@@ -82,9 +82,10 @@ export default async function CompanyWorkspaceUserReassignPage({
       }}
     >
       <ReassignExistingUserForm
+        scope="company"
         apiPath="/api/company/users/reassign"
         backHref={getSafeReturnTo(query.returnTo, company.slug)}
-        defaultDeactivateExisting
+        defaultDeactivateExisting={getSearchParam(query.deactivateExisting) !== "false"}
         initialCompanyId={company.id}
         initialIdentifier={getSearchParam(query.identifier)}
         initialRestaurantId={initialRestaurantId}

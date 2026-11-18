@@ -1,37 +1,42 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import {
   isRestaurantOpenForCustomerOrders,
+  getRestaurantClosedMessage,
   type RestaurantWorkingHours,
 } from "@/lib/working-hours";
 
 export function RestaurantWorkingHoursWatcher({
   workingHours,
+  orderingOpen,
+  closedMessage,
 }: {
   workingHours: RestaurantWorkingHours;
+  orderingOpen: boolean;
+  closedMessage: string | null;
 }) {
   const router = useRouter();
-  const wasOpen = useRef(
-    isRestaurantOpenForCustomerOrders(workingHours),
-  );
 
   useEffect(() => {
     if (!workingHours.enabled) {
       return;
     }
 
+    let previousStatus = JSON.stringify([orderingOpen, closedMessage]);
     function refreshWhenStatusChanges() {
       const isOpen = isRestaurantOpenForCustomerOrders(workingHours);
+      const status = JSON.stringify([isOpen, getRestaurantClosedMessage(workingHours)]);
 
-      if (isOpen !== wasOpen.current) {
-        wasOpen.current = isOpen;
+      if (status !== previousStatus) {
+        previousStatus = status;
         router.refresh();
       }
     }
 
+    refreshWhenStatusChanges();
     const interval = window.setInterval(refreshWhenStatusChanges, 30_000);
     window.addEventListener("focus", refreshWhenStatusChanges);
     document.addEventListener("visibilitychange", refreshWhenStatusChanges);
@@ -41,7 +46,7 @@ export function RestaurantWorkingHoursWatcher({
       window.removeEventListener("focus", refreshWhenStatusChanges);
       document.removeEventListener("visibilitychange", refreshWhenStatusChanges);
     };
-  }, [router, workingHours]);
+  }, [router, workingHours, orderingOpen, closedMessage]);
 
   return null;
 }

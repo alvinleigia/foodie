@@ -22,6 +22,8 @@ import type { RestaurantChargeSettings } from "@/lib/restaurant-charge-settings"
 import type { CustomerRestaurantIdentity } from "@/types/menu";
 
 type CustomerOrderPageProps = {
+  customerOrderingOpen?: boolean;
+  closedMessage?: string | null;
   customer?: {
     email?: string | null;
     name?: string | null;
@@ -55,6 +57,8 @@ type CustomerOrderPageProps = {
 };
 
 export function CustomerOrderPage({
+  customerOrderingOpen = true,
+  closedMessage,
   customer,
   customerAuthProviders,
   chargeSettings,
@@ -130,6 +134,8 @@ export function CustomerOrderPage({
       )}
 
       <OrderForm
+        customerOrderingOpen={customerOrderingOpen}
+        closedMessage={closedMessage}
         customer={customer}
         customerAuthProviders={customerAuthProviders}
         chargeSettings={chargeSettings}
