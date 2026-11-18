@@ -437,7 +437,7 @@ export function ReassignExistingUserForm({
               />
               <span>
                 <span className="block font-medium text-stone-950">
-                  Disable current active memberships
+                  Disable current active access
                 </span>
                 <span className="mt-1 block text-stone-500">
                   {restaurantScope

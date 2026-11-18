@@ -99,7 +99,7 @@ test.describe("staff assignment scope", () => {
       await page.getByRole("button", { name: "Assign company user", exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/companies/${f.company.slug}/users/reassign\\?`));
       await expect(page.getByRole("combobox").first()).toHaveValue(f.johnny.email);
-      await expect(page.getByRole("checkbox", { name: "Disable current active memberships" })).not.toBeChecked();
+      await expect(page.getByRole("checkbox", { name: "Disable current active access" })).not.toBeChecked();
       expect((await (await page.request.get(`${appUrl}/api/auth/session`)).json()).user?.role).toBe("COMPANY_OWNER");
       const url = new URL(page.url());
       expect(url.searchParams.get("restaurantSlug")).toBe(f.destination.slug);
@@ -148,7 +148,7 @@ test.describe("staff assignment scope", () => {
     await signIn(page.request, f);
     expect((await page.request.patch(`${appUrl}/api/session/memberships`, { data: { membershipId: f.companyAccess!.id } })).status()).toBe(200);
     await page.goto(`${appUrl}/companies/${f.company.slug}/users/reassign`);
-    await expect(page.getByRole("checkbox", { name: "Disable current active memberships" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Disable current active access" })).toBeChecked();
     await expect(page.getByRole("button", { name: "Assign user", exact: true })).toBeVisible();
   });
 });
