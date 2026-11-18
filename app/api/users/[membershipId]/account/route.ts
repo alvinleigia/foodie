@@ -1,9 +1,34 @@
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { NextResponse } from "next/server";
 
-import { requireStaffPermission } from "@/lib/auth";
+import { requireRole, requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
 import { updateUserAccountForEditor } from "@/lib/user-account";
+import { AccountDeletionError, deleteUserAccount } from "@/lib/user-account-deletion";
+import { logError } from "@/lib/logger";
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ membershipId: string }> },
+) {
+  const session = await requireRole(["PLATFORM_ADMIN", "COMPANY_OWNER"]);
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { membershipId } = await context.params;
+    const id = z.string().uuid().parse(membershipId);
+    const { confirmationEmail } = z.object({ confirmationEmail: z.string().trim().email() }).parse(await request.json());
+    const result = await deleteUserAccount({ membershipId: id, confirmationEmail, editor: session.user });
+    if (!result) return NextResponse.json({ error: "User account not found for this access scope." }, { status: 404 });
+    return NextResponse.json(result);
+  } catch (error) {
+    if (error instanceof AccountDeletionError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof ZodError || error instanceof SyntaxError) {
+      return NextResponse.json({ error: "Provide a valid membership and confirmation email address." }, { status: 400 });
+    }
+    logError("user.account.delete_failed", error);
+    return NextResponse.json({ error: "Account could not be deleted. Please try again." }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: Request,

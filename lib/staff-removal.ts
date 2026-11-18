@@ -6,6 +6,7 @@ import * as schema from "@/db/schema";
 import { auditLogs, memberships, organizations, users } from "@/db/schema";
 import type { MembershipRole } from "@/lib/staff-auth";
 import type { TenantContext } from "@/lib/tenant-context";
+import { accountRecordChecks } from "@/lib/staff-record-links";
 
 export class StaffRemovalError extends Error {
   constructor(message: string, public status = 409) {
@@ -64,19 +65,6 @@ function linkedRecordChecks(
       userLinks.length ? and(or(...userLinks), or(...scope)) : undefined,
     );
     return [sql`exists (select 1 from ${table} where ${linked})`];
-  });
-}
-
-function accountRecordChecks(userId: string) {
-  return Object.values(schema).flatMap((table) => {
-    if (!is(table, PgTable)) return [];
-    const links = getTableConfig(table).foreignKeys.flatMap((key) => {
-      const reference = key.reference();
-      return reference.foreignColumns.flatMap((column, index) =>
-        column === users.id ? [eq(reference.columns[index], userId)] : [],
-      );
-    });
-    return links.length ? [sql`exists (select 1 from ${table} where ${or(...links)})`] : [];
   });
 }
 

@@ -1,13 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import {
   MoreHorizontalIcon,
   PencilIcon,
   UserCheckIcon,
   UserPenIcon,
   UserPlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
+import { DeleteUserAccountDialog, type AccountDeletionTarget } from "@/components/admin/DeleteUserAccountDialog";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -17,12 +22,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatAppDate } from "@/lib/date-format";
 import type { MembershipRole } from "@/lib/staff-auth";
 
 type CompanyUser = {
+  userId: string;
   membershipId: string;
   username: string;
   name: string;
@@ -36,6 +43,7 @@ type CompanyUser = {
 };
 
 type PlatformCompanyUsersPanelProps = {
+  currentUserId: string;
   assignHref?: string | null;
   description?: string;
   editHrefBase: string;
@@ -63,6 +71,7 @@ function getAccountHref(membershipId: string, returnTo: string) {
 }
 
 export function PlatformCompanyUsersPanel({
+  currentUserId,
   assignHref,
   description = "Manage company owner memberships for this tenant.",
   editHrefBase,
@@ -72,6 +81,9 @@ export function PlatformCompanyUsersPanel({
   title = "Company users",
   users,
 }: PlatformCompanyUsersPanelProps) {
+  const [deleteTarget, setDeleteTarget] = useState<AccountDeletionTarget | null>(null);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const visibleUsers = users.filter((user) => !deletedIds.includes(user.userId));
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
@@ -99,13 +111,13 @@ export function PlatformCompanyUsersPanel({
         </div>
       </CardHeader>
       <CardContent className="grid gap-3 px-5 pb-5">
-        {users.length === 0 ? (
+        {visibleUsers.length === 0 ? (
           <p className="rounded-lg border border-dashed border-stone-200 p-4 text-sm text-stone-500">
             {emptyMessage}
           </p>
         ) : null}
 
-        {users.map((user) => (
+        {visibleUsers.map((user) => (
           <div
             key={user.membershipId}
             className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-stone-200 bg-stone-50 p-4"
@@ -163,12 +175,21 @@ export function PlatformCompanyUsersPanel({
                       Create reset link
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive"
+                    disabled={user.userId === currentUserId || user.role === "PLATFORM_ADMIN"}
+                    onSelect={() => setDeleteTarget(user)}>
+                    <ButtonLabel icon={Trash2Icon}>Delete account</ButtonLabel>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         ))}
       </CardContent>
+      {deleteTarget ? <DeleteUserAccountDialog target={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onDeleted={(id) => setDeletedIds((current) => [...current, id])} /> : null}
     </Card>
   );
 }

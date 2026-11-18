@@ -30,6 +30,7 @@ export default async function PlatformCompanyUsersPage(
       }}
     >
       <PlatformCompanyUsersPanel
+        currentUserId={session.user.id}
         assignHref={assignHref}
         editHrefBase={companyUsersPath}
         inviteHref={getPlatformCompanyWorkspaceHref(company.slug, "staffInvite")}

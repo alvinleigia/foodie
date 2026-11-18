@@ -27,7 +27,7 @@ export default async function PlatformUserMembershipsPage() {
         role: session.user.role,
       }}
     >
-      <PlatformUserMembershipsPanel users={users} />
+      <PlatformUserMembershipsPanel currentUserId={session.user.id} users={users} />
     </SaasAdminShell>
   );
 }
