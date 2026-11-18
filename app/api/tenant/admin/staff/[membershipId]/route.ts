@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 import { requireStaffPermission } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit-log";
@@ -10,6 +10,34 @@ import {
 import { getCurrentTenantContext } from "@/lib/tenant-context";
 import { resolveStaffPermissions } from "@/lib/staff-permissions";
 import { updateStaffMembershipSchema } from "@/lib/validations/tenant-admin";
+import { removeStaffMembership, StaffRemovalError } from "@/lib/staff-removal";
+import { logError } from "@/lib/logger";
+
+export async function DELETE(
+  _request: NextRequest,
+  context: { params: Promise<{ membershipId: string }> },
+) {
+  try {
+    const session = await requireStaffPermission("staff.manage");
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { membershipId } = await context.params;
+    const id = z.string().uuid().parse(membershipId);
+    const tenantContext = await getCurrentTenantContext();
+    const removed = await removeStaffMembership(tenantContext, id, session.user);
+    if (!removed) return NextResponse.json({ error: "Staff membership not found." }, { status: 404 });
+    return NextResponse.json({ removedMembershipId: removed.id });
+  } catch (error) {
+    if (error instanceof StaffRemovalError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof ZodError) {
+      return NextResponse.json({ error: "Invalid staff membership." }, { status: 400 });
+    }
+    logError("restaurant.staff.remove_failed", error);
+    return NextResponse.json({ error: "Staff could not be removed. Please try again." }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: NextRequest,

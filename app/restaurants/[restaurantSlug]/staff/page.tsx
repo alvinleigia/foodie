@@ -30,6 +30,7 @@ export default async function RestaurantStaffPage({
       }}
     >
       <RestaurantAdminPanel
+        currentMembershipId={session.user.membershipId}
         restaurantSlug={access.restaurant.slug}
         view="staff"
       />
