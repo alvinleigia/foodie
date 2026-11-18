@@ -69,6 +69,10 @@ test.describe("customer menu outside working hours", () => {
     for (const width of [440, 1440]) {
       test(`closed restaurant keeps a searchable menu in ${theme} at ${width}px`, async ({ page }) => {
         const f = await fixture();
+        await f.db.insert(menuItems).values(Array.from({ length: 8 }, (_, index) => ({
+          organizationId: f.restaurant.id, categoryId: f.category.id, prepStationId: f.plain.prepStationId,
+          name: `Other meal ${index}`, slug: `other-${index}`, price: "5.00", sortOrder: index + 2,
+        })));
         await page.setViewportSize({ width, height: 956 });
         await page.addInitScript((value) => localStorage.setItem("foodie-theme", value), theme);
         await page.goto(f.menuUrl);
@@ -76,14 +80,30 @@ test.describe("customer menu outside working hours", () => {
         const notice = page.locator('[data-slot="ordering-closed-notice"]:visible');
         await expect(notice).toHaveCount(1);
         await expect(notice).toContainText("Opens tomorrow at 09:00 (Europe/London)");
-        await expect(page.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
-        await expect(page.getByRole("button", { name: "Customize", exact: true })).toBeDisabled();
+        const add = page.getByRole("button", { name: "Add", exact: true }).last();
+        await expect(add).toBeEnabled();
+        await expect(page.getByRole("button", { name: "Customize", exact: true })).toBeEnabled();
         await expect(page.getByText("Plain meal", { exact: true })).toBeVisible();
         await expect(page.getByText("Custom meal", { exact: true })).toBeVisible();
+        await add.scrollIntoViewIfNeeded();
+        await expect(notice).not.toBeInViewport();
+        await add.click();
+        const popup = page.locator('[data-sonner-toast]').filter({ hasText: "We're not taking orders right now." });
+        await expect(popup).toContainText("Opens tomorrow at 09:00 (Europe/London)");
+        await expect(popup).toBeInViewport();
+        await add.click();
+        await add.focus();
+        await page.keyboard.press("Enter");
+        await expect(popup).toHaveCount(1);
+        await expect(page.getByRole("button", { name: "View Cart", exact: true })).toHaveCount(0);
+        await page.screenshot({ path: test.info().outputPath("closed-menu-popup.png"), animations: "disabled" });
         await page.getByRole("searchbox", { name: "Search menu" }).fill("Custom");
         await expect(page.getByText("Plain meal", { exact: true })).toHaveCount(0);
         await expect(page.getByText("Custom meal", { exact: true })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Customize", exact: true })).toBeDisabled();
+        await page.getByRole("button", { name: "Customize", exact: true }).click();
+        await expect(popup).toContainText("Opens tomorrow at 09:00 (Europe/London)");
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "View Cart", exact: true })).toHaveCount(0);
         await page.getByRole("searchbox", { name: "Search menu" }).clear();
         await page.screenshot({ path: test.info().outputPath("closed-menu.png"), fullPage: true, animations: "disabled" });
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -95,7 +115,8 @@ test.describe("customer menu outside working hours", () => {
     const f = await fixture();
     await page.goto(`${appUrl}/order/${f.restaurant.slug}`);
     await expect(page.getByRole("heading", { name: f.restaurant.name, exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.locator('[data-sonner-toast]')).toContainText("We're not taking orders right now.");
     const response = await request.post(`${appUrl}/api/orders?qr=${f.point.qrSlug}`, { data: {
       checkoutMode: "GUEST", paymentTiming: "ONLINE", fulfilmentType: "PICKUP",
       customerContact: { name: "Guest test", email: "guest@example.com", phone: null },
@@ -113,7 +134,8 @@ test.describe("customer menu outside working hours", () => {
     const notice = page.locator('[data-slot="ordering-closed-notice"]:visible');
     await expect(notice).toHaveCount(1);
     await expect(notice).toHaveText("We're not taking orders right now. You can still browse the menu.");
-    await expect(page.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.locator('[data-sonner-toast]')).toContainText("We're not taking orders right now. You can still browse the menu.");
   });
 
   test("disabling enforcement restores adding, customization and review", async ({ page }) => {
@@ -155,6 +177,33 @@ test.describe("customer menu outside working hours", () => {
     await expect(page.locator('[data-slot="ordering-closed-notice"]')).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Proceed to Payment", exact: true })).toBeEnabled();
     await expect(page.getByText("Plain meal x1", { exact: true })).toBeVisible();
+  });
+
+  test("increasing a previously added item while closed explains why without changing quantity", async ({ page }) => {
+    const f = await fixture();
+    await hours(f, [{ dayOfWeek: f.today, is24Hours: true, opensAtMinute: 0, closesAtMinute: 0 }]);
+    await page.setViewportSize({ width: 440, height: 956 });
+    await page.goto(f.menuUrl);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    const tomorrow = new Date(`${getCurrentBusinessDate("Europe/London")}T03:00:00Z`);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    await hours(f, [f.tomorrow]);
+    await page.clock.setFixedTime(tomorrow);
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(page.locator('[data-slot="ordering-closed-notice"]:visible')).toBeVisible();
+    await page.getByRole("button", { name: "Increase Plain meal quantity", exact: true }).click();
+    await expect(page.locator('[data-sonner-toast]')).toContainText("We're not taking orders right now.");
+    await expect(page.locator('[data-slot="menu-item-selected-badge"]')).toHaveText("In cart · 1");
+    await page.getByRole("button", { name: "View Cart", exact: true }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: "Review Order", exact: true })).toBeDisabled();
+  });
+
+  test("sold-out items stay disabled rather than opening a closed-hours notice", async ({ page }) => {
+    const f = await fixture();
+    await f.db.update(menuItems).set({ isSoldOut: true }).where(eq(menuItems.id, f.plain.id));
+    await page.goto(f.menuUrl);
+    await expect(page.getByRole("button", { name: "Sold out", exact: true })).toBeDisabled();
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0);
   });
 
   test("staff can still take orders outside customer hours", async ({ page }) => {
