@@ -9,9 +9,11 @@ import {
   UserCheckIcon,
   UserPenIcon,
   UserPlusIcon,
+  UserMinusIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
-import { fetchJson, getCaughtErrorMessage } from "@/lib/api-client";
+import { fetchJson, getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { DesktopQuickAction } from "@/components/shared/DesktopQuickAction";
 import {
@@ -27,10 +29,15 @@ import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -105,9 +112,11 @@ function RestaurantAccessEmptyState() {
 }
 
 export function RestaurantAdminPanel({
+  currentMembershipId,
   restaurantSlug,
   view = "dashboard",
 }: {
+  currentMembershipId?: string;
   restaurantSlug: string;
   view?: "dashboard" | "staff";
 }) {
@@ -130,6 +139,27 @@ export function RestaurantAdminPanel({
   const [range, setRange] = useState<ReportRange>("today");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [removeStaff, setRemoveStaff] = useState<TenantAdminSnapshot["staff"][number] | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [removalError, setRemovalError] = useState<string | null>(null);
+
+  async function confirmRemoval() {
+    if (!removeStaff || isRemoving) return;
+    setIsRemoving(true);
+    setRemovalError(null);
+    try {
+      await requestJson(`/api/tenant/admin/staff/${removeStaff.membershipId}`, { method: "DELETE" });
+      setSnapshot((current) => current ? {
+        ...current, staff: current.staff.filter((staff) => staff.membershipId !== removeStaff.membershipId),
+      } : current);
+      setRemoveStaff(null);
+      toast.success("Staff removed from this restaurant.");
+    } catch (caught) {
+      setRemovalError(getCaughtErrorMessage(caught));
+    } finally {
+      setIsRemoving(false);
+    }
+  }
 
   useEffect(() => {
     async function loadTenantAdmin() {
@@ -333,6 +363,17 @@ export function RestaurantAdminPanel({
                               Create reset link
                             </Link>
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            disabled={staff.membershipId === currentMembershipId}
+                            onSelect={() => {
+                              setRemovalError(null);
+                              setRemoveStaff(staff);
+                            }}
+                          >
+                            <ButtonLabel icon={UserMinusIcon}>Remove from restaurant</ButtonLabel>
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -342,6 +383,37 @@ export function RestaurantAdminPanel({
             </Card>
       ) : null}
 
+      <AlertDialog
+        open={Boolean(removeStaff)}
+        onOpenChange={(open) => {
+          if (!open && !isRemoving) setRemoveStaff(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {removeStaff?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Remove this restaurant membership, including its invitations and job assignments.
+              An unused, unaccepted invite account is also deleted if it has no other access or linked records.
+              Existing accounts and access elsewhere are kept. Removal is blocked if linked restaurant activity exists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {removalError ? <p role="alert" className="my-3 text-sm text-destructive">{removalError}</p> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={isRemoving}
+              onClick={(event) => {
+                event.preventDefault();
+                void confirmRemoval();
+              }}
+            >
+              <ButtonLabel icon={UserMinusIcon}>{isRemoving ? "Removing..." : "Remove staff"}</ButtonLabel>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
