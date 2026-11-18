@@ -1106,8 +1106,19 @@ export function OrderForm({
     return true;
   }
 
+  function showClosedOrderingNotice() {
+    toast.info(orderingClosedMessage, {
+      id: "customer-ordering-closed",
+      duration: 6000,
+      icon: <ClockIcon className="size-4" aria-hidden="true" />,
+    });
+  }
+
   function addToCart(category: MenuCategoryRecord, drink: MenuItemRecord) {
-    if (orderingClosed) return;
+    if (orderingClosed) {
+      showClosedOrderingNotice();
+      return;
+    }
     if (drink.isSoldOut || drink.isUnavailableDueToStock) {
       setError(`${drink.name} is currently unavailable.`);
       return;
@@ -1166,7 +1177,10 @@ export function OrderForm({
   }
 
   function requestQuantityIncrease(item: CartItem) {
-    if (orderingClosed) return;
+    if (orderingClosed) {
+      showClosedOrderingNotice();
+      return;
+    }
     if (item.modifierGroups.length === 0) {
       increaseCartItemQuantity(item);
       return;
@@ -3278,7 +3292,7 @@ export function OrderForm({
                                   {!isStaffOrder ? (
                                     <p data-slot="menu-item-price" className="text-base font-semibold text-stone-950">{formattedItemPrice}</p>
                                   ) : null}
-                                  <fieldset disabled={orderingClosed} aria-label={`${drink.name} ordering controls`} className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
+                                  <fieldset aria-label={`${drink.name} ordering controls`} className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
                                   {hasModifiers && configurationCount > 1 ? (
                                     <div className="flex flex-col items-end gap-1.5">
                                       <span
