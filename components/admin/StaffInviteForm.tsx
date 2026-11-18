@@ -28,6 +28,7 @@ type InviteRole = {
 type StaffInviteFormProps = {
   apiPath: string;
   assignExistingHref?: string;
+  assignExistingLabel?: string;
   backHref: string;
   backLabel?: string;
   defaultRole: string;
@@ -49,6 +50,7 @@ type StaffInviteField = "email" | "name" | "role" | "username";
 export function StaffInviteForm({
   apiPath,
   assignExistingHref,
+  assignExistingLabel = "Assign Existing User",
   backHref,
   backLabel = "Cancel",
   defaultRole,
@@ -143,7 +145,7 @@ export function StaffInviteForm({
                     className="mt-3 rounded-lg border-rose-200 bg-white text-stone-950 hover:bg-rose-100"
                   >
                     <Link href={assignHref}>
-                      <ButtonLabel icon={UserCheckIcon}>Assign Existing User</ButtonLabel>
+                      <ButtonLabel icon={UserCheckIcon}>{assignExistingLabel}</ButtonLabel>
                     </Link>
                   </Button>
                 ) : null}

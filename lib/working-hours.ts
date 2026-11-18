@@ -75,6 +75,34 @@ export function isRestaurantOpenForCustomerOrders(
   );
 }
 
+export function getRestaurantClosedMessage(
+  workingHours: RestaurantWorkingHours,
+  now = new Date(),
+) {
+  if (isRestaurantOpenForCustomerOrders(workingHours, now)) {
+    return null;
+  }
+
+  const { dayOfWeek, minuteOfDay } = getZonedDayAndMinute(now, workingHours.timezone);
+  const nextOpening = workingHours.periods.map((period) => {
+    const minute = period.is24Hours ? 0 : period.opensAtMinute;
+    let daysAway = (period.dayOfWeek - dayOfWeek + 7) % 7;
+    if (daysAway === 0 && minute <= minuteOfDay) daysAway = 7;
+    return { dayOfWeek: period.dayOfWeek, daysAway, minute };
+  }).sort((a, b) => (a.daysAway * 1440 + a.minute) - (b.daysAway * 1440 + b.minute))[0];
+
+  if (!nextOpening) {
+    return "We're not taking orders right now. You can still browse the menu.";
+  }
+
+  const day = nextOpening.daysAway === 0
+    ? "today"
+    : nextOpening.daysAway === 1
+      ? "tomorrow"
+      : restaurantWeekdays.find((weekday) => weekday.dayOfWeek === nextOpening.dayOfWeek)!.label;
+  return `We're not taking orders right now. Opens ${day} at ${minuteOfDayToTime(nextOpening.minute)} (${workingHours.timezone}).`;
+}
+
 export function isWeeklyScheduleAvailable(
   periods: WeeklyAvailabilityPeriod[],
   timezone: string,

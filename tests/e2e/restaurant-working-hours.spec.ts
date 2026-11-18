@@ -6,6 +6,7 @@ import { expect, test } from "@playwright/test";
 import { restaurantWorkingHoursInputSchema } from "@/lib/validations/working-hours";
 import {
   isRestaurantOpenForCustomerOrders,
+  getRestaurantClosedMessage,
   type RestaurantWorkingHours,
 } from "@/lib/working-hours";
 
@@ -26,6 +27,31 @@ function schedule(
 }
 
 test.describe("restaurant customer ordering hours", () => {
+  test("does not show a closed message when open or enforcement is disabled", () => {
+    expect(getRestaurantClosedMessage({ enabled: false, periods: [], timezone: "Europe/London" })).toBeNull();
+    expect(getRestaurantClosedMessage(schedule([{ dayOfWeek: 1, is24Hours: true, opensAtMinute: 0, closesAtMinute: 0 }]), new Date("2026-08-24T12:00:00Z"))).toBeNull();
+  });
+
+  test("shows the next split-service opening today in restaurant local time", () => {
+    const hours = schedule([
+      { dayOfWeek: 1, is24Hours: false, opensAtMinute: 9 * 60, closesAtMinute: 12 * 60 },
+      { dayOfWeek: 1, is24Hours: false, opensAtMinute: 17 * 60, closesAtMinute: 22 * 60 },
+    ]);
+    expect(getRestaurantClosedMessage(hours, new Date("2026-08-24T12:00:00Z"))).toBe("We're not taking orders right now. Opens today at 17:00 (Europe/London).");
+  });
+
+  test("finds tomorrow, the next week, overnight service and 24-hour opening", () => {
+    const overnight = schedule([{ dayOfWeek: 5, is24Hours: false, opensAtMinute: 18 * 60, closesAtMinute: 2 * 60 }]);
+    expect(getRestaurantClosedMessage(overnight, new Date("2026-08-27T20:00:00Z"))).toContain("tomorrow at 18:00");
+    expect(getRestaurantClosedMessage(overnight, new Date("2026-08-29T01:00:00Z"))).toContain("Friday at 18:00");
+    expect(getRestaurantClosedMessage(schedule([{ dayOfWeek: 0, is24Hours: true, opensAtMinute: 0, closesAtMinute: 0 }]), new Date("2026-03-28T23:00:00Z"))).toContain("tomorrow at 00:00");
+    expect(getRestaurantClosedMessage(schedule([{ dayOfWeek: 0, is24Hours: false, opensAtMinute: 9 * 60, closesAtMinute: 17 * 60 }]), new Date("2026-10-25T08:00:00Z"))).toContain("today at 09:00");
+  });
+
+  test("does not invent an opening time for an entirely closed week", () => {
+    expect(getRestaurantClosedMessage(schedule([]))).toBe("We're not taking orders right now. You can still browse the menu.");
+  });
+
   test("keeps legacy restaurants open until enforcement is enabled", () => {
     expect(
       isRestaurantOpenForCustomerOrders({

@@ -10,6 +10,7 @@ import { getCustomerRestaurantIdentity } from "@/lib/menu";
 import { getPublicOrderRouteContext } from "@/lib/public-order-route-context";
 import { getStaffRestaurantOrderHref } from "@/lib/staff-restaurant-navigation";
 import { getCurrentStaffRestaurantAccess } from "@/lib/tenant-context";
+import { getRestaurantClosedMessage } from "@/lib/working-hours";
 
 export default async function OrderPage(props: PageProps<"/order">) {
   if (await isCurrentRequestPlatformAdministrationDomain()) {
@@ -41,8 +42,11 @@ export default async function OrderPage(props: PageProps<"/order">) {
     unavailableReason,
     user,
   } = await getPublicOrderRouteContext({ orderingPointQrSlug, routeSlug });
-  const restaurant = !user && tenantContext && customerOrderingEnabled && customerOrderingOpen
+  const restaurant = !user && tenantContext && customerOrderingEnabled
     ? await getCustomerRestaurantIdentity(tenantContext)
+    : null;
+  const closedMessage = !customerOrderingOpen && restaurantWorkingHours
+    ? getRestaurantClosedMessage(restaurantWorkingHours)
     : null;
 
   return (
@@ -52,13 +56,14 @@ export default async function OrderPage(props: PageProps<"/order">) {
       contentClassName="max-w-6xl space-y-6 pb-8"
     >
       {!user && restaurantWorkingHours ? (
-        <RestaurantWorkingHoursWatcher workingHours={restaurantWorkingHours} />
+        <RestaurantWorkingHoursWatcher workingHours={restaurantWorkingHours} orderingOpen={customerOrderingOpen} closedMessage={closedMessage} />
       ) : null}
       {hasTenantContext &&
       customerCheckoutEnabled &&
-      customerOrderingEnabled &&
-      customerOrderingOpen ? (
+      customerOrderingEnabled ? (
         <CustomerOrderPage
+          customerOrderingOpen={customerOrderingOpen}
+          closedMessage={closedMessage}
           customer={customer}
           customerAuthProviders={customerAuthProviders}
           chargeSettings={chargeSettings}

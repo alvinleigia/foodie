@@ -557,6 +557,7 @@ export function TenantStaffInviteForm({
     <StaffInviteForm
       apiPath="/api/tenant/admin/staff/invite"
       assignExistingHref={assignExistingHref}
+      assignExistingLabel="Reactivate or update staff access"
       backHref={backHref}
       defaultRole="ORDER_OPERATOR"
       description="Create a one-time invite link for this restaurant."

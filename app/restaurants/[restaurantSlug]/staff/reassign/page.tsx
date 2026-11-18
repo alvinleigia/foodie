@@ -6,6 +6,8 @@ import {
 } from "@/lib/saas-admin";
 import { requireRestaurantWorkspaceAdminPage } from "@/lib/restaurant-workspace-access";
 import { getRestaurantWorkspaceHref } from "@/lib/restaurant-workspace";
+import { getMembershipAccessOptions } from "@/lib/membership-access";
+import { getCompanyRestaurantHref, getCompanyWorkspaceHref } from "@/lib/company-workspace";
 
 type RestaurantStaffReassignPageProps = {
   params: Promise<{ restaurantSlug: string }>;
@@ -27,19 +29,34 @@ export default async function RestaurantStaffReassignPage({
       requiredPermission: "staff.manage",
       restaurantSlug,
     });
-  const [targets, users, query] = await Promise.all([
+  const [targets, users, query, memberships] = await Promise.all([
     listRestaurantReassignmentTargets(access.tenantContext),
     listRestaurantReassignableUsers(access.tenantContext),
     searchParams,
+    getMembershipAccessOptions(session.user.id, { type: "PLATFORM" }),
   ]);
   const staffHref = getRestaurantWorkspaceHref(access.restaurant.slug, "staff");
+  const company = targets[0];
+  const companyAccess = company && memberships.find((membership) =>
+    membership.role === "COMPANY_OWNER" && membership.organizationType === "COMPANY" &&
+    membership.organizationId === company.id,
+  );
+  const companyAssignment = companyAccess ? {
+    membershipId: companyAccess.membershipId,
+    href: `${getCompanyWorkspaceHref(company.slug, "userReassign")}?${new URLSearchParams({
+      restaurantSlug: access.restaurant.slug,
+      role: "ORDER_OPERATOR",
+      deactivateExisting: "false",
+      returnTo: getCompanyRestaurantHref(company.slug, access.restaurant.slug, "staff"),
+    })}`,
+  } : undefined;
 
   return (
     <SaasAdminShell
       activePath={staffHref}
       eyebrow="Staff"
-      title="Assign existing staff"
-      description="Move or add access for an accepted user inside this restaurant."
+      title="Reactivate or update staff access"
+      description="Manage accepted accounts already linked to this restaurant."
       user={{
         name: session.user.name,
         organizationId: session.user.organizationId,
@@ -48,6 +65,8 @@ export default async function RestaurantStaffReassignPage({
       }}
     >
       <ReassignExistingUserForm
+        scope="restaurant"
+        companyAssignment={companyAssignment}
         apiPath="/api/tenant/admin/staff/reassign"
         backHref={staffHref}
         defaultDeactivateExisting={false}

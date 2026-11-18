@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { ShieldAlertIcon, UserCheckIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { requestJson } from "@/lib/api-client";
+import { getCaughtErrorMessage, requestJson } from "@/lib/api-client";
 import { ButtonLabel } from "@/components/shared/ButtonLabel";
 import { FormField } from "@/components/shared/FormField";
 import { useFormValidation } from "@/components/shared/useFormValidation";
@@ -58,6 +58,8 @@ type ReassignableUser = {
 };
 
 type ReassignExistingUserFormProps = {
+  scope?: "platform" | "company" | "restaurant";
+  companyAssignment?: { membershipId: string; href: string };
   apiPath?: string;
   backHref: string;
   defaultDeactivateExisting?: boolean;
@@ -96,6 +98,8 @@ function getRoleLabel(role: ReassignRole, roleOptions: Array<{ label: string; va
 }
 
 export function ReassignExistingUserForm({
+  scope = "platform",
+  companyAssignment,
   apiPath = "/api/platform/users/reassign",
   backHref,
   defaultDeactivateExisting = true,
@@ -124,6 +128,8 @@ export function ReassignExistingUserForm({
   const validation = useFormValidation<ReassignField>();
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSwitchingCompany, setIsSwitchingCompany] = useState(false);
+  const restaurantScope = scope === "restaurant";
 
   const selectedCompany = useMemo(
     () => targets.find((company) => company.id === companyId) ?? targets[0],
@@ -177,6 +183,25 @@ export function ReassignExistingUserForm({
     setIsIdentifierFocused(false);
   }
 
+  async function openCompanyAssignment() {
+    if (!companyAssignment || isSwitchingCompany || isSubmitting) return;
+    setIsSwitchingCompany(true);
+    try {
+      await requestJson("/api/session/memberships", {
+        method: "PATCH", body: { membershipId: companyAssignment.membershipId },
+      });
+      const href = identifier.trim()
+        ? `${companyAssignment.href}&identifier=${encodeURIComponent(identifier.trim())}`
+        : companyAssignment.href;
+      toast.success("Company Owner access selected.");
+      router.push(href);
+      router.refresh();
+    } catch (caught) {
+      toast.error(getCaughtErrorMessage(caught, "Could not switch to company access."));
+      setIsSwitchingCompany(false);
+    }
+  }
+
   async function submitReassignment() {
     validation.clearErrors();
     setIsSubmitting(true);
@@ -203,7 +228,7 @@ export function ReassignExistingUserForm({
     setIdentifier("");
     validation.clearErrors();
     setIsSubmitting(false);
-    toast.success("User reassigned.");
+    toast.success(restaurantScope ? "Staff access updated." : "User assigned.");
     setIsConfirmOpen(false);
     router.replace(backHref);
   }
@@ -225,13 +250,24 @@ export function ReassignExistingUserForm({
 
   return (
     <Card>
-      <CardHeader className="px-5 pt-5">
+      <CardHeader className="flex flex-col gap-4 px-5 pt-5 sm:flex-row sm:items-start sm:justify-between">
+        <div>
         <h3 className="text-2xl font-semibold text-stone-950">
-          Reassign existing user
+          {restaurantScope ? "Existing restaurant staff" : scope === "company" ? "Assign existing user" : "Reassign existing user"}
         </h3>
         <p className="text-sm text-stone-500">
-          Move future access to a new company or restaurant without moving old history.
+          {restaurantScope
+            ? "Only accepted accounts already linked to this restaurant are available. Staff from other restaurants must be assigned by a company owner."
+            : "Move future access to a new company or restaurant without moving old history."}
         </p>
+        </div>
+        {companyAssignment ? (
+          <Button type="button" variant="outline" disabled={isSwitchingCompany || isSubmitting}
+            title="Switch to Company Owner access and assign a user"
+            onClick={() => void openCompanyAssignment()}>
+            <ButtonLabel icon={UserCheckIcon}>{isSwitchingCompany ? "Switching..." : "Assign company user"}</ButtonLabel>
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="px-5 pb-5">
         <form
@@ -304,7 +340,9 @@ export function ReassignExistingUserForm({
                     ))
                   ) : (
                     <div className="px-4 py-3 text-sm text-stone-500">
-                      No accepted active users match this search.
+                      {restaurantScope
+                        ? "No accepted active accounts linked to this restaurant match your search. Staff from other restaurants must be assigned by a company owner."
+                        : "No accepted active users match this search."}
                     </div>
                   )}
                 </div>
@@ -402,8 +440,9 @@ export function ReassignExistingUserForm({
                   Disable current active memberships
                 </span>
                 <span className="mt-1 block text-stone-500">
-                  Keep this enabled when a user is moving from one company or
-                  restaurant to another. Their old history remains unchanged.
+                  {restaurantScope
+                    ? "Only this restaurant's access is affected. Access at other restaurants stays unchanged."
+                    : "Keep this enabled when a user is moving from one company or restaurant to another. Their old history remains unchanged."}
                 </span>
               </span>
             </Label>
@@ -417,10 +456,10 @@ export function ReassignExistingUserForm({
           <div className="flex flex-wrap gap-3 pt-2">
             <Button
               type="submit"
-              disabled={isSubmitting || !canSubmit}
+              disabled={isSubmitting || isSwitchingCompany || !canSubmit}
             >
               <ButtonLabel icon={UserCheckIcon}>
-                {isSubmitting ? "Reassigning..." : "Reassign User"}
+                {isSubmitting ? "Saving..." : restaurantScope ? "Update access" : scope === "company" ? "Assign user" : "Reassign User"}
               </ButtonLabel>
             </Button>
             <Button asChild type="button" variant="outline">
@@ -449,7 +488,7 @@ export function ReassignExistingUserForm({
                 onClick={() => void submitReassignment()}
               >
                 <ButtonLabel icon={UserCheckIcon}>
-                  {isSubmitting ? "Reassigning..." : "Confirm Reassignment"}
+                  {isSubmitting ? "Saving..." : restaurantScope ? "Confirm access update" : scope === "company" ? "Confirm assignment" : "Confirm Reassignment"}
                 </ButtonLabel>
               </AlertDialogAction>
             </AlertDialogFooter>

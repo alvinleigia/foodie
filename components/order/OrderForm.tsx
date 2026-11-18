@@ -7,6 +7,7 @@ import {
   ArrowLeftIcon,
   CalendarClockIcon,
   CheckIcon,
+  ClockIcon,
   CreditCardIcon,
   ImageIcon,
   MinusIcon,
@@ -131,6 +132,8 @@ import {
 } from "@/types/menu";
 
 type OrderFormProps = {
+  customerOrderingOpen?: boolean;
+  closedMessage?: string | null;
   customer?: {
     email?: string | null;
     name?: string | null;
@@ -408,6 +411,8 @@ function getCartItemCustomizationSummary(item: CartItem) {
 }
 
 export function OrderForm({
+  customerOrderingOpen = true,
+  closedMessage,
   customer,
   customerAuthProviders,
   chargeSettings,
@@ -423,6 +428,8 @@ export function OrderForm({
   onOrderCreated,
 }: OrderFormProps) {
   const router = useRouter();
+  const orderingClosed = !isStaffOrder && !customerOrderingOpen;
+  const orderingClosedMessage = closedMessage ?? "We're not taking orders right now. You can still browse the menu.";
   const enabledCheckoutPolicies = checkoutPolicies.filter((policy) => {
     if (!policy.isEnabled) {
       return false;
@@ -1069,6 +1076,7 @@ export function OrderForm({
   }
 
   function addCartLine(item: CartItem) {
+    if (orderingClosed) return false;
     if (!canAddQuantityToCartItem(item, item.quantity, item.lineId)) {
       return false;
     }
@@ -1099,6 +1107,7 @@ export function OrderForm({
   }
 
   function addToCart(category: MenuCategoryRecord, drink: MenuItemRecord) {
+    if (orderingClosed) return;
     if (drink.isSoldOut || drink.isUnavailableDueToStock) {
       setError(`${drink.name} is currently unavailable.`);
       return;
@@ -1134,6 +1143,7 @@ export function OrderForm({
   }
 
   function increaseCartItemQuantity(item: CartItem) {
+    if (orderingClosed) return;
     if (item.stockLimit !== null && getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit) {
       setError(getStockLimitError(item.drinkName, item.stockLimit));
       return;
@@ -1156,6 +1166,7 @@ export function OrderForm({
   }
 
   function requestQuantityIncrease(item: CartItem) {
+    if (orderingClosed) return;
     if (item.modifierGroups.length === 0) {
       increaseCartItemQuantity(item);
       return;
@@ -1165,6 +1176,7 @@ export function OrderForm({
   }
 
   function openCustomizerForItem(item: CartItem, mode: CustomizerState["mode"] = "edit") {
+    if (orderingClosed) return;
     setCustomizer({
       mode,
       item: {
@@ -1268,6 +1280,7 @@ export function OrderForm({
   }
 
   function saveCustomization() {
+    if (orderingClosed) return;
     if (!customizer) {
       return;
     }
@@ -1358,6 +1371,7 @@ export function OrderForm({
   }
 
   function goToReview() {
+    if (orderingClosed) return;
     if (cartItems.length === 0) {
       setError("Add at least one drink to the cart.");
       return;
@@ -1379,6 +1393,10 @@ export function OrderForm({
   }
 
   async function confirmOrder() {
+    if (orderingClosed) {
+      setError(orderingClosedMessage);
+      return;
+    }
     setShowCheckoutErrors(true);
 
     if (!isStaffOrder && hasCheckoutFieldErrors) {
@@ -1610,6 +1628,12 @@ export function OrderForm({
       data-theme-static={isStaffOrder ? undefined : ""}
       className={isStaffOrder ? undefined : "customer-order-storefront text-stone-950"}
     >
+      {orderingClosed ? (
+        <div role="status" data-slot="ordering-closed-notice" className="my-4 flex items-start gap-3 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
+          <ClockIcon aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <p>{orderingClosedMessage}</p>
+        </div>
+      ) : null}
       <Sheet open={isCartOpen} onOpenChange={handleCartOpenChange}>
         <SheetContent
           side="right"
@@ -1756,8 +1780,8 @@ export function OrderForm({
                             variant="ghost"
                             onClick={() => requestQuantityIncrease(item)}
                             disabled={
-                              item.stockLimit !== null &&
-                              getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit
+                              orderingClosed || (item.stockLimit !== null &&
+                              getSelectedQuantityForDrink(item.drinkId) >= item.stockLimit)
                             }
                             className="rounded-none"
                           >
@@ -1782,6 +1806,7 @@ export function OrderForm({
                               variant="outline"
                               size="lg"
                               onClick={() => openCustomizerForItem(item)}
+                              disabled={orderingClosed}
                             >
                               <ButtonLabel icon={TagsIcon}>Edit</ButtonLabel>
                             </Button>
@@ -1832,6 +1857,7 @@ export function OrderForm({
           </div>
 
           <SheetFooter>
+            {orderingClosed ? <p role="status" className="text-sm text-teal-800">{orderingClosedMessage}</p> : null}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-stone-500">
@@ -1845,7 +1871,7 @@ export function OrderForm({
               <Button
                 type="button"
                 onClick={goToReview}
-                disabled={isSubmitting || isLoadingMenu || Boolean(menuError) || cartItems.length === 0}
+                disabled={orderingClosed || isSubmitting || isLoadingMenu || Boolean(menuError) || cartItems.length === 0}
                 size="2xl"
               >
                 Review Order
@@ -1985,6 +2011,7 @@ export function OrderForm({
                   type="button"
                   size="xl"
                   onClick={saveCustomization}
+                  disabled={orderingClosed}
                 >
                   <ButtonLabel icon={customizer.mode === "edit" ? TagsIcon : PlusIcon}>
                     {customizer.mode === "edit" ? "Save Customization" : "Add to Cart"}
@@ -2024,6 +2051,7 @@ export function OrderForm({
             </AlertDialogCancel>
             <AlertDialogAction
               className="w-full whitespace-nowrap sm:w-auto"
+              disabled={orderingClosed}
               onClick={() => {
                 if (quantityPromptItem) {
                   increaseCartItemQuantity(quantityPromptItem);
@@ -2036,6 +2064,7 @@ export function OrderForm({
             </AlertDialogAction>
             <AlertDialogAction
               className="w-full whitespace-nowrap sm:w-auto"
+              disabled={orderingClosed}
               onClick={() => {
                 if (quantityPromptItem) {
                   openNewCustomizationFromLine(quantityPromptItem);
@@ -2837,7 +2866,7 @@ export function OrderForm({
                 type="button"
                 size="xl"
                 onClick={confirmOrder}
-                disabled={isSubmitting || cartItems.length === 0}
+                disabled={orderingClosed || isSubmitting || cartItems.length === 0}
               >
                 {isSubmitting ? (
                   <span className="inline-flex items-center gap-2">
@@ -3249,7 +3278,7 @@ export function OrderForm({
                                   {!isStaffOrder ? (
                                     <p data-slot="menu-item-price" className="text-base font-semibold text-stone-950">{formattedItemPrice}</p>
                                   ) : null}
-                                  <div className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
+                                  <fieldset disabled={orderingClosed} aria-label={`${drink.name} ordering controls`} className={isStaffOrder ? "contents" : "ml-auto flex min-w-0 flex-wrap justify-end gap-2"}>
                                   {hasModifiers && configurationCount > 1 ? (
                                     <div className="flex flex-col items-end gap-1.5">
                                       <span
@@ -3401,7 +3430,7 @@ export function OrderForm({
                                           : "Add"}
                                     </Button>
                                   )}
-                                  </div>
+                                  </fieldset>
                                 </div>
                               </div>
                             );

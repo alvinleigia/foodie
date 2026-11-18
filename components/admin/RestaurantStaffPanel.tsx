@@ -70,7 +70,7 @@ export function RestaurantStaffPanel({
           <div className="flex flex-wrap justify-end gap-3">
             <Button asChild variant="outline">
               <Link href={assignHref}>
-                <ButtonLabel icon={UserCheckIcon}>Assign Existing Staff</ButtonLabel>
+                <ButtonLabel icon={UserCheckIcon}>Assign existing user</ButtonLabel>
               </Link>
             </Button>
             <Button asChild>

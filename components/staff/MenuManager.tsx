@@ -23,7 +23,9 @@ import {
   getApiValidationErrors,
   getFieldError,
   getFirstFieldError,
+  getCaughtErrorMessage,
   hasFieldErrors,
+  requestJson,
 } from "@/lib/api-client";
 import { formatPrice } from "@/lib/formatters";
 import { DEFAULT_CURRENCY } from "@/lib/locale-defaults";
@@ -210,6 +212,8 @@ export function MenuManager() {
   const [categoryDraft, setCategoryDraft] = useState<CategoryDraft>(emptyCategoryDraft);
   const [categoryFieldErrors, setCategoryFieldErrors] = useState<FieldErrors<CategoryField>>({});
   const [categoryFormError, setCategoryFormError] = useState<string | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<MenuCategoryRecord | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState<string | null>(null);
   const [itemDraft, setItemDraft] = useState<ItemDraft>(emptyItemDraft);
   const [itemFieldErrors, setItemFieldErrors] = useState<FieldErrors<ItemField>>({});
   const [itemFormError, setItemFormError] = useState<string | null>(null);
@@ -816,6 +820,25 @@ export function MenuManager() {
     );
   }
 
+  async function deleteCategory() {
+    if (!categoryToDelete || categoryToDelete.items.length || pendingAction) return;
+    setPendingAction("delete-category");
+    setCategoryDeleteError(null);
+    try {
+      const { deletedCategoryId } = await requestJson<{ deletedCategoryId: string }>(
+        `/api/menu/categories/${categoryToDelete.id}`, { method: "DELETE" },
+      );
+      setCategories((current) => current.filter((category) => category.id !== deletedCategoryId));
+      setCategoryToDelete(null);
+      setError(null);
+      toast.success("Category deleted.");
+    } catch (caught) {
+      setCategoryDeleteError(getCaughtErrorMessage(caught, "Category could not be deleted."));
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function clearCurrentMenu() {
     setPendingAction("clear-menu");
 
@@ -1022,6 +1045,12 @@ export function MenuManager() {
                         >
                           <PlusIcon className="size-4" />
                           Add Item
+                        </Button>
+                        <Button type="button" variant="outline" size="icon"
+                          aria-label={`Delete category ${category.name}`} title="Delete category"
+                          disabled={Boolean(pendingAction)}
+                          onClick={() => { setCategoryDeleteError(null); setCategoryToDelete(category); }}>
+                          <Trash2Icon className="size-4" />
                         </Button>
                       </div>
                     </div>
@@ -1356,6 +1385,30 @@ export function MenuManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={Boolean(categoryToDelete)} onOpenChange={(open) => {
+        if (!open && pendingAction !== "delete-category") setCategoryToDelete(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {categoryToDelete?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {categoryToDelete?.items.length
+                ? "This category contains products. Move every product to another category before deleting it. Hidden and sold-out products also count."
+                : "Permanently delete this empty category? Existing orders and other categories will not be changed."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {categoryDeleteError ? <p role="alert" className="my-4 text-sm text-destructive">{categoryDeleteError}</p> : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pendingAction === "delete-category"}>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive"
+              disabled={Boolean(categoryToDelete?.items.length) || pendingAction === "delete-category"}
+              onClick={(event) => { event.preventDefault(); void deleteCategory(); }}>
+              <ButtonLabel icon={Trash2Icon}>{pendingAction === "delete-category" ? "Deleting..." : "Delete category"}</ButtonLabel>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={isClearMenuDialogOpen}
