@@ -1,5 +1,6 @@
 "use client";
 
+import { ChoiceButton } from "@/components/ui/choice-button";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   DownloadIcon,
@@ -948,7 +949,6 @@ export function MenuManager() {
               variant="outline"
               onClick={() => void exportMenu()}
               disabled={pendingAction === "export"}
-              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
             >
               {pendingAction === "export" ? <Spinner className="text-stone-800" /> : <DownloadIcon className="size-4" />}
               Export CSV
@@ -958,7 +958,6 @@ export function MenuManager() {
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
               disabled={pendingAction === "import"}
-              className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
             >
               {pendingAction === "import" ? <Spinner className="text-stone-800" /> : <UploadIcon className="size-4" />}
               Import CSV
@@ -1032,7 +1031,6 @@ export function MenuManager() {
                           type="button"
                           variant="outline"
                           onClick={() => openEditCategoryDialog(category)}
-                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                         >
                           <PencilLineIcon className="size-4" />
                           Edit Section
@@ -1041,7 +1039,6 @@ export function MenuManager() {
                           type="button"
                           variant="outline"
                           onClick={() => openCreateItemDialog(category.id)}
-                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                         >
                           <PlusIcon className="size-4" />
                           Add Item
@@ -1162,7 +1159,6 @@ export function MenuManager() {
                                 variant="outline"
                                 aria-label={`Edit ${item.name}`}
                                 onClick={() => openEditItemDialog(item)}
-                                className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                               >
                                 <PencilLineIcon className="size-4" />
                                 Edit
@@ -1197,7 +1193,6 @@ export function MenuManager() {
                     type="button"
                     variant="outline"
                     onClick={openCreateModifierGroupDialog}
-                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                   >
                     <TagsIcon className="size-4" />
                     Add Group
@@ -1207,7 +1202,6 @@ export function MenuManager() {
                     variant="outline"
                     onClick={() => openCreateModifierOptionDialog()}
                     disabled={modifierGroups.length === 0}
-                    className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                   >
                     <PlusIcon className="size-4" />
                     Add Option
@@ -1238,7 +1232,6 @@ export function MenuManager() {
                           type="button"
                           variant="outline"
                           onClick={() => openCreateModifierOptionDialog(group.id)}
-                          className="rounded-lg border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
                         >
                           <PlusIcon className="size-4" />
                           Option
@@ -1609,7 +1602,7 @@ export function MenuManager() {
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {tags.map((tag) => (
-                    <label
+                    <Label
                       key={tag.id}
                       className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-900"
                     >
@@ -1620,7 +1613,7 @@ export function MenuManager() {
                         }
                       />
                       <span>{tag.name}</span>
-                    </label>
+                    </Label>
                   ))}
                 </div>
               )}
@@ -1690,7 +1683,7 @@ export function MenuManager() {
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {modifierGroups.map((group) => (
-                    <label
+                    <Label
                       key={group.id}
                       className="flex items-center gap-3 rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm font-medium text-stone-900"
                     >
@@ -1701,7 +1694,7 @@ export function MenuManager() {
                         }
                       />
                       <span>{group.name}</span>
-                    </label>
+                    </Label>
                   ))}
                 </div>
               )}
@@ -1736,11 +1729,11 @@ export function MenuManager() {
                     itemDraft.taxAssignmentMode === option.value;
 
                   return (
-                    <button
+                    <ChoiceButton
                       key={option.value}
                       type="button"
                       role="radio"
-                      aria-checked={isSelected}
+                      selected={isSelected}
                       onClick={() => {
                         clearItemFieldError("taxAssignmentMode");
                         clearItemFieldError("taxDefinitionIds");
@@ -1753,23 +1746,17 @@ export function MenuManager() {
                               : current.taxDefinitionIds,
                         }));
                       }}
-                      className={`min-h-16 rounded-lg border px-4 py-3 text-left transition-colors ${
-                        isSelected
-                          ? "border-stone-950 bg-stone-950 text-white"
-                          : "border-stone-200 bg-white text-stone-700 hover:border-stone-400"
-                      }`}
+                      className="h-auto min-h-16 flex-col items-start px-4 py-3 text-left"
                     >
                       <span className="block text-sm font-semibold">
                         {option.label}
                       </span>
                       <span
-                        className={`mt-1 block text-xs ${
-                          isSelected ? "text-stone-300" : "text-stone-500"
-                        }`}
+                        className="mt-1 block text-xs text-muted-foreground"
                       >
                         {option.description}
                       </span>
-                    </button>
+                    </ChoiceButton>
                   );
                 })}
               </div>
@@ -1782,7 +1769,7 @@ export function MenuManager() {
                 ) : (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {taxDefinitions.map((definition) => (
-                      <label
+                      <Label
                         key={definition.id}
                         className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900"
                       >
@@ -1806,7 +1793,7 @@ export function MenuManager() {
                             {definition.isDefault ? " / Default" : ""}
                           </span>
                         </span>
-                      </label>
+                      </Label>
                     ))}
                   </div>
                 )
@@ -1846,7 +1833,7 @@ export function MenuManager() {
                         key={fulfilmentType}
                         className="rounded-lg border border-stone-200 bg-stone-50 p-4"
                       >
-                        <label className="flex items-center gap-3 text-sm font-semibold text-stone-900">
+                        <Label className="flex items-center gap-3 text-sm font-semibold text-stone-900">
                           <Checkbox
                             checked={isEnabled}
                             onCheckedChange={(checked) =>
@@ -1860,12 +1847,12 @@ export function MenuManager() {
                             Different taxes for{" "}
                             {orderFulfilmentLabels[fulfilmentType]}
                           </span>
-                        </label>
+                        </Label>
 
                         {override ? (
                           <div className="mt-3 grid gap-2 sm:grid-cols-2">
                             {taxDefinitions.map((definition) => (
-                              <label
+                              <Label
                                 key={definition.id}
                                 className="flex items-center gap-3 rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm text-stone-900"
                               >
@@ -1889,7 +1876,7 @@ export function MenuManager() {
                                     {formatTaxRate(definition.rateBps)}
                                   </span>
                                 </span>
-                              </label>
+                              </Label>
                             ))}
                           </div>
                         ) : null}

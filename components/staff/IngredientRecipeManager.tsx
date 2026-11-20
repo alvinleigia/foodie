@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useEffect, useMemo, useState } from "react";
 import {
   ClipboardCheckIcon,
@@ -438,7 +439,7 @@ export function IngredientRecipeManager() {
                             key={ingredient.id}
                             className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_10rem] sm:items-center"
                           >
-                            <label className="flex min-w-0 items-center gap-3">
+                            <Label className="flex min-w-0 items-center gap-3">
                               <Checkbox
                                 checked={isSelected}
                                 onCheckedChange={(checked) =>
@@ -458,7 +459,7 @@ export function IngredientRecipeManager() {
                                   </span>
                                 ) : null}
                               </span>
-                            </label>
+                            </Label>
                             <div className="flex items-center gap-2">
                               <Input
                                 aria-label={`${ingredient.name} quantity`}
@@ -757,7 +758,7 @@ export function IngredientRecipeManager() {
                 onChange={(event) => updateIngredient("notes", event.target.value)}
               />
             </FormField>
-            <label className="flex items-center gap-3 sm:col-span-2">
+            <Label className="flex items-center gap-3 sm:col-span-2">
               <Checkbox
                 checked={ingredientDraft.isActive}
                 onCheckedChange={(checked) =>
@@ -765,7 +766,7 @@ export function IngredientRecipeManager() {
                 }
               />
               <span>Ingredient is active</span>
-            </label>
+            </Label>
           </div>
           <DialogFooter>
             <Button

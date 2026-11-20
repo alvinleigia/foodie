@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { type FormEvent, useState } from "react";
 import {
   CheckIcon,
@@ -310,7 +311,7 @@ export function StaffShiftRecordsPanel({
             className="mt-3 grid gap-2 lg:grid-cols-[minmax(14rem,1fr)_10rem_9.5rem_9.5rem_auto]"
             onSubmit={(event) => void loadRecords(draftFilters, event)}
           >
-            <label className="relative">
+            <Label className="relative">
               <span className="sr-only">Search staff or job</span>
               <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -326,7 +327,7 @@ export function StaffShiftRecordsPanel({
                   }))
                 }
               />
-            </label>
+            </Label>
             <NativeSelect
               aria-label="Approval status"
               density="compact"
@@ -390,7 +391,7 @@ export function StaffShiftRecordsPanel({
           {records.length ? (
             <>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/35 px-3 py-2">
-                <label className="flex items-center gap-2 text-sm font-medium">
+                <Label className="flex items-center gap-2 text-sm font-medium">
                   <Checkbox
                     aria-label="Select pending timesheets"
                     checked={
@@ -411,7 +412,7 @@ export function StaffShiftRecordsPanel({
                     }
                   />
                   Select pending
-                </label>
+                </Label>
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">
                     {selectedShiftIds.size} selected

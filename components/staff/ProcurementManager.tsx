@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2Icon,
@@ -666,7 +667,7 @@ export function ProcurementManager() {
                 }
               />
             </FormField>
-            <label className="flex items-center gap-3 sm:col-span-2">
+            <Label className="flex items-center gap-3 sm:col-span-2">
               <Checkbox
                 checked={supplierDraft.isActive}
                 onCheckedChange={(checked) =>
@@ -677,7 +678,7 @@ export function ProcurementManager() {
                 }
               />
               <span>Supplier is active</span>
-            </label>
+            </Label>
           </div>
           <DialogFooter>
             <Button

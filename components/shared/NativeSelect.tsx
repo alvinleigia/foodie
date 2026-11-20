@@ -1,18 +1,23 @@
 import { cn } from "@/lib/utils";
+import { controlStyles, type ControlSize } from "@/components/ui/control-styles";
 
 export function NativeSelect({
   className,
   density = "default",
+  controlSize = density,
   ...props
 }: React.ComponentProps<"select"> & {
   density?: "compact" | "default";
+  controlSize?: ControlSize;
 }) {
   return (
     <select
+      data-slot="native-select"
+      data-control-size={controlSize}
       className={cn(
-        "border border-input bg-background text-foreground outline-none transition focus:border-ring focus:ring-3 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground",
-        density === "default" && "h-12 rounded-xl px-4 text-base",
-        density === "compact" && "h-9 rounded-lg px-3 text-sm",
+        controlStyles({ controlSize }),
+        "max-w-full text-base md:text-sm",
+        (controlSize === "lg" || controlSize === "xl") && "md:text-base",
         className,
       )}
       {...props}

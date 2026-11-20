@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BanknoteIcon,
@@ -1317,7 +1318,7 @@ export function StaffOrderBoard({
         </Tabs>
 
         <div className="flex w-full items-center gap-2 lg:w-auto">
-          <label className="relative min-w-0 flex-1 lg:w-80 lg:flex-none xl:w-96">
+          <Label className="relative min-w-0 flex-1 lg:w-80 lg:flex-none xl:w-96">
             <span className="sr-only">Search orders</span>
             <SearchIcon
               aria-hidden="true"
@@ -1332,7 +1333,7 @@ export function StaffOrderBoard({
               className="pl-9"
               disabled={Boolean(pendingAction)}
             />
-          </label>
+          </Label>
 
           <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
             <PopoverTrigger asChild>
@@ -1369,7 +1370,7 @@ export function StaffOrderBoard({
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+                <Label className="grid gap-1.5 text-xs font-medium text-stone-600">
                   Status
                   <Select
                     value={statusFilter}
@@ -1391,9 +1392,9 @@ export function StaffOrderBoard({
                       ))}
                     </SelectContent>
                   </Select>
-                </label>
+                </Label>
 
-                <label className="grid gap-1.5 text-xs font-medium text-stone-600">
+                <Label className="grid gap-1.5 text-xs font-medium text-stone-600">
                   Fulfilment
                   <Select
                     value={fulfilmentFilter}
@@ -1417,7 +1418,7 @@ export function StaffOrderBoard({
                       )}
                     </SelectContent>
                   </Select>
-                </label>
+                </Label>
               </div>
 
               <div className="rounded-lg border border-stone-200 bg-stone-50 p-3">
@@ -1426,7 +1427,7 @@ export function StaffOrderBoard({
                   Date range
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="grid gap-1 text-xs text-stone-600">
+                  <Label className="grid gap-1 text-xs text-stone-600">
                     From
                     <Input
                       type="date"
@@ -1439,8 +1440,8 @@ export function StaffOrderBoard({
                       controlSize="compact"
                       disabled={Boolean(pendingAction)}
                     />
-                  </label>
-                  <label className="grid gap-1 text-xs text-stone-600">
+                  </Label>
+                  <Label className="grid gap-1 text-xs text-stone-600">
                     To
                     <Input
                       type="date"
@@ -1453,7 +1454,7 @@ export function StaffOrderBoard({
                       controlSize="compact"
                       disabled={Boolean(pendingAction)}
                     />
-                  </label>
+                  </Label>
                 </div>
               </div>
 
@@ -1652,14 +1653,14 @@ export function StaffOrderBoard({
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <label
+                  <Label
                     htmlFor="adjustment-value"
                     className="text-sm font-medium text-stone-800"
                   >
                     {adjustmentCalculation === "PERCENTAGE"
                       ? "Discount (%)"
                       : `Discount (${adjustmentTarget?.paymentCurrency ?? orders.currency})`}
-                  </label>
+                  </Label>
                   <Input
                     id="adjustment-value"
                     type="number"
@@ -1697,12 +1698,12 @@ export function StaffOrderBoard({
             </div>
 
             <div className="grid gap-2">
-              <label
+              <Label
                 htmlFor="adjustment-note"
                 className="text-sm font-medium text-stone-800"
               >
                 Note (optional)
-              </label>
+              </Label>
               <Textarea
                 id="adjustment-note"
                 value={adjustmentNote}
@@ -1723,8 +1724,7 @@ export function StaffOrderBoard({
             {adjustmentTarget?.adjustment ? (
               <Button
                 type="button"
-                variant="outline"
-                className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                variant="destructive-outline"
                 disabled={Boolean(pendingAction) || !managerApprovalComplete}
                 onClick={() => void removeAdjustment()}
               >
@@ -1786,12 +1786,12 @@ export function StaffOrderBoard({
               </p>
             ) : null}
             <div className="grid gap-2">
-              <label
+              <Label
                 htmlFor="promised-fulfilment-at"
                 className="text-sm font-medium text-stone-800"
               >
                 Promised time
-              </label>
+              </Label>
               <Input
                 id="promised-fulfilment-at"
                 type="datetime-local"
@@ -1927,7 +1927,7 @@ export function StaffOrderBoard({
                       enter the cash received.
                     </p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <label className="min-w-0 text-sm font-medium text-stone-700">
+                      <Label className="min-w-0 text-sm font-medium text-stone-700">
                         Amount to apply
                         <Input
                           className="mt-2"
@@ -1939,8 +1939,8 @@ export function StaffOrderBoard({
                           disabled={Boolean(pendingAction)}
                           onChange={(event) => setCashAmount(event.target.value)}
                         />
-                      </label>
-                      <label className="min-w-0 text-sm font-medium text-stone-700">
+                      </Label>
+                      <Label className="min-w-0 text-sm font-medium text-stone-700">
                         Cash received
                         <Input
                           className="mt-2"
@@ -1952,7 +1952,7 @@ export function StaffOrderBoard({
                           disabled={Boolean(pendingAction)}
                           onChange={(event) => setCashTendered(event.target.value)}
                         />
-                      </label>
+                      </Label>
                     </div>
                     <div className="mt-2 flex justify-end">
                       <Button
@@ -2195,7 +2195,7 @@ export function StaffOrderBoard({
                 <>
                   {orders.canManageRefunds &&
                   cancellationTarget.status === "PENDING" ? (
-                    <label className="flex items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
+                    <Label className="flex items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-4">
                       <Checkbox
                         checked={applyCustomerCancellationFee}
                         disabled={Boolean(pendingAction)}
@@ -2206,7 +2206,7 @@ export function StaffOrderBoard({
                       <span className="text-sm font-medium text-stone-900">
                         Customer-requested cancellation
                       </span>
-                    </label>
+                    </Label>
                   ) : null}
                   {applyCustomerCancellationFee ? (
                     <div className="space-y-2">

@@ -1,5 +1,7 @@
 "use client";
 
+import { ChoiceButton } from "@/components/ui/choice-button";
+import { Label } from "@/components/ui/label";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -240,7 +242,7 @@ const customerTagColors: Record<string, string> = {
   sky: "border-sky-200 bg-sky-50 text-sky-800",
   violet: "border-violet-200 bg-violet-50 text-violet-800",
 };
-const customerItemActionClassName = "min-w-24 border-teal-200 bg-teal-50/70 font-semibold text-teal-800 hover:bg-teal-100 dark:border-teal-200 dark:bg-teal-50/70 dark:text-teal-800 dark:hover:bg-teal-100";
+const customerItemActionClassName = "min-w-24 font-semibold";
 
 function getMenuItemTaxes(
   taxPricing: RestaurantTaxPricing,
@@ -1977,7 +1979,7 @@ export function OrderForm({
                         const selection = getModifierSelection(customizer.item, group, option);
 
                         return (
-                          <label
+                          <Label
                             key={option.id}
                             className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm"
                           >
@@ -1997,7 +1999,7 @@ export function OrderForm({
                                 ? `+ ${formatPrice(option.priceDelta, priceOptions)}`
                                 : "Included"}
                             </span>
-                          </label>
+                          </Label>
                         );
                       })}
                     </div>
@@ -2351,11 +2353,11 @@ export function OrderForm({
                     const selected = draft.fulfilmentTiming === timing;
 
                     return (
-                      <button
+                      <ChoiceButton
                         key={timing}
                         type="button"
                         disabled={isSubmitting}
-                        aria-pressed={selected}
+                        selected={selected}
                         onClick={() => {
                           setDraft((currentDraft) => ({
                             ...currentDraft,
@@ -2370,17 +2372,12 @@ export function OrderForm({
                           }));
                           setError(null);
                         }}
-                        className={`flex min-h-12 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:ring-stone-500 focus-visible:ring-offset-2 focus-visible:outline-none ${
-                          selected
-                            ? isStaffOrder
-                              ? "border-stone-500 bg-stone-200 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
-                              : "border-teal-500 bg-teal-50 text-teal-950 shadow-sm ring-1 ring-teal-200"
-                            : "border-border bg-background text-foreground hover:bg-muted"
-                        }`}
+                        size="2xl"
+                        className="gap-2"
                       >
                         <TimingIcon className="size-4" aria-hidden="true" />
                         {timing === "ASAP" ? "ASAP" : "Schedule"}
-                      </button>
+                      </ChoiceButton>
                     );
                   })}
                 </div>
@@ -2430,10 +2427,10 @@ export function OrderForm({
                         ["GUEST", "Guest checkout"],
                         ["ACCOUNT", "Sign in"],
                       ] as const).map(([mode, label]) => (
-                        <button
+                        <ChoiceButton
                           key={mode}
                           type="button"
-                          aria-pressed={effectiveCheckoutMode === mode}
+                          selected={effectiveCheckoutMode === mode}
                           disabled={isSubmitting || (mode === "ACCOUNT" && !hasCustomerLoginProvider)}
                           onClick={() => {
                             setDraft((currentDraft) => ({
@@ -2446,14 +2443,10 @@ export function OrderForm({
                             }));
                             setError(null);
                           }}
-                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                            effectiveCheckoutMode === mode
-                              ? "bg-primary text-primary-foreground"
-                              : "text-stone-600 hover:bg-white hover:text-stone-950"
-                          }`}
+                          size="xl"
                         >
                           {label}
-                        </button>
+                        </ChoiceButton>
                       ))}
                     </div>
                   </fieldset>
@@ -2603,34 +2596,26 @@ export function OrderForm({
                     </legend>
                     <div className="mt-3 grid grid-cols-2 rounded-lg border border-stone-200 bg-stone-100 p-1">
                       {checkoutPolicy?.onlinePaymentEnabled ? (
-                        <button
+                        <ChoiceButton
                           type="button"
-                          aria-pressed={draft.paymentTiming === "ONLINE"}
+                          selected={draft.paymentTiming === "ONLINE"}
                           disabled={isSubmitting || !stripePaymentsEnabled}
                           onClick={() => updateDraft("paymentTiming", "ONLINE")}
-                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                            draft.paymentTiming === "ONLINE"
-                              ? "bg-primary text-primary-foreground"
-                              : "text-stone-600 hover:bg-white"
-                          }`}
+                          size="xl"
                         >
                           Pay online
-                        </button>
+                        </ChoiceButton>
                       ) : null}
                       {checkoutPolicy?.payLaterEnabled ? (
-                        <button
+                        <ChoiceButton
                           type="button"
-                          aria-pressed={draft.paymentTiming === "PAY_LATER"}
+                          selected={draft.paymentTiming === "PAY_LATER"}
                           disabled={isSubmitting}
                           onClick={() => updateDraft("paymentTiming", "PAY_LATER")}
-                          className={`min-h-11 rounded-md px-3 text-sm font-semibold transition-colors ${
-                            draft.paymentTiming === "PAY_LATER"
-                              ? "bg-primary text-primary-foreground"
-                              : "text-stone-600 hover:bg-white"
-                          }`}
+                          size="xl"
                         >
                           {getPayLaterLabel(draft.fulfilmentType)}
-                        </button>
+                        </ChoiceButton>
                       ) : null}
                     </div>
                   </fieldset>
@@ -2750,19 +2735,15 @@ export function OrderForm({
                   </legend>
                   <div className="mt-2 grid grid-cols-4 gap-2">
                     {[0, ...chargeSettings.tipPresetsBps].map((rateBps) => (
-                      <button
+                      <ChoiceButton
                         key={rateBps}
                         type="button"
-                        aria-pressed={draft.tipRateBps === rateBps}
-                        className={`min-h-10 rounded-lg border px-2 text-sm font-semibold transition-colors ${
-                          draft.tipRateBps === rateBps
-                            ? "border-teal-500 bg-teal-50 text-teal-950"
-                            : "border-stone-200 bg-white text-stone-700 hover:bg-stone-50"
-                        }`}
+                        selected={draft.tipRateBps === rateBps}
+                        className="px-2"
                         onClick={() => updateDraft("tipRateBps", rateBps)}
                       >
                         {rateBps === 0 ? "No tip" : `${rateBps / 100}%`}
-                      </button>
+                      </ChoiceButton>
                     ))}
                   </div>
                 </fieldset>
@@ -2944,7 +2925,7 @@ export function OrderForm({
                 restaurant={restaurant}
                 fulfilmentTypes={allowedFulfilmentTypes}
               />
-              <label className="relative mt-5 block">
+              <Label className="relative mt-5 block">
                 <span className="sr-only">Search menu</span>
                 <SearchIcon
                   aria-hidden="true"
@@ -2958,7 +2939,7 @@ export function OrderForm({
                   onChange={(event) => setMenuSearch(event.target.value)}
                   className="border-stone-200 bg-stone-50 pl-9"
                 />
-              </label>
+              </Label>
             </>
           )}
           {isStaffOrder && offlineOrderCount > 0 ? (
@@ -3000,32 +2981,24 @@ export function OrderForm({
                     Filter by tag
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
-                    <Button
+                    <ChoiceButton
                       type="button"
-                      variant={selectedTagId ? "outline" : "default"}
+                      selected={!selectedTagId}
                       onClick={() => setSelectedTagId(null)}
-                      className={
-                        selectedTagId
-                          ? "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
-                          : "h-9 shrink-0 rounded-lg bg-teal-600 px-4 text-sm text-white hover:bg-teal-700"
-                      }
+                      className="px-4"
                     >
                       All
-                    </Button>
+                    </ChoiceButton>
                     {availableTags.map((tag) => (
-                      <Button
+                      <ChoiceButton
                         key={tag.id}
                         type="button"
-                        variant={selectedTagId === tag.id ? "default" : "outline"}
+                        selected={selectedTagId === tag.id}
                         onClick={() => setSelectedTagId(tag.id)}
-                        className={
-                          selectedTagId === tag.id
-                            ? "h-9 shrink-0 rounded-lg bg-teal-600 px-4 text-sm text-white hover:bg-teal-700"
-                            : "h-9 shrink-0 rounded-lg border-stone-300 bg-white px-4 text-sm text-stone-700 hover:bg-stone-100"
-                        }
+                        className="px-4"
                       >
                         {tag.name}
-                      </Button>
+                      </ChoiceButton>
                     ))}
                   </div>
                 </div>
@@ -3068,13 +3041,7 @@ export function OrderForm({
                             aria-pressed={currentActiveCategoryId === category.id}
                             variant={currentActiveCategoryId === category.id ? "default" : "outline"}
                             onClick={() => scrollToCategory(category.id)}
-                            className={`${isStaffOrder ? "h-9 px-4 text-sm" : "px-5 font-semibold sm:px-6"} rounded-lg ${
-                              currentActiveCategoryId === category.id
-                                ? isStaffOrder
-                                  ? "border-teal-600 bg-teal-600 text-white shadow-sm hover:bg-teal-700"
-                                  : "border-teal-700 bg-teal-700 text-white shadow-sm hover:bg-teal-800"
-                                : `border-stone-200 bg-white text-stone-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 ${isStaffOrder ? "" : "dark:border-stone-200 dark:bg-white dark:text-stone-700 dark:hover:bg-teal-50"}`
-                            }`}
+                            className={`${isStaffOrder ? "px-4" : "px-5 font-semibold sm:px-6"} ${currentActiveCategoryId === category.id ? "shadow-sm" : ""}`}
                           >
                             {category.name}
                           </Button>
@@ -3304,7 +3271,7 @@ export function OrderForm({
                                       <div className="flex flex-wrap justify-end gap-2">
                                         <Button
                                           type="button"
-                                          variant="outline"
+                                          variant={isStaffOrder ? "outline" : "tinted"}
                                           size={isStaffOrder ? "lg" : "xl"}
                                           className={isStaffOrder ? undefined : customerItemActionClassName}
                                           onClick={() => addToCart(category, drink)}
@@ -3323,7 +3290,7 @@ export function OrderForm({
                                         </Button>
                                         <Button
                                           type="button"
-                                          variant="outline"
+                                          variant={isStaffOrder ? "outline" : "tinted"}
                                           size={isStaffOrder ? "lg" : "xl"}
                                           className={isStaffOrder ? undefined : customerItemActionClassName}
                                           onClick={() => openCartForDrink(drink.id)}
@@ -3369,15 +3336,11 @@ export function OrderForm({
                                   ) : hasModifiers ? (
                                     <Button
                                       type="button"
-                                      variant="outline"
+                                      variant={isStaffOrder ? "outline" : "tinted"}
                                       size={isStaffOrder ? "default" : "xl"}
                                       onClick={() => addToCart(category, drink)}
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
-                                      className={
-                                        !isStaffOrder ? customerItemActionClassName : isUnavailable || hasReachedStockLimit
-                                          ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
-                                          : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
-                                      }
+                                      className={isStaffOrder ? undefined : customerItemActionClassName}
                                     >
                                       {!isUnavailable && !hasReachedStockLimit ? (
                                         isStaffOrder ? <TagsIcon className="size-4" /> : <SlidersHorizontalIcon className="size-4" />
@@ -3424,15 +3387,11 @@ export function OrderForm({
                                   ) : (
                                     <Button
                                       type="button"
-                                      variant="outline"
+                                      variant={isStaffOrder ? "outline" : "tinted"}
                                       size={isStaffOrder ? "default" : "xl"}
                                       onClick={() => addToCart(category, drink)}
                                       disabled={isSubmitting || isUnavailable || hasReachedStockLimit}
-                                      className={
-                                        !isStaffOrder ? customerItemActionClassName : isUnavailable || hasReachedStockLimit
-                                          ? "h-9 rounded-lg border-stone-300 bg-stone-100 px-4 text-stone-400"
-                                          : "h-9 rounded-lg border-stone-300 bg-white px-4 text-stone-700 hover:bg-stone-100"
-                                      }
+                                      className={isStaffOrder ? undefined : customerItemActionClassName}
                                     >
                                       {!isUnavailable && !hasReachedStockLimit ? (
                                         <PlusIcon className="size-4" />

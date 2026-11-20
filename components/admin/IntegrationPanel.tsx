@@ -1,3 +1,4 @@
+import { ChoiceButton } from "@/components/ui/choice-button";
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangleIcon, BanIcon, CheckCircle2Icon } from "lucide-react";
 
@@ -119,25 +120,21 @@ export function IntegrationModeSelector({
           const isDisabled = isOptionDisabled?.(option) ?? false;
 
           return (
-            <button
+            <ChoiceButton
               key={option.value}
               type="button"
               role="radio"
-              aria-checked={isSelected}
+              selected={isSelected}
               disabled={isDisabled}
               onClick={() => onChange(option.value)}
               className={cn(
-                "relative flex min-h-20 items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors",
-                isSelected
-                  ? "border-amber-500 bg-amber-500/10 ring-1 ring-amber-500/20"
-                  : "border-border bg-background/40 hover:border-foreground/20 hover:bg-muted/60",
-                isDisabled && "cursor-not-allowed opacity-50",
+                "relative h-auto min-h-20 justify-start gap-3 px-4 py-3 text-left",
               )}
             >
               <Icon
                 className={cn(
                   "size-5 shrink-0",
-                  isSelected ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
+                  isSelected ? "text-primary" : "text-muted-foreground",
                 )}
               />
               <span className="min-w-0 pr-5">
@@ -156,11 +153,11 @@ export function IntegrationModeSelector({
                 className={cn(
                   "absolute right-3 top-3 size-4 rounded-full border",
                   isSelected
-                    ? "border-amber-500 bg-amber-500 shadow-[inset_0_0_0_3px_var(--card)]"
+                    ? "border-primary bg-primary shadow-[inset_0_0_0_3px_var(--card)]"
                     : "border-muted-foreground/60",
                 )}
               />
-            </button>
+            </ChoiceButton>
           );
         })}
       </div>

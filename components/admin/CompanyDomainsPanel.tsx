@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -250,7 +251,7 @@ export function CompanyDomainsPanel({
               </Select>
             </FormField>
 
-            <label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
+            <Label className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 px-3 py-3 text-sm text-stone-700">
               <Checkbox
                 checked={isPrimary}
                 onCheckedChange={(checked) => {
@@ -260,7 +261,7 @@ export function CompanyDomainsPanel({
                 disabled={isSubmitting || !targetCustomDomainsEnabled}
               />
               Make this the primary domain for the selected target
-            </label>
+            </Label>
             {validation.getError("isPrimary") ? (
               <p className="text-sm text-rose-600">
                 {validation.getError("isPrimary")}
@@ -374,7 +375,6 @@ export function CompanyDomainsPanel({
                     !activationAllowed
                   }
                   onClick={() => updateDomain(domainRecord, { isPrimary: true })}
-                  className="rounded-lg"
                 >
                   <ButtonLabel icon={StarIcon}>Make Primary</ButtonLabel>
                 </Button>

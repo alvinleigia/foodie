@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { CreditCardIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ function SettingCheckbox({
   onCheckedChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex min-h-16 gap-3 rounded-lg border border-stone-200 bg-white p-3">
+    <Label className="flex min-h-16 gap-3 rounded-lg border border-stone-200 bg-white p-3">
       <Checkbox
         checked={checked}
         disabled={disabled}
@@ -60,7 +61,7 @@ function SettingCheckbox({
           {description}
         </span>
       </span>
-    </label>
+    </Label>
   );
 }
 
@@ -261,7 +262,7 @@ export function RestaurantCheckoutPoliciesForm({
                     }))
                   }
                 />
-                <label className="grid content-start gap-2 text-sm font-medium text-stone-800">
+                <Label className="grid content-start gap-2 text-sm font-medium text-stone-800">
                   Contact details
                   <Select
                     value={policy.contactRequirement}
@@ -284,8 +285,8 @@ export function RestaurantCheckoutPoliciesForm({
                       ))}
                     </SelectContent>
                   </Select>
-                </label>
-                <label className="grid content-start gap-2 text-sm font-medium text-stone-800">
+                </Label>
+                <Label className="grid content-start gap-2 text-sm font-medium text-stone-800">
                   Default for signed-in customers
                   <Select
                     value={policy.defaultPaymentTiming}
@@ -309,7 +310,7 @@ export function RestaurantCheckoutPoliciesForm({
                       ) : null}
                     </SelectContent>
                   </Select>
-                </label>
+                </Label>
               </div>
             </fieldset>
           );

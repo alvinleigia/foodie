@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { HandCoinsIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -86,7 +87,7 @@ export function RestaurantChargeSettingsForm({
       </CardHeader>
       <CardContent className="grid gap-5 px-5 pb-5">
         <section className="grid gap-4 border-b border-border pb-5">
-          <label className="flex items-center gap-3 text-sm font-semibold themed-title">
+          <Label className="flex items-center gap-3 text-sm font-semibold themed-title">
             <Checkbox
               checked={settings.serviceChargeEnabled}
               onCheckedChange={(value) =>
@@ -97,7 +98,7 @@ export function RestaurantChargeSettingsForm({
               }
             />
             Enable service charge
-          </label>
+          </Label>
           <div className="grid gap-4 md:grid-cols-4">
             <PercentInput
               label="Service charge (%)"
@@ -111,7 +112,7 @@ export function RestaurantChargeSettingsForm({
               ["serviceChargePickup", "Takeaway"],
               ["serviceChargeDelivery", "Delivery"],
             ].map(([key, label]) => (
-              <label
+              <Label
                 key={key}
                 className="flex min-h-10 items-center gap-3 self-end rounded-lg border border-border px-3 text-sm themed-title"
               >
@@ -125,13 +126,13 @@ export function RestaurantChargeSettingsForm({
                   }
                 />
                 {label}
-              </label>
+              </Label>
             ))}
           </div>
         </section>
 
         <section className="grid gap-4">
-          <label className="flex items-center gap-3 text-sm font-semibold themed-title">
+          <Label className="flex items-center gap-3 text-sm font-semibold themed-title">
             <Checkbox
               checked={settings.tipsEnabled}
               onCheckedChange={(value) =>
@@ -139,7 +140,7 @@ export function RestaurantChargeSettingsForm({
               }
             />
             Offer optional tips
-          </label>
+          </Label>
           <div className="grid gap-4 sm:grid-cols-3">
             {settings.tipPresetsBps.map((preset, index) => (
               <PercentInput

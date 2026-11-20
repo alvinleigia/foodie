@@ -122,11 +122,11 @@ export function StaffCustomerSearch({
       {results.length > 0 ? (
         <div className="divide-y divide-stone-200 border-y border-stone-200">
           {results.map((customer) => (
-            <button
+            <Button variant="ghost"
               key={customer.id}
               type="button"
               onClick={() => onChange(customer)}
-              className="flex w-full items-center justify-between gap-4 px-1 py-3 text-left hover:bg-white"
+              className="h-auto w-full justify-between gap-4 whitespace-normal px-3 py-3 text-left"
             >
               <span className="min-w-0">
                 <span className="block font-medium text-stone-900">{customer.name}</span>
@@ -135,7 +135,7 @@ export function StaffCustomerSearch({
                 </span>
               </span>
               <ButtonLabel icon={UserRoundCheckIcon}>Select</ButtonLabel>
-            </button>
+            </Button>
           ))}
         </div>
       ) : null}

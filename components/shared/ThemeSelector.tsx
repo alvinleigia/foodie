@@ -1,5 +1,6 @@
 "use client";
 
+import { ChoiceButton } from "@/components/ui/choice-button";
 import { useSyncExternalStore } from "react";
 import { LaptopIcon, MoonIcon, SunIcon, type LucideIcon } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -42,12 +43,12 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
         const isSelected = mounted && theme === option.value;
 
         return (
-          <button
+          <ChoiceButton
             key={option.value}
-            aria-pressed={isSelected}
+            selected={isSelected}
             className={cn(
-              "flex flex-col items-center justify-center rounded-md text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              compact ? "min-h-12 gap-1 px-2 py-1.5 focus-visible:ring-offset-stone-950" : "min-h-16 gap-1.5 px-3 py-2 focus-visible:ring-offset-background",
+              "h-auto flex-col border-transparent ring-0",
+              compact ? "min-h-12 gap-1 px-2 py-1.5" : "min-h-16 gap-1.5 px-3 py-2",
               compact && isSelected && "bg-white text-stone-950 shadow-sm",
               compact && !isSelected && "text-stone-400 hover:bg-white/10 hover:text-white",
               !compact && isSelected && "bg-card text-card-foreground shadow-sm ring-1 ring-border",
@@ -59,7 +60,7 @@ export function ThemeSelector({ compact = false }: { compact?: boolean }) {
           >
             <Icon className="size-4" />
             <span>{option.label}</span>
-          </button>
+          </ChoiceButton>
         );
       })}
     </div>
