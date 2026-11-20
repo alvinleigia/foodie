@@ -88,13 +88,14 @@ async function submitJson(path: string, method: "POST" | "PATCH", body: unknown)
 function StaffRoleSelect({
   onChange,
   value,
+  ...controlProps
 }: {
   onChange: (role: StaffRole) => void;
   value: StaffRole;
-}) {
+} & Pick<React.ComponentProps<typeof SelectTrigger>, "id" | "aria-describedby" | "aria-invalid">) {
   return (
     <Select value={value} onValueChange={(role) => onChange(role as StaffRole)}>
-      <SelectTrigger>
+      <SelectTrigger {...controlProps}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

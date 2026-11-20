@@ -1,5 +1,6 @@
 "use client";
 
+import { ChoiceButton } from "@/components/ui/choice-button";
 import { useState } from "react";
 import {
   BanIcon,
@@ -31,7 +32,6 @@ import type {
   FeatureKey,
   FeatureOverrideMode,
 } from "@/lib/feature-entitlements";
-import { cn } from "@/lib/utils";
 
 type FeatureScope = {
   id: string;
@@ -281,24 +281,19 @@ export function CompanyFeatureEntitlementsForm({
                         const isSelected = draft.mode === option.value;
 
                         return (
-                          <button
+                          <ChoiceButton
                             key={option.value}
                             type="button"
                             role="radio"
-                            aria-checked={isSelected}
+                            selected={isSelected}
                             onClick={() =>
                               updateDraft(entitlement.key, { mode: option.value })
                             }
-                            className={cn(
-                              "flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors sm:text-sm",
-                              isSelected
-                                ? "bg-stone-950 text-white"
-                                : "text-stone-600 hover:bg-white hover:text-stone-950",
-                            )}
+                            className="h-auto min-h-9 px-2 text-xs sm:text-sm"
                           >
                             <Icon className="size-4" />
                             {option.label}
-                          </button>
+                          </ChoiceButton>
                         );
                       })}
                     </div>

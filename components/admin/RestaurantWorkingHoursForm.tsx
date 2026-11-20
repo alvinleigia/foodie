@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Clock3Icon, PlusIcon, SaveIcon, Trash2Icon } from "lucide-react";
@@ -151,7 +152,7 @@ export function RestaurantWorkingHoursForm({
             Set when customers can submit orders. Times use {initialValue.timezone}.
           </p>
         </div>
-        <label className="flex max-w-sm items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+        <Label className="flex max-w-sm items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
           <Checkbox
             checked={enabled}
             onCheckedChange={(checked) => setEnabled(checked === true)}
@@ -166,7 +167,7 @@ export function RestaurantWorkingHoursForm({
               Staff can still take orders after closing.
             </span>
           </span>
-        </label>
+        </Label>
       </CardHeader>
       <CardContent className="px-5 pb-5">
         {enabled && periods.length === 0 ? (
@@ -232,7 +233,7 @@ export function RestaurantWorkingHoursForm({
                               />
                             </div>
                           )}
-                          <label className="flex items-center gap-2 px-1 text-sm text-stone-600">
+                          <Label className="flex items-center gap-2 px-1 text-sm text-stone-600">
                             <Checkbox
                               checked={period.is24Hours}
                               onCheckedChange={(checked) =>
@@ -241,7 +242,7 @@ export function RestaurantWorkingHoursForm({
                               aria-label={`${weekday.label} open 24 hours`}
                             />
                             24 hours
-                          </label>
+                          </Label>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button

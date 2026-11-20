@@ -18,8 +18,9 @@ import {
   getCountryCallingCodeLabel,
   isSupportedCountryCode,
 } from "@/lib/countries";
+import type { AriaAttributes } from "react";
 
-type PhoneNumberInputProps = {
+type PhoneNumberInputProps = Pick<AriaAttributes, "aria-describedby" | "aria-invalid"> & {
   ariaDescribedBy?: string;
   ariaInvalid?: boolean;
   autoComplete?: string;
@@ -45,10 +46,9 @@ export function PhoneNumberInput({
   onValueChange,
   tone = "default",
   value,
+  "aria-describedby": describedBy = ariaDescribedBy,
+  "aria-invalid": invalid = ariaInvalid,
 }: PhoneNumberInputProps) {
-  const selectSize =
-    controlSize === "lg" || controlSize === "xl" ? controlSize : "default";
-
   return (
     <div className="grid grid-cols-[6.25rem_minmax(0,1fr)] gap-2">
       <Select
@@ -63,7 +63,7 @@ export function PhoneNumberInput({
         <SelectTrigger
           aria-label="Phone country"
           className="w-full"
-          size={selectSize}
+          size={controlSize}
         >
           <SelectValue>{getCountryCallingCodeLabel(countryCode)}</SelectValue>
         </SelectTrigger>
@@ -88,8 +88,8 @@ export function PhoneNumberInput({
         placeholder={countryCode === "GB" ? "07123 456789" : "Phone number"}
         value={value}
         disabled={disabled}
-        aria-invalid={ariaInvalid}
-        aria-describedby={ariaDescribedBy}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
         controlSize={controlSize}
         onChange={(event) => {
           const nextValue = event.target.value;

@@ -619,10 +619,10 @@ export function CustomerOrderStatus({
               {order.status === "PENDING" && order.paymentStatus === "PAID" ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive-outline"
                   disabled={pendingCancelId === order.orderId}
                   onClick={() => setConfirmingCancelOrder(order)}
-                  className="mt-4 rounded-lg border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-700"
+                  className="mt-4"
                 >
                   {pendingCancelId === order.orderId ? (
                     <span className="inline-flex items-center gap-2">

@@ -20,6 +20,7 @@ import { OrderCardsSkeleton } from "@/components/shared/SectionSkeletons";
 import { OrderStatusBadge } from "@/components/shared/OrderStatusBadge";
 import { Spinner } from "@/components/shared/Spinner";
 import { Button } from "@/components/ui/button";
+import { ChoiceButton } from "@/components/ui/choice-button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type {
   KdsBoardPayload,
@@ -412,16 +413,11 @@ export function KdsBoard() {
         className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
         aria-label="Preparation station filter"
       >
-        <Button
+        <ChoiceButton
           type="button"
-          variant="outline"
-          aria-pressed={selectedStation === "all"}
+          selected={selectedStation === "all"}
           onClick={() => setSelectedStation("all")}
-          className={`relative h-auto min-h-24 flex-col items-stretch justify-between rounded-lg p-4 text-left whitespace-normal ${
-            selectedStation === "all"
-              ? "border-stone-400 bg-stone-100 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
-              : "border-border bg-card text-card-foreground hover:bg-muted"
-          }`}
+          className="relative h-auto min-h-24 flex-col items-stretch justify-between p-4 text-left"
         >
           <span className="flex w-full items-center justify-between gap-3">
             <LayoutGridIcon className="size-4" aria-hidden="true" />
@@ -443,23 +439,18 @@ export function KdsBoard() {
               aria-hidden="true"
             />
           ) : null}
-        </Button>
+        </ChoiceButton>
         {board.stations.map((station) => {
           const StationIcon = stationTypeIcons[station.type];
           const isSelected = selectedStation === station.id;
 
           return (
-            <Button
+            <ChoiceButton
               key={station.id}
               type="button"
-              variant="outline"
-              aria-pressed={isSelected}
+              selected={isSelected}
               onClick={() => setSelectedStation(station.id)}
-              className={`relative h-auto min-h-24 flex-col items-stretch justify-between rounded-lg p-4 text-left whitespace-normal ${
-                isSelected
-                  ? "border-stone-400 bg-stone-100 text-stone-950 shadow-sm dark:border-stone-500 dark:bg-stone-700 dark:text-white"
-                  : "border-border bg-card text-card-foreground hover:bg-muted"
-              }`}
+              className="relative h-auto min-h-24 flex-col items-stretch justify-between p-4 text-left"
             >
               <span className="flex w-full items-center justify-between gap-3">
                 <StationIcon className="size-4" aria-hidden="true" />
@@ -475,7 +466,7 @@ export function KdsBoard() {
                   aria-hidden="true"
                 />
               ) : null}
-            </Button>
+            </ChoiceButton>
           );
         })}
       </div>

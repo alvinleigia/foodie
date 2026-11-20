@@ -3,13 +3,15 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { controlStyles } from "@/components/ui/control-styles"
 
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea
       data-slot="textarea"
       className={cn(
-        "min-h-24 w-full rounded-xl border border-input bg-background px-4 py-3 text-base text-foreground outline-none transition placeholder:text-muted-foreground focus:border-ring focus:ring-3 focus:ring-ring/20 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground",
+        controlStyles(),
+        "min-h-24 w-full px-3 py-2 text-base md:text-sm",
         className,
       )}
       {...props}

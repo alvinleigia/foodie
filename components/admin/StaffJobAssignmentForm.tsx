@@ -1,5 +1,7 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { Radio } from "@/components/ui/radio";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -101,7 +103,7 @@ export function StaffJobAssignmentForm({
         </Button>
       </CardHeader>
       <CardContent className="grid gap-4 px-5 pb-5">
-        <label className="grid max-w-md gap-1.5 text-sm font-medium">
+        <Label className="grid max-w-md gap-1.5 text-sm font-medium">
           Payroll employee reference
           <Input
             type="text"
@@ -119,7 +121,7 @@ export function StaffJobAssignmentForm({
           <span className="text-xs font-normal text-muted-foreground">
             Required when this staff member is included in a payroll export.
           </span>
-        </label>
+        </Label>
         {availableJobs.length ? (
           <div className="grid gap-3 md:grid-cols-2">
             {availableJobs.map((job) => {
@@ -130,7 +132,7 @@ export function StaffJobAssignmentForm({
                   key={job.id}
                   className="rounded-lg border border-border bg-muted/35 p-4"
                 >
-                  <label className="flex items-start gap-3">
+                  <Label className="flex items-start gap-3">
                     <Checkbox
                       checked={isAssigned}
                       disabled={!job.isActive && !isAssigned}
@@ -148,12 +150,11 @@ export function StaffJobAssignmentForm({
                         {!job.isActive ? " / Inactive" : ""}
                       </span>
                     </span>
-                  </label>
+                  </Label>
                   {isAssigned ? (
                     <div className="mt-3 grid gap-3 border-t border-border pt-3">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input
-                          type="radio"
+                      <Label className="flex items-center gap-2 text-sm">
+                        <Radio
                           name="primary-job"
                           checked={assignment.primaryJobId === job.id}
                           onChange={() =>
@@ -164,8 +165,8 @@ export function StaffJobAssignmentForm({
                           }
                         />
                         Primary permission baseline
-                      </label>
-                      <label className="grid gap-1.5 text-sm font-medium">
+                      </Label>
+                      <Label className="grid gap-1.5 text-sm font-medium">
                         Hourly pay ({assignment.currency})
                         <Input
                           type="number"
@@ -190,7 +191,7 @@ export function StaffJobAssignmentForm({
                             setPayRate(job.id, event.target.value)
                           }
                         />
-                      </label>
+                      </Label>
                     </div>
                   ) : null}
                 </div>

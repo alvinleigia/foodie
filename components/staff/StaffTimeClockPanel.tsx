@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClockIcon,
@@ -197,10 +198,10 @@ export function StaffTimeClockPanel({
                     Upcoming schedule
                   </p>
                   {snapshot.upcomingScheduledShifts.map((shift) => (
-                    <button
+                    <Button variant="ghost"
                       key={shift.id}
                       type="button"
-                      className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3 text-left transition-colors hover:bg-stone-100"
+                      className="h-auto justify-start gap-3 border-border bg-muted/40 p-3 text-left whitespace-normal"
                       onClick={() => {
                         setSelectedJobId(shift.jobId);
                         setSelectedScheduledShiftId(shift.id);
@@ -221,11 +222,11 @@ export function StaffTimeClockPanel({
                           Selected
                         </StatusPill>
                       ) : null}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               ) : null}
-              <label className="grid gap-2 text-sm font-medium text-stone-800">
+              <Label className="grid gap-2 text-sm font-medium text-stone-800">
                 Job
                 <NativeSelect
                   value={selectedJobId}
@@ -240,7 +241,7 @@ export function StaffTimeClockPanel({
                     </option>
                   ))}
                 </NativeSelect>
-              </label>
+              </Label>
               <div>
                 <Button
                   type="button"

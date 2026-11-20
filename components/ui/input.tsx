@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { controlStyles, type ControlSize } from "@/components/ui/control-styles"
 
 function Input({
   className,
@@ -8,18 +9,17 @@ function Input({
   type,
   ...props
 }: React.ComponentProps<"input"> & {
-  controlSize?: "compact" | "default" | "lg" | "xl";
+  controlSize?: ControlSize;
 }) {
   return (
     <input
       type={type}
       data-slot="input"
+      data-control-size={controlSize}
       className={cn(
-        "w-full min-w-0 rounded-lg border border-input bg-transparent py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        controlSize === "compact" && "h-9 px-3",
-        controlSize === "default" && "h-8 px-2.5",
-        controlSize === "lg" && "h-11 px-3.5 md:text-base",
-        controlSize === "xl" && "h-12 px-4 md:text-base",
+        controlStyles({ controlSize }),
+        "w-full py-1 text-base md:text-sm file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground",
+        (controlSize === "lg" || controlSize === "xl") && "md:text-base",
         className
       )}
       {...props}

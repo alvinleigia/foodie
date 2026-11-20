@@ -320,7 +320,7 @@ export function OrderCard({
         : BikeIcon;
   const summaryStatusAction: {
     action: "start" | "ready" | "deliver";
-    className: string;
+    variant: "outline" | "warning" | "success";
     Icon: typeof CookingPotIcon;
     label: string;
     pendingLabel: string;
@@ -329,8 +329,7 @@ export function OrderCard({
     : order.status === "PENDING"
       ? {
           action: "start",
-          className:
-            "border-border bg-background text-foreground hover:bg-muted",
+          variant: "outline",
           Icon: CookingPotIcon,
           label: "Start order",
           pendingLabel: "Starting...",
@@ -338,7 +337,7 @@ export function OrderCard({
       : order.status === "PREPARING"
         ? {
             action: "ready",
-            className: "bg-amber-500 text-stone-950 hover:bg-amber-400",
+            variant: "warning",
             Icon: CirclePlayIcon,
             label: "Send to assembly",
             pendingLabel: "Sending...",
@@ -346,7 +345,7 @@ export function OrderCard({
         : order.status === "ASSEMBLING"
           ? {
               action: "ready",
-              className: "bg-emerald-600 text-white hover:bg-emerald-500",
+              variant: "success",
               Icon: CheckCircleIcon,
               label: "Ready for handoff",
               pendingLabel: "Releasing...",
@@ -354,7 +353,7 @@ export function OrderCard({
           : order.status === "READY"
             ? {
                 action: "deliver",
-                className: "bg-emerald-600 text-white hover:bg-emerald-500",
+                variant: "success",
                 Icon: CheckCircleIcon,
                 label: "Mark delivered",
                 pendingLabel: "Delivering...",
@@ -366,12 +365,12 @@ export function OrderCard({
       return (
         <Button
           type="button"
-          variant="outline"
+          variant="warning-outline"
           size="xl"
           disabled={disabled}
           onClick={() => onRetryRefund(order)}
           data-slot="order-primary-action"
-          className="w-full border-amber-300 bg-background text-amber-800 hover:bg-amber-50 hover:text-amber-900 sm:w-auto dark:text-amber-300 dark:hover:bg-amber-400/10"
+          className="w-full sm:w-auto"
         >
           {pendingAction === `refund-order:${order.orderId}` ? (
             <span className="inline-flex items-center gap-2">
@@ -407,13 +406,13 @@ export function OrderCard({
       return (
         <Button
           type="button"
-          variant={summaryStatusAction.action === "start" ? "outline" : "default"}
+          variant={summaryStatusAction.variant}
           disabled={disabled}
           data-slot="order-primary-action"
           onClick={() =>
             onOrderAction(order.orderId, summaryStatusAction.action)
           }
-          className={`h-10 w-full sm:w-auto ${summaryStatusAction.className}`}
+          className="w-full sm:w-auto"
         >
           {pendingAction === actionKey ? (
             <span className="inline-flex items-center gap-2">
@@ -489,11 +488,10 @@ export function OrderCard({
           ) : null}
 
           {openDineInCheck && order.status === "PREPARING" ? (
-            <Button
+            <Button variant="warning"
               type="button"
               disabled={disabled}
               onClick={() => onOrderAction(order.orderId, "ready")}
-              className="rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400"
             >
               {pendingAction === `ready-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
@@ -507,11 +505,10 @@ export function OrderCard({
           ) : null}
 
           {openDineInCheck && order.status === "ASSEMBLING" ? (
-            <Button
+            <Button variant="success"
               type="button"
               disabled={disabled}
               onClick={() => onOrderAction(order.orderId, "ready")}
-              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
             >
               {pendingAction === `ready-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
@@ -542,11 +539,10 @@ export function OrderCard({
                 )}
               </Button>
               {openDineInCheck ? (
-                <Button
+                <Button variant="success"
                   type="button"
                   disabled={disabled}
                   onClick={() => onOrderAction(order.orderId, "deliver")}
-                  className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
                 >
                   {pendingAction === `deliver-order:${order.orderId}` ? (
                     <span className="inline-flex items-center gap-2">
@@ -569,10 +565,9 @@ export function OrderCard({
           order.status === "READY") && order.paymentStatus !== "PENDING" ? (
             <Button
               type="button"
-              variant="outline"
+              variant="destructive-outline"
               disabled={disabled}
               onClick={() => onOrderAction(order.orderId, "cancel")}
-              className="rounded-lg border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-700"
             >
               {pendingAction === `cancel-order:${order.orderId}` ? (
                 <span className="inline-flex items-center gap-2">
@@ -654,7 +649,7 @@ export function OrderCard({
         {canUpdateItem && (item.status === "PENDING" || item.status === "PREPARING") ? (
           <Button
             type="button"
-            variant={item.status === "PREPARING" ? "default" : "outline"}
+            variant={item.status === "PREPARING" ? "warning" : "outline"}
             disabled={disabled}
             onClick={() =>
               onItemAction(
@@ -663,11 +658,7 @@ export function OrderCard({
                 item.status === "PENDING" ? "start" : "ready",
               )
             }
-            className={
-              item.status === "PREPARING"
-                ? "w-full rounded-lg bg-amber-500 text-stone-950 hover:bg-amber-400"
-                : "w-full rounded-lg border-border bg-background text-foreground hover:bg-muted"
-            }
+            className="w-full"
           >
             {pendingAction ===
             `${item.status === "PENDING" ? "start" : "ready"}-item:${item.id}` ? (
@@ -711,11 +702,10 @@ export function OrderCard({
                 <ButtonLabel icon={MegaphoneIcon}>Play Message</ButtonLabel>
               )}
             </Button>
-            <Button
+            <Button variant="success"
               type="button"
               disabled={disabled}
               onClick={() => onItemAction(order.orderId, item.id!, "deliver")}
-              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
             >
               {pendingAction === `deliver-item:${item.id}` ? (
                 <span className="inline-flex items-center gap-2">
@@ -734,10 +724,9 @@ export function OrderCard({
           order.paymentStatus === "UNPAID") ? (
           <Button
             type="button"
-            variant="outline"
+            variant="destructive-outline"
             disabled={disabled}
             onClick={() => onItemAction(order.orderId, item.id!, "cancel")}
-            className="rounded-lg border-rose-200 bg-white text-rose-700 hover:bg-rose-50 hover:text-rose-700"
           >
             {pendingAction === `cancel-item:${item.id}` ? (
               <span className="inline-flex items-center gap-2">
@@ -829,13 +818,13 @@ export function OrderCard({
             className="mt-4 flex flex-wrap items-center justify-between gap-2"
           >
             <div>{renderSummaryPrimaryAction()}</div>
-            <button
+            <Button variant="outline"
               type="button"
               aria-controls={`order-details-${order.orderId}`}
               aria-expanded={!isCollapsed}
               aria-label={isCollapsed ? "Show order details" : "Hide order details"}
               data-slot="order-details-toggle"
-              className="flex h-10 items-center gap-2 rounded-full border border-border bg-background px-4 text-sm font-semibold text-foreground outline-none transition hover:bg-muted focus-visible:ring-2 focus-visible:ring-amber-500/30"
+              className="gap-2 px-4"
               onClick={() => setIsCollapsed((current) => !current)}
             >
               {isCollapsed ? (
@@ -844,7 +833,7 @@ export function OrderCard({
                 <ChevronUpIcon className="size-4 text-muted-foreground" aria-hidden="true" />
               )}
               Details
-            </button>
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -1088,10 +1077,9 @@ export function OrderCard({
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="info-outline"
                   disabled={disabled}
                   onClick={() => onSettleOrder(order)}
-                  className="rounded-lg border-sky-200 bg-white text-sky-900 hover:bg-sky-50"
                 >
                   View payment link
                 </Button>
@@ -1100,7 +1088,6 @@ export function OrderCard({
                   variant="outline"
                   disabled={disabled}
                   onClick={() => onCancelPayment(order)}
-                  className="rounded-lg border-stone-300 bg-white text-stone-800 hover:bg-stone-100"
                 >
                   {pendingAction === `cancel-payment:${order.orderId}` ? (
                     <span className="inline-flex items-center gap-2">

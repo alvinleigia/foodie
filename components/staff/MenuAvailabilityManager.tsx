@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useEffect, useState } from "react";
 import {
   CalendarClockIcon,
@@ -317,7 +318,7 @@ export function MenuAvailabilityManager() {
                   placeholder="Breakfast"
                 />
               </FormField>
-              <label className="flex h-12 items-center gap-3 rounded-lg border border-border px-4">
+              <Label className="flex h-12 items-center gap-3 rounded-lg border border-border px-4">
                 <Checkbox
                   checked={draft.isEnabled}
                   onCheckedChange={(checked) =>
@@ -328,7 +329,7 @@ export function MenuAvailabilityManager() {
                   }
                 />
                 <span className="text-sm font-medium">Schedule enabled</span>
-              </label>
+              </Label>
             </div>
 
             <section>
@@ -385,7 +386,7 @@ export function MenuAvailabilityManager() {
                                   />
                                 </div>
                               )}
-                              <label className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+                              <Label className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
                                 <Checkbox
                                   checked={period.is24Hours}
                                   onCheckedChange={(checked) =>
@@ -393,7 +394,7 @@ export function MenuAvailabilityManager() {
                                   }
                                 />
                                 All day
-                              </label>
+                              </Label>
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -447,7 +448,7 @@ export function MenuAvailabilityManager() {
               <div className="mt-3 divide-y divide-border border-y border-border">
                 {configuration?.categories.map((category) => (
                   <div key={category.id} className="grid gap-3 py-4 md:grid-cols-[14rem_minmax(0,1fr)]">
-                    <label className="flex items-start gap-3 font-medium">
+                    <Label className="flex items-start gap-3 font-medium">
                       <Checkbox
                         className="mt-0.5"
                         checked={draft.categoryIds.includes(category.id)}
@@ -456,10 +457,10 @@ export function MenuAvailabilityManager() {
                         }
                       />
                       {category.name}
-                    </label>
+                    </Label>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {category.items.map((item) => (
-                        <label key={item.id} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <Label key={item.id} className="flex items-start gap-2 text-sm text-muted-foreground">
                           <Checkbox
                             className="mt-0.5"
                             checked={draft.itemIds.includes(item.id)}
@@ -468,7 +469,7 @@ export function MenuAvailabilityManager() {
                             }
                           />
                           {item.name}
-                        </label>
+                        </Label>
                       ))}
                     </div>
                   </div>

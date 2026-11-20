@@ -316,7 +316,7 @@ export function ReassignExistingUserForm({
                 >
                   {userSuggestions.length > 0 ? (
                     userSuggestions.map((user) => (
-                      <button
+                      <Button variant="ghost"
                         key={user.id}
                         type="button"
                         role="option"
@@ -324,7 +324,7 @@ export function ReassignExistingUserForm({
                           identifier.toLowerCase() === user.email.toLowerCase() ||
                           identifier.toLowerCase() === user.username.toLowerCase()
                         }
-                        className="flex w-full flex-col gap-1 px-4 py-3 text-left text-sm transition hover:bg-stone-100 focus:bg-stone-100 focus:outline-none"
+                        className="h-auto w-full flex-col items-start gap-1 whitespace-normal px-4 py-3 text-left focus-visible:bg-muted"
                         onMouseDown={(event) => {
                           event.preventDefault();
                           chooseUser(user);
@@ -336,7 +336,7 @@ export function ReassignExistingUserForm({
                         <span className="text-xs text-stone-500">
                           {user.username} - {user.email}
                         </span>
-                      </button>
+                      </Button>
                     ))
                   ) : (
                     <div className="px-4 py-3 text-sm text-stone-500">

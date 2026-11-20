@@ -14,9 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { ComponentProps } from "react";
+import type { ControlSize } from "@/components/ui/control-styles";
 
-type LocaleSelectProps = {
+type LocaleSelectProps = Pick<ComponentProps<"button">, "id" | "disabled" | "aria-label" | "aria-labelledby" | "aria-describedby" | "aria-invalid"> & {
   className?: string;
+  controlSize?: ControlSize;
+  tone?: "customer" | "default";
   onValueChange: (value: string) => void;
   value: string;
 };
@@ -41,16 +45,20 @@ function LocaleSelect({
   placeholder,
   value,
   onValueChange,
+  controlSize = "default",
+  tone = "default",
+  disabled,
+  ...controlProps
 }: LocaleSelectProps & {
   options: LocaleOption[];
   placeholder: string;
 }) {
   return (
-    <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger size="lg" className={cn("w-full", className)}>
+    <Select value={value} onValueChange={onValueChange} disabled={disabled}>
+      <SelectTrigger {...controlProps} size={controlSize} className={cn("w-full", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent className="max-h-80 min-w-[18rem]" position="popper">
+      <SelectContent data-customer-storefront={tone === "customer" ? "" : undefined} data-theme-static={tone === "customer" ? "" : undefined} className="max-h-80 min-w-[18rem]" position="popper">
         {optionsWithCurrentValue(options, value).map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}

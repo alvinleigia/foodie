@@ -282,7 +282,7 @@ export function StaffJobManager({
                     {staffPermissionDefinitions
                       .filter((definition) => definition.group === group)
                       .map((definition) => (
-                        <label
+                        <Label
                           key={definition.permission}
                           className="flex min-w-0 items-start gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3"
                         >
@@ -305,7 +305,7 @@ export function StaffJobManager({
                               {definition.description}
                             </span>
                           </span>
-                        </label>
+                        </Label>
                       ))}
                   </div>
                 </fieldset>

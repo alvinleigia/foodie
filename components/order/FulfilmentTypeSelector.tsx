@@ -1,5 +1,7 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { Radio } from "@/components/ui/radio";
 import {
   BikeIcon,
   ShoppingBagIcon,
@@ -43,7 +45,7 @@ export function FulfilmentTypeSelector({
           const selected = value === type;
 
           return (
-            <label
+            <Label
               key={type}
               className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition-colors has-focus-visible:ring-2 has-focus-visible:ring-stone-500 has-focus-visible:ring-offset-2 ${
                 disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
@@ -55,8 +57,7 @@ export function FulfilmentTypeSelector({
                   : "border-border bg-background text-foreground hover:bg-muted"
               }`}
             >
-              <input
-                type="radio"
+              <Radio
                 name="fulfilmentType"
                 value={type}
                 checked={selected}
@@ -67,7 +68,7 @@ export function FulfilmentTypeSelector({
               <span className="text-xs font-semibold sm:text-sm">
                 {orderFulfilmentLabels[type]}
               </span>
-            </label>
+            </Label>
           );
         })}
       </div>

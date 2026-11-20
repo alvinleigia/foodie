@@ -1,5 +1,6 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { CalendarRangeIcon, SaveIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -120,7 +121,7 @@ export function StaffAvailabilityPanel({
                 key={dayOfWeek}
                 className="grid gap-3 py-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(0,2fr)] sm:items-center"
               >
-                <label className="flex items-center gap-3 font-medium">
+                <Label className="flex items-center gap-3 font-medium">
                   <Checkbox
                     checked={day.isAvailable}
                     onCheckedChange={(checked) =>
@@ -133,7 +134,7 @@ export function StaffAvailabilityPanel({
                     }
                   />
                   {dayNames[dayOfWeek]}
-                </label>
+                </Label>
                 {day.isAvailable ? (
                   <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
                     <Input

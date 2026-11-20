@@ -1,9 +1,10 @@
 "use client";
 
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState, type ComponentProps } from "react";
 
 import { Button } from "@/components/ui/button";
+import { controlStyles, type ControlSize } from "@/components/ui/control-styles";
 import {
   Command,
   CommandEmpty,
@@ -25,8 +26,10 @@ export type ComboboxOption = {
   searchText?: string;
 };
 
-type ComboboxProps = {
+type ComboboxProps = Pick<ComponentProps<"button">, "id" | "disabled" | "aria-label" | "aria-labelledby" | "aria-describedby" | "aria-invalid"> & {
   className?: string;
+  controlSize?: ControlSize;
+  tone?: "customer" | "default";
   emptyText?: string;
   onValueChange: (value: string) => void;
   options: ComboboxOption[];
@@ -37,14 +40,18 @@ type ComboboxProps = {
 
 export function Combobox({
   className,
+  controlSize = "default",
+  tone = "default",
   emptyText = "No results found.",
   onValueChange,
   options,
   placeholder = "Select option",
   searchPlaceholder = "Search...",
   value,
+  ...controlProps
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
+  const listId = useId();
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value),
     [options, value],
@@ -58,8 +65,12 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          {...controlProps}
+          data-control-size={controlSize}
           className={cn(
-            "h-10 w-full justify-between rounded-lg bg-background px-3 font-normal text-foreground hover:bg-muted",
+            controlStyles({ controlSize }),
+            "w-full justify-between font-normal hover:bg-muted dark:bg-background dark:hover:bg-muted",
             !selectedOption && "text-muted-foreground",
             className,
           )}
@@ -69,8 +80,10 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent
+        data-customer-storefront={tone === "customer" ? "" : undefined}
+        data-theme-static={tone === "customer" ? "" : undefined}
         align="start"
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="w-(--radix-popover-trigger-width) p-0"
       >
         <Command filter={(optionValue, search) => {
           const option = options.find((item) => item.value === optionValue);
@@ -79,7 +92,7 @@ export function Combobox({
           return haystack.includes(search.toLowerCase()) ? 1 : 0;
         }}>
           <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandList id={listId}>
             <CommandEmpty>{emptyText}</CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

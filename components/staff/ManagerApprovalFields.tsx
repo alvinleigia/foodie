@@ -1,3 +1,4 @@
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 
 export type ManagerApprovalCredentials = {
@@ -38,12 +39,12 @@ export function ManagerApprovalFields({
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="grid gap-1.5">
-          <label
+          <Label
             htmlFor={`${idPrefix}-manager-identifier`}
             className="text-xs font-medium text-stone-700"
           >
             Manager username or email
-          </label>
+          </Label>
           <Input
             id={`${idPrefix}-manager-identifier`}
             autoComplete="username"
@@ -55,12 +56,12 @@ export function ManagerApprovalFields({
           />
         </div>
         <div className="grid gap-1.5">
-          <label
+          <Label
             htmlFor={`${idPrefix}-manager-password`}
             className="text-xs font-medium text-stone-700"
           >
             Manager password
-          </label>
+          </Label>
           <Input
             id={`${idPrefix}-manager-password`}
             type="password"
