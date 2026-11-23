@@ -3027,7 +3027,7 @@ export function OrderForm({
                         ? `sticky top-0 z-20 overflow-x-auto border-y border-stone-200 px-4 py-3 shadow-sm backdrop-blur transition-[margin,padding,background-color] duration-200 ${
                             isCategoryBarStuck ? "-mx-6 bg-white/95 px-6 shadow-md" : "bg-white"
                           }`
-                        : "customer-category-navigation overflow-x-auto px-1 pt-1 pb-3"}
+                        : "customer-category-navigation overflow-x-auto px-1 py-3"}
                     >
                       <div className="flex min-w-max gap-2">
                         {visibleMenuCategories.map((category) => (
